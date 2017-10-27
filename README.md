@@ -1,7 +1,24 @@
 # AMDGPUnative
 
-[![Build Status](https://travis-ci.org/vchuravy/AMDGPUnative.jl.svg?branch=master)](https://travis-ci.org/vchuravy/AMDGPUnative.jl)
+*Support for compiling and executing native Julia kernels on AMD hardware.*
 
-[![Coverage Status](https://coveralls.io/repos/vchuravy/AMDGPUnative.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/vchuravy/AMDGPUnative.jl?branch=master)
+Installation
+------------
 
-[![codecov.io](http://codecov.io/github/vchuravy/AMDGPUnative.jl/coverage.svg?branch=master)](http://codecov.io/github/vchuravy/AMDGPUnative.jl?branch=master)
+AMDGPUnative is a experimental package, to install it use `Pkg.clone`.
+
+The package only works with Julia 0.7-dev, which **you need to have built from source**.
+
+Acknowledgment
+--------------
+
+AMDGPUnative would not have been possible without the work by Tim Besard on [CUDAnative.jl](https://github.com/JuliaGPU/CUDAnative.jl)
+and [LLVM.jl](https://github.com/maleadt/LLVM.jl). 
+
+
+License
+-------
+
+AMDGPUnative.jl is licensed under the [MIT License](LICENSE.md). The original author is Valentin Churavy.
+
+
