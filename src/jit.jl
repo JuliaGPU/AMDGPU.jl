@@ -36,17 +36,17 @@ function irgen(func, tt)
     @nospecialize func tt
     # collect all modules of IR
     # TODO: make codegen pure
-    function hook_module_setup(ref::Ptr{Void})
+    function hook_module_setup(ref::Ptr{Nothing})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         module_setup(LLVM.Module(ref))
     end
-    function hook_raise_exception(insblock::Ptr{Void}, ex::Ptr{Void})
+    function hook_raise_exception(insblock::Ptr{Nothing}, ex::Ptr{Nothing})
         insblock = convert(LLVM.API.LLVMValueRef, insblock)
         ex = convert(LLVM.API.LLVMValueRef, ex)
         raise_exception(BasicBlock(insblock), Value(ex))
     end
     irmods = Vector{LLVM.Module}()
-    function hook_module_activation(ref::Ptr{Void})
+    function hook_module_activation(ref::Ptr{Nothing})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         push!(irmods, LLVM.Module(ref))
     end
@@ -309,7 +309,7 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cpu::String)
 
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
-        ccall(:jl_add_optimization_passes, Void,
+        ccall(:jl_add_optimization_passes, Nothing,
                 (LLVM.API.LLVMPassManagerRef, Cint),
                 LLVM.ref(pm), Base.JLOptions().opt_level)
 
@@ -401,7 +401,7 @@ function check_invocation(func, tt; kernel::Bool=false)
     # kernels can't return values
     if kernel
         rt = Base.return_types(func, tt)[1]
-        if rt != Void
+        if rt != Nothing
             throw(ArgumentError("$sig is not a valid kernel as it returns $rt"))
         end
     end

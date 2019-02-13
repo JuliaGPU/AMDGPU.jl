@@ -27,7 +27,7 @@ const jlctx = Ref{LLVM.Context}()
 function __init__()
 
     jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
-                                   cglobal(:jl_LLVMContext, Void)))
+                                   cglobal(:jl_LLVMContext, Nothing)))
 
     init_jit()
 end
