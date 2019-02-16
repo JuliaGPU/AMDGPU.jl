@@ -409,7 +409,7 @@ function main()
     @info "Destroyed queue"
 
     @check hsa_memory_free(inp[])
-    @info "Freed in argument memory buffer"
+    @info "Freed inp argument memory buffer"
 
     @check hsa_memory_free(out[])
     @info "Freed out argument memory buffer"
