@@ -43,6 +43,7 @@
 =#
 
 using CEnum
+using Setfield
 
 include("hsa_types.jl")
 include("hsa_interface.jl")
@@ -166,7 +167,6 @@ function main()
     table_1_00 = Ref{hsa_ext_finalizer_1_00_pfn_t}()
     @check hsa_system_get_extension_table(HSA_EXTENSION_FINALIZER, 1, 0,
             table_1_00)
-    @show table_1_00
 
     ref = Ptr{Nothing}(0)
     func = @cfunction(iterate_agents_cb, hsa_status_t,
@@ -206,7 +206,6 @@ function main()
     @info "Profile: $(profile[])"
 
     ext_module = Ref{hsa_ext_module_t}()
-    #ext_module = Ptr{Nothing}()
     if profile[] == HSA_PROFILE_BASE
       _ext_module = read("vector_copy_base.brig")
     else
@@ -234,10 +233,9 @@ function main()
     @info "Agent ISA Name: $name"
 
     control_directives = Ref{hsa_ext_control_directives_t}()
-    @show sizeof(control_directives)
-    #cd_arr = unsafe_wrap(Vector, reinterpret(Ptr{UInt8}, control_directives), (sizeof(control_directives),))
-    #@show cd_arr
-    # TODO: memset(&control_directives, 0, sizeof(hsa_ext_control_directives_t));
+    ccall(:memset, Cvoid,
+        (Ptr{Cvoid}, Cint, Csize_t),
+        control_directives, 0, sizeof(hsa_ext_control_directives_t))
     code_object = Ref{hsa_code_object_t}()
     @check ccall(table_1_00[].hsa_ext_program_finalize, hsa_status_t,
         (hsa_ext_program_t, hsa_isa_t, Int32, hsa_ext_control_directives_t, Cstring, hsa_code_object_type_t, Ptr{hsa_code_object_t}),
@@ -291,17 +289,19 @@ function main()
     @check (finegrained_region[].handle == typemax(UInt64)) ? HSA_STATUS_ERROR : HSA_STATUS_SUCCESS
     @info "Found a fine grained memory region"
 
-    #char* in;
     inp = Ref{Ptr{Nothing}}()
     @check hsa_memory_allocate(finegrained_region[], 1024*1024*4, inp)
     @info "Allocated argument memory for input parameter"
-    _memset!(inp, 1; len=1024*1024)
+    ccall(:memset, Cvoid,
+        (Ptr{Cvoid}, Cint, Csize_t),
+        inp[], 1, 1024*1024*4)
 
-    #char* out;
     out = Ref{Ptr{Nothing}}()
     @check hsa_memory_allocate(finegrained_region[], 1024*1024*4, out)
     @info "Allocated argument memory for output parameter"
-    _memset!(out, 0; len=1024*1024)
+    ccall(:memset, Cvoid,
+        (Ptr{Cvoid}, Cint, Csize_t),
+        out[], 0, 1024*1024*4)
 
     args = KernelArgs(inp, out)
 
@@ -326,40 +326,47 @@ function main()
     @info "Got current queue write index"
 
     # Write the aql packet at the calculated queue index address
-    _queue = unsafe_pointer_to_objref(queue[])
-    @show _queue
-    queueMask = UInt32(_queue[].size - 1)
-    dispatch_packet = Ref{hsa_kernel_dispatch_packet_t}()
-    # FIXME: dispatch_packet = &(((hsa_kernel_dispatch_packet_t*)(queue->base_address))[index&queueMask])
-
-    dispatch_packet.setup |= 1 << HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS
-    dispatch_packet.workgroup_size_x = 256
-    dispatch_packet.workgroup_size_y = 1
-    dispatch_packet.workgroup_size_z = 1
-    dispatch_packet.grid_size_x = 1024*1024
-    dispatch_packet.grid_size_y = 1
-    dispatch_packet.grid_size_z = 1
-    dispatch_packet.completion_signal = signal
-    dispatch_packet.kernel_object = kernel_object[]
-    dispatch_packet.kernarg_address = kernarg_address
-    dispatch_packet.private_segment_size = private_segment_size
-    dispatch_packet.group_segment_size = group_segment_size
-
     header = Ref{UInt16}(0)
-    header[] |= HSA_FENCE_SCOPE_SYSTEM << HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE
-    header[] |= HSA_FENCE_SCOPE_SYSTEM << HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE
-    header[] |= HSA_PACKET_TYPE_KERNEL_DISPATCH << HSA_PACKET_HEADER_TYPE
-
+    header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
+    header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE)
+    header[] |= Int(HSA_PACKET_TYPE_KERNEL_DISPATCH) << Int(HSA_PACKET_HEADER_TYPE)
     # FIXME: __atomic_store_n((uint16_t*)(&dispatch_packet->header), header, __ATOMIC_RELEASE);
 
+    dispatch_packet = Ref{hsa_kernel_dispatch_packet_t}()
+    _packet = dispatch_packet[]
+    @set! _packet.header = header[]
+    @set! _packet.setup |= 1 << Int(HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
+    @set! _packet.workgroup_size_x = 256
+    @set! _packet.workgroup_size_y = 1
+    @set! _packet.workgroup_size_z = 1
+    @set! _packet.grid_size_x = 1024*1024
+    @set! _packet.grid_size_y = 1
+    @set! _packet.grid_size_z = 1
+    @set! _packet.completion_signal = signal[]
+    @set! _packet.kernel_object = kernel_object[]
+    @set! _packet.kernarg_address = kernarg_address[]
+    @set! _packet.private_segment_size = private_segment_size[]
+    @set! _packet.group_segment_size = group_segment_size[]
+    dispatch_packet = Ref{hsa_kernel_dispatch_packet_t}(_packet)
+
+    _queue = unsafe_load(queue[])
+    queueMask = UInt32(_queue.size - 1)
+    baseaddr_ptr = Ptr{hsa_kernel_dispatch_packet_t}(_queue.base_address)
+    baseaddr_ptr += sizeof(hsa_kernel_dispatch_packet_t) * (index & queueMask)
+    dispatch_packet_ptr = Base.unsafe_convert(Ptr{hsa_kernel_dispatch_packet_t}, dispatch_packet)
+    unsafe_copyto!(baseaddr_ptr, dispatch_packet_ptr, 1)
+
     # Increment the write index and ring the doorbell to dispatch the kernel
-    @check hsa_queue_store_write_index_relaxed(queue, index+1)
-    @check hsa_signal_store_relaxed(queue.doorbell_signal, index)
+    hsa_queue_store_write_index_relaxed(queue[], index+1)
+    hsa_signal_store_relaxed(_queue.doorbell_signal, index)
     @info "Dispatched kernel"
+    sleep(1)
+    @info "Slept"
 
     # Wait on the dispatch completion signal until the kernel is finished
     value = Ref{hsa_signal_value_t}()
     value[] = hsa_signal_wait_acquire(signal[], HSA_SIGNAL_CONDITION_LT, 1, UINT64_MAX, HSA_WAIT_STATE_BLOCKED)
+    @info "Kernel finished"
 
     # Validate the data in the output buffer
     valid = true
