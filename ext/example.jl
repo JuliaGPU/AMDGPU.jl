@@ -56,8 +56,8 @@ struct __attribute__ ((aligned(16))) args_t {
 } args;
 =#
 struct KernelArgs
-    inp
-    out
+    inp::Ptr{Cvoid}
+    out::Ptr{Cvoid}
 end
 
 global const SELECTED_AGENT = Ref{hsa_agent_t}()
@@ -303,7 +303,7 @@ function main()
         (Ptr{Cvoid}, Cint, Csize_t),
         out[], 0, 1024*1024*4)
 
-    args = KernelArgs(inp, out)
+    args = KernelArgs(inp[], out[])
 
     # Find a memory region that supports kernel arguments
     kernarg_region = newref!(Ref{hsa_region_t}, typemax(UInt64))
@@ -360,19 +360,25 @@ function main()
     hsa_queue_store_write_index_relaxed(queue[], index+1)
     hsa_signal_store_relaxed(_queue.doorbell_signal, index)
     @info "Dispatched kernel"
-    sleep(1)
-    @info "Slept"
 
     # Wait on the dispatch completion signal until the kernel is finished
     value = Ref{hsa_signal_value_t}()
-    value[] = hsa_signal_wait_acquire(signal[], HSA_SIGNAL_CONDITION_LT, 1, UINT64_MAX, HSA_WAIT_STATE_BLOCKED)
+    value[] = hsa_signal_wait_acquire(signal[], HSA_SIGNAL_CONDITION_LT, 1, typemax(UInt64), HSA_WAIT_STATE_BLOCKED)
     @info "Kernel finished"
 
     # Validate the data in the output buffer
     valid = true
     fail_index = 0
+    inp_ptr = Base.unsafe_convert(Ptr{UInt8}, inp[])
+    out_ptr = Base.unsafe_convert(Ptr{UInt8}, out[])
     for i = 1:(1024*1024)
-        if out[i] != in[i]
+        _inp = unsafe_load(inp_ptr, i)
+        _out = unsafe_load(out_ptr, i)
+        if i == 1
+            @show _inp
+            @show _out
+        end
+        if _out != _inp
             fail_index = i
             valid = false
             break
@@ -387,25 +393,25 @@ function main()
     end
 
     # Clean-up time!
-    @check hsa_memory_free(kernarg_address)
+    @check hsa_memory_free(kernarg_address[])
     @info "Freed kernel argument memory buffer"
 
-    @check hsa_signal_destroy(signal)
+    @check hsa_signal_destroy(signal[])
     @info "Destroyed signal"
 
-    @check hsa_executable_destroy(executable)
+    @check hsa_executable_destroy(executable[])
     @info "Destroyed executable"
 
-    @check hsa_code_object_destroy(code_object)
+    @check hsa_code_object_destroy(code_object[])
     @info "Destroyed code object"
 
-    @check hsa_queue_destroy(queue)
+    @check hsa_queue_destroy(queue[])
     @info "Destroyed queue"
 
-    @check hsa_memory_free(in)
+    @check hsa_memory_free(inp[])
     @info "Freed in argument memory buffer"
 
-    @check hsa_memory_free(out)
+    @check hsa_memory_free(out[])
     @info "Freed out argument memory buffer"
 
     @check hsa_shut_down()
