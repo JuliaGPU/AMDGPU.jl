@@ -36,17 +36,17 @@ function irgen(func, tt)
     @nospecialize func tt
     # collect all modules of IR
     # TODO: make codegen pure
-    function hook_module_setup(ref::Ptr{Void})
+    function hook_module_setup(ref::Ptr{Nothing})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         module_setup(LLVM.Module(ref))
     end
-    function hook_raise_exception(insblock::Ptr{Void}, ex::Ptr{Void})
+    function hook_raise_exception(insblock::Ptr{Nothing}, ex::Ptr{Nothing})
         insblock = convert(LLVM.API.LLVMValueRef, insblock)
         ex = convert(LLVM.API.LLVMValueRef, ex)
         raise_exception(BasicBlock(insblock), Value(ex))
     end
     irmods = Vector{LLVM.Module}()
-    function hook_module_activation(ref::Ptr{Void})
+    function hook_module_activation(ref::Ptr{Nothing})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         push!(irmods, LLVM.Module(ref))
     end
@@ -59,12 +59,12 @@ function irgen(func, tt)
                                 module_activation=hook_module_activation,
                                 raise_exception=hook_raise_exception)
     let irmod = parse(LLVM.Module,
-                      Base._dump_function(func, tt,
+                      InteractiveUtils._dump_function(func, tt,
                                           #=native=#false, #=wrapper=#false, #=strip=#false,
                                           #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                          params),
+                                          #=debuginfo=#:default, params),
                       jlctx[])
-        unshift!(irmods, irmod)
+        pushfirst!(irmods, irmod)
     end
 
     # FIXME: Julia doesn't honor the module_setup hook, and module_activation isn't called
@@ -129,7 +129,7 @@ function add_entry!(mod::LLVM.Module, func, tt; kernel::Bool=false)
         @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
 
         # filter out ghost types, which don't occur in the LLVM function signatures
-        julia_types = filter(dt->!isghosttype(dt), tt.parameters)
+        julia_types = filter(dt->!isghosttype(dt), [tt.parameters...,])
 
         # generate the wrapper function type & def
         function wrapper_type(julia_t, codegen_t)
@@ -309,7 +309,7 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cpu::String)
 
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
-        ccall(:jl_add_optimization_passes, Void,
+        ccall(:jl_add_optimization_passes, Nothing,
                 (LLVM.API.LLVMPassManagerRef, Cint),
                 LLVM.ref(pm), Base.JLOptions().opt_level)
 
@@ -338,7 +338,7 @@ function mcgen(mod::LLVM.Module, func::LLVM.Function, cpu::String;
 
     InitializeAMDGPUAsmPrinter()
     # TODO AMDGPU support ELF object file output
-    return convert(String, emit(tm, mod, LLVM.API.LLVMAssemblyFile))
+    return String(emit(tm, mod, LLVM.API.LLVMAssemblyFile))
 end
 
 # Compile a function to PTX, returning the assembly and an entry point.
@@ -395,13 +395,13 @@ function check_invocation(func, tt; kernel::Bool=false)
 
     # emulate some of the specsig logic from codegen.cppto detect non-native CC functions
     # TODO: also do this for device functions (#87)
-    isconcrete(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
+    isconcretetype(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
     m.isva && throw(ArgumentError("invalid device function $sig: is a varargs function"))
 
     # kernels can't return values
     if kernel
         rt = Base.return_types(func, tt)[1]
-        if rt != Void
+        if rt != Nothing
             throw(ArgumentError("$sig is not a valid kernel as it returns $rt"))
         end
     end

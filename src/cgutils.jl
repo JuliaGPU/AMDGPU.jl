@@ -2,7 +2,7 @@
 
 # how to map primitive Julia types to LLVM data types
 const llvmtypes = Dict{Type,Symbol}(
-    Void    => :void,
+    Nothing => :void,
     Int8    => :i8,
     Int16   => :i16,
     Int32   => :i32,
@@ -18,7 +18,7 @@ const LLVMTypes = Union{keys(llvmtypes)...}     # for dispatch
 
 # the inverse, ie. which Julia types map a given LLVM types
 const jltypes = Dict{Symbol,Type}(
-    :void   => Void,
+    :void   => Nothing,
     :i8     => Int8,
     :i16    => Int16,
     :i32    => Int32,
@@ -147,7 +147,7 @@ end
 
 # call an LLVM function, given its return (Julia) type, a tuple-type for the arguments,
 # and an expression yielding a tuple of the actual argument values.
-function call_llvmf(llvmf::LLVM.Function, ret::Type=Void, params::Type=Tuple{},
+function call_llvmf(llvmf::LLVM.Function, ret::Type=Nothing, params::Type=Tuple{},
                     args::Expr=:())
     quote
         Base.@_inline_meta

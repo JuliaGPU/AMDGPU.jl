@@ -2,8 +2,9 @@ __precompile__(false)
 
 module AMDGPUnative
 
-using LLVM
+using LLVM, LLVM.Interop
 import CUDAapi: @debug, @trace
+using InteractiveUtils
 
 include("cgutils.jl")
 # TODO
@@ -27,7 +28,7 @@ const jlctx = Ref{LLVM.Context}()
 function __init__()
 
     jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
-                                   cglobal(:jl_LLVMContext, Void)))
+                                   cglobal(:jl_LLVMContext, Nothing)))
 
     init_jit()
 end
