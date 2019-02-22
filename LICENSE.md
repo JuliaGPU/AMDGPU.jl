@@ -1,8 +1,5 @@
 Copyright © 2019 Julian P. Samaroo
 
-The file ext/example.jl is licensed under:
-The University of Illinois/NCSA Open Source License (NCSA)
-
 HSARuntime.jl is licensed under the MIT "Expat" license:
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
