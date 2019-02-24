@@ -66,6 +66,7 @@ function find_roc_paths()
     paths = map(Base.Filesystem.abspath, paths)
     push!(paths, "/opt/rocm/hsa/lib") # shim for Ubuntu rocm packages...
     paths = filter(isdir, paths)
+    @show paths
     return paths
 end
 
@@ -73,6 +74,7 @@ function find_hsa_library(lib, dirs)
     for dir in dirs
         files = readdir(dir)
         for file in files
+            @info "$file: $(startswith(basename(file), lib * ".so"))"
             if startswith(basename(file), lib * ".so")
                 return joinpath(dir, file)
             end
