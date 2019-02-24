@@ -5,6 +5,7 @@ version = "0.0.1"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 
 [extras]

@@ -1,14 +1,28 @@
 module HSARuntime
 
+# copied from CUDAdrv/src/CUDAdrv.jl
+const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
+isfile(ext) || error("HSARuntime.jl has not been built, please run Pkg.build(\"HSARuntime\").")
+include(ext)
+if !configured
+    # default (non-functional) values for critical variables,
+    # making it possible to _load_ the package at all times.
+    const libhsaruntime_version = v"0.0"
+    const libhsaruntime_vendor = "none"
+    const libhsaruntime_path = nothing
+end
+
 ### Imports ###
 
 using CEnum
 using Setfield
+using Libdl
 
 ### Exports ###
 
 export HSAAgent, HSAQueue, HSAExecutable, HSAKernel, HSAArray, HSAKernelArgs
 export get_agents, name, profile, isas, launch
+export get_default_agent
 
 ### HSA Runtime Wrapper ###
 
@@ -24,7 +38,8 @@ end
 macro check(ex::Expr)
     repr_ex = repr(ex)
     quote
-        println("Check: ", $repr_ex)
+        # TODO: Shut this up unless loglevel is Debug
+        println("Checking: ", $repr_ex)
         check($(esc(ex)))
     end
 end
@@ -361,6 +376,7 @@ end
 get_agents(kind::Symbol) =
     filter(agent->device_type(agent)==kind, get_agents())
 
+get_default_agent() = DEFAULT_AGENT[]
 function set_default_agent!(kind::Symbol)
     DEFAULT_AGENT[] = first(get_agents(kind))
 end
@@ -465,9 +481,13 @@ function Base.wait(signal::HSASignal)
                                       HSA_WAIT_STATE_BLOCKED)
 end
 
-# FIXME: Change this back to __init__()
-function init()
-    # TODO: Not sure if this is correct
+function __init__()
+    configured || return
+
+    # Make sure we load the library found by the last `] build`
+    # TODO: Should we `dlopen` here to make sure the library is still there?
+    push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
+
     # NOTE: We want to always be able to load the package, regardless of
     # whether HSA libraries are found (just like the CUDA* packages)
     @check hsa_init()
