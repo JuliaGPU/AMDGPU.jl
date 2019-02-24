@@ -20,9 +20,9 @@ using Libdl
 
 ### Exports ###
 
-export HSAAgent, HSAQueue, HSAExecutable, HSAKernel, HSAArray, HSAKernelArgs
-export get_agents, name, profile, get_first_isa, launch
-export get_default_agent
+export HSAAgent, HSAQueue, HSAExecutable, HSAKernelInstance, HSAArray, HSASignal
+export get_agents, name, profile, get_first_isa, launch!
+export get_default_agent, get_default_queue
 
 ### HSA Runtime Wrapper ###
 
@@ -62,21 +62,23 @@ mutable struct HSAQueue
 end
 
 mutable struct HSAExecutable
+    agent::HSAAgent
     executable::Ref{hsa_executable_t}
+    code_object::Ref{hsa_code_object_t}
+    data::Vector{UInt8}
 end
 
-mutable struct HSAKernel
+mutable struct HSAKernelInstance{T<:Tuple}
     agent::HSAAgent
+    exe::HSAExecutable
     sym::String
+    args::T
+    kernarg_address::Ref{Ptr{Nothing}}
 end
 
 mutable struct HSAArray{T,N} <: AbstractArray{T,N}
     size::Dims{N}
     handle::Ref{Ptr{Cvoid}}
-end
-
-mutable struct HSAKernelArgs
-    # FIXME
 end
 
 mutable struct HSASignal
@@ -86,6 +88,7 @@ end
 ### Constants ###
 
 const DEFAULT_AGENT = Ref{HSAAgent}()
+const DEFAULT_QUEUES = IdDict{HSAAgent,HSAQueue}()
 
 ### @cfunction Callbacks ###
 
@@ -161,23 +164,14 @@ function HSAQueue(agent::HSAAgent)
 end
 function HSASignal()
     signal = HSASignal(Ref{hsa_signal_t}())
-    hsa_signal_create(1, 0, C_NULL, signal.signal[])
+    hsa_signal_create(1, 0, C_NULL, signal.signal)
     finalizer(signal) do signal
         @check hsa_signal_destroy(signal.signal[])
     end
     return signal
 end
-function HSAKernelArgs(args...)
-    args = HSAKernelArgs(args)
-    finalizer(args) do args
-        # FIXME
-        @check hsa_memory_free(args.kernarg_address[])
-    end
-    return args
-end
-function HSAExecutable(agent::HSAAgent, path::String)
-    agent = agent.agent
-
+function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String)
+    #=
     support = Ref{Bool}(false)
     @check hsa_system_extension_supported(HSA_EXTENSION_FINALIZER, 1, 0,
             support)
@@ -199,8 +193,8 @@ function HSAExecutable(agent::HSAAgent, path::String)
     @check hsa_agent_get_info(agent, HSA_AGENT_INFO_PROFILE, profile)
 
     ext_module = Ref{hsa_ext_module_t}()
-    _ext_module = read(path)
-    ext_module[] = reinterpret(Ptr{hsa_ext_module_t}, pointer(_ext_module))
+    exe_data = Array{UInt8}(data)
+    ext_module[] = reinterpret(Ptr{hsa_ext_module_t}, pointer(exe_data))
 
     program = Ref{hsa_ext_program_t}()
     @check ccall(table_1_00[].hsa_ext_program_create, hsa_status_t,
@@ -236,8 +230,21 @@ function HSAExecutable(agent::HSAAgent, path::String)
 
     @check hsa_executable_load_code_object(executable[], agent, code_object[], "")
     @check hsa_executable_freeze(executable[], "")
+    =#
+    # FIXME
+    code_object = Ref{hsa_code_object_t}(hsa_code_object_t(0))
+    @check hsa_code_object_deserialize(data, sizeof(data), symbol, code_object)
+    @assert code_object[].handle != 0
 
-    exe = HSAExecutable(agent, executable)
+    executable = Ref{hsa_executable_t}()
+    @check hsa_executable_create(HSA_PROFILE_FULL, HSA_EXECUTABLE_STATE_UNFROZEN, C_NULL, executable)
+    @show "2"
+    @check hsa_executable_load_code_object(executable[], agent.agent, code_object[], C_NULL)
+    @show "3"
+    @check hsa_executable_freeze(executable[], "")
+    @show "4"
+
+    exe = HSAExecutable(agent, executable, code_object, data)
     finalizer(exe) do exe
         @check hsa_executable_destroy(exe.executable[])
         @check hsa_code_object_destroy(exe.code_object[])
@@ -245,10 +252,9 @@ function HSAExecutable(agent::HSAAgent, path::String)
     return exe
 end
 
-function HSAKernel(agent::HSAAgent, exe::HSAExecutable, symbol::String)
-    executable = exe.executable
+function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, args::Tuple)
     exec_symbol = Ref{hsa_executable_symbol_t}()
-    @check hsa_executable_get_symbol(executable[], C_NULL, "&__vector_copy_kernel", agent, 0, exec_symbol)
+    @check hsa_executable_get_symbol(exe.executable[], C_NULL, symbol, agent.agent, 0, exec_symbol)
 
     kernel_object = Ref{UInt64}(0)
     @check hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT, kernel_object)
@@ -264,8 +270,6 @@ function HSAKernel(agent::HSAAgent, exe::HSAExecutable, symbol::String)
 
     finegrained_region = get_region(agent, :finegrained)
 
-    args = KernelArgs(inp[], out[])
-
     # Find a memory region that supports kernel arguments
     kernarg_region = newref!(Ref{hsa_region_t}, typemax(UInt64))
     func = @cfunction(get_kernarg_memory_region_cb, hsa_status_t,
@@ -280,7 +284,11 @@ function HSAKernel(agent::HSAAgent, exe::HSAExecutable, symbol::String)
         (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
         kernarg_address[], Ref(args), sizeof(args))
 
-    # FIXME: Return HSAKernel
+    kernel = HSAKernelInstance(agent, exe, symbol, args, kernarg_address)
+    finalizer(kernel) do kernel
+        @check hsa_memory_free(kernel.kernarg_address[])
+    end
+    return kernel
 end
 
 # TODO: Support non-isbitstype allocations
@@ -337,13 +345,13 @@ Base.fill!(arr::HSAArray{T,N}, value::T) where {T,N} =
     ccall(:memset, Cvoid,
         (Ptr{Cvoid}, Cint, Csize_t),
         arr.handle[], 1, 1024*1024*4)
-function Base.getindex(arr::HSAArray{T,N}, idxs...) where {T,N}
-    # FIXME: The index of the thing
-    elsz = sizeof(T)
-    # FIXME: return unsafe_load(arr.handle[], 
+@inline function Base.getindex(arr::HSAArray{T,N}, idx) where {T,N}
+    return T(1)
+    #return unsafe_load(arr.handle[], idx*sizeof(T))
 end
-function Base.setindex!(arr::HSAArray{T,N}, value::T, idxs...) where {T,N}
-    # FIXME: The index of the thing
+@inline function Base.setindex!(arr::HSAArray{T,N}, value::T, idx) where {T,N}
+    return nothing
+    #unsafe_store!(arr.handle[], value, idx*sizeof(T));
 end
 
 function Base.show(io::IO, arr::HSAArray)
@@ -385,6 +393,14 @@ function set_default_agent!(kind::Symbol)
     DEFAULT_AGENT[] = first(get_agents(kind))
 end
 set_default_agent!() = set_default_agent!(:gpu)
+
+"Gets the default queue for an agent, creating it if necessary"
+function get_default_queue(agent::HSAAgent)
+    queue = get!(DEFAULT_QUEUES, agent, HSAQueue(agent))
+    return queue
+end
+get_default_queue() =
+    get_default_queue(get_default_agent())
 
 function name(agent::HSAAgent)
     # TODO: Get name length first!
@@ -436,13 +452,14 @@ function get_region(agent::HSAAgent, kind::Symbol)
     return region
 end
 
-function launch!(queue::HSAQueue, kernel::HSAKernel, args::HSAKernelArgs,
+function launch!(queue::HSAQueue, kernel::HSAKernelInstance,
                  signal::HSASignal; workgroup_size=nothing, grid_size=nothing)
     @assert workgroup_size !== nothing "Must specify workgroup_size kwarg"
     @assert grid_size !== nothing "Must specify grid_size kwarg"
 
     queue = queue.queue
     signal = signal.signal
+    args = kernel.args
 
     # Obtain the current queue write index
     index = hsa_queue_load_write_index_relaxed(queue[])
