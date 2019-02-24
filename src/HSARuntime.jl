@@ -21,7 +21,7 @@ using Libdl
 ### Exports ###
 
 export HSAAgent, HSAQueue, HSAExecutable, HSAKernel, HSAArray, HSAKernelArgs
-export get_agents, name, profile, isas, launch
+export get_agents, name, profile, get_first_isa, launch
 export get_default_agent
 
 ### HSA Runtime Wrapper ###
@@ -39,7 +39,7 @@ macro check(ex::Expr)
     repr_ex = repr(ex)
     quote
         # TODO: Shut this up unless loglevel is Debug
-        println("Checking: ", $repr_ex)
+        #println("Checking: ", $repr_ex)
         check($(esc(ex)))
     end
 end
@@ -89,11 +89,9 @@ const DEFAULT_AGENT = Ref{HSAAgent}()
 
 ### @cfunction Callbacks ###
 
-function agent_iterate_isas_cb(isa::hsa_isa_t, data)
-    name = repeat(" ", 64)
-    @check hsa_isa_get_info_alt(isa, HSA_ISA_INFO_NAME, name)
-
-    return HSA_STATUS_SUCCESS
+function agent_iterate_isas_cb(isa::hsa_isa_t, ptr::Ptr{hsa_isa_t})
+    unsafe_store!(ptr, isa)
+    return HSA_STATUS_INFO_BREAK
 end
 
 function iterate_agents_cb(agent::hsa_agent_t, agents)
@@ -348,10 +346,16 @@ function Base.setindex!(arr::HSAArray{T,N}, value::T, idxs...) where {T,N}
     # FIXME: The index of the thing
 end
 
+function Base.show(io::IO, arr::HSAArray)
+    print(io, "HSAArray: ")
+    # FIXME: Reinterpret to Array{T,N} and show
+    #Base.show(io, 
+end
+
 ### Methods ###
 
 function Base.show(io::IO, agent::HSAAgent)
-    println(io, "HSAAgent($(agent.agent)): Name=$(name(agent)), Type=$(device_type(agent))")
+    print(io, "HSAAgent($(agent.agent)): Name=$(name(agent)), Type=$(device_type(agent))")
 end
 
 function get_agents()
@@ -406,12 +410,20 @@ function device_type(agent::HSAAgent)
     end
 end
 
-# FIXME
-function isas(agent::HSAAgent)
-    ref = Ptr{Nothing}(0)
+# TODO: Get all ISAs
+function get_first_isa(agent::HSAAgent)
+    isa = Ref{hsa_isa_t}()
     func = @cfunction(agent_iterate_isas_cb, hsa_status_t,
-        (hsa_isa_t, Ref{Nothing}))
-    @check hsa_agent_iterate_isas(agent, func, ref)
+        (hsa_isa_t, Ptr{hsa_isa_t}))
+    ret = hsa_agent_iterate_isas(agent.agent, func, isa)
+    @assert ret == HSA_STATUS_INFO_BREAK "Failed to find an agent ISA"
+
+    len = Ref{Cuint}(0)
+    @check hsa_isa_get_info_alt(isa[], HSA_ISA_INFO_NAME_LENGTH, len)
+    name = repeat(" ", len[])
+    @check hsa_isa_get_info_alt(isa[], HSA_ISA_INFO_NAME, name)
+    isa_name = string(rstrip(last(split(name, "-")), '\0'))
+    return isa_name
 end
 
 function get_region(agent::HSAAgent, kind::Symbol)

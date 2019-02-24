@@ -53,6 +53,9 @@ function hsa_agent_get_info(agent, attribute, value::Ref{T}) where T
     ccall((:hsa_agent_get_info, "libhsa-runtime64"), hsa_status_t, (hsa_agent_t, hsa_agent_info_t, Ptr{T}), agent, attribute, value)
 end
 
+function hsa_isa_get_info_alt(isa, attribute, value::Ref{T}) where T
+    ccall((:hsa_isa_get_info_alt, "libhsa-runtime64"), hsa_status_t, (hsa_isa_t, hsa_isa_info_t, Ptr{T}), isa, attribute, value)
+end
 function hsa_isa_get_info_alt(isa, attribute, value::String)
     ccall((:hsa_isa_get_info_alt, "libhsa-runtime64"), hsa_status_t, (hsa_isa_t, hsa_isa_info_t, Cstring), isa, attribute, value)
 end
