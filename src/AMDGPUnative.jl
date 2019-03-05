@@ -1,9 +1,6 @@
-__precompile__(false)
-
 module AMDGPUnative
 
 using LLVM, LLVM.Interop
-import CUDAapi: @debug, @trace
 using InteractiveUtils
 
 include("cgutils.jl")

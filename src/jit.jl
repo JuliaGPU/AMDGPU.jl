@@ -356,7 +356,7 @@ function compile_function(func, tt, cpu::String; kernel::Bool=true)
     # generate LLVM IR
     mod = irgen(func, tt)
     entry = add_entry!(mod, func, tt; kernel=kernel)
-    @trace("Module entry point: ", LLVM.name(entry))
+    @info("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary
     # TODO: should be more find-grained -- only matching functions actually in this libdevice
