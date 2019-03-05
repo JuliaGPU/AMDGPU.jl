@@ -2,12 +2,15 @@
 
 *Support for compiling and executing native Julia kernels on AMD hardware.*
 
+NOTE:
+-----
+
+This is an experimental package, not ready for usage and subject to change at any time. Contributions are welcomed, but here be dragons
+
 Installation
 ------------
 
 AMDGPUnative is a experimental package, to install it use `Pkg.clone`.
-
-The package only works with Julia 0.7-dev, which **you need to have built from source**.
 
 Acknowledgment
 --------------
@@ -19,6 +22,5 @@ and [LLVM.jl](https://github.com/maleadt/LLVM.jl).
 License
 -------
 
-AMDGPUnative.jl is licensed under the [MIT License](LICENSE.md). The original author is Valentin Churavy.
-
+AMDGPUnative.jl is licensed under the [MIT License](LICENSE.md).
 
