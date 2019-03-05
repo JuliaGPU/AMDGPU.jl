@@ -1,6 +1,8 @@
 The AMDGPUnative.jl package is licensed under the MIT "Expat" License:
 
-> Copyright (c) 2017: Valentin Churavy.
+> Copyright &copy; 2013: Dahua Lin
+> Copyright &copy; 2014-2017: Tim Besard, and other contributors
+> Copyright &copy; 2017-2019: Tim Besard, Valentin Churavy and other contributors .
 >
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal
