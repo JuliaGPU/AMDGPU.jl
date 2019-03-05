@@ -1,3 +1,2 @@
-julia 0.7.0-DEV
+julia 1.0.0
 LLVM
-CUDAapi

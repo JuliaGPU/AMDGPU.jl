@@ -1,0 +1,11 @@
+name = "AMDGPUnative"
+uuid = "12f4821f-d7ee-5ba6-b76b-566925c5fcc5"
+
+[deps]
+LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
