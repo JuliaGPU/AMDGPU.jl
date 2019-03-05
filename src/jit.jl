@@ -184,7 +184,7 @@ function add_entry!(mod::LLVM.Module, func, tt; kernel::Bool=false)
                         append!(candidate_uses, collect(uses(param)))
                     end
                     while !isempty(candidate_uses)
-                        usepair = shift!(candidate_uses)
+                        usepair = popfirst!(candidate_uses)
                         inst = user(usepair)
 
                         md = metadata(inst)
