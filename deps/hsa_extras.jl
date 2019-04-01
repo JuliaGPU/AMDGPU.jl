@@ -59,3 +59,11 @@ end
 function hsa_isa_get_info_alt(isa, attribute, value::String)
     ccall((:hsa_isa_get_info_alt, "libhsa-runtime64"), hsa_status_t, (hsa_isa_t, hsa_isa_info_t, Cstring), isa, attribute, value)
 end
+
+function hsa_executable_symbol_get_info(executable_symbol, attribute, value::String)
+    ccall((:hsa_executable_symbol_get_info, "libhsa-runtime64"), hsa_status_t, (hsa_executable_symbol_t, hsa_executable_symbol_info_t, Cstring), executable_symbol, attribute, value)
+end
+
+function hsa_memory_allocate(region, size, ref::Ref{Ptr{T}}) where T
+    ccall((:hsa_memory_allocate, "libhsa-runtime64"), hsa_status_t, (hsa_region_t, Csize_t, Ptr{Ptr{T}}), region, size, ref)
+end
