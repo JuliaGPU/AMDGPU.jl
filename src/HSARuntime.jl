@@ -426,20 +426,12 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     # Obtain the current queue write index
     index = hsa_queue_load_write_index_relaxed(queue[])
 
-    # Write the aql packet at the calculated queue index address
-    header = Ref{UInt16}(0)
-    header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
-    header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE)
-    header[] |= Int(HSA_PACKET_TYPE_KERNEL_DISPATCH) << Int(HSA_PACKET_HEADER_TYPE)
-
     # TODO: Make this less ugly
     dispatch_packet = Ref{hsa_kernel_dispatch_packet_t}()
     ccall(:memset, Cvoid,
         (Ptr{Cvoid}, Cint, Csize_t),
         dispatch_packet, 0, sizeof(dispatch_packet[]))
     _packet = dispatch_packet[]
-    @set! _packet.header = header[]
-    # FIXME: __atomic_store_n((uint16_t*)(&dispatch_packet->header), header, __ATOMIC_RELEASE);
     @set! _packet.setup = 0
     @set! _packet.setup |= 1 << Int(HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
     @set! _packet.workgroup_size_x = workgroup_size[1]
@@ -461,6 +453,20 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     baseaddr_ptr += sizeof(hsa_kernel_dispatch_packet_t) * (index & queueMask)
     dispatch_packet_ptr = Base.unsafe_convert(Ptr{hsa_kernel_dispatch_packet_t}, dispatch_packet)
     unsafe_copyto!(baseaddr_ptr, dispatch_packet_ptr, 1)
+
+    # Atomically store the header
+    atomic_store_n!(x::Ptr{UInt16}, v::UInt16) =
+        Base.llvmcall("""
+        %ptr = inttoptr i$(Sys.WORD_SIZE) %0 to i16*
+        store atomic i16 %1, i16* %ptr release, align 16
+        ret void
+        """, Cvoid, Tuple{Ptr{UInt16}, UInt16},
+        Base.unsafe_convert(Ptr{UInt16}, x), v)
+    header = Ref{UInt16}(0)
+    header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
+    header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE)
+    header[] |= Int(HSA_PACKET_TYPE_KERNEL_DISPATCH) << Int(HSA_PACKET_HEADER_TYPE)
+    atomic_store_n!(Base.unsafe_convert(Ptr{UInt16}, baseaddr_ptr), header[])
 
     # Increment the write index and ring the doorbell to dispatch the kernel
     hsa_queue_store_write_index_relaxed(queue[], index+1)
