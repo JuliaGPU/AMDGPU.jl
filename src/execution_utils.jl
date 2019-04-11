@@ -108,11 +108,13 @@ end
             kernelParams = [$(arg_ptrs...)]
 
             # link with ld.lld
+            ld_path = HSARuntime.ld_lld_path
+            @assert ld_path != "" "ld.lld was not found; cannot link kernel"
             # TODO: Do this more idiomatically
             io = open("/tmp/amdgpu-dump.o", "w")
             write(io, f.mod.data)
             close(io)
-            run(`ld.lld -shared -o /tmp/amdgpu.exe /tmp/amdgpu-dump.o`)
+            run(`$ld_path -shared -o /tmp/amdgpu.exe /tmp/amdgpu-dump.o`)
             io = open("/tmp/amdgpu.exe", "r")
             data = read(io)
             close(io)
