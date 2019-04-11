@@ -211,9 +211,11 @@ function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String)
 end
 
 function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, args::Tuple)
+    #= TODO: Make this available for debugging purposes
     func = @cfunction(iterate_exec_prog_syms_cb, hsa_status_t,
             (hsa_executable_t, hsa_agent_t, hsa_executable_symbol_t, Ptr{Cvoid}))
     @check hsa_executable_iterate_agent_symbols(exe.executable[], agent.agent, func, C_NULL)
+    =#
 
     exec_symbol = Ref{hsa_executable_symbol_t}()
     @check hsa_executable_get_symbol(exe.executable[], C_NULL, symbol, agent.agent, 0, exec_symbol)
@@ -303,21 +305,21 @@ function Array(harr::HSAArray{T,N}) where {T,N}
     return harr
 end
 
-# FIXME: Allow specifying agent
 Base.similar(arr::HSAArray{T,N}) where {T,N} =
     HSAArray(T, size(arr))
+Base.similar(agent, arr::HSAArray{T,N}) where {T,N} =
+    HSAArray(agent, T, size(arr))
 
 Base.size(arr::HSAArray) = arr.size
+Base.length(arr::HSAArray) = sum(size(arr))
 
-# TODO: Don't use memset?
-# FIXME: Fill with correct value
 function Base.fill!(arr::HSAArray{T,N}, value::T) where {T,N}
-    ccall(:memset, Cvoid,
-        (Ptr{Cvoid}, Cint, Csize_t),
-        arr.handle, 1, sizeof(arr))
+    for idx in 1:length(arr)
+        arr[idx] = value
+    end
 end
 @inline function Base.getindex(arr::HSAArray{T,N}, idx) where {T,N}
-    return unsafe_load(arr.handle, idx)
+    unsafe_load(arr.handle, idx)::T
 end
 @inline function Base.setindex!(arr::HSAArray{T,N}, value::T, idx) where {T,N}
     unsafe_store!(arr.handle, value, idx);
@@ -337,15 +339,6 @@ function get_agents()
         @check hsa_iterate_agents(func, agents)
         _agents = agents[]
     end
-    #=
-    # TODO: Remove this
-    agents = agents[]
-    _agents = HSAAgent[]
-    for idx in 1:length(agents)
-        !isassigned(agents, idx) && break
-        push!(_agents, agents[idx])
-    end
-    =#
     return _agents
 end
 get_agents(kind::Symbol) =
@@ -353,7 +346,7 @@ get_agents(kind::Symbol) =
 
 get_default_agent() = DEFAULT_AGENT[]
 function set_default_agent!(kind::Symbol)
-    DEFAULT_AGENT[] = last(get_agents(kind))
+    DEFAULT_AGENT[] = first(get_agents(kind))
 end
 set_default_agent!() = set_default_agent!(:gpu)
 
@@ -438,15 +431,15 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
     header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE)
     header[] |= Int(HSA_PACKET_TYPE_KERNEL_DISPATCH) << Int(HSA_PACKET_HEADER_TYPE)
-    # FIXME: __atomic_store_n((uint16_t*)(&dispatch_packet->header), header, __ATOMIC_RELEASE);
 
-    # TODO: Make this less bad!
+    # TODO: Make this less ugly
     dispatch_packet = Ref{hsa_kernel_dispatch_packet_t}()
     ccall(:memset, Cvoid,
         (Ptr{Cvoid}, Cint, Csize_t),
         dispatch_packet, 0, sizeof(dispatch_packet[]))
     _packet = dispatch_packet[]
     @set! _packet.header = header[]
+    # FIXME: __atomic_store_n((uint16_t*)(&dispatch_packet->header), header, __ATOMIC_RELEASE);
     @set! _packet.setup = 0
     @set! _packet.setup |= 1 << Int(HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
     @set! _packet.workgroup_size_x = workgroup_size[1]
@@ -488,11 +481,11 @@ function __init__()
 
     # Make sure we load the library found by the last `] build`
     push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
-    rtlib = dlopen("libhsa-runtime64.so")
+    #rtlib = dlopen("libhsa-runtime64.so")
 
     # Also load the debug library
     # TODO: Remove this or ensure it's available before loading
-    debuglib = dlopen("librocr_debug_agent64.so")
+    #debuglib = dlopen("librocr_debug_agent64.so")
 
     # NOTE: We want to always be able to load the package, regardless of
     # whether HSA libraries are found (just like the CUDA* packages)
