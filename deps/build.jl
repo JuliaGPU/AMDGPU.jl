@@ -99,6 +99,7 @@ function find_ld_lld()
                 vstr = String(take!(iob))
                 vstr_splits = split(vstr, ' ')
                 if VersionNumber(vstr_splits[2]) >= v"6.0.0"
+                    @info "Found useable ld.lld at $exp_ld_path"
                     return exp_ld_path
                 end
             catch
@@ -126,7 +127,7 @@ function main()
 
     config[:libhsaruntime_path] = find_hsa_library("libhsa-runtime64", roc_dirs)
     if config[:libhsaruntime_path] == nothing
-        build_error("Could not find HSA runtime library")
+        build_error("Could not find HSA runtime library.")
     end
     config[:libhsaruntime_vendor] = "AMD"
 
@@ -145,13 +146,17 @@ function main()
         build_error("Shutdown of HSA runtime failed with code $status.")
     end
 
-    config[:configured] = true
-
     # find the ld.lld program for linking kernels
     # NOTE: This isn't needed by HSARuntime.jl directly, but other packages
     # (like AMDGPUnative.jl) will want it to be available, so we find it for
     # them
-    config[:ld_lld_path] = find_ld_lld()
+    ld_path = find_ld_lld()
+    if ld_path == ""
+        build_error("Couldn't find ld.lld.")
+    end
+    config[:ld_lld_path] = ld_path
+
+    config[:configured] = true
 
 
     ## (re)generate ext.jl
