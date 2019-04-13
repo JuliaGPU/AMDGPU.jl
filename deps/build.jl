@@ -82,6 +82,33 @@ function find_hsa_library(lib, dirs)
     end
 end
 
+function find_ld_lld()
+    paths = split(get(ENV, "PATH", ""), ":")
+    paths = filter(path->path != "", paths)
+    paths = map(Base.Filesystem.abspath, paths)
+    ispath("/opt/rocm/hcc/bin/ld.lld") &&
+        push!(paths, "/opt/rocm/hcc/bin/")
+    ispath("/opt/rocm/opencl/bin/x86_64/ld.lld") &&
+        push!(paths, "/opt/rocm/opencl/bin/x86_64/")
+    for path in paths
+        exp_ld_path = joinpath(path, "ld.lld")
+        if ispath(exp_ld_path)
+            try
+                iob = IOBuffer()
+                run(pipeline(`$exp_ld_path -v`; stdout=iob))
+                vstr = String(take!(iob))
+                vstr_splits = split(vstr, ' ')
+                if VersionNumber(vstr_splits[2]) >= v"6.0.0"
+                    return exp_ld_path
+                end
+            catch
+                @warn "Failed running ld.lld in $exp_ld_path"
+            end
+        end
+    end
+    return ""
+end
+
 function main()
     ispath(config_path) && mv(config_path, previous_config_path; force=true)
     config = Dict{Symbol,Any}(:configured => false)
@@ -119,6 +146,12 @@ function main()
     end
 
     config[:configured] = true
+
+    # find the ld.lld program for linking kernels
+    # NOTE: This isn't needed by HSARuntime.jl directly, but other packages
+    # (like AMDGPUnative.jl) will want it to be available, so we find it for
+    # them
+    config[:ld_lld_path] = find_ld_lld()
 
 
     ## (re)generate ext.jl
