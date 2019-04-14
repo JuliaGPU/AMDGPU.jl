@@ -21,6 +21,7 @@ test:v1.0:
       CI_VERSION_TAG: 'v1.0'
   tags:
       - rocm
+  allow_failure: true
 
 test:v1.1:
   extends: .test
