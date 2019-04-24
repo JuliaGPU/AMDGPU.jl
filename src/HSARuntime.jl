@@ -25,7 +25,7 @@ using Libdl
 ### Exports ###
 
 export HSAAgent, HSAQueue, HSAExecutable, HSAKernelInstance, HSAArray, HSASignal
-export get_agents, name, profile, get_first_isa, launch!
+export get_agents, profile, get_first_isa, launch!
 export get_default_agent, get_default_queue
 
 ### HSA Runtime Wrapper ###
@@ -328,7 +328,7 @@ end
 ### Methods ###
 
 function Base.show(io::IO, agent::HSAAgent)
-    print(io, "HSAAgent($(agent.agent)): Name=$(name(agent)), Type=$(device_type(agent))")
+    print(io, "HSAAgent($(agent.agent)): Name=$(get_name(agent)), Type=$(device_type(agent))")
 end
 
 function get_agents()
@@ -358,7 +358,7 @@ end
 get_default_queue() =
     get_default_queue(get_default_agent())
 
-function name(agent::HSAAgent)
+function get_name(agent::HSAAgent)
     # TODO: Get name length first!
     name = repeat(" ", 64)
     @check hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_NAME, name)
