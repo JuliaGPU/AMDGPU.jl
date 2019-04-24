@@ -4,8 +4,6 @@
 # Address spaces
 #
 
-export AS, addrspace
-
 abstract type AddressSpace end
 
 module AS
