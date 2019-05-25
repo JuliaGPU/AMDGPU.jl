@@ -27,6 +27,7 @@ if AMDGPUnative.configured
             function vadd(a,b,c)
                 i = threadIdx().x
                 c[i] = a[i] + b[i]
+                sync_workgroup()
                 return nothing
             end
 
@@ -63,6 +64,7 @@ if AMDGPUnative.configured
             @test a+b ≈ c
         end
 
+        include("device/synchronization.jl")
         #include("device/codegen.jl")
         #include("device/execution.jl")
         #include("device/pointer.jl")
