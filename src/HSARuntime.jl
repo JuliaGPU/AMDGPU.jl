@@ -485,19 +485,20 @@ end
 include("memory.jl")
 
 function __init__()
+    # We want to always be able to load the package, regardless of
+    # whether HSA libraries are found (just like the CUDA* packages)
     configured || return
 
     # Make sure we load the library found by the last `] build`
     push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
-    #rtlib = dlopen("libhsa-runtime64.so")
+    # TODO: Do the same (if possible) for the debug library
 
-    # Also load the debug library
-    # TODO: Remove this or ensure it's available before loading
-    #debuglib = dlopen("librocr_debug_agent64.so")
-
-    # NOTE: We want to always be able to load the package, regardless of
-    # whether HSA libraries are found (just like the CUDA* packages)
     hsa_init() |> check
+
+    agents = get_agents(:gpu)
+    if length(agents) > 0
+        DEFAULT_AGENT[] = first(agents)
+    end
 end
 
 end
