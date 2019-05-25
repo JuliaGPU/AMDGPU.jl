@@ -94,9 +94,10 @@ function find_ld_lld()
         exp_ld_path = joinpath(path, "ld.lld")
         if ispath(exp_ld_path)
             try
-                iob = IOBuffer()
-                run(pipeline(`$exp_ld_path -v`; stdout=iob))
-                vstr = String(take!(iob))
+                tmpfile = mktemp()
+                run(pipeline(`$exp_ld_path -v`; stdout=tmpfile[1]))
+                vstr = read(tmpfile[1], String)
+                rm(tmpfile[1])
                 vstr_splits = split(vstr, ' ')
                 if VersionNumber(vstr_splits[2]) >= v"6.0.0"
                     @info "Found useable ld.lld at $exp_ld_path"
