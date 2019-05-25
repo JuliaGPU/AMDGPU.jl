@@ -3,8 +3,8 @@
 ## Requirements
 
 ### Installed
-* ROCR
-* ROCT
+* [ROCR](https://github.com/RadeonOpenCompute/ROCR-Runtime)
+* [ROCT](https://github.com/RadeonOpenCompute/ROCT-Thunk-Interface)
 * Recent Linux kernel with AMDGPU and HSA enabled
 
 ### Setup Instructions
@@ -24,6 +24,14 @@ The correct libraries in your LD_LIBRARY_PATH or standard library locations:
 In terms of Linux kernel versions, just pick the newest one you can (I'm
 running 4.20 as I type this). If building your own kernel, make sure all the
 regular AMDGPU and HSA options are enabled.
+
+You will also need `ld.lld` installed on your system (provided by LLVM/Clang);
+if you built Julia from source, you should have a copy somewhere in
+`deps/scratch/llvm-*/*/bin/` that you can add to your PATH.
+
+Once all of this is setup properly, you should be able to `] build HSARuntime`
+successfully; after that, if you have a supported GPU attached and enabled, `]
+test HSARuntime` should work exactly as you might expect.
 
 ## TODO
 * Document some key Linux kernel config options to have enabled
