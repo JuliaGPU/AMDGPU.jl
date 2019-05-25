@@ -3,6 +3,9 @@ uuid = "2c364e2c-59fb-59c3-96f3-194112e690e0"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me"]
 version = "v0.2.2"
 
+[compat]
+julia = "1.1"
+
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
