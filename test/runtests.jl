@@ -7,11 +7,9 @@ using Test
 
 const DEBUG = get(ENV, "AMDGPUNATIVE_DEBUG", false) == "1"
 
-# Set our default agent to the first GPU available
-HSARuntime.set_default_agent!(:gpu)
 agent_name = HSARuntime.get_name(get_default_agent())
 agent_isa = get_first_isa(get_default_agent())
-@info "Testing using device $name with ISA $agent_isa"
+@info "Testing using device $agent_name with ISA $agent_isa"
 
 @testset "AMDGPUnative" begin
 

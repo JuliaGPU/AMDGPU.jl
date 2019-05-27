@@ -13,9 +13,10 @@ import AMDGPUnative: AddressSpace
 
 struct Generic  <: AddressSpace end
 struct Global   <: AddressSpace end
-#struct Shared   <: AddressSpace end
-struct Constant <: AddressSpace end
+struct Region   <: AddressSpace end
 struct Local    <: AddressSpace end
+struct Constant <: AddressSpace end
+struct Private  <: AddressSpace end
 
 end
 
@@ -91,11 +92,23 @@ Base.:(+)(x::Integer, y::DevicePtr) = y + x
 
 ## memory operations
 
-Base.convert(::Type{Int}, ::Type{AS.Generic})  = 4
-Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
-#Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
-Base.convert(::Type{Int}, ::Type{AS.Constant}) = 2
-Base.convert(::Type{Int}, ::Type{AS.Local})    = 3
+@static if Base.libllvm_version < v"7.0"
+    # Old values (LLVM 6)
+    Base.convert(::Type{Int}, ::Type{AS.Private})  = 0
+    Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
+    Base.convert(::Type{Int}, ::Type{AS.Constant}) = 2
+    Base.convert(::Type{Int}, ::Type{AS.Local})    = 3
+    Base.convert(::Type{Int}, ::Type{AS.Generic})  = 4
+    Base.convert(::Type{Int}, ::Type{AS.Region})   = 5
+else
+    # New values (LLVM 7+)
+    Base.convert(::Type{Int}, ::Type{AS.Generic})  = 0
+    Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
+    Base.convert(::Type{Int}, ::Type{AS.Region})   = 2
+    Base.convert(::Type{Int}, ::Type{AS.Local})    = 3
+    Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
+    Base.convert(::Type{Int}, ::Type{AS.Private})  = 5
+end
 
 function tbaa_make_child(name::String, constant::Bool=false; ctx::LLVM.Context=JuliaContext())
     tbaa_root = MDNode([MDString("roctbaa", ctx)], ctx)
@@ -137,9 +150,9 @@ tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.n
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
         ld = load!(builder, ptr)
 
-        #if A != AS.Generic
-        #    metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(A)
-        #end
+        if A != AS.Generic
+            metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(A)
+        end
         alignment!(ld, align)
 
         ret!(builder, ld)
@@ -172,9 +185,9 @@ end
         val = parameters(llvm_f)[2]
         st = store!(builder, val, ptr)
 
-        #if A != AS.Generic
-        #    metadata(st)[LLVM.MD_tbaa] = tbaa_addrspace(A)
-        #end
+        if A != AS.Generic
+            metadata(st)[LLVM.MD_tbaa] = tbaa_addrspace(A)
+        end
         alignment!(st, align)
 
         ret!(builder)

@@ -7,7 +7,7 @@ function machine(agent::HSAAgent, triple::String)
 
     InitializeAMDGPUTargetMC()
     cpu = get_first_isa(agent) # TODO: Make this configurable
-    feat = "+xnack" # TODO: Make this configurable
+    feat = ""
     tm = TargetMachine(t, triple, cpu, feat)
     asm_verbosity!(tm, true)
 
