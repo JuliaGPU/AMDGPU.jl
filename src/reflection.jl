@@ -43,7 +43,7 @@ function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
         entry = optimize!(ctx, mod, entry)
     end
     if strip_ir_metadata
-        #strip_debuginfo!(mod)
+        strip_debuginfo!(mod)
     end
     if dump_module
         show(io, mod)
@@ -78,7 +78,7 @@ function code_gcn(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
     mod, entry = irgen(ctx)
     entry = optimize!(ctx, mod, entry)
     if strip_ir_metadata
-        #strip_debuginfo!(mod)
+        strip_debuginfo!(mod)
     end
     prepare_execution!(ctx, mod)
     gcn = mcgen(ctx, mod, entry; file_type=LLVM.API.LLVMAssemblyFile)
