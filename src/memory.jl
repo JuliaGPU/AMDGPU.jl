@@ -10,8 +10,8 @@ export Mem
 module Mem
 
 
-using HSARuntime
-import HSARuntime: @check
+using ..HSARuntime
+import HSARuntime: check, get_region, hsa_memory_allocate, hsa_memory_free
 
 
 ## buffer type
@@ -77,7 +77,7 @@ Returns a tuple of two integers, indicating respectively the free and total amou
 function info()
     free_ref = Ref{Csize_t}()
     total_ref = Ref{Csize_t}()
-    # FIXME
+    # FIXME: I'm not sure HSA has an API for this...
     return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 
@@ -152,18 +152,18 @@ function transfer end
 Allocate `bytesize` bytes of fine-grained memory.
 """
 function alloc(agent::HSAAgent, bytesize::Integer)
-    bytesize == 0 && return Buffer(C_NULL, 0, CuContext(C_NULL))
+    bytesize == 0 && return Buffer(C_NULL, 0, agent)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     region = get_region(agent, :finegrained)
-    @check hsa_memory_allocate(region[], bytesize, ptr_ref)
+    check(hsa_memory_allocate(region[], bytesize, ptr_ref))
     return Buffer(ptr_ref[], bytesize, agent)
 end
 alloc(bytesize) = alloc(get_default_agent(), bytesize)
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
-        hsa_memory_free(buf.ptr)
+        check(hsa_memory_free(buf.ptr))
     end
     return
 end

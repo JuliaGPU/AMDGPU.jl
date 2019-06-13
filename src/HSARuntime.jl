@@ -34,23 +34,34 @@ include(joinpath(@__DIR__, "..", "deps", "hsa_types.jl"))
 include(joinpath(@__DIR__, "..", "deps", "hsa_interface.jl"))
 include(joinpath(@__DIR__, "..", "deps", "hsa_extras.jl"))
 
-struct HSACallException
-    code::UInt32
+### HSA Errors ###
+
+export HSAError
+
+struct HSAError <: Exception
+    code::hsa_status_t
 end
 
-"Helper macro to check HSA call results"
-macro check(ex::Expr)
-    repr_ex = repr(ex)
-    quote
-        # TODO: Shut this up unless loglevel is Debug
-        #println("Checking: ", $repr_ex)
-        check($(esc(ex)))
-    end
+"""
+    description(err::HSAError)
+
+Gets the string description of an error code.
+"""
+function description(err::HSAError)
+    str_ref = Ref{Cstring}()
+    hsa_status_string(err.code, str_ref)
+    unsafe_string(str_ref[])
 end
+
+function Base.showerror(io::IO, err::HSAError)
+    print(io, "HSA error (code #$(Int(err.code)), $(description(err)))")
+end
+
+Base.show(io::IO, err::HSAError) = print(io, "HSAError($(Int(err.code)), $(description(err)))")
+
 function check(result)
     if result != HSA_STATUS_SUCCESS
-        @warn "HSA call failed with code: $result"
-        throw(HSACallException(result))
+        throw(HSAError(result))
     end
 end
 

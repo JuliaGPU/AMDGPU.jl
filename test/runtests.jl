@@ -45,8 +45,9 @@ if HSARuntime.configured
         @test all(isa.((arr1, arr2, arr3), Ref(HSAArray)))
         @test size(arr3) == size(arr1)
 
-        @test_broken "MD-indexing"
-        @test_broken "Broadcast"
+        @testset "API wrappers" begin
+            include("memory.jl")
+        end
     else
         @warn("No devices detected; skipping on-device tests")
     end
