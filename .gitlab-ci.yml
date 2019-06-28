@@ -1,0 +1,31 @@
+stages:
+    - test
+    - post
+
+include:
+    - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/3fbe3d2dd7288b4c91e8b7b2fbbd98b9bdeeb92a/templates/v3/common.yml'
+
+test:dev:
+  extends: .test
+  variables:
+      CI_IMAGE_TAG: 'rocm'
+      CI_VERSION_TAG: 'dev'
+  tags:
+      - rocm
+  allow_failure: true
+
+test:v1.0:
+  extends: .test
+  variables:
+      CI_IMAGE_TAG: 'rocm'
+      CI_VERSION_TAG: 'v1.0'
+  tags:
+      - rocm
+
+test:v1.1:
+  extends: .test
+  variables:
+      CI_IMAGE_TAG: 'rocm'
+      CI_VERSION_TAG: 'v1.1'
+  tags:
+      - rocm
