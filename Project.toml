@@ -1,15 +1,15 @@
 name = "HSARuntime"
 uuid = "2c364e2c-59fb-59c3-96f3-194112e690e0"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me"]
-version = "v0.2.3"
-
-[compat]
-julia = "1.1"
+version = "0.2.4"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
+
+[compat]
+julia = "1.1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
