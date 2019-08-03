@@ -671,7 +671,7 @@ const hsa_ext_program_t = hsa_ext_program_s
     HSA_EXT_PROGRAM_INFO_PROFILE = 1,
     HSA_EXT_PROGRAM_INFO_DEFAULT_FLOAT_ROUNDING_MODE = 2,
 )
-@cenum(hsa_ext_finalizer_call_convention_t{Int32},
+@cenum(hsa_ext_finalizer_call_convention_t::Int32,
     HSA_EXT_FINALIZER_CALL_CONVENTION_AUTO = -1,
 )
 
