@@ -5,12 +5,15 @@
 NOTE:
 -----
 
-This is an experimental package, not ready for usage and subject to change at any time. Contributions are welcomed, but here be dragons
+This is an experimental package, not ready for usage and subject to change at any time. Contributions are welcomed, but here be dragons.
 
 Installation
 ------------
 
 AMDGPUnative is a experimental package, to install it use `Pkg.clone`.
+
+It is recommended to use LLVM 7.0 or higher, otherwise certain features (like
+math intrinsics) are disabled.
 
 Acknowledgment
 --------------

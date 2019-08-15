@@ -59,12 +59,13 @@ function compile(ctx::CompilerContext)
                                  haskey(functions(lib), LLVM.name(f)),
                             functions(mod))
 
-    #= TODO
-    libdevice = load_libdevice(ctx.agent)
-    if need_library(libdevice)
-        link_libdevice!(ctx, mod, libdevice)
+    device_libs = load_device_libs(ctx.agent)
+    for lib in device_libs
+        if need_library(lib)
+            link_device_lib!(ctx, mod, lib)
+        end
     end
-    =#
+    link_oclc_defaults!(ctx, mod)
 
     # optimize the IR
     entry = optimize!(ctx, mod, entry)

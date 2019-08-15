@@ -35,38 +35,61 @@ const libcache = Dict{String, LLVM.Module}()
 # ROCm device library
 #
 
-function find_libdevice(agent)
-    AMDGPUnative.configured || return
-    global libdevice
+function load_device_libs(agent)
+    device_libs_path === nothing && return
 
-    if isa(libdevice, Dict)
-        # select the most recent & compatible library
-        vers = keys(AMDGPUnative.libdevice)
-        compat_vers = Set(ver for ver in vers if ver <= cap)
-        isempty(compat_vers) && error("No compatible ROCm device library available")
-        ver = maximum(compat_vers)
-        path = libdevice[ver]
-    else
-        libdevice
-    end
-end
-
-function load_libdevice(cap)
-    path = find_libdevice(cap)
-
-    get!(libcache, path) do
-        open(path) do io
-            parse(LLVM.Module, read(path), JuliaContext())
+    device_libs = LLVM.Module[]
+    bitcode_files = (
+        "hc.amdgcn.bc",
+        "hip.amdgcn.bc",
+        "irif.amdgcn.bc",
+        "ockl.amdgcn.bc",
+        "oclc_isa_version_803.amdgcn.bc", # FIXME: Load based on agent name!
+        "opencl.amdgcn.bc",
+        "ocml.amdgcn.bc",
+    )
+    for file in bitcode_files
+        ispath(joinpath(device_libs_path, file)) || continue
+        name, ext = splitext(file)
+        lib = get!(libcache, name) do
+            file_path = joinpath(device_libs_path, file)
+            open(file_path) do io
+                parse(LLVM.Module, read(file_path), JuliaContext())
+            end
         end
+        push!(device_libs, lib)
     end
+    @assert !isempty(device_libs) "No device libs detected!"
+    return device_libs
 end
 
-function link_libdevice!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
-    # override libdevice's triple and datalayout to avoid warnings
+function link_device_lib!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
+    # override device lib's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
 
     link_library!(ctx, mod, lib)
+end
+
+function link_oclc_defaults!(ctx::CompilerContext, mod::LLVM.Module)
+    # link in some defaults for OCLC knobs, to prevent undefined variable errors
+    # TODO: only link if used
+    # TODO: make these configurable
+    lib = LLVM.Module("OCLC")
+    for (name,value) in (
+            "__oclc_ISA_version"=>Int32(803),
+            "__oclc_finite_only_opt"=>Int32(0),
+            "__oclc_unsafe_math_opt"=>Int32(0),
+            "__oclc_correctly_rounded_sqrt32"=>Int32(1),
+            "__oclc_daz_opt"=>Int32(0))
+        gvtype = convert(LLVMType, typeof(value))
+        gv = GlobalVariable(lib, gvtype, name, 4)
+        init = ConstantInt(Int32(0), JuliaContext())
+        initializer!(gv, init)
+        unnamed_addr!(gv, true)
+        constant!(gv, true)
+    end
+    link!(mod, lib)
 end
 
 

@@ -3,9 +3,8 @@ const AS = AMDGPUnative.AS
 using LLVM, LLVM.Interop
 using HSARuntime
 using InteractiveUtils
+using SpecialFunctions
 using Test
-
-const DEBUG = get(ENV, "AMDGPUNATIVE_DEBUG", false) == "1"
 
 agent_name = HSARuntime.get_name(get_default_agent())
 agent_isa = get_first_isa(get_default_agent())
@@ -40,7 +39,7 @@ if AMDGPUnative.configured
             d_c = similar(d_a)
             len = prod(dims)
 
-            if DEBUG
+            @debug begin
                 @show d_a.handle
                 @show d_b.handle
                 @show d_c.handle
@@ -48,23 +47,31 @@ if AMDGPUnative.configured
                 aspace = AMDGPUnative.AS.Global
                 arrdims = ndims(a)
                 arrT = ROCDeviceArray{Float32,arrdims,aspace}
-                @info "LLVM IR"
+                @debug "LLVM IR"
                 AMDGPUnative.code_llvm(vadd, Tuple{arrT,arrT,arrT}; kernel=true)
-                @info "GCN Device Code"
+                @debug "GCN Device Code"
                 AMDGPUnative.code_gcn(vadd, Tuple{arrT,arrT,arrT}; kernel=true)
+                ""
             end
 
             @roc groupsize=len gridsize=len vadd(d_a, d_b, d_c)
-            if DEBUG
+            @debug begin
                 @show d_a
                 @show d_b
                 @show d_c
+                ""
             end
             c = Array(d_c)
             @test a+b ≈ c
         end
 
         include("device/synchronization.jl")
+        if Base.libllvm_version >= v"7.0"
+            include("device/math.jl")
+        else
+            @warn "Testing with LLVM 6; some tests will be disabled!"
+            @test_skip "Math Intrinsics"
+        end
         #include("device/codegen.jl")
         #include("device/execution.jl")
         #include("device/pointer.jl")

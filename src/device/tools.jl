@@ -22,6 +22,18 @@ const jltypes = Dict{Symbol,Type}(
     :double => Float64
 )
 
+# which Julia types map to a given ROC lib type
+const fntypes = Dict{Type,Symbol}(
+    Nothing => :void,
+    Int8    => :i8,
+    Int16   => :i16,
+    Int32   => :i32,
+    Int64   => :i64,
+    Float16 => :f16,
+    Float32 => :f32,
+    Float64 => :f64
+)
+
 # Decode an expression of the form:
 #
 #    function(arg::arg_type, arg::arg_type, ... arg::arg_type)::return_type
