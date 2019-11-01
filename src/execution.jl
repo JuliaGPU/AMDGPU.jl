@@ -1,3 +1,5 @@
+# Native execution support
+
 export @roc, rocconvert, rocfunction
 
 struct Kernel{F,TT}
@@ -6,10 +8,10 @@ struct Kernel{F,TT}
     fun::ROCFunction
 end
 
-# split keyword arguments to `@roc` into ones affecting the compiler,
-# the execution, or both
+# `split_kwargs()` segregates keyword arguments passed to `@roc` into those
+# affecting the compiler, kernel execution, or both.
 function split_kwargs(kwargs)
-    compiler_kws = [:agent, :queue]
+    compiler_kws = [:agent, :queue, :name]
     call_kws     = [:groupsize, :gridsize, :agent, :queue]
     compiler_kwargs = []
     call_kwargs = []
@@ -17,14 +19,12 @@ function split_kwargs(kwargs)
         if Meta.isexpr(kwarg, :(=))
             key,val = kwarg.args
             if isa(key, Symbol)
-                if !(key in compiler_kws) && !(key in call_kws)
-                    throw(ArgumentError("unknown keyword argument '$key'"))
-                end
                 if key in compiler_kws
                     push!(compiler_kwargs, kwarg)
-                end
-                if key in call_kws
+                elseif key in call_kws
                     push!(call_kwargs, kwarg)
+                else
+                    throw(ArgumentError("unknown keyword argument '$key'"))
                 end
             else
                 throw(ArgumentError("non-symbolic keyword '$key'"))
@@ -33,13 +33,13 @@ function split_kwargs(kwargs)
             throw(ArgumentError("non-keyword argument like option '$kwarg'"))
         end
     end
-
     return compiler_kwargs, call_kwargs
 end
 
-# assign arguments to variables, handle splatting
+# `assign_args!()` first handles splats, then assigns arguments
+# to variables
 function assign_args!(code, args)
-    # handle splatting
+    # splat handling
     splats = map(arg -> Meta.isexpr(arg, :(...)), args)
     args = map(args, splats) do arg, splat
         splat ? arg.args[1] : arg
@@ -64,31 +64,66 @@ end
 world_age() = ccall(:jl_get_tls_world_age, UInt, ())
 
 # slow lookup of local method age
-function method_age(f, tt)::UInt
-    for m in Base._methods(f, tt, 1, typemax(UInt))
-        @static if VERSION >= v"1.2.0-DEV.573"
+function method_age(f, t)::UInt
+    for m in Base._methods(f, t, 1, typemax(UInt))
+        if VERSION >= v"1.2.0-DEV.573"
             return m[3].primary_world
         else
             return m[3].min_world
         end
     end
+    tt = Base.to_tuple_type(t)
     throw(MethodError(f, tt))
 end
 
+"""
+    @roc [kwargs...] func(args...)
+
+High-level interface for executing code on a GPU. The `@roc` macro should prefix a call,
+with `func` a callable function or object that should return nothing. It will be compiled to
+a ROCm function upon first use, and to a certain extent arguments will be converted and
+managed automatically using `rocconvert`. Finally, a call to `roccall` is
+performed, scheduling a kernel launch on the current ROCm context.
+
+Several keyword arguments are supported that influence the behavior of `@roc`.
+- arguments that influence kernel compilation: see [`rocfunction`](@ref)
+- arguments that influence kernel launch: see [`AMDGPUnative.Kernel`](@ref)
+
+The underlying operations (argument conversion, kernel compilation, kernel call) can be
+performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
+kernel to determine the launch configuration. A host-side kernel launch is done as follows:
+
+    args = ...
+    GC.@preserve args begin
+        kernel_args = rocconvert.(args)
+        kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
+        kernel = rocfunction(f, kernel_tt; compilation_kwargs)
+        kernel(kernel_args...; launch_kwargs)
+    end
+
+"""  #TODO: Device-side launch currently unsupported.
 macro roc(ex...)
-    @assert length(ex) >= 1 "Not enough arguments provided"
-    call = last(ex)
+    if length(ex) > 0 && ex[1].head == :tuple
+        error("The tuple argument to @roc has been replaced by keywords: `@roc threads=... fun(args...)`")
+    end
+    call = ex[end]
     kwargs = ex[1:end-1]
-    @assert call.head == :call "Invalid kernel specification"
+
+    # destructure the kernel call
+    if call.head != :call
+        throw(ArgumentError("second argument to @roc should be a function call"))
+    end
     f = call.args[1]
     args = call.args[2:end]
+
     code = quote end
     compiler_kwargs, call_kwargs = split_kwargs(kwargs)
     vars, var_exprs = assign_args!(code, args)
+
     push!(code.args,
         quote
             GC.@preserve $(vars...) begin
-                local kernel_args = rocconvert.(($(var_exprs...),))
+                local kernel_args = map(rocconvert, ($(var_exprs...),))
                 local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
                 local agent = get_default_agent()
                 local kernel = rocfunction(agent, $(esc(f)), kernel_tt;
@@ -115,7 +150,6 @@ Base.setindex!(r::ROCRefValue{T}, value::T) where T = (r.x = value;)
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = ROCRefValue(adapt(to, r[]))
 
 ## interop with HSAArray
-
 function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::HSAArray{T,N}) where {T,N}
     ROCDeviceArray{T,N,AS.Global}(a.size, DevicePtr{T,AS.Global}(a.handle))
 end
@@ -123,7 +157,6 @@ end
 Adapt.adapt_storage(::Adaptor, xs::HSAArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, xs)
 
-# convenience function
 """
     rocconvert(x)
 
@@ -155,7 +188,7 @@ The output of this function is automatically cached, i.e. you can simply call
 generated automatically, when the function changes, or when different types or
 keyword arguments are provided.
 """
-@generated function rocfunction(agent::HSAAgent, f::Core.Function, tt::Type=Tuple{}; kwargs...)
+@generated function rocfunction(agent::HSAAgent, f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
     tt = Base.to_tuple_type(tt.parameters[1])
     sig = Base.signature_type(f, tt)
     t = Tuple(tt.parameters)
@@ -172,16 +205,19 @@ keyword arguments are provided.
             age = method_age(f, $t)
             agecache[key] = age
         end
-        key = hash(age, key)
 
-        # compile the function
+        # generate a key for indexing the compilation cache
+        key = hash(age, key)
+        key = hash(name, key)
         key = hash(kwargs, key)
         for nf in 1:nfields(f)
             # mix in the values of any captured variable
             key = hash(getfield(f, nf), key)
         end
+
+        # compile the function
         if !haskey(compilecache, key)
-            mod, fun = compile(agent, f, tt; kwargs...)
+            fun, mod = compile(:roc, agent, f, tt; name=name, kwargs...)
             kernel = Kernel{f,tt}(agent, mod, fun)
             compilecache[key] = kernel
         end
@@ -189,10 +225,13 @@ keyword arguments are provided.
         return compilecache[key]::Kernel{f,tt}
     end
 end
+
 rocfunction(f::Core.Function, tt::Type=Tuple{}; kwargs...) =
     rocfunction(get_default_agent(), f, tt; kwargs...)
 
-@generated function (kernel::Kernel{F,TT})(queue::HSAQueue, signal::HSASignal, args...; call_kwargs...) where {F,TT}
+@generated function call(kernel::Kernel{F,TT}, queue::HSAQueue,
+                         signal::HSASignal, args...; call_kwargs...) where {F,TT}
+
     sig = Base.signature_type(F, TT)
     args = (:F, (:( args[$i] ) for i in 1:length(args))...)
 
@@ -215,10 +254,11 @@ rocfunction(f::Core.Function, tt::Type=Tuple{}; kwargs...) =
 
     quote
         Base.@_inline_meta
-
         roccall(queue, signal, kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
+
+(kernel::Kernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
 
 # There doesn't seem to be a way to access the documentation for the
 # call-syntax, so attach it to the type

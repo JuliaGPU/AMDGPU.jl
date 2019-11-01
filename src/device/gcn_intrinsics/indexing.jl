@@ -25,7 +25,6 @@ export threadIdx, blockIdx
                                  ConstantInt(Int32(range.stop), JuliaContext())],
                                 JuliaContext())
         metadata(idx)[LLVM.MD_range] = range_metadata
-
         ret!(builder, idx)
     end
 

@@ -1,6 +1,6 @@
 # compiler support for working with run-time libraries
 
-function link_library!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
+function link_library!(job::CompilerJob, mod::LLVM.Module, lib::LLVM.Module)
     # linking is destructive, so copy the library
     lib = LLVM.Module(lib)
 
@@ -18,36 +18,33 @@ function link_library!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
     ModulePassManager() do pm
         # internalize all functions that aren't exports
         internalize!(pm, exports)
-
         # eliminate all unused internal functions
         global_optimizer!(pm)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
-
         run!(pm, mod)
     end
 end
 
 const libcache = Dict{String, LLVM.Module}()
 
-
-#
 # ROCm device library
-#
 
 function load_device_libs(agent)
     device_libs_path === nothing && return
 
+    isa_short = replace(get_first_isa(agent), "gfx"=>"")
     device_libs = LLVM.Module[]
     bitcode_files = (
         "hc.amdgcn.bc",
         "hip.amdgcn.bc",
         "irif.amdgcn.bc",
         "ockl.amdgcn.bc",
-        "oclc_isa_version_803.amdgcn.bc", # FIXME: Load based on agent name!
+        "oclc_isa_version_$isa_short.amdgcn.bc",
         "opencl.amdgcn.bc",
         "ocml.amdgcn.bc",
     )
+
     for file in bitcode_files
         ispath(joinpath(device_libs_path, file)) || continue
         name, ext = splitext(file)
@@ -59,23 +56,24 @@ function load_device_libs(agent)
         end
         push!(device_libs, lib)
     end
+
     @assert !isempty(device_libs) "No device libs detected!"
     return device_libs
 end
 
-function link_device_lib!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
+function link_device_lib!(job::CompilerJob, mod::LLVM.Module, lib::LLVM.Module)
     # override device lib's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
-
-    link_library!(ctx, mod, lib)
+    link_library!(job, mod, lib)
 end
 
-function link_oclc_defaults!(ctx::CompilerContext, mod::LLVM.Module)
+function link_oclc_defaults!(job::CompilerJob, mod::LLVM.Module)
     # link in some defaults for OCLC knobs, to prevent undefined variable errors
     # TODO: only link if used
     # TODO: make these configurable
     lib = LLVM.Module("OCLC")
+
     for (name,value) in (
             "__oclc_ISA_version"=>Int32(803),
             "__oclc_finite_only_opt"=>Int32(0),
@@ -89,20 +87,17 @@ function link_oclc_defaults!(ctx::CompilerContext, mod::LLVM.Module)
         unnamed_addr!(gv, true)
         constant!(gv, true)
     end
+
     link!(mod, lib)
 end
 
-
-#
 # AMDGPUnative run-time library
-#
 
-# remove existing runtime libraries globally,
+# Remove existing runtime libraries globally,
 # so any change to AMDGPUnative triggers recompilation
 rm(joinpath(@__DIR__, "..", "..", "deps", "runtime"); recursive=true, force=true)
 
-
-## higher-level functionality to work with runtime functions
+# higher-level functionality to work with runtime functions
 
 function LLVM.call!(builder, rt::Runtime.RuntimeMethodInstance, args=LLVM.Value[])
     bb = position(builder)
@@ -135,16 +130,13 @@ function LLVM.call!(builder, rt::Runtime.RuntimeMethodInstance, args=LLVM.Value[
     call!(builder, f, args)
 end
 
-
 ## functionality to build the runtime library
 
 function emit_function!(mod, agent, f, types, name)
     tt = Base.to_tuple_type(types)
-    ctx = CompilerContext(f, tt, agent, #= kernel =# false)
-    new_mod, entry = irgen(ctx)
-    entry = optimize!(ctx, new_mod, entry)
+    new_mod, entry = codegen(:llvm, CompilerJob(f, tt, agent, #=kernel=# false);
+                             libraries=false, strict=false)
     LLVM.name!(entry, name)
-
     link!(mod, new_mod)
 end
 
@@ -183,3 +175,4 @@ function load_runtime(agent::HSAAgent)
         end
     end
 end
+

@@ -2,8 +2,7 @@
 
 export ROCDeviceArray, ROCDeviceVector, ROCDeviceMatrix, ROCBoundsError
 
-
-## construction
+# construction
 
 """
     ROCDeviceArray(dims, ptr)
@@ -49,21 +48,21 @@ ROCDeviceVector{T}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   
 ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(Int.(dims), p)
 ROCDeviceVector{T,A}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
 
-
-## getters
+# getters
 
 Base.pointer(a::ROCDeviceArray) = a.ptr
+Base.pointer(a::ROCDeviceArray, i::Integer) =
+    pointer(a) + (i - 1) * Base.elsize(a)
 
+Base.elsize(::Type{<:ROCDeviceArray{T}}) where {T} = sizeof(T)
 Base.size(g::ROCDeviceArray) = g.shape
 Base.length(g::ROCDeviceArray) = prod(g.shape)
 
-
-## conversions
+# conversions
 
 Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
 
-
-## indexing
+# indexing
 # FIXME: Boundschecking
 
 @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
@@ -78,8 +77,7 @@ end
     Base.unsafe_store!(pointer(A), x, index, Val(align))
 end
 
-
-## other
+# other
 
 Base.show(io::IO, a::ROCDeviceVector) =
     print(io, "$(length(a))-element device array at $(pointer(a))")
@@ -91,6 +89,7 @@ Base.show(io::IO, mime::MIME"text/plain", a::ROCDeviceArray) = show(io, a)
 @inline function Base.unsafe_view(A::ROCDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
     ptr = pointer(A) + (I[1].start-1)*sizeof(T)
     len = I[1].stop - I[1].start + 1
+
     return ROCDeviceArray(len, ptr)
 end
 
@@ -101,3 +100,4 @@ end
         nothing
     end
 end
+

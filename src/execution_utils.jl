@@ -1,10 +1,9 @@
 # Execution control
-# copied from CUDAdrv/src/execution.jl
+# modeled after: CUDAdrv/src/execution.jl
 
 export ROCDim, ROCModule, ROCFunction, roccall
 
 mutable struct ROCModule
-    #data::String
     data::Vector{UInt8}
     options::Dict{Any,Any}
 end
@@ -15,13 +14,12 @@ end
 
 """
     ROCDim3(x)
-
     ROCDim3((x,))
     ROCDim3((x, y))
     ROCDim3((x, y, x))
 
-A type used to specify dimensions, consisting of 3 integers for respectively
-the `x`, `y` and `z` dimension. Unspecified dimensions default to `1`.
+A type used to specify dimensions, consisting of 3 integers for the `x`, `y`,
+and `z` dimension, respectively. Unspecified dimensions default to `1`.
 
 Often accepted as argument through the `ROCDim` type alias, eg. in the case of
 [`roccall`](@ref) or [`launch`](@ref), allowing to pass dimensions as a plain
@@ -57,13 +55,13 @@ end
            groupsize::ROCDim, gridsize::ROCDim, args...)
 
 Low-level call to launch a ROC function `f` on the GPU, using `groupsize` and
-`gridsize` as respectively the grid and block configuration. The kernel is
-launched on queue `queue` and is waited on by signal `signal`.
+`gridsize` as the grid and block configuration, respectively. The kernel is
+launched on `queue` and is waited on by `signal`.
 
 Arguments to a kernel should either be bitstype, in which case they will be
 copied to the internal kernel parameter buffer, or a pointer to device memory.
 
-This is a low-level call, prefer to use [`roccall`](@ref) instead.
+This is a low-level call, preferably use [`roccall`](@ref) instead.
 """
 @inline function launch(queue::HSAQueue, signal::HSASignal, f::ROCFunction,
                         groupsize::ROCDim, gridsize::ROCDim, args...)
@@ -82,16 +80,12 @@ end
 @generated function _launch(queue::HSAQueue, signal::HSASignal, f::ROCFunction,
                             groupsize::ROCDim3, gridsize::ROCDim3,
                             args::NTuple{N,Any}) where N
+
     all(isbitstype, args.parameters) ||
         throw(ArgumentError("Arguments to kernel should be bitstype."))
 
     ex = Expr(:block)
     push!(ex.args, :(Base.@_inline_meta))
-
-    # If f has N parameters, then kernelParams needs to be an array of N
-    # pointers.  Each of kernelParams[0] through kernelParams[N-1] must point
-    # to a region of memory from which the actual kernel parameter will be
-    # copied.
 
     # put arguments in Ref boxes so that we can get a pointers to them
     arg_refs = Vector{Symbol}(undef, N)
@@ -175,7 +169,9 @@ end
 # without having to inspect the types at runtime
 @generated function _roccall(queue::HSAQueue, signal::HSASignal, f::ROCFunction, tt::Type, args::NTuple{N,Any};
                               groupsize::ROCDim=1, gridsize::ROCDim=1) where N
-    types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
+
+    # the type of `tt` is Type{Tuple{<:DataType...}}
+    types = tt.parameters[1].parameters
 
     ex = Expr(:block)
     push!(ex.args, :(Base.@_inline_meta))

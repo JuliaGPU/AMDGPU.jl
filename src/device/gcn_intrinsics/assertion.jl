@@ -51,10 +51,8 @@ assert_counter = 0
     Builder(JuliaContext()) do builder
         entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
-
         global assert_counter
         assert_counter += 1
-
         message = globalstring_ptr!(builder, String(msg), "assert_message_$(assert_counter)")
         file = globalstring_ptr!(builder, String(file), "assert_file_$(assert_counter)")
         line = ConstantInt(T_int32, line)
@@ -68,9 +66,9 @@ assert_counter = 0
                              [T_pint8, T_pint8, T_int32, T_pint8, llvmtype(charSize)])
         assertfail = LLVM.Function(mod, "__assertfail", assertfail_typ)
         call!(builder, assertfail, [message, file, line, func, charSize])
-
         ret!(builder)
     end
 
     call_function(llvm_f, Nothing, Tuple{})
 end
+

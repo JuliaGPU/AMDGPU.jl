@@ -1,10 +1,10 @@
 # tools for dealing with compiler debug information
 
-# generate a pseudo-backtrace from LLVM IR instruction debug information
-#
-# this works by looking up the debug information of the instruction, and inspecting the call
-# sites of the containing function. if there's only one, repeat the process from that call.
-# finally, the debug information is converted to a Julia stack trace.
+# `backtrace()` generates a pseudo-backtrace from LLVM IR instruction debug
+# information. This works by looking up the debug information of the
+# instruction, and inspecting the call sites of the containing function.
+# If there's only one, repeat the process from that call. Finally, the debug
+# information is converted to a Julia stack trace.
 function backtrace(inst::LLVM.Instruction, bt = StackTraces.StackFrame[])
     name = Ref{Cstring}()
     filename = Ref{Cstring}()
@@ -13,7 +13,8 @@ function backtrace(inst::LLVM.Instruction, bt = StackTraces.StackFrame[])
 
     # look up the debug information from the current instruction
     depth = 0
-    while LLVM.API.LLVMGetSourceLocation(LLVM.ref(inst), depth, name, filename, line, col) == 1
+    while LLVM.API.LLVMGetSourceLocation(LLVM.ref(inst), depth, name, filename,
+                                         line, col) == 1
         frame = StackTraces.StackFrame(replace(unsafe_string(name[]), r";$"=>""),
                                        unsafe_string(filename[]), line[])
         push!(bt, frame)
@@ -46,3 +47,4 @@ function backtrace(inst::LLVM.Instruction, bt = StackTraces.StackFrame[])
 
     return bt
 end
+

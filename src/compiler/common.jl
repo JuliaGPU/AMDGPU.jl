@@ -1,8 +1,8 @@
 # common functionality
 
-struct CompilerContext
+struct CompilerJob
     # core invocation
-    f::Core.Function
+    f::Base.Callable
     tt::DataType
     agent::HSAAgent
     kernel::Bool
@@ -12,63 +12,61 @@ struct CompilerContext
     maxthreads::Union{Nothing,ROCDim}
     blocks_per_sm::Union{Nothing,Integer}
     maxregs::Union{Nothing,Integer}
+    name::Union{Nothing,String}
 
-    CompilerContext(f, tt, agent, kernel;
-                    minthreads=nothing, maxthreads=nothing,
-                    blocks_per_sm=nothing, maxregs=nothing) =
-        new(f, tt, agent, kernel, minthreads, maxthreads, blocks_per_sm, maxregs)
+    CompilerJob(f, tt, agent, kernel; name=nothing,
+                minthreads=nothing, maxthreads=nothing,
+                blocks_per_sm=nothing, maxregs=nothing) =
+        new(f, tt, agent, kernel, minthreads, maxthreads, blocks_per_sm,
+            maxregs, name)
 end
 
 # global context reference
-# FIXME: thread through `ctx` everywhere (deadlocks the Julia compiler when doing so with
+# FIXME: thread through `job` everywhere (deadlocks the Julia compiler when doing so with
 #        the LLVM passes in AMDGPUnative)
-global_ctx = nothing
+current_job = nothing
 
-
-function signature(ctx::CompilerContext)
-    fn = typeof(ctx.f).name.mt.name
-    args = join(ctx.tt.parameters, ", ")
-    return "$fn($(join(ctx.tt.parameters, ", ")))"
+function signature(job::CompilerJob)
+    fn = something(job.name, nameof(job.f))
+    args = join(job.tt.parameters, ", ")
+    return "$fn($(join(job.tt.parameters, ", ")))"
 end
 
-
 struct KernelError <: Exception
-    ctx::CompilerContext
+    job::CompilerJob
     message::String
     help::Union{Nothing,String}
     bt::StackTraces.StackTrace
 
-    KernelError(ctx::CompilerContext, message::String, help=nothing;
+    KernelError(job::CompilerJob, message::String, help=nothing;
                 bt=StackTraces.StackTrace()) =
-        new(ctx, message, help, bt)
+        new(job, message, help, bt)
 end
 
 function Base.showerror(io::IO, err::KernelError)
-    println(io, "GPU compilation of $(signature(err.ctx)) failed")
+    println(io, "GPU compilation of $(signature(err.job)) failed")
     println(io, "KernelError: $(err.message)")
     println(io)
     println(io, something(err.help, "Try inspecting the generated code with any of the @device_code_... macros."))
     Base.show_backtrace(io, err.bt)
 end
 
-
 struct InternalCompilerError <: Exception
-    ctx::CompilerContext
+    job::CompilerJob
     message::String
     meta::Dict
-    InternalCompilerError(ctx, message; kwargs...) = new(ctx, message, kwargs)
+    InternalCompilerError(job, message; kwargs...) = new(job, message, kwargs)
 end
 
 function Base.showerror(io::IO, err::InternalCompilerError)
     println(io, """AMDGPUnative.jl encountered an unexpected internal compiler error.
                    Please file an issue attaching the following information, including the backtrace,
                    as well as a reproducible example (if possible).""")
-
     println(io, "\nInternalCompilerError: $(err.message)")
 
     println(io, "\nCompiler invocation:")
-    for field in fieldnames(CompilerContext)
-        println(io, " - $field = $(repr(getfield(err.ctx, field)))")
+    for field in fieldnames(CompilerJob)
+        println(io, " - $field = $(repr(getfield(err.job, field)))")
     end
 
     if !isempty(err.meta)
@@ -78,23 +76,25 @@ function Base.showerror(io::IO, err::InternalCompilerError)
         end
     end
 
-    println(io, "\nInstalled packages:")
-    for (pkg,ver) in Pkg.installed()
-        println(io, " - $pkg = $ver")
+    let Pkg = Base.require(Base.PkgId(Base.UUID((0x44cfe95a1eb252ea, 0xb672e2afdf69b78f)), "Pkg"))
+        println(io, "\nInstalled packages:")
+        for (pkg,ver) in Pkg.installed()
+            println(io, " - $pkg = $(repr(ver))")
+        end
     end
 
     println(io)
     versioninfo(io)
 end
 
-macro compiler_assert(ex, ctx, kwargs...)
+macro compiler_assert(ex, job, kwargs...)
     msg = "$ex, at $(__source__.file):$(__source__.line)"
     return :($(esc(ex)) ? $(nothing)
-                        : throw(InternalCompilerError($(esc(ctx)), $msg;
+                        : throw(InternalCompilerError($(esc(job)), $msg;
                                                       $(map(esc, kwargs)...)))
             )
 end
 
-
 # maintain our own "global unique" suffix for disambiguating kernels
 globalUnique = 0
+

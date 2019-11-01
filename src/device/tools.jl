@@ -117,11 +117,11 @@ macro wrap(call, attrs="")
     dest = ("""declare $llvm_ret_typ @$intrinsic($llvm_declargs)""",
             """$llvm_ret_asgn call $llvm_ret_typ @$intrinsic($llvm_defargs)
                 ret $llvm_ret""")
+
     return quote
         Base.llvmcall($dest, $julia_ret_typ, Tuple{$(julia_argtypes...)}, $(julia_args...))
     end
 end
-
 
 # julia.h: jl_datatype_align
 Base.@pure function datatype_align(::Type{T}) where {T}
@@ -136,17 +136,16 @@ Base.@pure function datatype_align(::Type{T}) where {T}
     unsafe_load(convert(Ptr{UInt16}, field)) & convert(Int16, 2^9-1)
 end
 
-
 # generalization of word-based primitives
 
-## extract bits from a larger value
+# extract bits from a larger value
 @inline function extract_word(val, ::Val{i}) where {i}
     extract_value(val, UInt32, Val(32*(i-1)))
 end
+
 @generated function extract_value(val, ::Type{sub}, ::Val{offset}) where {sub, offset}
     T_val = convert(LLVMType, val)
     T_sub = convert(LLVMType, sub)
-
     bytes = Core.sizeof(val)
     T_int = LLVM.IntType(8*bytes, JuliaContext())
 
@@ -158,26 +157,24 @@ end
     Builder(JuliaContext()) do builder
         entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
-
         equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
         shifted = lshr!(builder, equiv, LLVM.ConstantInt(T_int, offset))
         # extracted = and!(builder, shifted, 2^32-1)
         extracted = trunc!(builder, shifted, T_sub)
-
         ret!(builder, extracted)
     end
 
     call_function(llvm_f, UInt32, Tuple{val}, :( (val,) ))
 end
 
-## insert bits into a larger value
+# insert bits into a larger value
 @inline function insert_word(val, word::UInt32, ::Val{i}) where {i}
     insert_value(val, word, Val(32*(i-1)))
 end
+
 @generated function insert_value(val, sub, ::Val{offset}) where {offset}
     T_val = convert(LLVMType, val)
     T_sub = convert(LLVMType, sub)
-
     bytes = Core.sizeof(val)
     T_out_int = LLVM.IntType(8*bytes, JuliaContext())
 
@@ -189,13 +186,11 @@ end
     Builder(JuliaContext()) do builder
         entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
-
         equiv = bitcast!(builder, parameters(llvm_f)[1], T_out_int)
         ext = zext!(builder, parameters(llvm_f)[2], T_out_int)
         shifted = shl!(builder, ext, LLVM.ConstantInt(T_out_int, offset))
         inserted = or!(builder, equiv, shifted)
         orig = bitcast!(builder, inserted, T_val)
-
         ret!(builder, orig)
     end
 
@@ -231,6 +226,7 @@ end
     end
 
     push!(ex.args, :( out ))
+
     return ex
 end
 
@@ -299,6 +295,7 @@ end
     end
 
     push!(ex.args, :( out ))
+
     return ex
 end
 
@@ -307,12 +304,11 @@ end
 @generated function recurse_pointer_invocation(op::Function, ptr, ::Type{supported_ptrs},
                                                args...) where {supported_ptrs}
     T = eltype(ptr)
-
     ex = quote
         Base.@_inline_meta
     end
-
     fields = fieldnames(T)
+
     if isempty(fields)
         push!(ex.args, :( split_pointer_invocation(op, ptr, supported_ptrs, args...) ))
     else
@@ -331,3 +327,4 @@ end
 
     return ex
 end
+
