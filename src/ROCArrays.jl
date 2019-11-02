@@ -45,11 +45,11 @@ include("array.jl")
 #const active_context = Ref{ROCContext}()
 
 librocblas !== nothing    && include("blas/rocBLAS.jl")
-librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
-librocalution !== nothing && include("solver/rocALUTION.jl")
-librocfft !== nothing     && include("fft/rocFFT.jl")
-librocrand !== nothing    && include("rand/rocRAND.jl")
-libmiopen !== nothing     && include("dnn/MIOpen.jl")
+#librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
+#librocalution !== nothing && include("solver/rocALUTION.jl")
+#librocfft !== nothing     && include("fft/rocFFT.jl")
+#librocrand !== nothing    && include("rand/rocRAND.jl")
+#libmiopen !== nothing     && include("dnn/MIOpen.jl")
 
 #include("nnlib.jl")
 

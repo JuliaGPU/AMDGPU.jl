@@ -1,4 +1,102 @@
-import AMDGPUnative: DevicePtr
+import HSARuntime: hsa_memory_allocate, hsa_memory_free, check, DEFAULT_AGENT
+
+mutable struct ROCArray{T,N} <: AbstractArray{T,N}
+    size::Dims{N}
+    handle::Ptr{T}
+end
+
+const ROCVector{T} = ROCArray{T,1}
+const ROCMatrix{T} = ROCArray{T,2}
+const ROCVecOrMat{T} = Union{ROCVector{T},ROCMatrix{T}}
+
+# TODO: Support non-isbitstype allocations
+function ROCArray(agent::HSAAgent, ::Type{T}, size::NTuple{N,Int}) where {T,N}
+    @assert isprimitivetype(T) "$T is not a primitive type"
+    @assert all(x->x>0, size) "Invalid array size: $size"
+    region = get_region(agent, :finegrained)
+    nbytes = sizeof(T) * prod(size)
+    handle = Ref{Ptr{T}}()
+    hsa_memory_allocate(region[], nbytes, handle) |> check
+    arr = ROCArray{T,N}(size, handle[])
+    finalizer(arr) do arr
+        hsa_memory_free(arr.handle) |> check
+    end
+    return arr
+end
+ROCArray(::Type{T}, size::NTuple{N,Int}) where {T,N} =
+    ROCArray(DEFAULT_AGENT[], T, size)
+
+function ROCArray(agent::HSAAgent, arr::Array{T,N}) where {T,N}
+    rarr = ROCArray(agent, T, size(arr))
+    for idx in eachindex(arr)
+        rarr[idx] = arr[idx]
+    end
+    return rarr
+end
+ROCArray(arr::Array{T,N}) where {T,N} =
+    ROCArray(DEFAULT_AGENT[], arr)
+
+function Array(rarr::ROCArray{T,N}) where {T,N}
+    arr = Array{T}(undef, size(rarr))
+    # FIXME: Use Mem
+    ref_arr = Ref(arr)
+    GC.@preserve ref_arr begin
+        ccall(:memcpy, Cvoid,
+            (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+            ref_arr, rarr.handle, sizeof(arr))
+    end
+    return rarr
+end
+
+Base.pointer(arr::ROCArray) = arr.handle
+Base.cconvert(::Type{Ptr{T}}, x::ROCArray{T}) where T = x.handle
+Base.cconvert(::Type{Ptr{Nothing}}, x::ROCArray) = x.handle
+Base.IndexStyle(::Type{<:ROCArray}) = Base.IndexLinear()
+Base.IndexStyle(::ROCArray) = Base.IndexLinear()
+function Base.iterate(A::ROCArray, i=1) # copy-pasta from Base
+    Base.@_inline_meta
+    (i % UInt) - 1 < length(A) ? (@inbounds A[i], i + 1) : nothing
+end
+Base.similar(arr::ROCArray{T,N}) where {T,N} =
+    ROCArray(T, size(arr))
+Base.similar(agent::HSAAgent, arr::ROCArray{T,N}) where {T,N} =
+    ROCArray(agent, T, size(arr))
+Base.similar(arr::ROCArray{T1,N}, ::Type{T2}, dims::Dims) where {T1,N,T2} =
+    similar(DEFAULT_AGENT[], arr, T2, dims)
+function Base.similar(agent::HSAAgent, arr::ROCArray{T1,N}, ::Type{T2}, dims::Dims) where {T1,N,T2}
+    ROCArray(agent, T2, dims)
+end
+
+# copy-pasta from Base
+function Base.stride(arr::ROCArray, i::Int)
+    if i > ndims(arr)
+        return length(ar)
+    end
+    s = 1
+    for n = 1:(i-1)
+        s *= size(arr, n)
+    end
+    return s
+end
+
+Base.size(arr::ROCArray) = arr.size
+Base.length(arr::ROCArray) = prod(size(arr))
+
+function Base.fill!(arr::ROCArray{T,N}, value::T) where {T,N}
+    for idx in 1:length(arr)
+        arr[idx] = value
+    end
+end
+@inline function Base.getindex(arr::ROCArray{T,N}, idx) where {T,N}
+    @boundscheck checkbounds(arr, idx)
+    Base.unsafe_load(pointer(arr), idx)::T
+end
+@inline function Base.setindex!(arr::ROCArray{T,N}, value, idx) where {T,N}
+    @boundscheck checkbounds(arr, idx)
+    Base.unsafe_store!(pointer(arr), value, idx)
+end
+
+#=
 
 mutable struct ROCArray{T,N} <: GPUArray{T,N}
   buf::Mem.Buffer
@@ -17,15 +115,10 @@ mutable struct ROCArray{T,N} <: GPUArray{T,N}
   end
 end
 
-ROCVector{T} = ROCArray{T,1}
-ROCMatrix{T} = ROCArray{T,2}
-ROCVecOrMat{T} = Union{ROCVector{T},ROCMatrix{T}}
-
 function unsafe_free!(xs::ROCArray)
   Mem.release(xs.buf) && dealloc(xs.buf, prod(xs.dims)*sizeof(eltype(xs)))
   return
 end
-
 
 ## construction
 
@@ -239,3 +332,4 @@ function LinearAlgebra.triu!(A::ROCMatrix{T}, d::Integer = 0) where T
   @roc gridsize=grid groupsize=group kernel!(A, d)
   return A
 end
+=#
