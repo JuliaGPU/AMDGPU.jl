@@ -14,6 +14,8 @@ import LinearAlgebra
 
 using Adapt
 
+## initialization
+
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 isfile(ext) || error("ROCArrays.jl has not been built, please run Pkg.build(\"ROCArrays\").")
 include(ext)
@@ -36,6 +38,7 @@ include("array.jl")
 #include("broadcast.jl")
 #include("matmul.jl")
 #include("mapreduce.jl")
+include("flux.jl") # FIXME: Remove me
 
 #include("gpuarray_interface.jl")
 
