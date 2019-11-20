@@ -21,8 +21,8 @@ end
 
 ## library finding
 
-function find_roc_library(name)
-    lib = Libdl.find_library(name)
+function find_roc_library(name::String)
+    lib = Libdl.find_library(Symbol(name))
     lib == "" && return nothing
     return Libdl.dlpath(lib)
 end
@@ -55,9 +55,9 @@ function main()
 
     #build_roc_libraries()
 
-    for name in ("rocblas", "rocsparse", "rocalution", "rocfft", "rocrand", "miopen")
-        lib = Symbol("lib$name")
-        config[lib] = find_roc_library(lib)
+    for name in ("rocblas", "rocsparse", "rocalution", "rocfft", "rocrand", "MIOpen")
+        lib = Symbol("lib$(lowercase(name))")
+        config[lib] = find_roc_library("lib$name")
         if config[lib] == nothing
             build_warning("Could not find library '$name'")
         end
