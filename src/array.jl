@@ -11,7 +11,7 @@ const ROCVecOrMat{T} = Union{ROCVector{T},ROCMatrix{T}}
 
 # TODO: Support non-isbitstype allocations
 function ROCArray(agent::HSAAgent, ::Type{T}, size::NTuple{N,Int}) where {T,N}
-    @assert isprimitivetype(T) "$T is not a primitive type"
+    @assert isbitstype(T) "$T is not a primitive type"
     @assert all(x->x>0, size) "Invalid array size: $size"
     region = get_region(agent, :finegrained)
     nbytes = sizeof(T) * prod(size)

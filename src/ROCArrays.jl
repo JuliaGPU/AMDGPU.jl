@@ -47,10 +47,12 @@ include("flux.jl") # FIXME: Remove me
 # so keep track of the active one.
 #const active_context = Ref{ROCContext}()
 
+# TODO: add check
+include("hip/HIP.jl")
 librocblas !== nothing    && include("blas/rocBLAS.jl")
 #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
 #librocalution !== nothing && include("solver/rocALUTION.jl")
-#librocfft !== nothing     && include("fft/rocFFT.jl")
+librocfft !== nothing     && include("fft/rocFFT.jl")
 #librocrand !== nothing    && include("rand/rocRAND.jl")
 #libmiopen !== nothing     && include("dnn/MIOpen.jl")
 

@@ -11,6 +11,12 @@ const ROCBLASArray{T<:ROCBLASFloat} = ROCArray{T}
 LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASFloat}, k::Number) =
   scal!(length(x), convert(eltype(x), k), x, 1)
 
+LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASComplex}, k::Real) =
+  scal!(length(x), convert(real(eltype(x)), k), x, 1)
+
+LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASComplex}, k::Number) =
+  scal!(length(x), convert(eltype(x), k), x, 1)
+
 # Work around ambiguity with GPUArrays wrapper
 LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASFloat}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)

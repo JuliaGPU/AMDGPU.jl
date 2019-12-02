@@ -3,6 +3,8 @@ using HSARuntime
 using LinearAlgebra
 using Test
 
+include("util.jl")
+
 # copy-pasta from GPUArrays/src/testsuite.jl
 convert_array(f, x) = f(x)
 convert_array(f, x::Base.RefValue) = x[]
@@ -25,6 +27,7 @@ agent_isa = HSARuntime.get_first_isa(agent)
 
 @testset "ROCArrays External Libraries" begin
     isdefined(ROCArrays, :rocBLAS) ? include("blas.jl") : @test_skip "rocBLAS"
+    isdefined(ROCArrays, :rocFFT) ? include("fft.jl") : @test_skip "rocFFT"
 end
 
 end # @testset "ROCArrays"
