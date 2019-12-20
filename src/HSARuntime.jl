@@ -425,6 +425,13 @@ function get_region(agent::HSAAgent, kind::Symbol)
     return region
 end
 
+@eval atomic_store_n!(x::Ptr{UInt16}, v::UInt16) =
+    Base.llvmcall($"""
+    %ptr = inttoptr i$(Sys.WORD_SIZE) %0 to i16*
+    store atomic i16 %1, i16* %ptr release, align 16
+    ret void
+    """, Cvoid, Tuple{Ptr{UInt16}, UInt16},
+    Base.unsafe_convert(Ptr{UInt16}, x), v)
 function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
                  workgroup_size=nothing, grid_size=nothing)
     @assert workgroup_size !== nothing "Must specify workgroup_size kwarg"
@@ -466,13 +473,6 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     unsafe_copyto!(baseaddr_ptr, dispatch_packet_ptr, 1)
 
     # Atomically store the header
-    atomic_store_n!(x::Ptr{UInt16}, v::UInt16) =
-        Base.llvmcall("""
-        %ptr = inttoptr i$(Sys.WORD_SIZE) %0 to i16*
-        store atomic i16 %1, i16* %ptr release, align 16
-        ret void
-        """, Cvoid, Tuple{Ptr{UInt16}, UInt16},
-        Base.unsafe_convert(Ptr{UInt16}, x), v)
     header = Ref{UInt16}(0)
     header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
     header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE)
