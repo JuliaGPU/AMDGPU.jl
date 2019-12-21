@@ -21,7 +21,7 @@ Acknowledgment
 AMDGPUnative would not have been possible without the work by Tim Besard on [CUDAnative.jl](https://github.com/JuliaGPU/CUDAnative.jl)
 and [LLVM.jl](https://github.com/maleadt/LLVM.jl). 
 
-
+In revision to: commit 53966d812d63c7cbea0de114ebee4033c7ddad0d of CUDAnative.jl 
 License
 -------
 

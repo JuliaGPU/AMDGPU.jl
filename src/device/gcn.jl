@@ -4,4 +4,4 @@ end
 include(joinpath("gcn_intrinsics", "indexing.jl"))
 include(joinpath("gcn_intrinsics", "assertion.jl"))
 include(joinpath("gcn_intrinsics", "synchronization.jl"))
-include(joinpath("gcn_intrinsics", "extras.jl"))
+# TODO: include(joinpath("gcn_intrinsics", "extras.jl"))

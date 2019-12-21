@@ -16,10 +16,10 @@ end
 
 # final preparations for the module to be compiled to GCN
 # these passes should not be run when e.g. compiling to write to disk.
-function prepare_execution!(ctx::CompilerContext, mod::LLVM.Module)
+function prepare_execution!(job::CompilerJob, mod::LLVM.Module)
     let pm = ModulePassManager()
-        global global_ctx
-        global_ctx = ctx
+        global current_job
+        current_job = job
 
         global_optimizer!(pm)
 
@@ -35,16 +35,14 @@ function prepare_execution!(ctx::CompilerContext, mod::LLVM.Module)
     return
 end
 
-# some Julia code contains references to objects in the CPU run-time,
-# without actually using the contents or functionality of those objects.
-#
-# prime example are type tags, which reference the address of the allocated type.
-# since those references are ephemeral, we can't eagerly resolve and emit them in the IR,
-# but at the same time the GPU can't resolve them at run-time.
-#
-# this pass performs that resolution at link time.
+# Some Julia code contains references to objects in the CPU run-time, without
+# actually using the contents or functionality of those objects. Prime example
+# are type tags, which reference the address of the allocated type.
+# Since those references are ephemeral, we can't eagerly resolve and emit them
+# in the IR, but at the same time the GPU can't resolve them at run-time.
+# This pass performs that resolution at link time.
 function resolve_cpu_references!(mod::LLVM.Module)
-    ctx = global_ctx::CompilerContext
+    job = current_job::CompilerJob
     changed = false
 
     for f in functions(mod)
@@ -80,11 +78,11 @@ function resolve_cpu_references!(mod::LLVM.Module)
     return changed
 end
 
-function mcgen(ctx::CompilerContext, mod::LLVM.Module, f::LLVM.Function;
-               file_type=LLVM.API.LLVMObjectFile)
-    tm = machine(ctx.agent, triple(mod))
+function mcgen(job::CompilerJob, mod::LLVM.Module, f::LLVM.Function;
+               output_format=LLVM.API.LLVMObjectFile)
+    tm = machine(job.agent, triple(mod))
 
     InitializeAMDGPUAsmPrinter()
-    obj = emit(tm, mod, file_type)
-    return obj
+    return String(emit(tm, mod, output_format))
 end
+

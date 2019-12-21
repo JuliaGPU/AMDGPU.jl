@@ -1,28 +1,74 @@
 # LLVM IR optimization
 
-function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
-    tm = AMDGPUnative.machine(ctx.agent, triple(mod))
+function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
+    tm = AMDGPUnative.machine(job.agent, triple(mod))
 
-    if ctx.kernel
-        entry = promote_kernel!(ctx, mod, entry)
+    if job.kernel
+        entry = promote_kernel!(job, mod, entry)
     end
 
-    let pm = ModulePassManager()
-        global global_ctx
-        global_ctx = ctx
-
+    function initialize!(pm)
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
-        internalize!(pm, [LLVM.name(entry)])
+    end
 
-        # lower intrinsics
-        add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
-        aggressive_dce!(pm) # remove dead uses of ptls
-        add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+    global current_job
+    current_job = job
 
-        ccall(:jl_add_optimization_passes, Cvoid,
-              (LLVM.API.LLVMPassManagerRef, Cint),
-              LLVM.ref(pm), Base.JLOptions().opt_level)
+    # Julia-specific optimizations
+    #
+    # NOTE: we need to use multiple distinct pass managers to force pass ordering;
+    #       intrinsics should never get lowered before Julia has optimized them.
+    if VERSION < v"1.2.0-DEV.375"
+        # with older versions of Julia, intrinsics are lowered unconditionally
+        # so we need to replace them with GPU-compatible counterparts before
+        # anything else. that breaks certain optimizations though:
+        # https://github.com/JuliaGPU/CUDAnative.jl/issues/340
+
+        ModulePassManager() do pm
+            initialize!(pm)
+            add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+            aggressive_dce!(pm) # remove dead uses of ptls
+            add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+            run!(pm, mod)
+        end
+
+        ModulePassManager() do pm
+            initialize!(pm)
+            ccall(:jl_add_optimization_passes, Cvoid,
+                  (LLVM.API.LLVMPassManagerRef, Cint),
+                  LLVM.ref(pm), Base.JLOptions().opt_level)
+            run!(pm, mod)
+        end
+    else
+        ModulePassManager() do pm
+            initialize!(pm)
+            ccall(:jl_add_optimization_passes, Cvoid,
+                  (LLVM.API.LLVMPassManagerRef, Cint, Cint),
+                  LLVM.ref(pm), Base.JLOptions().opt_level, #=lower_intrinsics=# 0)
+            run!(pm, mod)
+        end
+
+        ModulePassManager() do pm
+            initialize!(pm)
+
+            # lower intrinsics
+            #add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+            aggressive_dce!(pm) # remove dead uses of ptls
+            add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+
+            # the Julia GC lowering pass also has some clean-up that is required
+            if VERSION >= v"1.2.0-DEV.531"
+                late_lower_gc_frame!(pm)
+            end
+
+            run!(pm, mod)
+        end
+    end
+
+    # PTX-specific optimizations
+    ModulePassManager() do pm
+        initialize!(pm)
 
         # NVPTX's target machine info enables runtime unrolling,
         # but Julia's pass sequence only invokes the simple unroller.
@@ -30,7 +76,7 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         instruction_combining!(pm)  # clean-up redundancy
         licm!(pm)                   # the inner runtime check might be outer loop invariant
 
-        # the above loop unroll pass might have unrolled regular, non-runtime nested loops.
+        # The above loop unroll pass might have unrolled regular, non-runtime nested loops.
         # that code still needs to be optimized (arguably, multiple unroll passes should be
         # scheduled by the Julia optimizer). do so here, instead of re-optimizing entirely.
         early_csemem_ssa!(pm) # TODO: gvn instead? see NVPTXTargetMachine.cpp::addEarlyCSEOrGVNPass
@@ -52,8 +98,10 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
 
         cfgsimplification!(pm)
 
+        # get rid of the internalized functions; now possible unused
+        global_dce!(pm)
+
         run!(pm, mod)
-        dispose(pm)
     end
 
     # we compile a module containing the entire call graph,
@@ -64,23 +112,21 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     # part of the LateLowerGCFrame pass) aren't collected properly.
     #
     # these might not always be safe, as Julia's IR metadata isn't designed for IPO.
-    let pm = ModulePassManager()
+    ModulePassManager() do pm
         dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
 
         run!(pm, mod)
-        dispose(pm)
     end
 
     return entry
 end
 
-
 ## kernel-specific optimizations
 
 # promote a function to a kernel
 # FIXME: sig vs tt (code_llvm vs rocfunction)
-function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
-    kernel = wrap_entry!(ctx, mod, entry_f)
+function promote_kernel!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
+    kernel = wrap_entry!(job, mod, entry_f)
 
     # property annotations
     annotations = LLVM.Value[kernel]
@@ -104,13 +150,13 @@ function wrapper_type(julia_t::Type, codegen_t::LLVMType)::LLVMType
     end
 end
 
-# generate a kernel wrapper to fix & improve argument passing
-function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
+# `wrap_entry!()` generates a kernel wrapper to fix & improve argument passing
+function wrap_entry!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
     entry_ft = eltype(llvmtype(entry_f)::LLVM.PointerType)::LLVM.FunctionType
-    @compiler_assert return_type(entry_ft) == LLVM.VoidType(JuliaContext()) ctx
+    @compiler_assert return_type(entry_ft) == LLVM.VoidType(JuliaContext()) job
 
     # filter out ghost types, which don't occur in the LLVM function signatures
-    sig = Base.signature_type(ctx.f, ctx.tt)::Type
+    sig = Base.signature_type(job.f, job.tt)::Type
     julia_types = Type[]
     for dt::Type in sig.parameters
         if !isghosttype(dt)
@@ -125,6 +171,15 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
     wrapper_fn = replace(LLVM.name(entry_f), r"^.+?_"=>"roccall_") # change the CC tag
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
+
+    # Get debuginfo from the entry_f and copy it to the wrapper_f
+    # on -g0 julia does not add a DICU and DISP object
+    if LLVM.version() >= v"8.0"
+        if Base.JLOptions().debug_level > 0
+            SP = LLVM.get_subprogram(entry_f)
+            LLVM.set_subprogram!(wrapper_f, SP)
+        end
+    end
 
     # emit IR performing the "conversions"
     let builder = Builder(JuliaContext())
@@ -143,8 +198,8 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
             if codegen_t != wrapper_t
                 # the wrapper argument doesn't match the kernel parameter type.
                 # this only happens when codegen wants to pass a pointer.
-                @compiler_assert isa(codegen_t, LLVM.PointerType) ctx
-                @compiler_assert eltype(codegen_t) == wrapper_t ctx
+                @compiler_assert isa(codegen_t, LLVM.PointerType) job
+                @compiler_assert eltype(codegen_t) == wrapper_t job
 
                 # copy the argument value to a stack slot, and reference it.
                 ptr = alloca!(builder, wrapper_t)
@@ -179,7 +234,7 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
     fixup_metadata!(entry_f)
     ModulePassManager() do pm
         always_inliner!(pm)
-        verifier!(pm)
+
         run!(pm, mod)
     end
 
@@ -221,16 +276,16 @@ function fixup_metadata!(f::LLVM.Function)
     end
 end
 
-# lower object allocations to to PTX malloc
+# `lower_gc_frame!()` lowers object allocations to a PTX malloc
 #
-# this is a PoC implementation that is very simple: allocate, and never free. it also runs
+# This is a PoC implementation that is very simple: allocate, and never free. It also runs
 # _before_ Julia's GC lowering passes, so we don't get to use the results of its analyses.
-# when we ever implement a more potent GC, we will need those results, but the relevant pass
+# When we ever implement a more potent GC, we will need those results, but the relevant pass
 # is currently very architecture/CPU specific: hard-coded pool sizes, TLS references, etc.
-# such IR is hard to clean-up, so we probably will need to have the GC lowering pass emit
+# Such IR is hard to clean-up, so we probably will need to have the GC lowering pass emit
 # lower-level intrinsics which then can be lowered to architecture-specific code.
 function lower_gc_frame!(fun::LLVM.Function)
-    ctx = global_ctx::CompilerContext
+    job = current_job::CompilerJob
     mod = LLVM.parent(fun)
     changed = false
 
@@ -257,11 +312,9 @@ function lower_gc_frame!(fun::LLVM.Function)
             end
 
             unsafe_delete!(LLVM.parent(call), call)
-
             changed = true
         end
-
-        @compiler_assert isempty(uses(alloc_obj)) ctx
+        @compiler_assert isempty(uses(alloc_obj)) job
     end
 
     # we don't care about write barriers
@@ -274,21 +327,20 @@ function lower_gc_frame!(fun::LLVM.Function)
             changed = true
         end
 
-        @compiler_assert isempty(uses(barrier)) ctx
+        @compiler_assert isempty(uses(barrier)) job
     end
-
     return changed
 end
 
 # lower the `julia.ptls_states` intrinsic by removing it, since it is GPU incompatible.
 #
-# this assumes and checks that the TLS is unused, which should be the case for most GPU code
+# This assumes and checks that the TLS is unused, which should be the case for most GPU code
 # after lowering the GC intrinsics to TLS-less code and having run DCE.
 #
 # TODO: maybe don't have Julia emit actual uses of the TLS, but use intrinsics instead,
 #       making it easier to remove or reimplement that functionality here.
 function lower_ptls!(mod::LLVM.Module)
-    ctx = global_ctx::CompilerContext
+    job = current_job::CompilerJob
     changed = false
 
     if haskey(functions(mod), "julia.ptls_states")
@@ -303,8 +355,9 @@ function lower_ptls!(mod::LLVM.Module)
             changed = true
         end
 
-        @compiler_assert isempty(uses(ptls_getter)) ctx
+        @compiler_assert isempty(uses(ptls_getter)) job
      end
 
     return changed
 end
+

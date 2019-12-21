@@ -41,7 +41,7 @@ macro on_device(ex)
                 return
             end
 
-            @cuda kernel()
+            @roc kernel()
             synchronize()
         end
     end
@@ -91,7 +91,9 @@ mutable struct ROCTestArray{T,N}
     end
 end
 function unsafe_free!(a::ROCTestArray)
-    CUDAdrv.isvalid(a.buf.ctx) && Mem.free(a.buf)
+    # FIXME
+    error("Not implemented")
+    #CUDAdrv.isvalid(a.buf.ctx) && Mem.free(a.buf)
 end
 ## memory copy operations
 function ROCTestArray(src::Array{T,N}) where {T,N}

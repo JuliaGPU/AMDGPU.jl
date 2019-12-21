@@ -37,15 +37,14 @@ local_intptr_b = AMDGPUnative.DevicePtr{Int,AS.Local}(intptr_b)
 
 # between regular and device pointers
 
-@test_throws InexactError convert(Ptr{Cvoid}, generic_voidptr_a)
-@test_throws InexactError convert(AMDGPUnative.DevicePtr{Cvoid}, voidptr_a)
-
-@test Base.unsafe_convert(Ptr{Cvoid}, generic_voidptr_a) == voidptr_a
+@test convert(Ptr{Cvoid}, generic_voidptr_a) == voidptr_a
+@test convert(AMDGPUnative.DevicePtr{Cvoid}, voidptr_a) == generic_voidptr_a
+@test convert(AMDGPUnative.DevicePtr{Cvoid,AS.Global}, voidptr_a) == global_voidptr_a
 
 
 # between device pointers
 
-@test_throws InexactError convert(typeof(local_voidptr_a), global_voidptr_a)
+@test_throws ArgumentError convert(typeof(local_voidptr_a), global_voidptr_a)
 @test convert(typeof(generic_voidptr_a), generic_voidptr_a) == generic_voidptr_a
 @test convert(typeof(global_voidptr_a), global_voidptr_a) == global_voidptr_a
 @test Base.unsafe_convert(typeof(local_voidptr_a), global_voidptr_a) == local_voidptr_a

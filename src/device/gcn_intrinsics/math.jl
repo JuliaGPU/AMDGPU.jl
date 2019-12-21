@@ -34,6 +34,7 @@ struct GCNIntrinsic
     roclib::Symbol
     suffix::Symbol
 end
+
 GCNIntrinsic(jlname, rocname=jlname; isbroken=false, isinverted=false,
              inp_args=(), out_arg=(), roclib=:ocml, suffix=fntypes[first(inp_args)]) =
     GCNIntrinsic(jlname, rocname, isbroken, isinverted, inp_args, out_arg, roclib, suffix)
@@ -98,3 +99,4 @@ for intr in MATH_INTRINSICS
         return $(intr.isinverted ? :(1-y) : :y)
     end
 end
+

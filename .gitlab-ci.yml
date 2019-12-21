@@ -53,14 +53,6 @@ test:source:llvm7:
   variables:
     CI_BUILD_ARGS: 'LLVM_VER=7.0.0 USE_BINARYBUILDER_LLVM=0'
 
-test:source:llvm8:
-  extends:
-    - .julia:source
-    - .test
-  tags:
-    - rocm
-  variables:
-    CI_BUILD_ARGS: 'LLVM_VER=8.0.0 USE_BINARYBUILDER_LLVM=0'
 
 test:source:llvm9:
   extends:
@@ -70,4 +62,3 @@ test:source:llvm9:
     - rocm
   variables:
     CI_BUILD_ARGS: 'LLVM_VER=9.0.0rc6 USE_BINARYBUILDER_LLVM=0'
-
