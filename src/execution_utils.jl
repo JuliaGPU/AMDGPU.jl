@@ -51,7 +51,7 @@ function Base.getindex(dims::ROCDim3, idx::Int)
 end
 
 """
-    launch(queue::HSAQueue, signal::HSASignal, f::ROCFunction,
+    launch(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction,
            groupsize::ROCDim, gridsize::ROCDim, args...)
 
 Low-level call to launch a ROC function `f` on the GPU, using `groupsize` and
@@ -63,7 +63,7 @@ copied to the internal kernel parameter buffer, or a pointer to device memory.
 
 This is a low-level call, preferably use [`roccall`](@ref) instead.
 """
-@inline function launch(queue::HSAQueue, signal::HSASignal, f::ROCFunction,
+@inline function launch(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction,
                         groupsize::ROCDim, gridsize::ROCDim, args...)
     groupsize = ROCDim3(groupsize)
     gridsize = ROCDim3(gridsize)
@@ -77,7 +77,7 @@ end
 
 # we need a generated function to get an args array,
 # without having to inspect the types at runtime
-@generated function _launch(queue::HSAQueue, signal::HSASignal, f::ROCFunction,
+@generated function _launch(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction,
                             groupsize::ROCDim3, gridsize::ROCDim3,
                             args::NTuple{N,Any}) where N
 
@@ -101,23 +101,13 @@ end
         GC.@preserve $(arg_refs...) begin
             kernelParams = [$(arg_ptrs...)]
 
-            # link with ld.lld
-            ld_path = HSARuntime.ld_lld_path
-            @assert ld_path != "" "ld.lld was not found; cannot link kernel"
-            # TODO: Do this more idiomatically
-            io = open("/tmp/amdgpu-dump.o", "w")
-            write(io, f.mod.data)
-            close(io)
-            run(`$ld_path -shared -o /tmp/amdgpu.exe /tmp/amdgpu-dump.o`)
-            io = open("/tmp/amdgpu.exe", "r")
-            data = read(io)
-            close(io)
+            # create executable and kernel instance
+            exe = create_executable(get_device(queue), f)
+            kern = create_kernel(get_device(queue), exe, f.entry, args)
 
-            # generate executable and kernel instance
-            exe = HSAExecutable(queue.agent, data, f.entry)
-            kern = HSAKernelInstance(queue.agent, exe, f.entry, args)
-            HSARuntime.launch!(queue, kern, signal;
-                workgroup_size=groupsize, grid_size=gridsize)
+            # launch kernel
+            launch_kernel(queue, kern, signal;
+                          groupsize=groupsize, gridsize=gridsize)
         end
     end).args)
 
@@ -125,7 +115,7 @@ end
 end
 
 """
-    roccall(queue::HSAQueue, signal::HSASignal, f::ROCFunction, types, values...;
+    roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, types, values...;
              groupsize::ROCDim, gridsize::ROCDim)
 
 `ccall`-like interface for launching a ROC function `f` on a GPU.
@@ -151,14 +141,14 @@ being slightly faster.
 """
 roccall
 
-@inline function roccall(queue::HSAQueue, signal::HSASignal, f::ROCFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
+@inline function roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
                           kwargs...) where N
     # this cannot be inferred properly (because types only contains `DataType`s),
     # which results in the call `@generated _roccall` getting expanded upon first use
     _roccall(queue, signal, f, Tuple{types...}, values; kwargs...)
 end
 
-@inline function roccall(queue::HSAQueue, signal::HSASignal, f::ROCFunction, tt::Type, values::Vararg{Any,N};
+@inline function roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, values::Vararg{Any,N};
                           kwargs...) where N
     # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
     # which means the generated function can be expanded earlier
@@ -167,7 +157,7 @@ end
 
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function _roccall(queue::HSAQueue, signal::HSASignal, f::ROCFunction, tt::Type, args::NTuple{N,Any};
+@generated function _roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, args::NTuple{N,Any};
                               groupsize::ROCDim=1, gridsize::ROCDim=1) where N
 
     # the type of `tt` is Type{Tuple{<:DataType...}}

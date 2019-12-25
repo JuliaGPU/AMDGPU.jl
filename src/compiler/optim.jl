@@ -1,7 +1,7 @@
 # LLVM IR optimization
 
 function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
-    tm = AMDGPUnative.machine(job.agent, triple(mod))
+    tm = AMDGPUnative.machine(job.device, triple(mod))
 
     if job.kernel
         entry = promote_kernel!(job, mod, entry)

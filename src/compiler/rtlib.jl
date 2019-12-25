@@ -30,10 +30,10 @@ const libcache = Dict{String, LLVM.Module}()
 
 # ROCm device library
 
-function load_device_libs(agent)
+function load_device_libs(device)
     device_libs_path === nothing && return
 
-    isa_short = replace(get_first_isa(agent), "gfx"=>"")
+    isa_short = replace(default_isa(device), "gfx"=>"")
     device_libs = LLVM.Module[]
     bitcode_files = (
         "hc.amdgcn.bc",
@@ -132,20 +132,20 @@ end
 
 ## functionality to build the runtime library
 
-function emit_function!(mod, agent, f, types, name)
+function emit_function!(mod, device, f, types, name)
     tt = Base.to_tuple_type(types)
-    new_mod, entry = codegen(:llvm, CompilerJob(f, tt, agent, #=kernel=# false);
+    new_mod, entry = codegen(:llvm, CompilerJob(f, tt, device, #=kernel=# false);
                              libraries=false, strict=false)
     LLVM.name!(entry, name)
     link!(mod, new_mod)
 end
 
-function build_runtime(agent)
+function build_runtime(device)
     mod = LLVM.Module("AMDGPUnative run-time library", JuliaContext())
 
     for method in values(Runtime.methods)
         try
-            emit_function!(mod, agent, method.def, method.types, method.llvm_name)
+            emit_function!(mod, device, method.def, method.types, method.llvm_name)
         catch err
             @warn method
         end
@@ -154,8 +154,8 @@ function build_runtime(agent)
     mod
 end
 
-function load_runtime(agent::HSAAgent)
-    isa = get_first_isa(agent)
+function load_runtime(device::RuntimeDevice)
+    isa = default_isa(device)
     name = "amdgpunative.$isa.bc"
     path = joinpath(@__DIR__, "..", "..", "deps", "runtime", name)
     mkpath(dirname(path))
@@ -167,7 +167,7 @@ function load_runtime(agent::HSAAgent)
             end
         else
             @info "Building the AMDGPUnative run-time library for your $isa device, this might take a while..."
-            lib = build_runtime(agent)
+            lib = build_runtime(device)
             open(path, "w") do io
                 write(io, lib)
             end
