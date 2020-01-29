@@ -3,7 +3,7 @@
 export @roc, rocconvert, rocfunction
 
 struct Kernel{F,TT}
-    agent::HSAAgent
+    device::RuntimeDevice
     mod::ROCModule
     fun::ROCFunction
 end
@@ -11,8 +11,9 @@ end
 # `split_kwargs()` segregates keyword arguments passed to `@roc` into those
 # affecting the compiler, kernel execution, or both.
 function split_kwargs(kwargs)
-    compiler_kws = [:agent, :queue, :name]
-    call_kws     = [:groupsize, :gridsize, :agent, :queue]
+    # TODO: Alias groupsize and gridsize as threads and blocks, respectively
+    compiler_kws = [:device, :agent, :queue, :name]
+    call_kws     = [:groupsize, :gridsize, :device, :agent, :queue]
     compiler_kwargs = []
     call_kwargs = []
     for kwarg in kwargs
@@ -58,6 +59,23 @@ function assign_args!(code, args)
     end
 
     return vars, var_exprs
+end
+
+function extract_device(;device=nothing, agent=nothing, kwargs...)
+    if device !== nothing
+        return device
+    elseif agent !== nothing
+        return agent
+    else
+        return default_device()
+    end
+end
+function extract_queue(device; queue=nothing, kwargs...)
+    if queue !== nothing
+        return queue
+    else
+        return default_queue(device)
+    end
 end
 
 # fast lookup of global world age
@@ -125,11 +143,11 @@ macro roc(ex...)
             GC.@preserve $(vars...) begin
                 local kernel_args = map(rocconvert, ($(var_exprs...),))
                 local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-                local agent = get_default_agent()
-                local kernel = rocfunction(agent, $(esc(f)), kernel_tt;
+                local device = extract_device(; $(map(esc, call_kwargs)...))
+                local kernel = rocfunction(device, $(esc(f)), kernel_tt;
                                            $(map(esc, compiler_kwargs)...))
-                local queue = get_default_queue(agent)
-                local signal = HSASignal()
+                local queue = extract_queue(device; $(map(esc, call_kwargs)...))
+                local signal = create_event()
                 kernel(queue, signal, kernel_args...; $(map(esc, call_kwargs)...))
                 wait(signal)
             end
@@ -188,7 +206,7 @@ The output of this function is automatically cached, i.e. you can simply call
 generated automatically, when the function changes, or when different types or
 keyword arguments are provided.
 """
-@generated function rocfunction(agent::HSAAgent, f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
+@generated function rocfunction(device::RuntimeDevice, f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
     tt = Base.to_tuple_type(tt.parameters[1])
     sig = Base.signature_type(f, tt)
     t = Tuple(tt.parameters)
@@ -217,8 +235,8 @@ keyword arguments are provided.
 
         # compile the function
         if !haskey(compilecache, key)
-            fun, mod = compile(:roc, agent, f, tt; name=name, kwargs...)
-            kernel = Kernel{f,tt}(agent, mod, fun)
+            fun, mod = compile(:roc, device, f, tt; name=name, kwargs...)
+            kernel = Kernel{f,tt}(device, mod, fun)
             compilecache[key] = kernel
         end
 
@@ -227,10 +245,10 @@ keyword arguments are provided.
 end
 
 rocfunction(f::Core.Function, tt::Type=Tuple{}; kwargs...) =
-    rocfunction(get_default_agent(), f, tt; kwargs...)
+    rocfunction(default_device(), f, tt; kwargs...)
 
-@generated function call(kernel::Kernel{F,TT}, queue::HSAQueue,
-                         signal::HSASignal, args...; call_kwargs...) where {F,TT}
+@generated function call(kernel::Kernel{F,TT}, queue::RuntimeQueue,
+                         signal::RuntimeEvent, args...; call_kwargs...) where {F,TT}
 
     sig = Base.signature_type(F, TT)
     args = (:F, (:( args[$i] ) for i in 1:length(args))...)

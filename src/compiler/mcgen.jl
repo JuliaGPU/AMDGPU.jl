@@ -1,12 +1,12 @@
 # machine code generation
 
-function machine(agent::HSAAgent, triple::String)
+function machine(device::RuntimeDevice, triple::String)
     InitializeAMDGPUTarget()
     InitializeAMDGPUTargetInfo()
     t = Target(triple)
 
     InitializeAMDGPUTargetMC()
-    cpu = get_first_isa(agent) # TODO: Make this configurable
+    cpu = default_isa(device) # TODO: Make this configurable
     feat = ""
     tm = TargetMachine(t, triple, cpu, feat)
     asm_verbosity!(tm, true)
@@ -80,7 +80,7 @@ end
 
 function mcgen(job::CompilerJob, mod::LLVM.Module, f::LLVM.Function;
                output_format=LLVM.API.LLVMObjectFile)
-    tm = machine(job.agent, triple(mod))
+    tm = machine(job.device, triple(mod))
 
     InitializeAMDGPUAsmPrinter()
     return String(emit(tm, mod, output_format))

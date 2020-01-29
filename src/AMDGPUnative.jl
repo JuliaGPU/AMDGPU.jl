@@ -7,6 +7,16 @@ using Adapt
 using TimerOutputs
 using DataStructures
 using Libdl
+using Requires
+
+@enum DeviceRuntime HSA OCL
+const RUNTIME = Ref{DeviceRuntime}(HSA)
+#=
+if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
+    RUNTIME[] = OCL
+end
+=#
+include("runtime.jl")
 
 const configured = HSARuntime.configured
 
@@ -29,6 +39,7 @@ include("reflection.jl")
 
 function __init__()
     check_deps()
+    @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
     __init_compiler__()
 end
 

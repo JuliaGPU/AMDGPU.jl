@@ -4,7 +4,7 @@ struct CompilerJob
     # core invocation
     f::Base.Callable
     tt::DataType
-    agent::HSAAgent
+    device::RuntimeDevice
     kernel::Bool
 
     # optional properties
@@ -14,10 +14,10 @@ struct CompilerJob
     maxregs::Union{Nothing,Integer}
     name::Union{Nothing,String}
 
-    CompilerJob(f, tt, agent, kernel; name=nothing,
+    CompilerJob(f, tt, device, kernel; name=nothing,
                 minthreads=nothing, maxthreads=nothing,
                 blocks_per_sm=nothing, maxregs=nothing) =
-        new(f, tt, agent, kernel, minthreads, maxthreads, blocks_per_sm,
+        new(f, tt, device, kernel, minthreads, maxthreads, blocks_per_sm,
             maxregs, name)
 end
 

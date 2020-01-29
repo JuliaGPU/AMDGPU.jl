@@ -7,7 +7,7 @@ using InteractiveUtils
 #   and/or to support generating otherwise invalid code (e.g. with missing symbols).
 
 """
-    code_llvm([io], f, types; optimize=true, agent::HSAAgent=get_default_agent(), kernel=false,
+    code_llvm([io], f, types; optimize=true, device::RuntimeDevice=default_device(), kernel=false,
               optimize=true, raw=false, dump_module=false, strict=false)
 
 Prints the device LLVM IR generated for the method matching the given generic function and
@@ -15,7 +15,7 @@ type signature to `io` which defaults to `stdout`.
 
 The following keyword arguments are supported:
 
-- `agent`: which device to generate code for
+- `device`: which device to generate code for
 - `kernel`: treat the function as an entry-point kernel
 - `optimize`: determines if the code is optimized, which includes kernel-specific
   optimizations if `kernel` is true
@@ -26,11 +26,11 @@ The following keyword arguments are supported:
 See also: [`@device_code_llvm`](@ref), [`InteractiveUtils.code_llvm`](@ref)
 """
 function code_llvm(io::IO, @nospecialize(func), @nospecialize(types);
-                   optimize::Bool=true, agent::HSAAgent=get_default_agent(),
+                   optimize::Bool=true, device::RuntimeDevice=default_device(),
                    dump_module::Bool=false, raw::Bool=false,
                    kernel::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    job = CompilerJob(func, tt, agent, kernel; kwargs...)
+    job = CompilerJob(func, tt, device, kernel; kwargs...)
     code_llvm(io, job; optimize=optimize,
               raw=raw, dump_module=dump_module, strict=strict)
 end
@@ -49,14 +49,14 @@ code_llvm(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_llvm(stdout, func, types; kwargs...)
 
 """
-    code_gcn([io], f, types; agent::HSAAgent=get_default_agent(), kernel=false, raw=false, strict=false)
+    code_gcn([io], f, types; device::RuntimeDevice=default_device(), kernel=false, raw=false, strict=false)
 
 Prints the GCN assembly generated for the method matching the given generic function and
 type signature to `io` which defaults to `stdout`.
 
 The following keyword arguments are supported:
 
-- `agent`: which device to generate code for
+- `device`: which device to generate code for
 - `kernel`: treat the function as an entry-point kernel
 - `raw`: return the raw code including all metadata
 - `strict`: verify generate code as early as possible
@@ -64,10 +64,10 @@ The following keyword arguments are supported:
 See also: [`@device_code_gcn`](@ref)
 """
 function code_gcn(io::IO, @nospecialize(func), @nospecialize(types);
-                  agent::HSAAgent=get_default_agent(), kernel::Bool=false,
+                  device::RuntimeDevice=default_device(), kernel::Bool=false,
                   raw::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    job = CompilerJob(func, tt, agent, kernel; kwargs...)
+    job = CompilerJob(func, tt, device, kernel; kwargs...)
     code_gcn(io, job; raw=raw, strict=strict)
 end
 

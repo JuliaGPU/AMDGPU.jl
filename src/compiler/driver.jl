@@ -4,11 +4,11 @@
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 """
-    compile(target::Symbol, agent::HSAAgent, f, tt, kernel=true;
+    compile(target::Symbol, device::RuntimeDevice, f, tt, kernel=true;
             libraries=true, optimize=true, strip=false, strict=true, ...)
-Compile a function `f` invoked with types `tt` for agent `agent` to one of the
-following formats as specified by the `target` argument: `:julia` for Julia
-IR, `:llvm` for LLVM IR, `:gcn` for GCN assembly, and `:roc` for linked
+Compile a function `f` invoked with types `tt` for device `device` to one of
+the following formats as specified by the `target` argument: `:julia` for
+Julia IR, `:llvm` for LLVM IR, `:gcn` for GCN assembly, and `:roc` for linked
 objects. If the `kernel` flag is set, specialized code generation and
 optimization for kernel functions is enabled.
 The following keyword arguments are supported:
@@ -18,11 +18,11 @@ The following keyword arguments are supported:
 - `strict`: perform code validation either as early or as late as possible
 Other keyword arguments can be found in the documentation of [`rocfunction`](@ref).
 """
-compile(target::Symbol, agent::HSAAgent, @nospecialize(f::Core.Function),
+compile(target::Symbol, device::RuntimeDevice, @nospecialize(f::Core.Function),
                  @nospecialize(tt), kernel::Bool=true; libraries::Bool=true,
                  optimize::Bool=true, strip::Bool=false, strict::Bool=true, kwargs...) =
 
-                 compile(target, CompilerJob(f, tt, agent, kernel; kwargs...);
+                 compile(target, CompilerJob(f, tt, device, kernel; kwargs...);
                          libraries=libraries, optimize=optimize, strip=strip,
                          strict=strict)
 
@@ -88,7 +88,7 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
     # always preload the runtime, and do so early; it cannot be part of any timing block
     # because it recurses into the compiler
     if libraries
-        runtime = load_runtime(job.agent)
+        runtime = load_runtime(job.device)
         runtime_fns = LLVM.name.(defs(runtime))
     end
 
@@ -105,7 +105,7 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
             end
             =#
             # FIXME: Load this only when needed
-            device_libs = load_device_libs(job.agent)
+            device_libs = load_device_libs(job.device)
             for lib in device_libs
                 if need_library(ir, lib)
                     @timeit to[] "device library" link_device_lib!(job, ir, lib)
