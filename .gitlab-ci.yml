@@ -44,16 +44,6 @@ test:nightly:
 
 # special tests
 
-test:source:llvm7:
-  extends:
-    - .julia:source
-    - .test
-  tags:
-    - rocm
-  variables:
-    CI_BUILD_ARGS: 'LLVM_VER=7.0.0 USE_BINARYBUILDER_LLVM=0'
-
-
 test:source:llvm9:
   extends:
     - .julia:source
@@ -61,4 +51,4 @@ test:source:llvm9:
   tags:
     - rocm
   variables:
-    CI_BUILD_ARGS: 'LLVM_VER=9.0.0rc6 USE_BINARYBUILDER_LLVM=0'
+    CI_BUILD_ARGS: 'LLVM_VER=9.0.1 USE_BINARYBUILDER_LLVM=0'
