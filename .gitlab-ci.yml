@@ -50,5 +50,6 @@ test:source:llvm9:
     - .test
   tags:
     - rocm
+  allow_failure: true
   variables:
     CI_BUILD_ARGS: 'LLVM_VER=9.0.1 USE_BINARYBUILDER_LLVM=0'
