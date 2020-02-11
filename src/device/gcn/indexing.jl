@@ -1,7 +1,8 @@
 # Indexing and dimensions
+import HSARuntime: hsa_kernel_dispatch_packet_t
 
-export workitemIdx, workgroupIdx
-export threadIdx, blockIdx
+export workitemIdx, workgroupIdx, workitemDim, workgroupDim
+export threadIdx, blockIdx, blockDim, gridDim
 
 @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
     T_int32 = LLVM.Int32Type(JuliaContext())
@@ -31,9 +32,49 @@ export threadIdx, blockIdx
     call_function(llvm_f, UInt32)
 end
 
+@generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
+    T_int8 = LLVM.Int8Type(JuliaContext())
+    T_int32 = LLVM.Int32Type(JuliaContext())
+    _as = Base.libllvm_version < v"7.0" ? 2 : 4
+    T_ptr_i8 = LLVM.PointerType(T_int8, _as)
+    T_ptr_i32 = LLVM.PointerType(T_int32, _as)
+    T_ptr_T = LLVM.PointerType(convert(LLVMType, T), _as)
+
+    # create function
+    llvm_f, _ = create_function(T_int32)
+    mod = LLVM.parent(llvm_f)
+
+    # generate IR
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
+        position!(builder, entry)
+
+        # get the kernel dispatch pointer
+        intr_typ = LLVM.FunctionType(T_ptr_i8)
+        intr = LLVM.Function(mod, "llvm.amdgcn.dispatch.ptr", intr_typ)
+        ptr = call!(builder, intr)
+
+        # load the index
+        offset = base+((off-1)*sizeof(T))
+        idx_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(offset,JuliaContext())])
+        idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
+        idx_T = load!(builder, idx_ptr_T)
+        idx = zext!(builder, idx_T, T_int32)
+
+        # attach range metadata
+        range_metadata = MDNode([ConstantInt(T(range.start), JuliaContext()),
+                                 ConstantInt(T(range.stop), JuliaContext())],
+                                JuliaContext())
+        metadata(idx_T)[LLVM.MD_range] = range_metadata
+        ret!(builder, idx)
+    end
+
+    call_function(llvm_f, UInt32)
+end
+
 # TODO: look these up for the current agent/queue
 const max_block_size = (x=1024, y=1024, z=1024)
-const max_grid_size  = (x=2147483647, y=65535, z=65535)
+const max_grid_size  = (x=65535, y=65535, z=65535)
 
 for dim in (:x, :y, :z)
     # Workitem index
@@ -46,13 +87,30 @@ for dim in (:x, :y, :z)
     fname = Symbol("workgroup")
     fn = Symbol("workgroupIdx_$dim")
     intr = Symbol("$dim")
-    @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:max_block_size[dim])))) + 1
+    @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:max_grid_size[dim])))) + 1
+end
+_packet_names = fieldnames(hsa_kernel_dispatch_packet_t)
+_packet_offsets = fieldoffset.(hsa_kernel_dispatch_packet_t, 1:length(_packet_names))
+for (dim,off) in ((:x,1), (:y,2), (:z,3))
+    # Workitem dimension
+    fn = Symbol("workitemDim_$dim")
+    base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
+    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:max_block_size[dim])), UInt16))
+
+    # Workgroup dimension
+    fn = Symbol("workgroupDim_$dim")
+    base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
+    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:max_grid_size[dim])), UInt32))
 end
 
 @inline workitemIdx() = (x=workitemIdx_x(), y=workitemIdx_y(), z=workitemIdx_z())
 @inline workgroupIdx() = (x=workgroupIdx_x(), y=workgroupIdx_y(), z=workgroupIdx_z())
+@inline workitemDim() = (x=workitemDim_x(), y=workitemDim_y(), z=workitemDim_z())
+@inline workgroupDim() = (x=workgroupDim_x(), y=workgroupDim_y(), z=workgroupDim_z())
 
 # For compat with CUDAnative et. al
 
 @inline threadIdx() = (x=workitemIdx_x(), y=workitemIdx_y(), z=workitemIdx_z())
 @inline blockIdx() = (x=workgroupIdx_x(), y=workgroupIdx_y(), z=workgroupIdx_z())
+@inline blockDim() = (x=workitemDim_x(), y=workitemDim_y(), z=workitemDim_z())
+@inline gridDim() = (x=workgroupDim_x(), y=workgroupDim_y(), z=workgroupDim_z())

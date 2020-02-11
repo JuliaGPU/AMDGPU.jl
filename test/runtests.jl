@@ -68,19 +68,15 @@ if AMDGPUnative.configured
         end
 
         @testset "Device" begin
-        include("device/synchronization.jl")
-        include("device/memory.jl")
-        if Base.libllvm_version >= v"7.0"
-            include("device/math.jl")
-        else
-            @warn "Testing with LLVM 6; some tests will be disabled!"
-            @test_skip "Math Intrinsics"
-        end
-        #include("device/codegen.jl")
-        #include("device/execution.jl")
-        #include("device/pointer.jl")
-        #include("device/array.jl")
-        #include("device/intrinsics.jl")
+            include("device/synchronization.jl")
+            include("device/memory.jl")
+            include("device/indexing.jl")
+            if Base.libllvm_version >= v"7.0"
+                include("device/math.jl")
+            else
+                @warn "Testing with LLVM 6; some tests will be disabled!"
+                @test_skip "Math Intrinsics"
+            end
         end
     end
 else
