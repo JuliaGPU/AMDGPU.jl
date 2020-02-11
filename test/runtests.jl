@@ -14,9 +14,11 @@ agent_isa = get_first_isa(get_default_agent())
 
 include("util.jl")
 
+@testset "Core" begin
 include("base.jl")
 include("pointer.jl")
 # TODO: include("codegen.jl")
+end
 
 if AMDGPUnative.configured
     @test length(get_agents()) > 0
@@ -65,7 +67,9 @@ if AMDGPUnative.configured
             @test a+b ≈ c
         end
 
+        @testset "Device" begin
         include("device/synchronization.jl")
+        include("device/memory.jl")
         if Base.libllvm_version >= v"7.0"
             include("device/math.jl")
         else
@@ -77,6 +81,7 @@ if AMDGPUnative.configured
         #include("device/pointer.jl")
         #include("device/array.jl")
         #include("device/intrinsics.jl")
+        end
     end
 else
     @warn("AMDGPUnative.jl has not been configured; skipping on-device tests.")
