@@ -49,7 +49,7 @@ function assign_args!(code, args)
     # assign arguments to variables
     vars = Tuple(gensym() for arg in args)
     map(vars, args) do var,arg
-        push!(code.args, :($var = $(esc(arg))))
+        push!(code.args, :($var = $arg))
     end
 
     # convert the arguments, compile the function and call the kernel
@@ -138,21 +138,23 @@ macro roc(ex...)
     compiler_kwargs, call_kwargs = split_kwargs(kwargs)
     vars, var_exprs = assign_args!(code, args)
 
+    @gensym kernel_args kernel_tt device kernel queue signal
+
     push!(code.args,
         quote
             GC.@preserve $(vars...) begin
-                local kernel_args = map(rocconvert, ($(var_exprs...),))
-                local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-                local device = extract_device(; $(map(esc, call_kwargs)...))
-                local kernel = rocfunction(device, $(esc(f)), kernel_tt;
-                                           $(map(esc, compiler_kwargs)...))
-                local queue = extract_queue(device; $(map(esc, call_kwargs)...))
-                local signal = create_event()
-                kernel(queue, signal, kernel_args...; $(map(esc, call_kwargs)...))
-                wait(signal)
+                local $kernel_args = map(rocconvert, ($(var_exprs...),))
+                local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
+                local $device = $extract_device(; $(call_kwargs...))
+                local $kernel = rocfunction($device, $f, $kernel_tt;
+                                           $(compiler_kwargs...))
+                local $queue = $extract_queue($device; $(call_kwargs...))
+                local $signal = $create_event()
+                $kernel($queue, $signal, $kernel_args...; $(call_kwargs...))
+                wait($signal)
             end
         end)
-    return code
+    return esc(code)
 end
 
 ## adaptors
