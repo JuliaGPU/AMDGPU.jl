@@ -26,6 +26,20 @@ function shutdown_hsa(libpath)
     ccall(sym, Cint, ())
 end
 
+## auxiliary routines
+
+status = 0
+function build_warning(reason)
+    println("$reason.")
+    global status
+    status = 1
+    # NOTE: it's annoying that we have to `exit(1)`, but otherwise messages are hidden
+end
+
+function build_error(reason)
+    println(reason)
+    exit(1)
+end
 
 ## main
 
@@ -41,25 +55,6 @@ function write_ext(config, path)
     end
 end
 
-function read_ext(path)
-    config = Dict{Symbol,Any}()
-    r = r"^const (\w+) = (.+)$"
-    open(path, "r") do io
-        for line in eachline(io)
-            m = match(r, line)
-            if m != nothing
-                config[Symbol(m.captures[1])] = eval(Meta.parse(m.captures[2]))
-            end
-        end
-    end
-    return config
-end
-
-function build_error(reason)
-    println("$reason.")
-    exit(1)
-end
-
 function find_roc_paths()
     paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
     paths = filter(path->path != "", paths)
@@ -71,6 +66,10 @@ function find_roc_paths()
 end
 
 function find_hsa_library(lib, dirs)
+    path = Libdl.find_library(lib)
+    if path != ""
+        return Libdl.dlpath(path)
+    end
     for dir in dirs
         files = readdir(dir)
         for file in files
@@ -130,7 +129,6 @@ function main()
     if config[:libhsaruntime_path] == nothing
         build_error("Could not find HSA runtime library.")
     end
-    config[:libhsaruntime_vendor] = "AMD"
 
     # initializing the library isn't necessary, but flushes out errors that otherwise would
     # happen during `version` or, worse, at package load time.
@@ -159,11 +157,17 @@ function main()
 
     config[:configured] = true
 
-
     ## (re)generate ext.jl
 
+    function globals(mod)
+        all_names = names(mod, all=true)
+        filter(name-> !any(name .== [nameof(mod), Symbol("#eval"), :eval]), all_names)
+    end
+
     if isfile(previous_config_path)
-        previous_config = read_ext(previous_config_path)
+        @eval module Previous; include($previous_config_path); end
+        previous_config = Dict{Symbol,Any}(name => getfield(Previous, name)
+                                           for name in globals(Previous))
 
         if config == previous_config
             mv(previous_config_path, config_path; force=true)
@@ -171,9 +175,16 @@ function main()
         end
     end
 
+    config[:configured] = true
     write_ext(config, config_path)
 
-    return
+    if status != 0
+        # we got here, so the status is non-fatal
+        build_error("""
+
+            HSARuntime.jl has been built successfully, but there were warnings.
+            Some functionality may be unavailable.""")
+    end
 end
 
 main()
