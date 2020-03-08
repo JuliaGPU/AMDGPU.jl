@@ -6,7 +6,7 @@ export alloc_special
 
     # old versions of GPUArrays invoke _shmem with an integer id; make sure those are unique
     if !isa(id, String) || !isa(id, Symbol)
-        id = "shmem$id"
+        id = "alloc_special_$id"
     end
 
     T_ptr = convert(LLVMType, DevicePtr{T,as})
