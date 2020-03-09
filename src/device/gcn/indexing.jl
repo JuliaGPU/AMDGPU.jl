@@ -82,12 +82,16 @@ for dim in (:x, :y, :z)
     fn = Symbol("workitemIdx_$dim")
     intr = Symbol("$dim")
     @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:max_block_size[dim])))) + 1
+    cufn = Symbol("threadIdx_$dim")
+    @eval @inline $cufn() = $fn()
 
     # Workgroup index
     fname = Symbol("workgroup")
     fn = Symbol("workgroupIdx_$dim")
     intr = Symbol("$dim")
     @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:max_grid_size[dim])))) + 1
+    cufn = Symbol("blockIdx_$dim")
+    @eval @inline $cufn() = $fn()
 end
 _packet_names = fieldnames(hsa_kernel_dispatch_packet_t)
 _packet_offsets = fieldoffset.(hsa_kernel_dispatch_packet_t, 1:length(_packet_names))
@@ -96,11 +100,15 @@ for (dim,off) in ((:x,1), (:y,2), (:z,3))
     fn = Symbol("workitemDim_$dim")
     base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
     @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:max_block_size[dim])), UInt16))
+    cufn = Symbol("blockDim_$dim")
+    @eval @inline $cufn() = $fn()
 
     # Workgroup dimension
     fn = Symbol("workgroupDim_$dim")
     base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
     @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:max_grid_size[dim])), UInt32))
+    cufn = Symbol("gridDim_$dim")
+    @eval @inline $cufn() = $fn()
 end
 
 @inline workitemIdx() = (x=workitemIdx_x(), y=workitemIdx_y(), z=workitemIdx_z())

@@ -53,7 +53,7 @@ function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
             initialize!(pm)
 
             # lower intrinsics
-            #add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+            add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
             aggressive_dce!(pm) # remove dead uses of ptls
             add!(pm, ModulePass("LowerPTLS", lower_ptls!))
 
