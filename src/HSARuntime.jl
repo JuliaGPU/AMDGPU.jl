@@ -484,13 +484,29 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     hsa_signal_store_relaxed(_queue.doorbell_signal, index)
 end
 
-# FIXME: Make this non-blocking for libuv
-function Base.wait(signal::HSASignal)
-    # Wait on the dispatch completion signal until the kernel is finished
-    value = Ref{hsa_signal_value_t}()
-    value[] = hsa_signal_wait_acquire(signal.signal[],
-                                      HSA_SIGNAL_CONDITION_LT, 1, typemax(UInt64),
-                                      HSA_WAIT_STATE_BLOCKED)
+"""
+    Base.wait(signal::HSASignal; soft=true, minlat=0.01)
+
+Waits on an `HSASignal` to decrease below 1. If `soft=true` (default), uses
+tasks to poll the signal, otherwise uses HSA's signal waiter. `minlat` sets
+the minimum latency for the software waiter; lower values can decrease latency
+at the cost of increased polling load.
+"""
+function Base.wait(signal::HSASignal; soft=true, minlat=0.01)
+    if soft
+        while true
+            value = hsa_signal_load_scacquire(signal.signal[])
+            if value < 1
+                return
+            end
+            sleep(minlat)
+        end
+    else
+        # Wait on the dispatch completion signal until the kernel is finished
+        hsa_signal_wait_acquire(signal.signal[],
+                                HSA_SIGNAL_CONDITION_LT, 1, typemax(UInt64),
+                                HSA_WAIT_STATE_BLOCKED)
+    end
 end
 
 include("memory.jl")
