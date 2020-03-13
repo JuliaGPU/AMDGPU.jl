@@ -151,15 +151,13 @@ macro roc(ex...)
                 local $queue = $extract_queue($device; $(call_kwargs...))
                 local $signal = $create_event()
                 $kernel($queue, $signal, $kernel_args...; $(call_kwargs...))
-                wait($signal)
+                $signal
             end
         end)
     return esc(code)
 end
 
 ## adaptors
-
-struct Adaptor end
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 mutable struct ROCRefValue{T} <: Ref{T}

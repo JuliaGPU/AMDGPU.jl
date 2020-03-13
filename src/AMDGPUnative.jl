@@ -24,6 +24,8 @@ const configured = HSARuntime.configured
 include(joinpath(@__DIR__, "..", "deps", "deps.jl"))
 const device_libs_path = joinpath(@__DIR__, "..", "deps", "usr", "lib")
 
+struct Adaptor end
+
 # Device sources must load _before_ the compiler infrastructure
 # because of generated functions.
 include(joinpath("device", "tools.jl"))
