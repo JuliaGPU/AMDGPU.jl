@@ -862,3 +862,18 @@ end
 function hsa_ext_sampler_destroy(agent, sampler)
     ccall((:hsa_ext_sampler_destroy, "libhsa-runtime64"), hsa_status_t, (hsa_agent_t, hsa_ext_sampler_t), agent, sampler)
 end
+
+# FIXME: Manually wrapped logging routines
+
+#=
+function hsa_ext_log_create(log::Ptr{hsa_log_t})
+    ccall((:hsa_ext_log_create, "libhsa-runtime64")
+
+function hsa_ext_log_load_program_code_object(executable, code_object_reader, options, loaded_code_object, log)
+    ccall((:hsa_ext_log_load_program_code_object, "libhsa-runtime64"), hsa_status_t, (hsa_executable_t, hsa_code_object_reader_t, Cstring, Ptr{hsa_loaded_code_object_t}, hsa_log_t), executable, code_object_reader, options, loaded_code_object, log)
+end
+
+function hsa_ext_log_load_agent_code_object(executable, agent, code_object_reader, options, loaded_code_object, log)
+    ccall((:hsa_ext_log_load_agent_code_object, "libhsa-runtime64"), hsa_status_t, (hsa_executable_t, hsa_agent_t, hsa_code_object_reader_t, Cstring, Ptr{hsa_loaded_code_object_t}, hsa_log_t), executable, agent, code_object_reader, options, loaded_code_object, log)
+end
+=#

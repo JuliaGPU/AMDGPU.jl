@@ -879,3 +879,7 @@ struct hsa_ext_images_1_pfn_s
 end
 
 const hsa_ext_images_1_pfn_t = hsa_ext_images_1_pfn_s
+
+struct hsa_log_t
+    handle::UInt64
+end

@@ -79,7 +79,6 @@ end
 mutable struct HSAExecutable
     agent::HSAAgent
     executable::Ref{hsa_executable_t}
-    code_object::Ref{hsa_code_object_t}
     data::Vector{UInt8}
 end
 
@@ -168,10 +167,33 @@ function get_fine_grained_memory_region_cb(region::hsa_region_t, data::Ptr{hsa_r
     return HSA_STATUS_SUCCESS
 end
 
-function iterate_exec_prog_syms_cb(exe::hsa_executable_t, agent::hsa_agent_t, sym::hsa_executable_symbol_t, data)
-    name = repeat(" ", 64)
-    hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
-    @info "    Symbol Name: $name"
+function iterate_exec_agent_syms_cb(exe::hsa_executable_t, agent::hsa_agent_t, sym::hsa_executable_symbol_t, sym_ref::Ptr{Cvoid})
+    sym_ref = Base.unsafe_convert(Ptr{hsa_executable_symbol_t}, sym_ref)
+    sym_type = Ref{hsa_symbol_kind_t}()
+    hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_TYPE, sym_type) |> check
+
+    if sym_type[] == HSA_SYMBOL_KIND_KERNEL
+        len = Ref(0)
+        hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, len) |> check
+        name = Vector{UInt8}(undef, len[])
+        hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
+        @debug "    Symbol Name: $(String(name))"
+        Base.unsafe_store!(sym_ref, sym)
+    end
+
+    return HSA_STATUS_SUCCESS
+end
+function iterate_exec_prog_syms_cb(exe::hsa_executable_t, sym::hsa_executable_symbol_t, data)
+    sym_type = Ref{hsa_symbol_kind_t}()
+    hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_TYPE, sym_type) |> check
+
+    #if sym_type[] == HSA_SYMBOL_KIND_KERNEL
+        len = Ref(0)
+        hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, len) |> check
+        name = Vector{UInt8}(undef, len[])
+        hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
+        @debug "   Symbol Name: $(String(name))"
+    #end
 
     return HSA_STATUS_SUCCESS
 end
@@ -204,38 +226,49 @@ function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String)
     hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_PROFILE, profile) |> check
     =#
 
-    code_object = Ref{hsa_code_object_t}(hsa_code_object_t(0))
-    hsa_code_object_deserialize(data, sizeof(data), C_NULL, code_object) |> check
-    @assert code_object[].handle != 0
+    code_object_reader = Ref{hsa_code_object_reader_t}(hsa_code_object_reader_t(0))
+    hsa_code_object_reader_create_from_memory(data, sizeof(data), code_object_reader) |> check
 
     executable = Ref{hsa_executable_t}()
-    hsa_executable_create(HSA_PROFILE_FULL, HSA_EXECUTABLE_STATE_UNFROZEN, C_NULL, executable) |> check
-    hsa_executable_load_code_object(executable[], agent.agent, code_object[], C_NULL) |> check
+    hsa_executable_create_alt(HSA_PROFILE_BASE, HSA_DEFAULT_FLOAT_ROUNDING_MODE_NEAR, C_NULL, executable) |> check
+    hsa_executable_load_agent_code_object(executable[], agent.agent, code_object_reader[], C_NULL, C_NULL) |> check
     hsa_executable_freeze(executable[], "") |> check
+    hsa_code_object_reader_destroy(code_object_reader[]) |> check
 
-    exe = HSAExecutable(agent, executable, code_object, data)
+    exe = HSAExecutable(agent, executable, data)
     finalizer(exe) do exe
         hsa_executable_destroy(exe.executable[]) |> check
-        hsa_code_object_destroy(exe.code_object[]) |> check
     end
     return exe
 end
 
 function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, args::Tuple)
-    #= TODO: Make this available for debugging purposes
-    func = @cfunction(iterate_exec_prog_syms_cb, hsa_status_t,
-            (hsa_executable_t, hsa_agent_t, hsa_executable_symbol_t, Ptr{Cvoid}))
-    hsa_executable_iterate_agent_symbols(exe.executable[], agent.agent, func, C_NULL) |> check
-    =#
-
+    agent_func = @cfunction(iterate_exec_agent_syms_cb, hsa_status_t,
+                           (hsa_executable_t, hsa_agent_t, hsa_executable_symbol_t, Ptr{Cvoid}))
+    prog_func = @cfunction(iterate_exec_prog_syms_cb, hsa_status_t,
+                            (hsa_executable_t, hsa_executable_symbol_t, Ptr{Cvoid}))
     exec_symbol = Ref{hsa_executable_symbol_t}()
-    hsa_executable_get_symbol(exe.executable[], C_NULL, symbol, agent.agent, 0, exec_symbol) |> check
+    @debug "Agent symbols"
+    hsa_executable_iterate_agent_symbols(exe.executable[], agent.agent, agent_func, exec_symbol) |> check
+    #@debug "Program symbols"
+    #hsa_executable_iterate_program_symbols(exe.executable[], prog_func, C_NULL) |> check
+
+    # TODO: Conditionally disable once ROCR is fixed
+    if !isassigned(exec_symbol)
+        agent_ref = Ref(agent.agent)
+        GC.@preserve agent_ref begin
+            hsa_executable_get_symbol_by_name(exe.executable[], symbol, agent_ref, exec_symbol) |> check
+        end
+    end
 
     kernel_object = Ref{UInt64}(0)
     hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT, kernel_object) |> check
 
     kernarg_segment_size = Ref{UInt32}(0)
     hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE, kernarg_segment_size) |> check
+    if kernarg_segment_size[] == 0
+        kernarg_segment_size[] = sum(sizeof.(args))
+    end
 
     group_segment_size = Ref{UInt32}(0)
     hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE, group_segment_size) |> check
@@ -370,10 +403,11 @@ get_default_queue() =
     get_default_queue(get_default_agent())
 
 function get_name(agent::HSAAgent)
-    # TODO: Get name length first!
-    name = repeat(" ", 64)
+    #len = Ref(0)
+    #hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_NAME_LENGTH, len) |> check
+    name = Vector{UInt8}(undef, 64)
     hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_NAME, name) |> check
-    return name
+    return rstrip(String(name), '\0')
 end
 function profile(agent::HSAAgent)
     profile = Ref{hsa_profile_t}()
