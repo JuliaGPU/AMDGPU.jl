@@ -13,6 +13,7 @@ if HSARuntime.configured
 
         agent_name = HSARuntime.get_name(agent)
         @test length(agent_name) > 0
+        @test !occursin('\0', agent_name)
 
         agent_isa = get_first_isa(agent)
         @test length(agent_isa) > 0
