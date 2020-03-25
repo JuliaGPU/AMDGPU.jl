@@ -51,6 +51,78 @@ function Base.getindex(dims::ROCDim3, idx::Int)
 end
 
 """
+    roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, types, values...;
+             groupsize::ROCDim, gridsize::ROCDim)
+
+`ccall`-like interface for launching a ROC function `f` on a GPU.
+
+For example:
+
+    vadd = ROCFunction(md, "vadd")
+    a = rand(Float32, 10)
+    b = rand(Float32, 10)
+    ad = Mem.upload(a)
+    bd = Mem.upload(b)
+    c = zeros(Float32, 10)
+    cd = Mem.alloc(c)
+
+    roccall(vadd, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd;
+             gridsize=10)
+    Mem.download!(c, cd)
+
+The `groupsize` and `gridsize` arguments control the launch configuration, and should both
+consist of either an integer, or a tuple of 1 to 3 integers (omitted dimensions default to
+1). The `types` argument can contain both a tuple of types, and a tuple type, the latter
+being slightly faster.
+"""
+roccall
+
+@inline function roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
+                          kwargs...) where N
+    # this cannot be inferred properly (because types only contains `DataType`s),
+    # which results in the call `@generated _roccall` getting expanded upon first use
+    _roccall(queue, signal, f, Tuple{types...}, values; kwargs...)
+end
+
+@inline function roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, values::Vararg{Any,N};
+                          kwargs...) where N
+    # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
+    # which means the generated function can be expanded earlier
+    _roccall(queue, signal, f, tt, values; kwargs...)
+end
+
+# we need a generated function to get a tuple of converted arguments (using unsafe_convert),
+# without having to inspect the types at runtime
+@generated function _roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, args::NTuple{N,Any};
+                             groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
+
+    # the type of `tt` is Type{Tuple{<:DataType...}}
+    types = tt.parameters[1].parameters
+
+    ex = Expr(:block)
+    push!(ex.args, :(Base.@_inline_meta))
+
+    # convert the argument values to match the kernel's signature (specified by the user)
+    # (this mimics `lower-ccall` in julia-syntax.scm)
+    converted_args = Vector{Symbol}(undef, N)
+    arg_ptrs = Vector{Symbol}(undef, N)
+    for i in 1:N
+        converted_args[i] = gensym()
+        arg_ptrs[i] = gensym()
+        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
+        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
+    end
+
+    append!(ex.args, (quote
+        GC.@preserve $(converted_args...) begin
+            launch(queue, signal, f, groupsize, gridsize, ($(arg_ptrs...),))
+        end
+    end).args)
+
+    return ex
+end
+
+"""
     launch(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction,
            groupsize::ROCDim, gridsize::ROCDim, args...)
 
@@ -108,78 +180,6 @@ end
             # launch kernel
             launch_kernel(queue, kern, signal;
                           groupsize=groupsize, gridsize=gridsize)
-        end
-    end).args)
-
-    return ex
-end
-
-"""
-    roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, types, values...;
-             groupsize::ROCDim, gridsize::ROCDim)
-
-`ccall`-like interface for launching a ROC function `f` on a GPU.
-
-For example:
-
-    vadd = ROCFunction(md, "vadd")
-    a = rand(Float32, 10)
-    b = rand(Float32, 10)
-    ad = Mem.upload(a)
-    bd = Mem.upload(b)
-    c = zeros(Float32, 10)
-    cd = Mem.alloc(c)
-
-    roccall(vadd, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd;
-             gridsize=10)
-    Mem.download!(c, cd)
-
-The `groupsize` and `gridsize` arguments control the launch configuration, and should both
-consist of either an integer, or a tuple of 1 to 3 integers (omitted dimensions default to
-1). The `types` argument can contain both a tuple of types, and a tuple type, the latter
-being slightly faster.
-"""
-roccall
-
-@inline function roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
-                          kwargs...) where N
-    # this cannot be inferred properly (because types only contains `DataType`s),
-    # which results in the call `@generated _roccall` getting expanded upon first use
-    _roccall(queue, signal, f, Tuple{types...}, values; kwargs...)
-end
-
-@inline function roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, values::Vararg{Any,N};
-                          kwargs...) where N
-    # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
-    # which means the generated function can be expanded earlier
-    _roccall(queue, signal, f, tt, values; kwargs...)
-end
-
-# we need a generated function to get a tuple of converted arguments (using unsafe_convert),
-# without having to inspect the types at runtime
-@generated function _roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, args::NTuple{N,Any};
-                              groupsize::ROCDim=1, gridsize::ROCDim=1) where N
-
-    # the type of `tt` is Type{Tuple{<:DataType...}}
-    types = tt.parameters[1].parameters
-
-    ex = Expr(:block)
-    push!(ex.args, :(Base.@_inline_meta))
-
-    # convert the argument values to match the kernel's signature (specified by the user)
-    # (this mimics `lower-ccall` in julia-syntax.scm)
-    converted_args = Vector{Symbol}(undef, N)
-    arg_ptrs = Vector{Symbol}(undef, N)
-    for i in 1:N
-        converted_args[i] = gensym()
-        arg_ptrs[i] = gensym()
-        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
-        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
-    end
-
-    append!(ex.args, (quote
-        GC.@preserve $(converted_args...) begin
-            launch(queue, signal, f, groupsize, gridsize, ($(arg_ptrs...),))
         end
     end).args)
 

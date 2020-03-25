@@ -34,7 +34,7 @@
                 ""
             end
 
-            wait(@roc groupsize=len gridsize=len $intr_kern(d_a))
+            wait(@roc groupsize=len $intr_kern(d_a))
             _a = Array(d_a)
             @test $modname.$jlintr.(a) ≈ _a
         end
