@@ -32,7 +32,7 @@ end
 
 A = zeros(Int64, 6)
 HA = HSAArray(A)
-@roc groupsize=(1,2,3) gridsize=(4,5,6) dim_kern(HA)
+wait(@roc groupsize=(1,2,3) gridsize=(4,5,6) dim_kern(HA))
 A = Array(HA)
 @test A ≈ [1,2,3,4,5,6]
 
