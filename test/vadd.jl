@@ -31,7 +31,7 @@
         ""
     end
 
-    @roc groupsize=len gridsize=len vadd(d_a, d_b, d_c)
+    wait(@roc groupsize=len gridsize=len vadd(d_a, d_b, d_c))
     @debug begin
         @show d_a
         @show d_b

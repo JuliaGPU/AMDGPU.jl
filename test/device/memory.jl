@@ -29,7 +29,7 @@ B = zeros(Float32, 1)
 HA = HSAArray(A)
 HB = HSAArray(B)
 
-@roc groupsize=1 gridsize=1 memory_static_kernel(HA, HB)
+wait(@roc groupsize=1 gridsize=1 memory_static_kernel(HA, HB))
 
 @test Array(HA) ≈ Array(HB)
 

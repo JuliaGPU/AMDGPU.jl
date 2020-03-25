@@ -20,7 +20,7 @@ struct RuntimeEvent{E}
 end
 create_event() = RuntimeEvent(create_event(RUNTIME[]))
 create_event(::typeof(HSA)) = HSASignal()
-Base.wait(event::RuntimeEvent) = wait(event.event)
+Base.wait(event::RuntimeEvent; kwargs...) = wait(event.event; kwargs...)
 
 struct RuntimeExecutable{E}
     exe::E
