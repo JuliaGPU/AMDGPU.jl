@@ -44,7 +44,7 @@ end
         dref[] = true
     end
 
-    @roc kernel(HA, HB, hc)
+    wait(@roc kernel(HA, HB, hc))
 
     sleep(1)
     @test Array(HB)[1] == 1f0
@@ -69,7 +69,7 @@ end
         1f0
     end
 
-    @roc kernel(HA, HB, hc)
+    wait(@roc kernel(HA, HB, hc))
 
     sleep(1)
     @test Array(HB)[1] == 2f0
@@ -92,7 +92,7 @@ end
         arg1 + 1f0
     end
 
-    @roc kernel(HA, HB, hc)
+    wait(@roc kernel(HA, HB, hc))
 
     sleep(1)
     @test Array(HB)[1] == 44f0
@@ -115,7 +115,7 @@ end
         arg1 + arg2 + 1f0
     end
 
-    @roc kernel(HA, HB, hc)
+    wait(@roc kernel(HA, HB, hc))
 
     sleep(1)
     @test Array(HB)[1] == 47f0
@@ -138,7 +138,7 @@ end
         arg1 + Float32(arg2) + 1f0
     end
 
-    @roc kernel(HA, HB, hc)
+    wait(@roc kernel(HA, HB, hc))
 
     sleep(1)
     @test Array(HB)[1] == 47f0
@@ -161,7 +161,7 @@ end
         (arg1 + Float32(arg2) + 1f0, 1f0)
     end
 
-    @roc kernel(HA, HB, hc)
+    wait(@roc kernel(HA, HB, hc))
 
     sleep(1)
     @test Array(HB)[1] == 48f0
@@ -184,7 +184,7 @@ end
         (arg1 + Float32(arg2) + 1f0, 1)
     end
 
-    @roc kernel(HA, HB, hc)
+    wait(@roc kernel(HA, HB, hc))
 
     sleep(1)
     @test Array(HB)[1] == 48f0
@@ -211,7 +211,7 @@ end
         arg1 + 2f0
     end
 
-    @roc kernel(HA, HB, hc1, hc2)
+    wait(@roc kernel(HA, HB, hc1, hc2))
 
     sleep(1)
     @test Array(HB)[1] == 11f0
@@ -234,6 +234,7 @@ end
         arg1 + 1f0
     end
 
+    # FIXME: wait() hangs here, probably race condition?
     @roc kernel(HA, HB, hc)
     @roc kernel(HA, HB, hc)
 
