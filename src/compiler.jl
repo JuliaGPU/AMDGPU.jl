@@ -1,22 +1,43 @@
-# JIT compilation of Julia code to GCN
+## target
 
-const to = Ref{TimerOutput}()
+struct ROCCompilerTarget <: CompositeCompilerTarget
+    parent::GCNCompilerTarget
 
-function timings!(new=TimerOutput())
-  global to
-  to[] = new
-  return
+    ROCCompilerTarget(dev_isa::String) = new(GCNCompilerTarget(dev_isa))
 end
 
-include(joinpath("compiler", "common.jl"))
-include(joinpath("compiler", "irgen.jl"))
-include(joinpath("compiler", "optim.jl"))
-include(joinpath("compiler", "validation.jl"))
-include(joinpath("compiler", "rtlib.jl"))
-include(joinpath("compiler", "mcgen.jl"))
-include(joinpath("compiler", "debug.jl"))
-include(joinpath("compiler", "driver.jl"))
+Base.parent(target::ROCCompilerTarget) = target.parent
 
-function __init_compiler__()
-    timings!()
+# filter out functions from device libs
+GPUCompiler.isintrinsic(target::ROCCompilerTarget, fn::String) =
+    GPUCompiler.isintrinsic(target.parent, fn) || startswith(fn, "rocm")
+
+GPUCompiler.runtime_module(::ROCCompilerTarget) = AMDGPUnative
+
+
+## job
+
+struct ROCCompilerJob <: CompositeCompilerJob
+    parent::GCNCompilerJob
+end
+
+ROCCompilerJob(target::AbstractCompilerTarget, source::FunctionSpec; kwargs...) =
+    ROCCompilerJob(GCNCompilerJob(target, source; kwargs...))
+
+Base.similar(job::ROCCompilerJob, source::FunctionSpec; kwargs...) =
+    ROCCompilerJob(similar(job.parent, source; kwargs...))
+
+Base.parent(job::ROCCompilerJob) = job.parent
+
+function GPUCompiler.process_module!(job::ROCCompilerJob, mod::LLVM.Module)
+    GPUCompiler.process_module!(job.parent, mod)
+
+    #emit_exception_flag!(mod)
+end
+
+function GPUCompiler.link_libraries!(job::ROCCompilerJob, mod::LLVM.Module,
+                                     undefined_fns::Vector{String})
+    GPUCompiler.link_libraries!(job.parent, mod, undefined_fns)
+
+    link_device_libs!(mod, job.parent.target.parent.dev_isa, undefined_fns)
 end

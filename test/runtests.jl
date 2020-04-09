@@ -1,5 +1,6 @@
 using AMDGPUnative
 const AS = AMDGPUnative.AS
+using GPUCompiler
 using LLVM, LLVM.Interop
 using HSARuntime
 using InteractiveUtils
@@ -15,7 +16,6 @@ agent_isa = get_first_isa(get_default_agent())
 include("util.jl")
 
 @testset "Core" begin
-include("base.jl")
 include("pointer.jl")
 # TODO: include("codegen.jl")
 end

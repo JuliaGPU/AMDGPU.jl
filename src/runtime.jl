@@ -31,14 +31,15 @@ function create_executable(::typeof(HSA_rt), device, func)
     # link with ld.lld
     ld_path = HSARuntime.ld_lld_path
     @assert ld_path != "" "ld.lld was not found; cannot link kernel"
-    # TODO: Do this more idiomatically
-    io = open("/tmp/amdgpu-dump.o", "w")
-    write(io, func.mod.data)
-    close(io)
-    run(`$ld_path -shared -o /tmp/amdgpu.exe /tmp/amdgpu-dump.o`)
-    io = open("/tmp/amdgpu.exe", "r")
-    data = read(io)
-    close(io)
+    path_exe = mktemp() do path_o, io_o
+        write(io_o, func.mod.data)
+        flush(io_o)
+        path_exe = path_o*".exe"
+        run(`$ld_path -shared -o $path_exe $path_o`)
+        path_exe
+    end
+    data = read(path_exe)
+    rm(path_exe)
 
     return HSAExecutable(device.device, data, func.entry)
 end

@@ -51,8 +51,9 @@ function Base.getindex(dims::ROCDim3, idx::Int)
 end
 
 """
-    roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, types, values...;
-             groupsize::ROCDim, gridsize::ROCDim)
+    roccall(f::ROCFunction, types, values...;
+            queue::RuntimeQueue, signal::RuntimeEvent,
+            groupsize::ROCDim, gridsize::ROCDim)
 
 `ccall`-like interface for launching a ROC function `f` on a GPU.
 
@@ -77,15 +78,15 @@ being slightly faster.
 """
 roccall
 
-@inline function roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
-                          kwargs...) where N
+@inline function roccall(f::ROCFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
+                         queue::RuntimeQueue, signal::RuntimeEvent, kwargs...) where N
     # this cannot be inferred properly (because types only contains `DataType`s),
     # which results in the call `@generated _roccall` getting expanded upon first use
     _roccall(queue, signal, f, Tuple{types...}, values; kwargs...)
 end
 
-@inline function roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, values::Vararg{Any,N};
-                          kwargs...) where N
+@inline function roccall(f::ROCFunction, tt::Type, values::Vararg{Any,N};
+                         queue::RuntimeQueue, signal::RuntimeEvent, kwargs...) where N
     # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
     # which means the generated function can be expanded earlier
     _roccall(queue, signal, f, tt, values; kwargs...)

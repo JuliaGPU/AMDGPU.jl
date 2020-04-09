@@ -1,46 +1,51 @@
 # Native execution support
 
-export @roc, rocconvert, rocfunction
+export @roc, rocconvert, rocfunction, nextwarp, prevwarp
 
-struct Kernel{F,TT}
-    device::RuntimeDevice
-    mod::ROCModule
-    fun::ROCFunction
-end
 
-# `split_kwargs()` segregates keyword arguments passed to `@roc` into those
-# affecting the compiler, kernel execution, or both.
+## helper functions
+
+# split keyword arguments to `@roc` into ones affecting the macro itself, the compiler and
+# the code it generates, or the execution
 function split_kwargs(kwargs)
-    # TODO: Alias groupsize and gridsize as threads and blocks, respectively
-    compiler_kws = [:device, :agent, :queue, :name]
-    call_kws     = [:groupsize, :gridsize, :device, :agent, :queue]
+    macro_kws    = [:dynamic]
+    compiler_kws = [:name]
+    call_kws     = [:gridsize, :groupsize, :config, :queue]
+    alias_kws    = Dict(:blocks=>:gridsize, :threads=>:groupsize)
+    macro_kwargs = []
     compiler_kwargs = []
     call_kwargs = []
     for kwarg in kwargs
         if Meta.isexpr(kwarg, :(=))
             key,val = kwarg.args
+            oldkey = key
+            if key in keys(alias_kws)
+                key = alias_kws[key]
+            end
             if isa(key, Symbol)
-                if key in compiler_kws
+                if key in macro_kws
+                    push!(macro_kwargs, kwarg)
+                elseif key in compiler_kws
                     push!(compiler_kwargs, kwarg)
                 elseif key in call_kws
                     push!(call_kwargs, kwarg)
                 else
-                    throw(ArgumentError("unknown keyword argument '$key'"))
+                    throw(ArgumentError("unknown keyword argument '$oldkey'"))
                 end
             else
-                throw(ArgumentError("non-symbolic keyword '$key'"))
+                throw(ArgumentError("non-symbolic keyword '$oldkey'"))
             end
         else
             throw(ArgumentError("non-keyword argument like option '$kwarg'"))
         end
     end
-    return compiler_kwargs, call_kwargs
+
+    return macro_kwargs, compiler_kwargs, call_kwargs
 end
 
-# `assign_args!()` first handles splats, then assigns arguments
-# to variables
+# assign arguments to variables, handle splatting
 function assign_args!(code, args)
-    # splat handling
+    # handle splatting
     splats = map(arg -> Meta.isexpr(arg, :(...)), args)
     args = map(args, splats) do arg, splat
         splat ? arg.args[1] : arg
@@ -61,6 +66,7 @@ function assign_args!(code, args)
     return vars, var_exprs
 end
 
+# extract device/queue from arguments, filling in defaults if needed
 function extract_device(;device=nothing, agent=nothing, kwargs...)
     if device !== nothing
         return device
@@ -78,34 +84,24 @@ function extract_queue(device; queue=nothing, kwargs...)
     end
 end
 
-# fast lookup of global world age
-world_age() = ccall(:jl_get_tls_world_age, UInt, ())
 
-# slow lookup of local method age
-function method_age(f, t)::UInt
-    for m in Base._methods(f, t, 1, typemax(UInt))
-        if VERSION >= v"1.2.0-DEV.573"
-            return m[3].primary_world
-        else
-            return m[3].min_world
-        end
-    end
-    tt = Base.to_tuple_type(t)
-    throw(MethodError(f, tt))
-end
+## high-level @roc interface
 
 """
     @roc [kwargs...] func(args...)
 
 High-level interface for executing code on a GPU. The `@roc` macro should prefix a call,
 with `func` a callable function or object that should return nothing. It will be compiled to
-a ROCm function upon first use, and to a certain extent arguments will be converted and
-managed automatically using `rocconvert`. Finally, a call to `roccall` is
-performed, scheduling a kernel launch on the current ROCm context.
+a GCN function upon first use, and to a certain extent arguments will be converted and
+managed automatically using `rocconvert`. Finally, a call to `HSARuntime.roccall` is
+performed, scheduling a kernel launch on the specified (or default) HSA queue.
 
 Several keyword arguments are supported that influence the behavior of `@roc`.
-- arguments that influence kernel compilation: see [`rocfunction`](@ref)
-- arguments that influence kernel launch: see [`AMDGPUnative.Kernel`](@ref)
+- `dynamic`: use dynamic parallelism to launch device-side kernels
+- arguments that influence kernel compilation: see [`rocfunction`](@ref) and
+  [`dynamic_rocfunction`](@ref)
+- arguments that influence kernel launch: see [`AMDGPUnative.HostKernel`](@ref) and
+  [`AMDGPUnative.DeviceKernel`](@ref)
 
 The underlying operations (argument conversion, kernel compilation, kernel call) can be
 performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
@@ -119,52 +115,91 @@ kernel to determine the launch configuration. A host-side kernel launch is done 
         kernel(kernel_args...; launch_kwargs)
     end
 
-"""  #TODO: Device-side launch currently unsupported.
+A device-side launch, aka. dynamic parallelism, is similar but more restricted:
+
+    args = ...
+    # GC.@preserve is not supported
+    # we're on the device already, so no need to rocconvert
+    kernel_tt = Tuple{Core.Typeof(args[1]), ...}    # this needs to be fully inferred!
+    kernel = dynamic_rocfunction(f, kernel_tt)       # no compiler kwargs supported
+    kernel(args...; launch_kwargs)
+"""
 macro roc(ex...)
-    if length(ex) > 0 && ex[1].head == :tuple
-        error("The tuple argument to @roc has been replaced by keywords: `@roc threads=... fun(args...)`")
-    end
+    # destructure the `@roc` expression
     call = ex[end]
     kwargs = ex[1:end-1]
 
     # destructure the kernel call
-    if call.head != :call
-        throw(ArgumentError("second argument to @roc should be a function call"))
-    end
+    Meta.isexpr(call, :call) || throw(ArgumentError("second argument to @roc should be a function call"))
     f = call.args[1]
     args = call.args[2:end]
 
     code = quote end
-    compiler_kwargs, call_kwargs = split_kwargs(kwargs)
+    macro_kwargs, compiler_kwargs, call_kwargs = split_kwargs(kwargs)
     vars, var_exprs = assign_args!(code, args)
 
-    @gensym kernel_args kernel_tt device kernel queue signal
+    # handle keyword arguments that influence the macro's behavior
+    dynamic = false
+    for kwarg in macro_kwargs
+        key,val = kwarg.args
+        if key == :dynamic
+            isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @roc should be a constant value"))
+            dynamic = val::Bool
+        else
+            throw(ArgumentError("Unsupported keyword argument '$key'"))
+        end
+    end
 
-    push!(code.args,
-        quote
-            GC.@preserve $(vars...) begin
-                local $kernel_args = map(rocconvert, ($(var_exprs...),))
-                local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
-                local $device = $extract_device(; $(call_kwargs...))
-                local $kernel = rocfunction($device, $f, $kernel_tt;
-                                           $(compiler_kwargs...))
-                local $queue = $extract_queue($device; $(call_kwargs...))
-                local $signal = $create_event()
-                $kernel($queue, $signal, $kernel_args...; $(call_kwargs...))
-                $signal
-            end
-        end)
+    # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
+    #        we esc() the whole thing now, necessitating gensyms...
+    @gensym kernel_args kernel_tt device kernel queue signal
+    if dynamic
+        # FIXME: we could probably somehow support kwargs with constant values by either
+        #        saving them in a global Dict here, or trying to pick them up from the Julia
+        #        IR when processing the dynamic parallelism marker
+        isempty(compiler_kwargs) || error("@roc dynamic parallelism does not support compiler keyword arguments")
+
+        # dynamic, device-side kernel launch
+        push!(code.args,
+            quote
+                # we're in kernel land already, so no need to rocconvert arguments
+                local $kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
+                local $kernel = $dynamic_rocfunction($f, $kernel_tt)
+                $kernel($(var_exprs...); $(call_kwargs...))
+             end)
+    else
+        # regular, host-side kernel launch
+        #
+        # convert the arguments, call the compiler and launch the kernel
+        # while keeping the original arguments alive
+
+        push!(code.args,
+            quote
+                GC.@preserve $(vars...) begin
+                    local $kernel_args = map(rocconvert, ($(var_exprs...),))
+                    local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
+                    local $device = $extract_device(; $(call_kwargs...))
+                    local $kernel = $rocfunction($f, $kernel_tt; device=$device,
+                                                 $(compiler_kwargs...))
+                    local $queue = $extract_queue($device; $(call_kwargs...))
+                    local $signal = $create_event()
+                    $kernel($kernel_args...; queue=$queue, signal=$signal,
+                            $(call_kwargs...))
+                    $signal
+                end
+            end)
+        end
     return esc(code)
 end
 
-## adaptors
+
+## host to device value conversion
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
-mutable struct ROCRefValue{T} <: Ref{T}
-    x::T
+struct ROCRefValue{T} <: Ref{T}
+  x::T
 end
 Base.getindex(r::ROCRefValue) = r.x
-Base.setindex!(r::ROCRefValue{T}, value::T) where T = (r.x = value;)
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = ROCRefValue(adapt(to, r[]))
 
 ## interop with HSAArray
@@ -178,78 +213,40 @@ Adapt.adapt_storage(::Adaptor, xs::HSAArray{T,N}) where {T,N} =
 """
     rocconvert(x)
 
-This function is called for every argument to be passed to a kernel, allowing
-it to be converted to a GPU-friendly format. By default, the function does
-nothing and returns the input object `x` as-is.
+This function is called for every argument to be passed to a kernel, allowing it to be
+converted to a GPU-friendly format. By default, the function does nothing and returns the
+input object `x` as-is.
 
-Do not add methods to this function, but instead extend the underlying
-Adapt.jl package and register methods for the the `AMDGPUnative.Adaptor` type.
+Do not add methods to this function, but instead extend the underlying Adapt.jl package and
+register methods for the the `AMDGPUnative.Adaptor` type.
 """
 rocconvert(arg) = adapt(Adaptor(), arg)
 
-## APIs for manual compilation
 
-const agecache = Dict{UInt, UInt}()
-const compilecache = Dict{UInt, Kernel}()
+## abstract kernel functionality
+
+abstract type AbstractKernel{F,TT} end
+
+# FIXME: there doesn't seem to be a way to access the documentation for the call-syntax,
+#        so attach it to the type -- https://github.com/JuliaDocs/Documenter.jl/issues/558
 
 """
-    rocfunction(f, tt=Tuple{}; kwargs...)
+    (::HostKernel)(args...; kwargs...)
+    (::DeviceKernel)(args...; kwargs...)
 
-Low-level interface to compile a function invocation for the currently-active
-GPU, returning a callable kernel object. For a higher-level interface, use
-[`@roc`](@ref).
+Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
+For a higher-level interface, use [`AMDGPUnative.@roc`](@ref).
 
-Currently, no keyword arguments are implemented.
-
-The output of this function is automatically cached, i.e. you can simply call
-`rocfunction` in a hot path without degrading performance. New code will be
-generated automatically, when the function changes, or when different types or
-keyword arguments are provided.
+The following keyword arguments are supported:
+- `groupsize` or `threads` (defaults to 1)
+- `gridsize` or `blocks` (defaults to 1)
+- `config`: callback function to dynamically compute the launch configuration.
+  should accept a `HostKernel` and return a name tuple with any of the above as fields.
+- `queue` (defaults to the default queue)
 """
-@generated function rocfunction(device::RuntimeDevice, f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
-    tt = Base.to_tuple_type(tt.parameters[1])
-    sig = Base.signature_type(f, tt)
-    t = Tuple(tt.parameters)
+AbstractKernel
 
-    precomp_key = hash(sig)  # precomputable part of the keys
-    quote
-        Base.@_inline_meta
-
-        # look-up the method age
-        key = hash(world_age(), $precomp_key)
-        if haskey(agecache, key)
-            age = agecache[key]
-        else
-            age = method_age(f, $t)
-            agecache[key] = age
-        end
-
-        # generate a key for indexing the compilation cache
-        key = hash(age, key)
-        key = hash(name, key)
-        key = hash(kwargs, key)
-        for nf in 1:nfields(f)
-            # mix in the values of any captured variable
-            key = hash(getfield(f, nf), key)
-        end
-
-        # compile the function
-        if !haskey(compilecache, key)
-            fun, mod = compile(:roc, device, f, tt; name=name, kwargs...)
-            kernel = Kernel{f,tt}(device, mod, fun)
-            compilecache[key] = kernel
-        end
-
-        return compilecache[key]::Kernel{f,tt}
-    end
-end
-
-rocfunction(f::Core.Function, tt::Type=Tuple{}; kwargs...) =
-    rocfunction(default_device(), f, tt; kwargs...)
-
-@generated function call(kernel::Kernel{F,TT}, queue::RuntimeQueue,
-                         signal::RuntimeEvent, args...; call_kwargs...) where {F,TT}
-
+@generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
     sig = Base.signature_type(F, TT)
     args = (:F, (:( args[$i] ) for i in 1:length(args))...)
 
@@ -272,22 +269,141 @@ rocfunction(f::Core.Function, tt::Type=Tuple{}; kwargs...) =
 
     quote
         Base.@_inline_meta
-        roccall(queue, signal, kernel.fun, $call_tt, $(call_args...); call_kwargs...)
+
+        roccall(kernel, $call_tt, $(call_args...); call_kwargs...)
     end
 end
 
-(kernel::Kernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
 
-# There doesn't seem to be a way to access the documentation for the
-# call-syntax, so attach it to the type
+## host-side kernels
+
+struct HostKernel{F,TT} <: AbstractKernel{F,TT}
+    mod::ROCModule
+    fun::ROCFunction
+end
+
+@doc (@doc AbstractKernel) HostKernel
+
+@inline function roccall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
+    queue = get(kwargs, :queue, default_queue(default_device()))
+    signal = get(kwargs, :signal, create_event())
+    if config !== nothing
+        roccall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
+    else
+        roccall(kernel.fun, tt, args...; kwargs...)
+    end
+end
+
+
+## host-side API
+
 """
-    (::Kernel)(args...; kwargs...)
+    rocfunction(f, tt=Tuple{}; kwargs...)
 
-Low-level interface to call a compiled kernel, passing GPU-compatible
-arguments in `args`.  For a higher-level interface, use [`@roc`](@ref).
+Low-level interface to compile a function invocation for the currently-active GPU, returning
+a callable kernel object. For a higher-level interface, use [`@roc`](@ref).
 
 The following keyword arguments are supported:
-- groupsize (defaults to 1)
-- gridsize (defaults to 1)
+- `name`: override the name that the kernel will have in the generated code
+
+The output of this function is automatically cached, i.e. you can simply call `rocfunction`
+in a hot path without degrading performance. New code will be generated automatically, when
+when function changes, or when different types or keyword arguments are provided.
 """
-Kernel
+function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
+    spec = FunctionSpec(f, tt, true, name)
+    GPUCompiler.cached_compilation(_rocfunction, spec; kwargs...)::HostKernel{f,tt}
+end
+
+# actual compilation
+function _rocfunction(spec::FunctionSpec; device=default_device(), kwargs...)
+    # compile to GCN
+    dev_isa = default_isa(device)
+    target = ROCCompilerTarget(dev_isa)
+    job = ROCCompilerJob(target, spec; kwargs...)
+    obj, kernel_fn, undefined_fns = GPUCompiler.compile(:obj, job; strict=true)
+
+    # settings to JIT based on Julia's debug setting
+    jit_options = Dict{Any,Any}()
+    #= TODO
+    jit_options = Dict{HSARuntime.ROCjit_option,Any}()
+    if Base.JLOptions().debug_level == 1
+        jit_options[HSARuntime.JIT_GENERATE_LINE_INFO] = true
+    elseif Base.JLOptions().debug_level >= 2
+        jit_options[HSARuntime.JIT_GENERATE_DEBUG_INFO] = true
+    end
+    =#
+
+    # JIT into an executable kernel object
+    mod = ROCModule(codeunits(obj), jit_options)
+    fun = ROCFunction(mod, kernel_fn)
+    kernel = HostKernel{spec.f,spec.tt}(mod, fun)
+
+    #create_exceptions!(mod)
+
+    return kernel
+end
+
+# https://github.com/JuliaLang/julia/issues/14919
+(kernel::HostKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
+
+
+## device-side kernels
+
+struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
+    fun::Ptr{Cvoid}
+end
+
+@doc (@doc AbstractKernel) DeviceKernel
+
+@inline roccall(kernel::DeviceKernel, tt, args...; kwargs...) =
+    dynamic_roccall(kernel.fun, tt, args...; kwargs...)
+
+# FIXME: duplication with HSARuntime.roccall
+@generated function dynamic_roccall(f::Ptr{Cvoid}, tt::Type, args...;
+                                     blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
+                                     stream=CuDefaultStream())
+    types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
+
+    ex = quote
+        Base.@_inline_meta
+    end
+
+    # convert the argument values to match the kernel's signature (specified by the user)
+    # (this mimics `lower-ccall` in julia-syntax.scm)
+    converted_args = Vector{Symbol}(undef, length(args))
+    arg_ptrs = Vector{Symbol}(undef, length(args))
+    for i in 1:length(args)
+        converted_args[i] = gensym()
+        arg_ptrs[i] = gensym()
+        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
+        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
+    end
+
+    append!(ex.args, (quote
+        #GC.@preserve $(converted_args...) begin
+            launch(f, blocks, threads, shmem, stream, $(arg_ptrs...))
+        #end
+    end).args)
+
+    return ex
+end
+
+
+## device-side API
+
+"""
+    dynamic_rocfunction(f, tt=Tuple{})
+
+Low-level interface to compile a function invocation for the currently-active GPU, returning
+a callable kernel object. Device-side equivalent of [`AMDGPUnative.rocfunction`](@ref).
+
+No keyword arguments are supported.
+"""
+@inline function dynamic_rocfunction(f::Core.Function, tt::Type=Tuple{})
+    fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
+    DeviceKernel{f,tt}(fptr)
+end
+
+# https://github.com/JuliaLang/julia/issues/14919
+(kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
