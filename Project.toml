@@ -14,7 +14,8 @@ Setfield = "0.5"
 julia = "1"
 
 [extras]
+AMDGPUnative = "12f4821f-d7ee-5ba6-b76b-566925c5fcc5"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["AMDGPUnative", "Test"]

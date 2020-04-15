@@ -1,4 +1,4 @@
-@testset "memory" begin
+@testset "Memory" begin
 
 #= FIXME
 let

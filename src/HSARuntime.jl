@@ -267,6 +267,7 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     kernarg_segment_size = Ref{UInt32}(0)
     hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE, kernarg_segment_size) |> check
     if kernarg_segment_size[] == 0
+        # FIXME: Hidden arguments!
         kernarg_segment_size[] = sum(sizeof.(args))
     end
 
@@ -485,7 +486,7 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
         dispatch_packet, 0, sizeof(dispatch_packet[]))
     _packet = dispatch_packet[]
     @set! _packet.setup = 0
-    @set! _packet.setup |= 1 << Int(HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
+    @set! _packet.setup |= 3 << Int(HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
     @set! _packet.workgroup_size_x = workgroup_size[1]
     @set! _packet.workgroup_size_y = workgroup_size[2]
     @set! _packet.workgroup_size_z = workgroup_size[3]
