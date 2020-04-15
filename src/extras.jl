@@ -19,7 +19,7 @@ function _memset!(ref::Ref{Ptr{Nothing}}, value; len=1)
         unsafe_store!(ptr, value, i)
     end
 end
-    
+
 # Overloads for interface functions
 
 function getinfo(agent::Agent, attribute::HSA.AgentInfo,
