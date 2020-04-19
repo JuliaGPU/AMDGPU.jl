@@ -23,9 +23,10 @@ end
 if AMDGPUnative.configured
     @test length(get_agents()) > 0
     if length(get_agents()) > 0
-        include("vadd.jl")
+        include("synchronization.jl")
+        include("trap.jl")
         @testset "Device" begin
-            include("device/synchronization.jl")
+            include("device/vadd.jl")
             include("device/memory.jl")
             include("device/indexing.jl")
             include("device/hostcall.jl")
