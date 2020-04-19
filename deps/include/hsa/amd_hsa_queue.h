@@ -2,24 +2,24 @@
 //
 // The University of Illinois/NCSA
 // Open Source License (NCSA)
-// 
+//
 // Copyright (c) 2014-2015, Advanced Micro Devices, Inc. All rights reserved.
-// 
+//
 // Developed by:
-// 
+//
 //                 AMD Research and AMD HSA Software Development
-// 
+//
 //                 Advanced Micro Devices, Inc.
-// 
+//
 //                 www.amd.com
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to
 // deal with the Software without restriction, including without limitation
 // the rights to use, copy, modify, merge, publish, distribute, sublicense,
 // and/or sell copies of the Software, and to permit persons to whom the
 // Software is furnished to do so, subject to the following conditions:
-// 
+//
 //  - Redistributions of source code must retain the above copyright notice,
 //    this list of conditions and the following disclaimers.
 //  - Redistributions in binary form must reproduce the above copyright
@@ -29,7 +29,7 @@
 //    nor the names of its contributors may be used to endorse or promote
 //    products derived from this Software without specific prior written
 //    permission.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
@@ -53,7 +53,8 @@ enum amd_queue_properties_t {
   AMD_HSA_BITS_CREATE_ENUM_ENTRIES(AMD_QUEUE_PROPERTIES_IS_PTR64, 1, 1),
   AMD_HSA_BITS_CREATE_ENUM_ENTRIES(AMD_QUEUE_PROPERTIES_ENABLE_TRAP_HANDLER_DEBUG_SGPRS, 2, 1),
   AMD_HSA_BITS_CREATE_ENUM_ENTRIES(AMD_QUEUE_PROPERTIES_ENABLE_PROFILING, 3, 1),
-  AMD_HSA_BITS_CREATE_ENUM_ENTRIES(AMD_QUEUE_PROPERTIES_RESERVED1, 4, 28)
+  AMD_HSA_BITS_CREATE_ENUM_ENTRIES(AMD_QUEUE_PROPERTIES_USE_SCRATCH_ONCE, 4, 1),
+  AMD_HSA_BITS_CREATE_ENUM_ENTRIES(AMD_QUEUE_PROPERTIES_RESERVED1, 5, 27)
 };
 
 // AMD Queue.
@@ -76,7 +77,7 @@ typedef struct AMD_QUEUE_ALIGN amd_queue_s {
   uint32_t scratch_resource_descriptor[4];
   uint64_t scratch_backing_memory_location;
   uint64_t scratch_backing_memory_byte_size;
-  uint32_t scratch_workitem_byte_size;
+  uint32_t scratch_wave64_lane_byte_size;
   amd_queue_properties32_t queue_properties;
   uint32_t reserved3[2];
   hsa_signal_t queue_inactive_signal;

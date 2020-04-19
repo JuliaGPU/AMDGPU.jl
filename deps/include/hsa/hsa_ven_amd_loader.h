@@ -83,7 +83,7 @@ extern "C" {
  * @retval HSA_STATUS_ERROR_INVALID_ARGUMENT @p device_address is invalid or
  * null, or @p host_address is null.
  */
-hsa_status_t HSA_API hsa_ven_amd_loader_query_host_address(
+hsa_status_t hsa_ven_amd_loader_query_host_address(
   const void *device_address,
   const void **host_address);
 
@@ -220,7 +220,7 @@ typedef struct hsa_ven_amd_loader_segment_descriptor_s {
  * does not point to number that exactly matches total number of loaded memory
  * segment descriptors.
  */
-hsa_status_t HSA_API hsa_ven_amd_loader_query_segment_descriptors(
+hsa_status_t hsa_ven_amd_loader_query_segment_descriptors(
   hsa_ven_amd_loader_segment_descriptor_t *segment_descriptors,
   size_t *num_segment_descriptors);
 
@@ -242,13 +242,169 @@ hsa_status_t hsa_ven_amd_loader_query_executable(
   const void *device_address,
   hsa_executable_t *executable);
 
+//===----------------------------------------------------------------------===//
+
+/**
+ * @brief Iterate over the loaded code objects in an executable, and invoke
+ * an application-defined callback on every iteration.
+ *
+ * @param[in] executable Executable.
+ *
+ * @param[in] callback Callback to be invoked once per loaded code object. The
+ * HSA runtime passes three arguments to the callback: the executable, a
+ * loaded code object, and the application data.  If @p callback returns a
+ * status other than ::HSA_STATUS_SUCCESS for a particular iteration, the
+ * traversal stops and ::hsa_executable_iterate_symbols returns that status
+ * value.
+ *
+ * @param[in] data Application data that is passed to @p callback on every
+ * iteration. May be NULL.
+ *
+ * @retval ::HSA_STATUS_SUCCESS The function has been executed successfully.
+ *
+ * @retval ::HSA_STATUS_ERROR_NOT_INITIALIZED The HSA runtime has not been
+ * initialized.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_EXECUTABLE The executable is invalid.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_ARGUMENT @p callback is NULL.
+ */
+hsa_status_t hsa_ven_amd_loader_executable_iterate_loaded_code_objects(
+  hsa_executable_t executable,
+  hsa_status_t (*callback)(
+    hsa_executable_t executable,
+    hsa_loaded_code_object_t loaded_code_object,
+    void *data),
+  void *data);
+
+/**
+ * @brief Loaded code object kind.
+ */
+typedef enum {
+  /**
+   * Program code object.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_KIND_PROGRAM = 1,
+  /**
+   * Agent code object.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_KIND_AGENT = 2
+} hsa_ven_amd_loader_loaded_code_object_kind_t;
+
+/**
+ * @brief Loaded code object attributes.
+ */
+typedef enum hsa_ven_amd_loader_loaded_code_object_info_e {
+  /**
+   * The executable in which this loaded code object is loaded. The
+   * type of this attribute is ::hsa_executable_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_EXECUTABLE = 1,
+  /**
+   * The kind of this loaded code object. The type of this attribute is
+   * ::uint32_t interpreted as ::hsa_ven_amd_loader_loaded_code_object_kind_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_KIND = 2,
+  /**
+   * The agent on which this loaded code object is loaded. The
+   * value of this attribute is only defined if
+   * ::HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_KIND is
+   * ::HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_KIND_AGENT. The type of this
+   * attribute is ::hsa_agent_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_AGENT = 3,
+  /**
+   * The storage type of the code object reader used to load the loaded code object.
+   * The type of this attribute is ::uint32_t interpreted as a
+   * ::hsa_ven_amd_loader_code_object_storage_type_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_CODE_OBJECT_STORAGE_TYPE = 4,
+  /**
+   * The memory address of the first byte of the code object that was loaaded.
+   * The value of this attribute is only defined if
+   * ::HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_CODE_OBJECT_STORAGE_TYPE is
+   * ::HSA_VEN_AMD_LOADER_CODE_OBJECT_STORAGE_TYPE_MEMORY. The type of this
+   * attribute is ::uint64_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_CODE_OBJECT_STORAGE_MEMORY_BASE = 5,
+  /**
+   * The memory size in bytes of the code object that was loaaded.
+   * The value of this attribute is only defined if
+   * ::HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_CODE_OBJECT_STORAGE_TYPE is
+   * ::HSA_VEN_AMD_LOADER_CODE_OBJECT_STORAGE_TYPE_MEMORY. The type of this
+   * attribute is ::uint64_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_CODE_OBJECT_STORAGE_MEMORY_SIZE = 6,
+  /**
+   * The file descriptor of the code object that was loaaded.
+   * The value of this attribute is only defined if
+   * ::HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_CODE_OBJECT_STORAGE_TYPE is
+   * ::HSA_VEN_AMD_LOADER_CODE_OBJECT_STORAGE_TYPE_FILE. The type of this
+   * attribute is ::int.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_CODE_OBJECT_STORAGE_FILE = 7,
+    /**
+   * The signed byte address difference of the memory address at which the code
+   * object is loaded minus the virtual address specified in the code object
+   * that is loaded. The value of this attribute is only defined if the
+   * executable in which the code object is loaded is froozen. The type of this
+   * attribute is ::int64_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_LOAD_DELTA = 8,
+/**
+   * The base memory address at which the code object is loaded. This is the
+   * base address of the allocation for the lowest addressed segment of the code
+   * object that is loaded. Note that any non-loaded segments before the first
+   * loaded segment are ignored. The value of this attribute is only defined if
+   * the executable in which the code object is loaded is froozen. The type of
+   * this attribute is ::uint64_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_LOAD_BASE = 9,
+  /**
+   * The byte size of the loaded code objects contiguous memory allocation. The
+   * value of this attribute is only defined if the executable in which the code
+   * object is loaded is froozen. The type of this attribute is ::uint64_t.
+   */
+  HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_LOAD_SIZE = 10
+} hsa_ven_amd_loader_loaded_code_object_info_t;
+
+/**
+ * @brief Get the current value of an attribute for a given loaded code
+ * object.
+ *
+ * @param[in] loaded_code_object Loaded code object.
+ *
+ * @param[in] attribute Attribute to query.
+ *
+ * @param[out] value Pointer to an application-allocated buffer where to store
+ * the value of the attribute. If the buffer passed by the application is not
+ * large enough to hold the value of @p attribute, the behavior is undefined.
+ *
+ * @retval ::HSA_STATUS_SUCCESS The function has been executed successfully.
+ *
+ * @retval ::HSA_STATUS_ERROR_NOT_INITIALIZED The HSA runtime has not been
+ * initialized.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_CODE_OBJECT The loaded code object is
+ * invalid.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_ARGUMENT @p attribute is an invalid
+ * loaded code object attribute, or @p value is NULL.
+ */
+hsa_status_t hsa_ven_amd_loader_loaded_code_object_get_info(
+  hsa_loaded_code_object_t loaded_code_object,
+  hsa_ven_amd_loader_loaded_code_object_info_t attribute,
+  void *value);
+
+//===----------------------------------------------------------------------===//
+
 /**
  * @brief Extension version.
  */
 #define hsa_ven_amd_loader 001000
 
 /**
- * @brief Extension function table.
+ * @brief Extension function table version 1.00.
  */
 typedef struct hsa_ven_amd_loader_1_00_pfn_s {
   hsa_status_t (*hsa_ven_amd_loader_query_host_address)(
@@ -263,6 +419,36 @@ typedef struct hsa_ven_amd_loader_1_00_pfn_s {
     const void *device_address,
     hsa_executable_t *executable);
 } hsa_ven_amd_loader_1_00_pfn_t;
+
+/**
+ * @brief Extension function table version 1.01.
+ */
+typedef struct hsa_ven_amd_loader_1_01_pfn_s {
+  hsa_status_t (*hsa_ven_amd_loader_query_host_address)(
+    const void *device_address,
+    const void **host_address);
+
+  hsa_status_t (*hsa_ven_amd_loader_query_segment_descriptors)(
+    hsa_ven_amd_loader_segment_descriptor_t *segment_descriptors,
+    size_t *num_segment_descriptors);
+
+  hsa_status_t (*hsa_ven_amd_loader_query_executable)(
+    const void *device_address,
+    hsa_executable_t *executable);
+
+  hsa_status_t (*hsa_ven_amd_loader_executable_iterate_loaded_code_objects)(
+    hsa_executable_t executable,
+    hsa_status_t (*callback)(
+      hsa_executable_t executable,
+      hsa_loaded_code_object_t loaded_code_object,
+      void *data),
+    void *data);
+
+  hsa_status_t (*hsa_ven_amd_loader_loaded_code_object_get_info)(
+    hsa_loaded_code_object_t loaded_code_object,
+    hsa_ven_amd_loader_loaded_code_object_info_t attribute,
+    void *value);
+} hsa_ven_amd_loader_1_01_pfn_t;
 
 #ifdef __cplusplus
 }

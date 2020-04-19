@@ -75,8 +75,8 @@
 // Creates enumeration entries for packed types. Enumeration entries include
 // bit shift amount, bit width, and bit mask.
 #define AMD_HSA_BITS_CREATE_ENUM_ENTRIES(name, shift, width)                   \
-  name ## _SHIFT = (shift),                                                    \
-  name ## _WIDTH = (width),                                                    \
+  name##_SHIFT = (shift),                                                      \
+  name##_WIDTH = (width),                                                      \
   name = (((1 << (width)) - 1) << (shift))                                     \
 
 // Gets bits for specified mask from specified src packed instance.
@@ -85,7 +85,7 @@
 
 // Sets val bits for specified mask in specified dst packed instance.
 #define AMD_HSA_BITS_SET(dst, mask, val)                                       \
-  dst &= (~(1 << mask ## _SHIFT) & ~mask);                                     \
-  dst |= (((val) << mask ## _SHIFT) & mask)                                    \
+  dst &= (~(1 << mask##_SHIFT) & ~mask);                                       \
+  dst |= (((val) << mask##_SHIFT) & mask)                                      \
 
 #endif // AMD_HSA_COMMON_H

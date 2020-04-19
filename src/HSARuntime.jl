@@ -13,7 +13,7 @@ if !configured
 end
 
 atexit() do
-    configured && hsa_shut_down()
+    configured && HSA.shut_down()
 end
 
 ### Imports ###
@@ -30,16 +30,17 @@ export get_default_agent, get_default_queue
 
 ### HSA Runtime Wrapper ###
 
-include(joinpath(@__DIR__, "..", "deps", "hsa_types.jl"))
-include(joinpath(@__DIR__, "..", "deps", "hsa_interface.jl"))
-include(joinpath(@__DIR__, "..", "deps", "hsa_extras.jl"))
+include(joinpath(@__DIR__, "HSA", "HSA.jl"))
+import .HSA: Agent, Queue, Executable, Status, Signal
+
+include("extras.jl")
 
 ### HSA Errors ###
 
 export HSAError
 
 struct HSAError <: Exception
-    code::hsa_status_t
+    code::Status
 end
 
 """
@@ -49,7 +50,7 @@ Gets the string description of an error code.
 """
 function description(err::HSAError)
     str_ref = Ref{Cstring}()
-    hsa_status_string(err.code, str_ref)
+    HSA.status_string(err.code, str_ref)
     unsafe_string(str_ref[])
 end
 
@@ -57,10 +58,11 @@ function Base.showerror(io::IO, err::HSAError)
     print(io, "HSA error (code #$(Int(err.code)), $(description(err)))")
 end
 
-Base.show(io::IO, err::HSAError) = print(io, "HSAError($(Int(err.code)), $(description(err)))")
+Base.show(io::IO, err::HSAError) = print(io, "HSAError($(Int(err.code)),
+                                         $(description(err)))")
 
 function check(result)
-    if result != HSA_STATUS_SUCCESS
+    if result != HSA.STATUS_SUCCESS
         throw(HSAError(result))
     end
 end
@@ -68,17 +70,17 @@ end
 ### Types ###
 
 mutable struct HSAAgent
-    agent::hsa_agent_t
+    agent::HSA.Agent
 end
 
 mutable struct HSAQueue
     agent::HSAAgent
-    queue::Ref{Ptr{hsa_queue_t}}
+    queue::Ref{Ptr{HSA.Queue}}
 end
 
 mutable struct HSAExecutable
     agent::HSAAgent
-    executable::Ref{hsa_executable_t}
+    executable::Ref{HSA.Executable}
     data::Vector{UInt8}
 end
 
@@ -101,7 +103,7 @@ mutable struct HSAArray{T,N} <: AbstractArray{T,N}
 end
 
 mutable struct HSASignal
-    signal::Ref{hsa_signal_t}
+    signal::Ref{Signal}
 end
 
 ### Constants ###
@@ -111,145 +113,162 @@ const DEFAULT_QUEUES = IdDict{HSAAgent,HSAQueue}()
 
 ### @cfunction Callbacks ###
 
-function agent_iterate_isas_cb(isa::hsa_isa_t, ptr::Ptr{hsa_isa_t})
+function agent_iterate_isas_cb(isa::HSA.ISA, ptr::Ptr{HSA.ISA})
     unsafe_store!(ptr, isa)
-    return HSA_STATUS_INFO_BREAK
+    return HSA.STATUS_INFO_BREAK
 end
 
-function iterate_agents_cb(agent::hsa_agent_t, agents)
+function iterate_agents_cb(agent::HSA.Agent, agents)
     push!(agents, HSAAgent(agent))
-    return HSA_STATUS_SUCCESS
+    return HSA.STATUS_SUCCESS
 end
 
-function finalizer_iterate_isas_cb(isa::hsa_isa_t, data)
+function finalizer_iterate_isas_cb(isa::HSA.ISA, data)
     @info "Finalizer ISAs:"
 
     name = repeat(" ", 64)
-    hsa_isa_get_info_alt(isa, HSA_ISA_INFO_NAME, name) |> check
+    getinfo(isa, HSA.ISA_INFO_NAME, name) |> check
     @info "    ISA Name: $name"
 
-    return HSA_STATUS_SUCCESS
+    return HSA.STATUS_SUCCESS
 end
 
 "Determines if a memory region can be used for kernarg allocations."
-function get_kernarg_memory_region_cb(region::hsa_region_t, data::Ptr{hsa_region_t})
-    segment = Ref{hsa_region_segment_t}()
-    hsa_region_get_info(region, HSA_REGION_INFO_SEGMENT, segment)
-    if (segment[] != HSA_REGION_SEGMENT_GLOBAL)
-        return HSA_STATUS_SUCCESS
+function get_kernarg_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
+    segment = Ref{HSA.RegionSegment}()
+    HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
+    if (segment[] != HSA.REGION_SEGMENT_GLOBAL)
+        return HSA.STATUS_SUCCESS
     end
 
-    flags = Ref{hsa_region_global_flag_t}()
-    hsa_region_get_info(region, HSA_REGION_INFO_GLOBAL_FLAGS, flags)
-    if (flags[] & HSA_REGION_GLOBAL_FLAG_KERNARG > 0)
+    flags = Ref{HSA.RegionGlobalFlag}()
+    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
+    if (flags[] & HSA.REGION_GLOBAL_FLAG_KERNARG > 0)
         unsafe_store!(data, region)
-        return HSA_STATUS_INFO_BREAK
+        return HSA.STATUS_INFO_BREAK
     end
 
-    return HSA_STATUS_SUCCESS
+    return HSA.STATUS_SUCCESS
 end
 
 "Determines if a memory region can be used for fine grained allocations."
-function get_fine_grained_memory_region_cb(region::hsa_region_t, data::Ptr{hsa_region_t})
-    segment = Ref{hsa_region_segment_t}()
-    hsa_region_get_info(region, HSA_REGION_INFO_SEGMENT, segment)
-    if (segment[] != HSA_REGION_SEGMENT_GLOBAL)
-        return HSA_STATUS_SUCCESS
+function get_fine_grained_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
+    segment = Ref{HSA.RegionSegment}()
+    HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
+    if (segment[] != HSA.REGION_SEGMENT_GLOBAL)
+        return HSA.STATUS_SUCCESS
     end
 
-    flags = Ref{hsa_region_global_flag_t}()
-    hsa_region_get_info(region, HSA_REGION_INFO_GLOBAL_FLAGS, flags)
-    if (flags[] & HSA_REGION_GLOBAL_FLAG_FINE_GRAINED > 0)
+    flags = Ref{HSA.RegionGlobalFlag}()
+    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
+    if (flags[] & HSA.REGION_GLOBAL_FLAG_FINE_GRAINED > 0)
         unsafe_store!(data, region)
-        return HSA_STATUS_INFO_BREAK
+        return HSA.STATUS_INFO_BREAK
     end
 
-    return HSA_STATUS_SUCCESS
+    return HSA.STATUS_SUCCESS
 end
 
-function iterate_exec_agent_syms_cb(exe::hsa_executable_t, agent::hsa_agent_t, sym::hsa_executable_symbol_t, sym_ref::Ptr{Cvoid})
-    sym_ref = Base.unsafe_convert(Ptr{hsa_executable_symbol_t}, sym_ref)
-    sym_type = Ref{hsa_symbol_kind_t}()
-    hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_TYPE, sym_type) |> check
+function iterate_exec_agent_syms_cb(exe::HSA.Executable, agent::HSA.Agent,
+                                    sym::HSA.ExecutableSymbol,
+                                    sym_ref::Ptr{Cvoid})
 
-    if sym_type[] == HSA_SYMBOL_KIND_KERNEL
+    sym_ref = Base.unsafe_convert(Ptr{HSA.ExecutableSymbol}, sym_ref)
+    sym_type = Ref{HSA.SymbolKind}()
+    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE,
+                                   sym_type) |> check
+
+    if sym_type[] == HSA.SYMBOL_KIND_KERNEL
         len = Ref(0)
-        hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, len) |> check
+        getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, len) |> check
         name = Vector{UInt8}(undef, len[])
-        hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
+        getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
         @debug "    Symbol Name: $(String(name))"
         Base.unsafe_store!(sym_ref, sym)
     end
 
-    return HSA_STATUS_SUCCESS
+    return HSA.STATUS_SUCCESS
 end
-function iterate_exec_prog_syms_cb(exe::hsa_executable_t, sym::hsa_executable_symbol_t, data)
-    sym_type = Ref{hsa_symbol_kind_t}()
-    hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_TYPE, sym_type) |> check
+function iterate_exec_prog_syms_cb(exe::HSA.Executable, sym::HSA.ExecutableSymbol, data)
+    sym_type = Ref{HSA.SymbolKind}()
+    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE, sym_type) |> check
 
-    #if sym_type[] == HSA_SYMBOL_KIND_KERNEL
+    #if sym_type[] == HSA.SYMBOL_KIND_KERNEL
         len = Ref(0)
-        hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, len) |> check
+        getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, len) |> check
         name = Vector{UInt8}(undef, len[])
-        hsa_executable_symbol_get_info(sym, HSA_EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
+        getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
         @debug "   Symbol Name: $(String(name))"
     #end
-
-    return HSA_STATUS_SUCCESS
+    return HSA.STATUS_SUCCESS
 end
 
 ### Constructors and Finalizers ###
 
 function HSAQueue(agent::HSAAgent)
     queue_size = Ref{UInt32}(0)
-    hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
+    getinfo(agent.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
     @assert queue_size[] > 0
-    queue = HSAQueue(agent, Ref{Ptr{hsa_queue_t}}())
-    hsa_queue_create(agent.agent, queue_size[], HSA_QUEUE_TYPE_SINGLE,
-            C_NULL, C_NULL, typemax(UInt32), typemax(UInt32), queue.queue) |> check
+    queue = HSAQueue(agent, Ref{Ptr{HSA.Queue}}())
+    HSA.queue_create(agent.agent, queue_size[], HSA.QUEUE_TYPE_SINGLE,
+                     C_NULL, C_NULL, typemax(UInt32), typemax(UInt32),
+                     queue.queue) |> check
+
     finalizer(queue) do queue
-        hsa_queue_destroy(queue.queue[]) |> check
+        HSA.queue_destroy(queue.queue[]) |> check
     end
     return queue
 end
+
 function HSASignal()
-    signal = HSASignal(Ref{hsa_signal_t}())
-    hsa_signal_create(1, 0, C_NULL, signal.signal)
+    signal = HSASignal(Ref{Signal}())
+    HSA.signal_create(1, 0, C_NULL, signal.signal)
     finalizer(signal) do signal
-        hsa_signal_destroy(signal.signal[]) |> check
+        HSA.signal_destroy(signal.signal[]) |> check
     end
     return signal
 end
+
 function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String)
     #= NOTE: Everything I can see indicates that profile is always FULL
-    profile = Ref{hsa_profile_t}()
-    hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_PROFILE, profile) |> check
+    profile = Ref{HSA.Profile}()
+    HSA.agent_get_info(agent.agent, HSA.AGENT_INFO_PROFILE, profile) |> check
     =#
 
-    code_object_reader = Ref{hsa_code_object_reader_t}(hsa_code_object_reader_t(0))
-    hsa_code_object_reader_create_from_memory(data, sizeof(data), code_object_reader) |> check
+    code_object_reader = Ref{HSA.CodeObjectReader}(HSA.CodeObjectReader(0))
+    HSA.code_object_reader_create_from_memory(data, sizeof(data),
+                                              code_object_reader) |> check
 
-    executable = Ref{hsa_executable_t}()
-    hsa_executable_create_alt(HSA_PROFILE_BASE, HSA_DEFAULT_FLOAT_ROUNDING_MODE_NEAR, C_NULL, executable) |> check
-    hsa_executable_load_agent_code_object(executable[], agent.agent, code_object_reader[], C_NULL, C_NULL) |> check
-    hsa_executable_freeze(executable[], "") |> check
-    hsa_code_object_reader_destroy(code_object_reader[]) |> check
+    executable = Ref{HSA.Executable}()
+    HSA.executable_create_alt(HSA.PROFILE_BASE,
+                              HSA.DEFAULT_FLOAT_ROUNDING_MODE_NEAR,
+                              C_NULL, executable) |> check
+
+    HSA.executable_load_agent_code_object(executable[], agent.agent,
+                                          code_object_reader[],
+                                          C_NULL, C_NULL) |> check
+
+    HSA.executable_freeze(executable[], "") |> check
+    HSA.code_object_reader_destroy(code_object_reader[]) |> check
 
     exe = HSAExecutable(agent, executable, data)
+    
     finalizer(exe) do exe
-        hsa_executable_destroy(exe.executable[]) |> check
+        HSA.executable_destroy(exe.executable[]) |> check
     end
+
     return exe
 end
 
 function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, args::Tuple)
-    agent_func = @cfunction(iterate_exec_agent_syms_cb, hsa_status_t,
-                           (hsa_executable_t, hsa_agent_t, hsa_executable_symbol_t, Ptr{Cvoid}))
-    prog_func = @cfunction(iterate_exec_prog_syms_cb, hsa_status_t,
-                            (hsa_executable_t, hsa_executable_symbol_t, Ptr{Cvoid}))
-    exec_symbol = Ref{hsa_executable_symbol_t}()
+    agent_func = @cfunction(iterate_exec_agent_syms_cb, HSA.Status,
+                           (HSA.Executable, HSA.Agent, HSA.ExecutableSymbol, Ptr{Cvoid}))
+    prog_func = @cfunction(iterate_exec_prog_syms_cb, HSA.Status,
+                            (HSA.Executable, HSA.ExecutableSymbol, Ptr{Cvoid}))
+    exec_symbol = Ref{HSA.ExecutableSymbol}()
     @debug "Agent symbols"
-    hsa_executable_iterate_agent_symbols(exe.executable[], agent.agent, agent_func, exec_symbol) |> check
+    HSA.executable_iterate_agent_symbols(exe.executable[], agent.agent,
+                                     agent_func, exec_symbol) |> check
     #@debug "Program symbols"
     #hsa_executable_iterate_program_symbols(exe.executable[], prog_func, C_NULL) |> check
 
@@ -257,33 +276,42 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     if !isassigned(exec_symbol)
         agent_ref = Ref(agent.agent)
         GC.@preserve agent_ref begin
-            hsa_executable_get_symbol_by_name(exe.executable[], symbol, agent_ref, exec_symbol) |> check
+            HSA.executable_get_symbol_by_name(exe.executable[], symbol,
+                                              agent_ref, exec_symbol) |> check
         end
     end
 
     kernel_object = Ref{UInt64}(0)
-    hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT, kernel_object) |> check
-
+    getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT,
+            kernel_object) |> check
+    
     kernarg_segment_size = Ref{UInt32}(0)
-    hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE, kernarg_segment_size) |> check
+    getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE,
+            kernarg_segment_size) |> check
+    
     if kernarg_segment_size[] == 0
         # FIXME: Hidden arguments!
         kernarg_segment_size[] = sum(sizeof.(args))
     end
 
     group_segment_size = Ref{UInt32}(0)
-    hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE, group_segment_size) |> check
+    getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE,
+            group_segment_size) |> check
 
     private_segment_size = Ref{UInt32}(0)
-    hsa_executable_symbol_get_info(exec_symbol[], HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE, private_segment_size) |> check
+    getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE,
+            private_segment_size) |> check
 
     finegrained_region = get_region(agent, :finegrained)
     kernarg_region = get_region(agent, :kernarg)
 
     # Allocate the kernel argument buffer from the correct region
     kernarg_address = Ref{Ptr{Nothing}}()
-    hsa_memory_allocate(kernarg_region[], kernarg_segment_size[], kernarg_address) |> check
+    HSA.memory_allocate(kernarg_region[],
+                        kernarg_segment_size[],
+                        kernarg_address) |> check
     ctr = 0x0
+    
     for arg in args
         rarg = Ref(arg)
         ccall(:memcpy, Cvoid,
@@ -296,7 +324,7 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
                                kernarg_segment_size, group_segment_size,
                                private_segment_size, kernarg_address)
     finalizer(kernel) do kernel
-        hsa_memory_free(kernel.kernarg_address[]) |> check
+        HSA.memory_free(kernel.kernarg_address[]) |> check
     end
     return kernel
 end
@@ -305,14 +333,17 @@ end
 function HSAArray(agent::HSAAgent, ::Type{T}, size::NTuple{N,Int}) where {T,N}
     @assert isprimitivetype(T) "$T is not a primitive type"
     @assert all(x->x>0, size) "Invalid array size: $size"
+    
     region = get_region(agent, :finegrained)
     nbytes = sizeof(T) * prod(size)
     handle = Ref{Ptr{T}}()
-    hsa_memory_allocate(region[], nbytes, handle) |> check
+    HSA.memory_allocate(region[], nbytes, handle) |> check
     arr = HSAArray{T,N}(size, handle[])
+    
     finalizer(arr) do arr
-        hsa_memory_free(arr.handle) |> check
+        HSA.memory_free(arr.handle) |> check
     end
+    
     return arr
 end
 HSAArray(::Type{T}, size::NTuple{N,Int}) where {T,N} =
@@ -379,9 +410,9 @@ end
 function get_agents()
     agents = Ref(Vector{HSAAgent}())
     GC.@preserve agents begin
-        func = @cfunction(iterate_agents_cb, hsa_status_t,
-                (hsa_agent_t, Ref{Vector{HSAAgent}}))
-        hsa_iterate_agents(func, agents) |> check
+        func = @cfunction(iterate_agents_cb, HSA.Status,
+                (HSA.Agent, Ref{Vector{HSAAgent}}))
+        HSA.iterate_agents(func, agents) |> check
         _agents = agents[]
     end
     return _agents
@@ -400,63 +431,66 @@ function get_default_queue(agent::HSAAgent)
     queue = get!(DEFAULT_QUEUES, agent, HSAQueue(agent))
     return queue
 end
-get_default_queue() =
-    get_default_queue(get_default_agent())
+
+get_default_queue() = get_default_queue(get_default_agent())
 
 function get_name(agent::HSAAgent)
     #len = Ref(0)
-    #hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_NAME_LENGTH, len) |> check
+    #hsa_agent_get_info(agent.agent, HSA.AGENT_INFO_NAME_LENGTH, len) |> check
+    #FIXME: this could be better? 
     name = Vector{UInt8}(undef, 64)
-    hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_NAME, name) |> check
+    getinfo(agent.agent, HSA.AGENT_INFO_NAME, name) |> check
     return rstrip(String(name), '\0')
 end
 function profile(agent::HSAAgent)
-    profile = Ref{hsa_profile_t}()
-    hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_PROFILE, profile) |> check
+    profile = Ref{HSA.Profile}()
+    getinfo(agent.agent, HSA.AGENT_INFO_PROFILE, profile) |> check
     return profile[]
 end
 
 function device_type(agent::HSAAgent)
     devtype = Ref{UInt32}()
-    hsa_agent_get_info(agent.agent, HSA_AGENT_INFO_DEVICE, devtype) |> check
-    if hsa_device_type_t(devtype[]) == HSA_DEVICE_TYPE_CPU
+    getinfo(agent.agent, HSA.AGENT_INFO_DEVICE, devtype) |> check
+    
+    if HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_CPU
         return :cpu
-    elseif hsa_device_type_t(devtype[]) == HSA_DEVICE_TYPE_GPU
+    elseif HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_GPU
         return :gpu
-    elseif hsa_device_type_t(devtype[]) == HSA_DEVICE_TYPE_DSP
+    elseif HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_DSP
         return :dsp
     end
+
 end
 
 # TODO: Get all ISAs
 function get_first_isa(agent::HSAAgent)
-    isa = Ref{hsa_isa_t}()
-    func = @cfunction(agent_iterate_isas_cb, hsa_status_t,
-        (hsa_isa_t, Ptr{hsa_isa_t}))
-    ret = hsa_agent_iterate_isas(agent.agent, func, isa)
-    @assert ret == HSA_STATUS_INFO_BREAK "Failed to find an agent ISA"
+    isa = Ref{HSA.ISA}()
+    func = @cfunction(agent_iterate_isas_cb, HSA.Status,
+        (HSA.ISA, Ptr{HSA.ISA}))
+    ret = HSA.agent_iterate_isas(agent.agent, func, isa)
+    @assert ret == HSA.STATUS_INFO_BREAK "Failed to find an agent ISA"
 
     len = Ref{Cuint}(0)
-    hsa_isa_get_info_alt(isa[], HSA_ISA_INFO_NAME_LENGTH, len) |> check
+    getinfo(isa[], HSA.ISA_INFO_NAME_LENGTH, len) |> check
     name = repeat(" ", len[])
-    hsa_isa_get_info_alt(isa[], HSA_ISA_INFO_NAME, name) |> check
+    getinfo(isa[], HSA.ISA_INFO_NAME, name) |> check
     isa_name = string(rstrip(last(split(name, "-")), '\0'))
     return isa_name
 end
 
 function get_region(agent::HSAAgent, kind::Symbol)
-    region = newref!(Ref{hsa_region_t}, typemax(UInt64))
+    region = newref!(Ref{HSA.Region}, typemax(UInt64))
     if kind == :finegrained
-        func = @cfunction(get_fine_grained_memory_region_cb, hsa_status_t,
-                (hsa_region_t, Ptr{hsa_region_t}))
+        func = @cfunction(get_fine_grained_memory_region_cb, HSA.Status,
+                (HSA.Region, Ptr{HSA.Region}))
     elseif kind == :kernarg
-        func = @cfunction(get_kernarg_memory_region_cb, hsa_status_t,
-                (hsa_region_t, Ptr{hsa_region_t}))
+        func = @cfunction(get_kernarg_memory_region_cb, HSA.Status,
+                (HSA.Region, Ptr{HSA.Region}))
     else
         error("Region kind $kind not supported")
     end
-    hsa_agent_iterate_regions(agent.agent, func, region)
-    check((region[].handle == typemax(UInt64)) ? HSA_STATUS_ERROR : HSA_STATUS_SUCCESS)
+    HSA.agent_iterate_regions(agent.agent, func, region)
+    check((region[].handle == typemax(UInt64)) ? HSA.STATUS_ERROR : HSA.STATUS_SUCCESS)
     return region
 end
 
@@ -477,16 +511,16 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     args = kernel.args
 
     # Obtain the current queue write index
-    index = hsa_queue_load_write_index_relaxed(queue[])
+    index = HSA.queue_load_write_index_relaxed(queue[])
 
     # TODO: Make this less ugly
-    dispatch_packet = Ref{hsa_kernel_dispatch_packet_t}()
+    dispatch_packet = Ref{HSA.KernelDispatchPacket}()
     ccall(:memset, Cvoid,
         (Ptr{Cvoid}, Cint, Csize_t),
         dispatch_packet, 0, sizeof(dispatch_packet[]))
     _packet = dispatch_packet[]
     @set! _packet.setup = 0
-    @set! _packet.setup |= 3 << Int(HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
+    @set! _packet.setup |= 3 << Int(HSA.KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
     @set! _packet.workgroup_size_x = workgroup_size[1]
     @set! _packet.workgroup_size_y = workgroup_size[2]
     @set! _packet.workgroup_size_z = workgroup_size[3]
@@ -498,25 +532,25 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     @set! _packet.kernarg_address = kernel.kernarg_address[]
     @set! _packet.private_segment_size = kernel.private_segment_size[]
     @set! _packet.group_segment_size = kernel.group_segment_size[]
-    dispatch_packet = Ref{hsa_kernel_dispatch_packet_t}(_packet)
+    dispatch_packet = Ref{HSA.KernelDispatchPacket}(_packet)
 
     _queue = unsafe_load(queue[])
     queueMask = UInt32(_queue.size - 1)
-    baseaddr_ptr = Ptr{hsa_kernel_dispatch_packet_t}(_queue.base_address)
-    baseaddr_ptr += sizeof(hsa_kernel_dispatch_packet_t) * (index & queueMask)
-    dispatch_packet_ptr = Base.unsafe_convert(Ptr{hsa_kernel_dispatch_packet_t}, dispatch_packet)
+    baseaddr_ptr = Ptr{HSA.KernelDispatchPacket}(_queue.base_address)
+    baseaddr_ptr += sizeof(HSA.KernelDispatchPacket) * (index & queueMask)
+    dispatch_packet_ptr = Base.unsafe_convert(Ptr{HSA.KernelDispatchPacket}, dispatch_packet)
     unsafe_copyto!(baseaddr_ptr, dispatch_packet_ptr, 1)
 
     # Atomically store the header
     header = Ref{UInt16}(0)
-    header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
-    header[] |= Int(HSA_FENCE_SCOPE_SYSTEM) << Int(HSA_PACKET_HEADER_RELEASE_FENCE_SCOPE)
-    header[] |= Int(HSA_PACKET_TYPE_KERNEL_DISPATCH) << Int(HSA_PACKET_HEADER_TYPE)
+    header[] |= Int(HSA.FENCE_SCOPE_SYSTEM) << Int(HSA.PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
+    header[] |= Int(HSA.FENCE_SCOPE_SYSTEM) << Int(HSA.PACKET_HEADER_RELEASE_FENCE_SCOPE)
+    header[] |= Int(HSA.PACKET_TYPE_KERNEL_DISPATCH) << Int(HSA.PACKET_HEADER_TYPE)
     atomic_store_n!(Base.unsafe_convert(Ptr{UInt16}, baseaddr_ptr), header[])
 
     # Increment the write index and ring the doorbell to dispatch the kernel
-    hsa_queue_store_write_index_relaxed(queue[], index+1)
-    hsa_signal_store_relaxed(_queue.doorbell_signal, index)
+    HSA.queue_store_write_index_relaxed(queue[], index+1)
+    HSA.signal_store_relaxed(_queue.doorbell_signal, Int64(index))
 end
 
 """
@@ -530,7 +564,7 @@ at the cost of increased polling load.
 function Base.wait(signal::HSASignal; soft=true, minlat=0.01)
     if soft
         while true
-            value = hsa_signal_load_scacquire(signal.signal[])
+            value = HSA.signal_load_scacquire(signal.signal[])
             if value < 1
                 return
             end
@@ -538,9 +572,9 @@ function Base.wait(signal::HSASignal; soft=true, minlat=0.01)
         end
     else
         # Wait on the dispatch completion signal until the kernel is finished
-        hsa_signal_wait_acquire(signal.signal[],
-                                HSA_SIGNAL_CONDITION_LT, 1, typemax(UInt64),
-                                HSA_WAIT_STATE_BLOCKED)
+        HSA.signal_wait_acquire(signal.signal[],
+                                HSA.SIGNAL_CONDITION_LT, 1, typemax(UInt64),
+                                HSA.WAIT_STATE_BLOCKED)
     end
 end
 
@@ -548,14 +582,14 @@ include("memory.jl")
 
 function __init__()
     # We want to always be able to load the package, regardless of
-    # whether HSA libraries are found (just like the CUDA* packages)
+    # whether HSA libraries are found
     configured || return
 
     # Make sure we load the library found by the last `] build`
     push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
     # TODO: Do the same (if possible) for the debug library
 
-    hsa_init() |> check
+    HSA.init() |> check
 
     agents = get_agents(:gpu)
     if length(agents) > 0

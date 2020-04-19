@@ -11,7 +11,8 @@ module Mem
 
 
 using ..HSARuntime
-import HSARuntime: check, get_region, hsa_memory_allocate, hsa_memory_free
+using ..HSARuntime.HSA
+import HSARuntime: check, get_region
 
 
 ## buffer type
@@ -19,7 +20,6 @@ import HSARuntime: check, get_region, hsa_memory_allocate, hsa_memory_free
 struct Buffer
     ptr::Ptr{Cvoid}
     bytesize::Int
-
     agent::HSAAgent
 end
 
@@ -29,8 +29,6 @@ function view(buf::Buffer, bytes::Int)
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
     return Mem.Buffer(buf.ptr+bytes, buf.bytesize-bytes, buf.agent)
 end
-
-
 
 ## refcounting
 
@@ -156,14 +154,14 @@ function alloc(agent::HSAAgent, bytesize::Integer)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     region = get_region(agent, :finegrained)
-    check(hsa_memory_allocate(region[], bytesize, ptr_ref))
+    check(HSA.memory_allocate(region[], bytesize, ptr_ref))
     return Buffer(ptr_ref[], bytesize, agent)
 end
 alloc(bytesize) = alloc(get_default_agent(), bytesize)
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
-        check(hsa_memory_free(buf.ptr))
+        check(HSA.memory_free(buf.ptr))
     end
     return
 end

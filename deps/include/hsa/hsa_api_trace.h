@@ -2,24 +2,24 @@
 //
 // The University of Illinois/NCSA
 // Open Source License (NCSA)
-// 
+//
 // Copyright (c) 2014-2015, Advanced Micro Devices, Inc. All rights reserved.
-// 
+//
 // Developed by:
-// 
+//
 //                 AMD Research and AMD HSA Software Development
-// 
+//
 //                 Advanced Micro Devices, Inc.
-// 
+//
 //                 www.amd.com
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to
 // deal with the Software without restriction, including without limitation
 // the rights to use, copy, modify, merge, publish, distribute, sublicense,
 // and/or sell copies of the Software, and to permit persons to whom the
 // Software is furnished to do so, subject to the following conditions:
-// 
+//
 //  - Redistributions of source code must retain the above copyright notice,
 //    this list of conditions and the following disclaimers.
 //  - Redistributions in binary form must reproduce the above copyright
@@ -29,7 +29,7 @@
 //    nor the names of its contributors may be used to endorse or promote
 //    products derived from this Software without specific prior written
 //    permission.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
@@ -48,12 +48,10 @@
 #include "hsa_ext_image.h"
 #include "hsa_ext_amd.h"
 #include "hsa_ext_finalize.h"
-#include "hsa_ven_amd_aqlprofile.h"
 #else
 #include "inc/hsa_ext_image.h"
 #include "inc/hsa_ext_amd.h"
 #include "inc/hsa_ext_finalize.h"
-#include "inc/hsa_ven_amd_aqlprofile.h"
 #endif
 
 #include <string.h>
@@ -81,6 +79,24 @@ static inline uint32_t Min(const uint32_t a, const uint32_t b) {
   return (a > b) ? b : a;
 }
 
+// Declarations of APIs intended for use only by tools.
+typedef void (*hsa_amd_queue_intercept_packet_writer)(const void* pkts, uint64_t pkt_count);
+typedef void (*hsa_amd_queue_intercept_handler)(const void* pkts, uint64_t pkt_count,
+                                                uint64_t user_pkt_index, void* data,
+                                                hsa_amd_queue_intercept_packet_writer writer);
+hsa_status_t hsa_amd_queue_intercept_register(hsa_queue_t* queue,
+                                              hsa_amd_queue_intercept_handler callback,
+                                              void* user_data);
+hsa_status_t hsa_amd_queue_intercept_create(
+    hsa_agent_t agent_handle, uint32_t size, hsa_queue_type32_t type,
+    void (*callback)(hsa_status_t status, hsa_queue_t* source, void* data), void* data,
+    uint32_t private_segment_size, uint32_t group_segment_size, hsa_queue_t** queue);
+
+typedef void (*hsa_amd_runtime_queue_notifier)(const hsa_queue_t* queue, hsa_agent_t agent,
+                                               void* data);
+hsa_status_t hsa_amd_runtime_queue_create_register(hsa_amd_runtime_queue_notifier callback,
+                                                   void* user_data);
+
 // Structure of Version used to identify an instance of Api table
 // Must be the first member (offsetof == 0) of all API tables.
 // This is the root of the table passing ABI.
@@ -91,7 +107,7 @@ struct ApiTableVersion {
   uint32_t reserved;
 };
 
-// Table to export HSA Finalizer Extension Apis 
+// Table to export HSA Finalizer Extension Apis
 struct FinalizerExtTable {
   ApiTableVersion version;
 	decltype(hsa_ext_program_create)* hsa_ext_program_create_fn;
@@ -118,18 +134,6 @@ struct ImageExtTable {
   decltype(hsa_ext_image_get_capability_with_layout)* hsa_ext_image_get_capability_with_layout_fn;
   decltype(hsa_ext_image_data_get_info_with_layout)* hsa_ext_image_data_get_info_with_layout_fn;
   decltype(hsa_ext_image_create_with_layout)* hsa_ext_image_create_with_layout_fn;
-};
-
-// Table to export HSA AqlProfile AMD specific Extension Apis
-struct AqlProfileExtTable {
-  ApiTableVersion version;
-  decltype(hsa_ven_amd_aqlprofile_error_string)* hsa_ven_amd_aqlprofile_error_string_fn;
-  decltype(hsa_ven_amd_aqlprofile_validate_event)* hsa_ven_amd_aqlprofile_validate_event_fn;
-  decltype(hsa_ven_amd_aqlprofile_start)* hsa_ven_amd_aqlprofile_start_fn;
-  decltype(hsa_ven_amd_aqlprofile_stop)* hsa_ven_amd_aqlprofile_stop_fn;
-  decltype(hsa_ven_amd_aqlprofile_legacy_get_pm4)* hsa_ven_amd_aqlprofile_legacy_get_pm4_fn;
-  decltype(hsa_ven_amd_aqlprofile_get_info)* hsa_ven_amd_aqlprofile_get_info_fn;
-  decltype(hsa_ven_amd_aqlprofile_iterate_data)* hsa_ven_amd_aqlprofile_iterate_data_fn;
 };
 
 // Table to export AMD Extension Apis
@@ -169,6 +173,15 @@ struct AmdExtTable {
   decltype(hsa_amd_signal_create)* hsa_amd_signal_create_fn;
   decltype(hsa_amd_ipc_signal_create)* hsa_amd_ipc_signal_create_fn;
   decltype(hsa_amd_ipc_signal_attach)* hsa_amd_ipc_signal_attach_fn;
+  decltype(hsa_amd_register_system_event_handler)* hsa_amd_register_system_event_handler_fn;
+  decltype(hsa_amd_queue_intercept_create)* hsa_amd_queue_intercept_create_fn;
+  decltype(hsa_amd_queue_intercept_register)* hsa_amd_queue_intercept_register_fn;
+  decltype(hsa_amd_queue_set_priority)* hsa_amd_queue_set_priority_fn;
+  decltype(hsa_amd_memory_async_copy_rect)* hsa_amd_memory_async_copy_rect_fn;
+  decltype(hsa_amd_runtime_queue_create_register)* hsa_amd_runtime_queue_create_register_fn;
+  decltype(hsa_amd_memory_lock_to_pool)* hsa_amd_memory_lock_to_pool_fn;
+  decltype(hsa_amd_register_deallocation_callback)* hsa_amd_register_deallocation_callback_fn;
+  decltype(hsa_amd_deregister_deallocation_callback)* hsa_amd_deregister_deallocation_callback_fn;
 };
 
 // Table to export HSA Core Runtime Apis
@@ -355,7 +368,7 @@ struct HsaApiTable {
 
   // Version of Hsa Api Table
   ApiTableVersion version;
-  
+
   // Table of function pointers to HSA Core Runtime
 	CoreApiTable* core_;
 
@@ -364,12 +377,9 @@ struct HsaApiTable {
 
   // Table of function pointers to HSA Finalizer Extension
 	FinalizerExtTable* finalizer_ext_;
-  
+
   // Table of function pointers to HSA Image Extension
 	ImageExtTable* image_ext_;
-
-  // Table of function pointers to AqlProfile AMD Extension
-  AqlProfileExtTable* aqlprofile_ext_;
 };
 
 // Structure containing instances of different api tables
@@ -379,19 +389,18 @@ struct HsaApiTableContainer {
 	AmdExtTable amd_ext;
 	FinalizerExtTable finalizer_ext;
 	ImageExtTable image_ext;
-  AqlProfileExtTable aqlprofile_ext;
 
   // Default initialization of a container instance
   HsaApiTableContainer() {
     root.version.major_id = HSA_API_TABLE_MAJOR_VERSION;
     root.version.minor_id = sizeof(HsaApiTable);
     root.version.step_id = HSA_API_TABLE_STEP_VERSION;
-    
+
     core.version.major_id = HSA_CORE_API_TABLE_MAJOR_VERSION;
     core.version.minor_id = sizeof(CoreApiTable);
     core.version.step_id = HSA_CORE_API_TABLE_STEP_VERSION;
     root.core_ = &core;
-    
+
     amd_ext.version.major_id = HSA_AMD_EXT_API_TABLE_MAJOR_VERSION;
     amd_ext.version.minor_id = sizeof(AmdExtTable);
     amd_ext.version.step_id = HSA_AMD_EXT_API_TABLE_STEP_VERSION;
@@ -406,11 +415,6 @@ struct HsaApiTableContainer {
     image_ext.version.minor_id = sizeof(ImageExtTable);
     image_ext.version.step_id = HSA_IMAGE_API_TABLE_STEP_VERSION;
     root.image_ext_ = &image_ext;
-
-    aqlprofile_ext.version.major_id = HSA_AQLPROFILE_API_TABLE_MAJOR_VERSION;
-    aqlprofile_ext.version.minor_id = sizeof(AqlProfileExtTable);
-    aqlprofile_ext.version.step_id = HSA_AQLPROFILE_API_TABLE_STEP_VERSION;
-    root.aqlprofile_ext_ = &aqlprofile_ext;
   }
 };
 
@@ -466,7 +470,5 @@ static void inline copyTables(const HsaApiTable* src, HsaApiTable* dest) {
     copyElement(&dest->finalizer_ext_->version, &src->finalizer_ext_->version);
   if ((offsetof(HsaApiTable, image_ext_) < dest->version.minor_id))
     copyElement(&dest->image_ext_->version, &src->image_ext_->version);
-  if ((offsetof(HsaApiTable, aqlprofile_ext_) < dest->version.minor_id))
-    copyElement(&dest->aqlprofile_ext_->version, &src->aqlprofile_ext_->version);
 }
 #endif

@@ -64,7 +64,17 @@ enum {
   /**
    * The memory pool is invalid.
    */
-  HSA_STATUS_ERROR_INVALID_MEMORY_POOL = 40
+  HSA_STATUS_ERROR_INVALID_MEMORY_POOL = 40,
+
+  /**
+   * Agent accessed memory beyond the maximum legal address.
+   */
+  HSA_STATUS_ERROR_MEMORY_APERTURE_VIOLATION = 41,
+
+  /**
+   * Agent executed an invalid shader instruction.
+   */
+  HSA_STATUS_ERROR_ILLEGAL_INSTRUCTION = 42,
 };
 
 /**
@@ -136,8 +146,30 @@ typedef enum hsa_amd_agent_info_s {
    * Number of Shader Arrays Per Shader Engines in Gpu
    * The type of this attribute is uint32_t.
    */
-  HSA_AMD_AGENT_INFO_NUM_SHADER_ARRAYS_PER_SE = 0xA00D
+  HSA_AMD_AGENT_INFO_NUM_SHADER_ARRAYS_PER_SE = 0xA00D,
+  /**
+   * Address of the HDP flush registers.  Use of these registers does not conform to the HSA memory
+   * model and should be treated with caution.
+   * The type of this attribute is hsa_amd_hdp_flush_t.
+   */
+  HSA_AMD_AGENT_INFO_HDP_FLUSH = 0xA00E,
+  /**
+   * PCIe domain for the agent.  Pairs with HSA_AMD_AGENT_INFO_BDFID
+   * to give the full physical location of the Agent.
+   * The type of this attribute is uint32_t.
+   */
+  HSA_AMD_AGENT_INFO_DOMAIN = 0xA00F,
+  /**
+   * Queries for support of cooperative queues.  See ::HSA_QUEUE_TYPE_COOPERATIVE.
+   * The type of this attribute is bool.
+   */
+  HSA_AMD_AGENT_INFO_COOPERATIVE_QUEUES = 0xA010
 } hsa_amd_agent_info_t;
+
+typedef struct hsa_amd_hdp_flush_s {
+  uint32_t* HDP_MEM_FLUSH_CNTL;
+  uint32_t* HDP_REG_FLUSH_CNTL;
+} hsa_amd_hdp_flush_t;
 
 /**
  * @brief Region attributes.
@@ -299,9 +331,8 @@ hsa_status_t HSA_API
  * @brief Retrieve packet processing time stamps.
  *
  * @param[in] agent The agent with which the signal was last used.  For
- *instance,
- * if the profiled dispatch packet is dispatched on to queue Q, which was
- * created on agent A, then this parameter must be A.
+ * instance, if the profiled dispatch packet is dispatched onto queue Q,
+ * which was created on agent A, then this parameter must be A.
  *
  * @param[in] signal A signal used as the completion signal of the dispatch
  * packet to retrieve time stamps from.  This dispatch packet must have been
@@ -388,8 +419,10 @@ typedef enum {
   HSA_AMD_SIGNAL_AMD_GPU_ONLY = 1,
   /**
    * Signal may be used for interprocess communication.
-   * This signal may not be used with profiling APIs.  Errors or inaccurate
-   * timing data may result from such use.
+   * IPC signals can be read, written, and waited on from any process.
+   * Profiling using an IPC enabled signal is only supported in a single process
+   * at a time.  Producing profiling data in one process and consuming it in
+   * another process is undefined.
    */
   HSA_AMD_SIGNAL_IPC = 2,
 } hsa_amd_signal_attribute_t;
@@ -626,8 +659,26 @@ typedef enum {
 } hsa_amd_segment_t;
 
 /**
- * @brief A memory pool represents physical storage on an agent.
- */
+ * @brief A memory pool encapsulates physical storage on an agent
+ * along with a memory access model.
+ *
+ * @details A memory pool encapsulates a physical partition of an agent's
+ * memory system along with a memory access model.  Division of a single
+ * memory system into separate pools allows querying each partition's access
+ * path properties (see ::hsa_amd_agent_memory_pool_get_info). Allocations
+ * from a pool are preferentially bound to that pool's physical partition.
+ * Binding to the pool's preferential physical partition may not be
+ * possible or persistent depending on the system's memory policy
+ * and/or state which is beyond the scope of HSA APIs.
+ *
+ * For example, a multi-node NUMA memory system may be represented by multiple
+ * pool's with each pool providing size and access path information for the
+ * partition it represents.  Allocations from a pool are preferentially bound
+ * to the pool's partition (which in this example is a NUMA node) while
+ * following its memory access model. The actual placement may vary or migrate
+ * due to the system's NUMA policy and state, which is beyond the scope of
+ * HSA APIs.
+ */ 
 typedef struct hsa_amd_memory_pool_s {
   /**
    * Opaque handle.
@@ -702,26 +753,31 @@ typedef enum {
   HSA_AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALIGNMENT = 7,
   /**
   * This memory_pool can be made directly accessible by all the agents in the
-  * system (::hsa_amd_agent_memory_pool_get_info returns
-  * ::HSA_AMD_MEMORY_POOL_ACCESS_ALLOWED_BY_DEFAULT for all agents). The type of
-  * this attribute is bool.
+  * system (::hsa_amd_agent_memory_pool_get_info does not return 
+  * ::HSA_AMD_MEMORY_POOL_ACCESS_NEVER_ALLOWED for any agent). The type of this
+  * attribute is bool.
   */
   HSA_AMD_MEMORY_POOL_INFO_ACCESSIBLE_BY_ALL = 15,
+  /**
+  * Maximum aggregate allocation size in bytes. The type of this attribute
+  * is size_t.
+  */
+  HSA_AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE = 16,
 } hsa_amd_memory_pool_info_t;
 
 /**
  * @brief Get the current value of an attribute of a memory pool.
- * 
+ *
  * @param[in] memory_pool A valid memory pool.
- * 
+ *
  * @param[in] attribute Attribute to query.
- * 
+ *
  * @param[out] value Pointer to a application-allocated buffer where to store
  * the value of the attribute. If the buffer passed by the application is not
  * large enough to hold the value of @p attribute, the behavior is undefined.
- * 
+ *
  * @retval ::HSA_STATUS_SUCCESS The function has been executed successfully.
- * 
+ *
  */
 hsa_status_t HSA_API
     hsa_amd_memory_pool_get_info(hsa_amd_memory_pool_t memory_pool,
@@ -741,7 +797,7 @@ hsa_status_t HSA_API
  *
  * @param[in] agent A valid agent.
  *
- * @param[in] callback Callback to be invoked on the same thread that called 
+ * @param[in] callback Callback to be invoked on the same thread that called
  * ::hsa_amd_agent_iterate_memory_pools, serially, once per memory pool that is
  * associated with the agent.  The HSA runtime passes two arguments to the
  * callback: the memory pool, and the application data.  If @p callback
@@ -777,7 +833,7 @@ hsa_status_t HSA_API hsa_amd_agent_iterate_memory_pools(
  * ::HSA_AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_GRANULE in @p memory_pool.
  *
  * @param[in] flags A bit-field that is used to specify allocation
- * directives. Must be 0.
+ * directives. Reserved parameter, must be 0.
  *
  * @param[out] ptr Pointer to the location where to store the base virtual
  * address of
@@ -795,10 +851,11 @@ hsa_status_t HSA_API hsa_amd_agent_iterate_memory_pools(
  * @retval ::HSA_STATUS_ERROR_INVALID_MEMORY_POOL The memory pool is invalid.
  *
  * @retval ::HSA_STATUS_ERROR_INVALID_ALLOCATION The host is not allowed to
- * allocate memory in @p memory_pool, or @p size is greater than the value of
- * HSA_AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE in @p memory_pool.
+ * allocate memory in @p memory_pool, or @p size is greater than
+ * the value of HSA_AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE in @p memory_pool.
  *
- * @retval ::HSA_STATUS_ERROR_INVALID_ARGUMENT @p ptr is NULL, or @p size is 0.
+ * @retval ::HSA_STATUS_ERROR_INVALID_ARGUMENT @p ptr is NULL, or @p size is 0,
+ * or flags is not 0.
  *
  */
 hsa_status_t HSA_API
@@ -881,6 +938,43 @@ hsa_status_t HSA_API
                               const hsa_signal_t* dep_signals,
                               hsa_signal_t completion_signal);
 
+/*
+[Provisional API]
+Pitched memory descriptor.
+All elements must be 4 byte aligned.  Pitch and slice are in bytes.
+*/
+typedef struct hsa_pitched_ptr_s {
+  void* base;
+  size_t pitch;
+  size_t slice;
+} hsa_pitched_ptr_t;
+
+/*
+[Provisional API]
+Copy direction flag.
+*/
+typedef enum {
+  hsaHostToHost = 0,
+  hsaHostToDevice = 1,
+  hsaDeviceToHost = 2,
+  hsaDeviceToDevice = 3
+} hsa_amd_copy_direction_t;
+
+/*
+[Provisional API]
+SDMA 3D memory copy API.  The same requirements must be met by src and dst as in
+hsa_amd_memory_async_copy.
+Both src and dst must be directly accessible to the copy_agent during the copy, src and dst rects
+must not overlap.
+CPU agents are not supported.  API requires SDMA and will return an error if SDMA is not available.
+Offsets and range carry x in bytes, y and z in rows and layers.
+*/
+hsa_status_t HSA_API hsa_amd_memory_async_copy_rect(
+    const hsa_pitched_ptr_t* dst, const hsa_dim3_t* dst_offset, const hsa_pitched_ptr_t* src,
+    const hsa_dim3_t* src_offset, const hsa_dim3_t* range, hsa_agent_t copy_agent,
+    hsa_amd_copy_direction_t dir, uint32_t num_dep_signals, const hsa_signal_t* dep_signals,
+    hsa_signal_t completion_signal);
+
 /**
  * @brief Type of accesses to a memory pool from a given agent.
  */
@@ -924,7 +1018,12 @@ typedef enum {
   /**
   * Infiniband bus type.
   */
-  HSA_AMD_LINK_INFO_TYPE_INFINBAND = 3
+  HSA_AMD_LINK_INFO_TYPE_INFINBAND = 3,
+
+  /**
+  * xGMI link type.
+  */
+  HSA_AMD_LINK_INFO_TYPE_XGMI = 4
 
 } hsa_amd_link_info_type_t;
 
@@ -973,6 +1072,10 @@ typedef struct hsa_amd_memory_pool_link_info_s {
   */
   hsa_amd_link_info_type_t link_type;
 
+  /**
+   * NUMA distance of memory pool relative to querying agent
+   */
+  uint32_t numa_distance;
 } hsa_amd_memory_pool_link_info_t;
 
 /**
@@ -1157,11 +1260,12 @@ hsa_status_t HSA_API hsa_amd_memory_migrate(const void* ptr,
 
 /**
  *
- * @brief Pin a host pointer allocated by C/C++ or OS allocator (i.e. ordinary system DRAM) and return a new
- * pointer accessible by the @p agents. If the @p host_ptr overlaps with previously locked
- * memory, then the overlap area is kept locked (i.e multiple mappings are permitted). In this case,
- * the same input @p host_ptr may give different locked @p agent_ptr and when it does, they
- * are not necessarily coherent (i.e. accessing either @p agent_ptr is not equivalent).
+ * @brief Pin a host pointer allocated by C/C++ or OS allocator (i.e. ordinary system DRAM) and
+ * return a new pointer accessible by the @p agents. If the @p host_ptr overlaps with previously
+ * locked memory, then the overlap area is kept locked (i.e multiple mappings are permitted). In
+ * this case, the same input @p host_ptr may give different locked @p agent_ptr and when it does,
+ * they are not necessarily coherent (i.e. accessing either @p agent_ptr is not equivalent).
+ * Accesses to @p agent_ptr are coarse grained.
  *
  * @param[in] host_ptr A buffer allocated by C/C++ or OS allocator.
  *
@@ -1188,20 +1292,69 @@ hsa_status_t HSA_API hsa_amd_memory_migrate(const void* ptr,
  * @p agent_ptr is NULL or @p agents not NULL but @p num_agent is 0 or @p agents
  * is NULL but @p num_agent is not 0.
  */
-
 hsa_status_t HSA_API hsa_amd_memory_lock(void* host_ptr, size_t size,
                                          hsa_agent_t* agents, int num_agent,
                                          void** agent_ptr);
 
 /**
  *
- * @brief Unpin the host pointer previously pinned via ::hsa_amd_memory_lock.
+ * @brief Pin a host pointer allocated by C/C++ or OS allocator (i.e. ordinary system DRAM) and
+ * return a new pointer accessible by the @p agents. If the @p host_ptr overlaps with previously
+ * locked memory, then the overlap area is kept locked (i.e. multiple mappings are permitted).
+ * In this case, the same input @p host_ptr may give different locked @p agent_ptr and when it
+ * does, they are not necessarily coherent (i.e. accessing either @p agent_ptr is not equivalent).
+ * Acesses to the memory via @p agent_ptr have the same access properties as memory allocated from
+ * @p pool as determined by ::hsa_amd_memory_pool_get_info and ::hsa_amd_agent_memory_pool_get_info
+ * (ex. coarse/fine grain, platform atomic support, link info).  Physical composition and placement
+ * of the memory (ex. page size, NUMA binding) is not changed.
+ *
+ * @param[in] host_ptr A buffer allocated by C/C++ or OS allocator.
+ *
+ * @param[in] size The size to be locked.
+ *
+ * @param[in] agents Array of agent handle to gain access to the @p host_ptr.
+ * If this parameter is NULL and the @p num_agent is 0, all agents
+ * in the platform will gain access to the @p host_ptr.
+ *
+ * @param[in] pool Global memory pool owned by a CPU agent.
+ *
+ * @param[in] flags A bit-field that is used to specify allocation
+ * directives. Reserved parameter, must be 0.
+ *
+ * @param[out] agent_ptr Pointer to the location where to store the new address.
+ *
+ * @retval ::HSA_STATUS_SUCCESS The function has been executed successfully.
+ *
+ * @retval ::HSA_STATUS_ERROR_NOT_INITIALIZED The HSA runtime has not been
+ * initialized.
+ *
+ * @retval ::HSA_STATUS_ERROR_OUT_OF_RESOURCES There is a failure in
+ * allocating the necessary resources.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_AGENT One or more agent in @p agents is
+ * invalid or can not access @p pool.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_MEMORY_POOL @p pool is invalid or not owned
+ * by a CPU agent.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_ARGUMENT @p size is 0 or @p host_ptr or
+ * @p agent_ptr is NULL or @p agents not NULL but @p num_agent is 0 or @p agents
+ * is NULL but @p num_agent is not 0 or flags is not 0.
+ */
+hsa_status_t HSA_API hsa_amd_memory_lock_to_pool(void* host_ptr, size_t size, hsa_agent_t* agents,
+                                                 int num_agent, hsa_amd_memory_pool_t pool,
+                                                 uint32_t flags, void** agent_ptr);
+
+/**
+ *
+ * @brief Unpin the host pointer previously pinned via ::hsa_amd_memory_lock or
+ * ::hsa_amd_memory_lock_to_pool.
  *
  * @details The behavior is undefined if the host pointer being unpinned does not
  * match previous pinned address or if the host pointer was already deallocated.
  *
  * @param[in] host_ptr A buffer allocated by C/C++ or OS allocator that was
- * pinned previously via ::hsa_amd_memory_lock.
+ * pinned previously via ::hsa_amd_memory_lock or ::hsa_amd_memory_lock_to_pool.
  *
  * @retval ::HSA_STATUS_SUCCESS The function has been executed successfully.
  *
@@ -1261,7 +1414,7 @@ hsa_status_t HSA_API
  * @param[out] metadata_size Size of metadata in bytes, may be NULL
  *
  * @param[out] metadata Pointer to metadata, may be NULL
- * 
+ *
  * @retval HSA_STATUS_SUCCESS if successfully mapped
  *
  * @retval HSA_STATUS_ERROR_NOT_INITIALIZED if HSA is not initialized
@@ -1271,13 +1424,13 @@ hsa_status_t HSA_API
  *
  * @retval HSA_STATUS_ERROR_INVALID_ARGUMENT all other errors
  */
-hsa_status_t HSA_API hsa_amd_interop_map_buffer(uint32_t num_agents,   
-                                        hsa_agent_t* agents,       
-                                        int interop_handle,    
-                                        uint32_t flags,        
-                                        size_t* size,          
-                                        void** ptr,            
-                                        size_t* metadata_size, 
+hsa_status_t HSA_API hsa_amd_interop_map_buffer(uint32_t num_agents,
+                                        hsa_agent_t* agents,
+                                        int interop_handle,
+                                        uint32_t flags,
+                                        size_t* size,
+                                        void** ptr,
+                                        size_t* metadata_size,
                                         const void** metadata);
 
 /**
@@ -1296,7 +1449,7 @@ typedef struct hsa_amd_image_descriptor_s {
   Version number of the descriptor
   */
   uint32_t version;
-  
+
   /*
   Vendor and device PCI IDs for the format as VENDOR_ID<<16|DEVICE_ID.
   */
@@ -1620,6 +1773,190 @@ hsa_status_t HSA_API hsa_amd_ipc_signal_create(hsa_signal_t signal, hsa_amd_ipc_
  */
 hsa_status_t HSA_API hsa_amd_ipc_signal_attach(const hsa_amd_ipc_signal_t* handle,
                                                hsa_signal_t* signal);
+
+/**
+ * @brief GPU system event type.
+ */
+typedef enum hsa_amd_event_type_s {
+  /*
+   AMD GPU memory fault.
+   */
+  HSA_AMD_GPU_MEMORY_FAULT_EVENT = 0,
+} hsa_amd_event_type_t;
+
+/**
+ * @brief Flags denoting the cause of a memory fault.
+ */
+typedef enum {
+  // Page not present or supervisor privilege.
+  HSA_AMD_MEMORY_FAULT_PAGE_NOT_PRESENT = 1 << 0,
+  // Write access to a read-only page.
+  HSA_AMD_MEMORY_FAULT_READ_ONLY = 1 << 1,
+  // Execute access to a page marked NX.
+  HSA_AMD_MEMORY_FAULT_NX = 1 << 2,
+  // GPU attempted access to a host only page.
+  HSA_AMD_MEMORY_FAULT_HOST_ONLY = 1 << 3,
+  // DRAM ECC failure.
+  HSA_AMD_MEMORY_FAULT_DRAM_ECC = 1 << 4,
+  // Can't determine the exact fault address.
+  HSA_AMD_MEMORY_FAULT_IMPRECISE = 1 << 5,
+  // SRAM ECC failure (ie registers, no fault address).
+  HSA_AMD_MEMORY_FAULT_SRAM_ECC = 1 << 6,
+  // GPU reset following unspecified hang.
+  HSA_AMD_MEMORY_FAULT_HANG = 1 << 31
+} hsa_amd_memory_fault_reason_t;
+
+/**
+ * @brief AMD GPU memory fault event data.
+ */
+typedef struct hsa_amd_gpu_memory_fault_info_s {
+  /*
+  The agent where the memory fault occurred.
+  */
+  hsa_agent_t agent;
+  /*
+  Virtual address accessed.
+  */
+  uint64_t virtual_address;
+  /*
+  Bit field encoding the memory access failure reasons. There could be multiple bits set
+  for one fault.  Bits are defined in hsa_amd_memory_fault_reason_t.
+  */
+  uint32_t fault_reason_mask;
+} hsa_amd_gpu_memory_fault_info_t;
+
+/**
+ * @brief AMD GPU event data passed to event handler.
+ */
+typedef struct hsa_amd_event_s {
+  /*
+  The event type.
+  */
+  hsa_amd_event_type_t event_type;
+  union {
+    /*
+    The memory fault info, only valid when @p event_type is HSA_AMD_GPU_MEMORY_FAULT_EVENT.
+    */
+    hsa_amd_gpu_memory_fault_info_t memory_fault;
+  };
+} hsa_amd_event_t;
+
+typedef hsa_status_t (*hsa_amd_system_event_callback_t)(const hsa_amd_event_t* event, void* data);
+
+/**
+ * @brief Register AMD GPU event handler.
+ *
+ * @param[in] callback Callback to be invoked when an event is triggered.
+ * The HSA runtime passes two arguments to the callback: @p event
+ * is defined per event by the HSA runtime, and @p data is the user data.
+ *
+ * @param[in] data User data that is passed to @p callback. May be NULL.
+ *
+ * @retval HSA_STATUS_SUCCESS The handler has been registered successfully.
+ *
+ * @retval HSA_STATUS_ERROR An event handler has already been registered.
+ *
+ * @retval HSA_STATUS_ERROR_INVALID_ARGUMENT @p event is invalid.
+ */
+hsa_status_t HSA_API hsa_amd_register_system_event_handler(hsa_amd_system_event_callback_t callback,
+                                                   void* data);
+
+/**
+ * @brief Per-queue dispatch and wavefront scheduling priority.
+ */
+typedef enum hsa_amd_queue_priority_s {
+  /*
+  Below normal/high priority compute and all graphics
+  */
+  HSA_AMD_QUEUE_PRIORITY_LOW = 0,
+  /*
+  Above low priority compute, below high priority compute and all graphics
+  */
+  HSA_AMD_QUEUE_PRIORITY_NORMAL = 1,
+  /*
+  Above low/normal priority compute and all graphics
+  */
+  HSA_AMD_QUEUE_PRIORITY_HIGH = 2,
+} hsa_amd_queue_priority_t;
+
+/**
+ * @brief Modifies the dispatch and wavefront scheduling prioirty for a
+ * given compute queue. The default is HSA_AMD_QUEUE_PRIORITY_NORMAL.
+ *
+ * @param[in] queue Compute queue to apply new priority to.
+ *
+ * @param[in] priority Priority to associate with queue.
+ *
+ * @retval HSA_STATUS_SUCCESS if priority was changed successfully.
+ *
+ * @retval HSA_STATUS_ERROR_INVALID_QUEUE if queue is not a valid
+ * compute queue handle.
+ *
+ * @retval HSA_STATUS_ERROR_INVALID_ARGUMENT if priority is not a valid
+ * value from hsa_amd_queue_priority_t.
+ */
+hsa_status_t HSA_API hsa_amd_queue_set_priority(hsa_queue_t* queue,
+                                                hsa_amd_queue_priority_t priority);
+
+/**
+ * @brief Deallocation notifier function type.
+ */
+typedef void (*hsa_amd_deallocation_callback_t)(void* ptr, void* user_data);
+
+/**
+ * @brief Registers a deallocation notifier monitoring for release of agent
+ * accessible address @p ptr.  If successful, @p callback will be invoked when
+ * @p ptr is removed from accessibility from all agents.
+ *
+ * Notification callbacks are automatically deregistered when they are invoked.
+ *
+ * Note: The current version supports notifications of address release
+ * originating from ::hsa_amd_memory_pool_free.  Support for other address
+ * release APIs will follow.
+ *
+ * @param[in] ptr Agent accessible address to monitor for deallocation.  Passed
+ * to @p callback.
+ *
+ * @param[in] callback Notifier to be invoked when @p ptr is released from
+ * agent accessibility.
+ *
+ * @param[in] user_data User provided value passed to @p callback.  May be NULL.
+ *
+ * @retval ::HSA_STATUS_SUCCESS The notifier registered successfully
+ *
+ * @retval ::HSA_STATUS_ERROR_NOT_INITIALIZED The HSA runtime has not been
+ * initialized.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_ALLOCATION @p ptr does not refer to a valid agent accessible
+ * address.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_ARGUMENT @p callback is NULL or @p ptr is NULL.
+ *
+ * @retval ::HSA_STATUS_ERROR_OUT_OF_RESOURCES if there is a failure in allocating
+ * necessary resources
+ */
+hsa_status_t HSA_API hsa_amd_register_deallocation_callback(void* ptr,
+                                                    hsa_amd_deallocation_callback_t callback,
+                                                    void* user_data);
+
+/**
+ * @brief Removes a deallocation notifier previously registered with
+ * ::hsa_amd_register_deallocation_callback.  Arguments must be identical to
+ * those given in ::hsa_amd_register_deallocation_callback.
+ *
+ * @param[in] ptr Agent accessible address which was monitored for deallocation.
+ *
+ * @param[in] callback Notifier to be removed.
+ *
+ * @retval ::HSA_STATUS_SUCCESS The notifier has been removed successfully.
+ *
+ * @retval ::HSA_STATUS_ERROR_NOT_INITIALIZED The HSA runtime has not been
+ * initialized.
+ *
+ * @retval ::HSA_STATUS_ERROR_INVALID_ARGUMENT The given notifier was not registered.
+ */
+hsa_status_t HSA_API hsa_amd_deregister_deallocation_callback(void* ptr,
+                                                      hsa_amd_deallocation_callback_t callback);
 
 #ifdef __cplusplus
 }  // end extern "C" block
