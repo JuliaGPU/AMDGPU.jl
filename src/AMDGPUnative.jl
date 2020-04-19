@@ -2,18 +2,18 @@ module AMDGPUnative
 
 using LLVM, LLVM.Interop
 using InteractiveUtils
-using HSARuntime
+using HSARuntime, HSARuntime.HSA
 using Adapt
 using TimerOutputs
 using DataStructures
 using Libdl
 using Requires
 
-@enum DeviceRuntime HSA OCL
-const RUNTIME = Ref{DeviceRuntime}(HSA)
+@enum DeviceRuntime HSA_rt OCL_rt
+const RUNTIME = Ref{DeviceRuntime}(HSA_rt)
 #=
 if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
-    RUNTIME[] = OCL
+    RUNTIME[] = OCL_rt
 end
 =#
 include("runtime.jl")

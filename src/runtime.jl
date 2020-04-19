@@ -2,13 +2,13 @@ struct RuntimeDevice{D}
     device::D
 end
 default_device() = RuntimeDevice(default_device(RUNTIME[]))
-default_device(::typeof(HSA)) = HSARuntime.get_default_agent()
+default_device(::typeof(HSA_rt)) = HSARuntime.get_default_agent()
 
 struct RuntimeQueue{Q}
     queue::Q
 end
 default_queue(device) = RuntimeQueue(default_queue(RUNTIME[], device))
-default_queue(::typeof(HSA), device) =
+default_queue(::typeof(HSA_rt), device) =
     HSARuntime.get_default_queue(device.device)
 get_device(queue::RuntimeQueue{HSAQueue}) = RuntimeDevice(queue.queue.agent)
 
@@ -19,7 +19,7 @@ struct RuntimeEvent{E}
     event::E
 end
 create_event() = RuntimeEvent(create_event(RUNTIME[]))
-create_event(::typeof(HSA)) = HSASignal()
+create_event(::typeof(HSA_rt)) = HSASignal()
 Base.wait(event::RuntimeEvent; kwargs...) = wait(event.event; kwargs...)
 
 struct RuntimeExecutable{E}
@@ -27,7 +27,7 @@ struct RuntimeExecutable{E}
 end
 create_executable(device, func) =
     RuntimeExecutable(create_executable(RUNTIME[], device, func))
-function create_executable(::typeof(HSA), device, func)
+function create_executable(::typeof(HSA_rt), device, func)
     # link with ld.lld
     ld_path = HSARuntime.ld_lld_path
     @assert ld_path != "" "ld.lld was not found; cannot link kernel"
@@ -48,11 +48,11 @@ struct RuntimeKernel{K}
 end
 create_kernel(device, exe, entry, args) =
     RuntimeKernel(create_kernel(RUNTIME[], device, exe, entry, args))
-create_kernel(::typeof(HSA), device, exe, entry, args) =
+create_kernel(::typeof(HSA_rt), device, exe, entry, args) =
     HSAKernelInstance(device.device, exe.exe, entry, args)
 launch_kernel(queue, kern, event; kwargs...) =
     launch_kernel(RUNTIME[], queue, kern, event; kwargs...)
-launch_kernel(::typeof(HSA), queue, kern, event;
+launch_kernel(::typeof(HSA_rt), queue, kern, event;
               groupsize=nothing, gridsize=nothing) =
     HSARuntime.launch!(queue.queue, kern.kernel, event.event;
                        workgroup_size=groupsize, grid_size=gridsize)

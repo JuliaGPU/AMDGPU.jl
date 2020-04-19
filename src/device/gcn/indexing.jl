@@ -1,6 +1,4 @@
 # Indexing and dimensions
-import HSARuntime: hsa_kernel_dispatch_packet_t
-
 export workitemIdx, workgroupIdx, workitemDim, workgroupDim
 export threadIdx, blockIdx, blockDim, gridDim
 
@@ -93,8 +91,8 @@ for dim in (:x, :y, :z)
     cufn = Symbol("blockIdx_$dim")
     @eval @inline $cufn() = $fn()
 end
-_packet_names = fieldnames(hsa_kernel_dispatch_packet_t)
-_packet_offsets = fieldoffset.(hsa_kernel_dispatch_packet_t, 1:length(_packet_names))
+_packet_names = fieldnames(HSA.KernelDispatchPacket)
+_packet_offsets = fieldoffset.(HSA.KernelDispatchPacket, 1:length(_packet_names))
 for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # Workitem dimension
     fn = Symbol("workitemDim_$dim")
