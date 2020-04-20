@@ -123,16 +123,6 @@ function iterate_agents_cb(agent::HSA.Agent, agents)
     return HSA.STATUS_SUCCESS
 end
 
-function finalizer_iterate_isas_cb(isa::HSA.ISA, data)
-    @info "Finalizer ISAs:"
-
-    name = repeat(" ", 64)
-    getinfo(isa, HSA.ISA_INFO_NAME, name) |> check
-    @info "    ISA Name: $name"
-
-    return HSA.STATUS_SUCCESS
-end
-
 "Determines if a memory region can be used for kernarg allocations."
 function get_kernarg_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
     segment = Ref{HSA.RegionSegment}()
@@ -284,11 +274,11 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     kernel_object = Ref{UInt64}(0)
     getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT,
             kernel_object) |> check
-    
+
     kernarg_segment_size = Ref{UInt32}(0)
     getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE,
             kernarg_segment_size) |> check
-    
+
     if kernarg_segment_size[] == 0
         # FIXME: Hidden arguments!
         kernarg_segment_size[] = sum(sizeof.(args))
@@ -311,7 +301,7 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
                         kernarg_segment_size[],
                         kernarg_address) |> check
     ctr = 0x0
-    
+
     for arg in args
         rarg = Ref(arg)
         ccall(:memcpy, Cvoid,
@@ -333,17 +323,17 @@ end
 function HSAArray(agent::HSAAgent, ::Type{T}, size::NTuple{N,Int}) where {T,N}
     @assert isprimitivetype(T) "$T is not a primitive type"
     @assert all(x->x>0, size) "Invalid array size: $size"
-    
+
     region = get_region(agent, :finegrained)
     nbytes = sizeof(T) * prod(size)
     handle = Ref{Ptr{T}}()
     HSA.memory_allocate(region[], nbytes, handle) |> check
     arr = HSAArray{T,N}(size, handle[])
-    
+
     finalizer(arr) do arr
         HSA.memory_free(arr.handle) |> check
     end
-    
+
     return arr
 end
 HSAArray(::Type{T}, size::NTuple{N,Int}) where {T,N} =
@@ -428,8 +418,17 @@ set_default_agent!() = set_default_agent!(:gpu)
 
 "Gets the default queue for an agent, creating it if necessary"
 function get_default_queue(agent::HSAAgent)
-    queue = get!(DEFAULT_QUEUES, agent, HSAQueue(agent))
-    return queue
+    if VERSION >= v"1.1"
+        return get!(DEFAULT_QUEUES, agent) do
+            HSAQueue(agent)
+        end
+    else
+        if haskey(DEFAULT_QUEUES, agent)
+            return DEFAULT_QUEUES[agent]
+        else
+            return HSAQueue(agent)
+        end
+    end
 end
 
 get_default_queue() = get_default_queue(get_default_agent())
@@ -451,7 +450,7 @@ end
 function device_type(agent::HSAAgent)
     devtype = Ref{UInt32}()
     getinfo(agent.agent, HSA.AGENT_INFO_DEVICE, devtype) |> check
-    
+
     if HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_CPU
         return :cpu
     elseif HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_GPU
@@ -506,12 +505,25 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     @assert workgroup_size !== nothing "Must specify workgroup_size kwarg"
     @assert grid_size !== nothing "Must specify grid_size kwarg"
 
+    agent = queue.agent
     queue = queue.queue
     signal = signal.signal
     args = kernel.args
 
-    # Obtain the current queue write index
-    index = HSA.queue_load_write_index_relaxed(queue[])
+    # Obtain the current queue write index and queue size
+    _queue_size = Ref{UInt32}(0)
+    getinfo(agent.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, _queue_size) |> check
+    queue_size = _queue_size[]
+    write_index = HSA.queue_add_write_index_scacq_screl(queue[], UInt64(1))
+
+    # Yield until queue has space
+    while true
+        read_index = HSA.queue_load_read_index_scacquire(queue[])
+        if write_index < read_index + queue_size
+            break
+        end
+        yield()
+    end
 
     # TODO: Make this less ugly
     dispatch_packet = Ref{HSA.KernelDispatchPacket}()
@@ -537,7 +549,7 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     _queue = unsafe_load(queue[])
     queueMask = UInt32(_queue.size - 1)
     baseaddr_ptr = Ptr{HSA.KernelDispatchPacket}(_queue.base_address)
-    baseaddr_ptr += sizeof(HSA.KernelDispatchPacket) * (index & queueMask)
+    baseaddr_ptr += sizeof(HSA.KernelDispatchPacket) * (write_index & queueMask)
     dispatch_packet_ptr = Base.unsafe_convert(Ptr{HSA.KernelDispatchPacket}, dispatch_packet)
     unsafe_copyto!(baseaddr_ptr, dispatch_packet_ptr, 1)
 
@@ -548,9 +560,8 @@ function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;
     header[] |= Int(HSA.PACKET_TYPE_KERNEL_DISPATCH) << Int(HSA.PACKET_HEADER_TYPE)
     atomic_store_n!(Base.unsafe_convert(Ptr{UInt16}, baseaddr_ptr), header[])
 
-    # Increment the write index and ring the doorbell to dispatch the kernel
-    HSA.queue_store_write_index_relaxed(queue[], index+1)
-    HSA.signal_store_relaxed(_queue.doorbell_signal, Int64(index))
+    # Ring the doorbell to dispatch the kernel
+    HSA.signal_store_relaxed(_queue.doorbell_signal, Int64(write_index))
 end
 
 """
