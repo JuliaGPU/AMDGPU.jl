@@ -58,8 +58,7 @@ function Base.showerror(io::IO, err::HSAError)
     print(io, "HSA error (code #$(Int(err.code)), $(description(err)))")
 end
 
-Base.show(io::IO, err::HSAError) = print(io, "HSAError($(Int(err.code)),
-                                         $(description(err)))")
+Base.show(io::IO, err::HSAError) = print(io, "HSAError($(Int(err.code)), $(description(err)))")
 
 function check(result)
     if result != HSA.STATUS_SUCCESS
