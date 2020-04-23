@@ -1,6 +1,6 @@
 
-function status_string(status::Status, status_string::String)
-    ccall((:hsa_status_string, "libhsa-runtime64"), Status, (Status, Cstring), status, status_string)
+function status_string(status::Status, status_string::Ref{Cstring})
+    ccall((:hsa_status_string, "libhsa-runtime64"), Status, (Status, Ref{Cstring}), status, status_string)
 end
 
 function init()
