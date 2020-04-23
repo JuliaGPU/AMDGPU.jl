@@ -3,6 +3,7 @@ export HostCall, hostcall!
 
 const SENTINEL_COUNTER = Ref{Int}(2)
 const SENTINEL_LOCK = ReentrantLock()
+const DEFAULT_HOSTCALL_LATENCY = 0.01
 
 """
     HostCall{S,RT,AT}
@@ -19,6 +20,7 @@ end
 function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
                     agent=HSARuntime.get_default_agent()) where S
     @assert S == UInt64
+    # TODO: Just use atomic_add!
     host_sentinel, device_sentinel = lock(SENTINEL_LOCK) do
         host_sentinel = SENTINEL_COUNTER[]
         SENTINEL_COUNTER[] += 1
@@ -102,7 +104,6 @@ end
         position!(builder, signal_match)
         ret!(builder)
     end
-    #Core.println(unsafe_string(LLVM.API.LLVMPrintValueToString(LLVM.ref(llvm_f))))
 
     call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :((signal,value)))
 end
@@ -135,7 +136,6 @@ end
         ptr = :(Base.unsafe_convert(DevicePtr{DevicePtr{$RT,AS.Global},AS.Global}, hc.buf_ptr))
         push!(ex.args, :(Base.unsafe_load(Base.unsafe_load($ptr))))
     end
-    #dump(ex)
 
     return ex
 end
@@ -152,15 +152,18 @@ end
         sz = sizeof(T)
         # TODO: Should we do what CUDAnative does instead?
         ptr = :(Base.unsafe_convert(DevicePtr{$T,AS.Global}, hc.buf_ptr+$off-1))
+        # FIXME: We should not be using a device intrinsic here, even though it works...
         push!(ex.args, :(Base.unsafe_load($ptr)))
         off += sz
     end
 
     return ex
 end
+
 struct HostCallException <: Exception
     reason::String
 end
+
 """
     HostCall(func, return_type::Type, arg_types::Type{Tuple}) -> HostCall
 
@@ -172,15 +175,15 @@ hostcall will fail with undefined behavior.
 Note: This API is currently experimental and is subject to change at any time.
 """
 function HostCall(func, rettype, argtypes; return_task=false,
-                  agent=HSARuntime.get_default_agent(), maxlat=0.01,
+                  agent=HSARuntime.get_default_agent(), maxlat=DEFAULT_HOSTCALL_LATENCY,
                   continuous=false)
     signal = HSASignal()
     hc = HostCall(rettype, argtypes, signal.signal[].handle; agent=agent)
 
     tsk = @async begin
-        while true
-            ret_buf = Ref{Mem.Buffer}()
-            try
+        ret_buf = Ref{Mem.Buffer}()
+        try
+            while true
                 try
                     _hostwait(signal.signal[], hc.device_sentinel; maxlat=maxlat)
                 catch err
@@ -221,20 +224,22 @@ function HostCall(func, rettype, argtypes; return_task=false,
                 catch err
                     throw(HostCallException("Hostcall: Error returning hostcall result"))
                 end
-            catch err
-                rethrow(err)
-            finally
-                # TODO: This is probably a bad idea to free while the kernel might
-                # still hold a reference. We should probably have some way to
-                # reference count these buffers from kernels (other than just
-                # using a ROCArray, which can't currently be serialized to the
-                # GPU.
-                if isassigned(ret_buf)
-                    Mem.free(ret_buf)
-                end
-                Mem.free(hc.buf_ptr)
+                @debug "Hostcall: Host function return completed"
+                continuous || break
             end
-            continuous || break
+        catch err
+            @error "Hostcall error" exception=(err,catch_backtrace())
+            rethrow(err)
+        finally
+            # TODO: This is probably a bad idea to free while the kernel might
+            # still hold a reference. We should probably have some way to
+            # reference count these buffers from kernels (other than just
+            # using a ROCArray, which can't currently be serialized to the
+            # GPU).
+            if isassigned(ret_buf)
+                Mem.free(ret_buf)
+            end
+            Mem.free(hc.buf_ptr)
         end
     end
 
@@ -248,12 +253,12 @@ end
 # CPU functions
 get_value(hc::HostCall{UInt64,RT,AT} where {RT,AT}) =
     HSA.signal_load_scacquire(HSA.Signal(hc.signal))
-function _hostwait(signal, sentinel; maxlat=0.01)
-    @debug "Waiting on hostcall signal for sentinel: $sentinel"
+function _hostwait(signal, sentinel; maxlat=DEFAULT_HOSTCALL_LATENCY)
+    @debug "Hostcall: Waiting on signal for sentinel: $sentinel"
     while true
         value = HSA.signal_load_scacquire(signal)
         if value == sentinel
-            @debug "Hostcall signal triggered with sentinel: $sentinel"
+            @debug "Hostcall: Signal triggered with sentinel: $sentinel"
             return
         end
         sleep(maxlat)

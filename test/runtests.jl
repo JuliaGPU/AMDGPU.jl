@@ -30,6 +30,7 @@ if AMDGPUnative.configured
             include("device/memory.jl")
             include("device/indexing.jl")
             include("device/hostcall.jl")
+            include("device/output.jl")
             if Base.libllvm_version >= v"7.0"
                 @test_skip include("device/math.jl")
             else
