@@ -1,5 +1,6 @@
 using AMDGPUnative
 const AS = AMDGPUnative.AS
+using GPUCompiler
 using LLVM, LLVM.Interop
 using HSARuntime
 using InteractiveUtils
@@ -12,12 +13,8 @@ agent_isa = get_first_isa(get_default_agent())
 
 @testset "AMDGPUnative" begin
 
-include("util.jl")
-
 @testset "Core" begin
-include("base.jl")
 include("pointer.jl")
-# TODO: include("codegen.jl")
 end
 
 if AMDGPUnative.configured
@@ -26,6 +23,7 @@ if AMDGPUnative.configured
         include("synchronization.jl")
         include("trap.jl")
         @testset "Device" begin
+            include("device/launch.jl")
             include("device/vadd.jl")
             include("device/memory.jl")
             include("device/indexing.jl")

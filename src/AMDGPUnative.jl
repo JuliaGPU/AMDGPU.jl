@@ -1,11 +1,9 @@
 module AMDGPUnative
 
 using LLVM, LLVM.Interop
-using InteractiveUtils
+using GPUCompiler
 using HSARuntime, HSARuntime.HSA
 using Adapt
-using TimerOutputs
-using DataStructures
 using Libdl
 using Requires
 
@@ -35,15 +33,14 @@ include(joinpath("device", "gcn.jl"))
 include(joinpath("device", "runtime.jl"))
 include(joinpath("device", "llvm.jl"))
 
-include("execution_utils.jl")
 include("compiler.jl")
+include("execution_utils.jl")
 include("execution.jl")
 include("reflection.jl")
 
 function __init__()
     check_deps()
     @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
-    __init_compiler__()
 end
 
 end # module
