@@ -9,9 +9,10 @@ export @roc, rocconvert, rocfunction, nextwarp, prevwarp
 # the code it generates, or the execution
 function split_kwargs(kwargs)
     macro_kws    = [:dynamic]
-    compiler_kws = [:name]
+    compiler_kws = [:name, :device, :queue]
     call_kws     = [:gridsize, :groupsize, :config, :queue]
-    alias_kws    = Dict(:blocks=>:gridsize, :threads=>:groupsize)
+    alias_kws    = Dict(:blocks=>:gridsize, :threads=>:groupsize,
+                        :agent=>:device, :stream=>:queue)
     macro_kwargs = []
     compiler_kwargs = []
     call_kwargs = []
@@ -21,6 +22,7 @@ function split_kwargs(kwargs)
             oldkey = key
             if key in keys(alias_kws)
                 key = alias_kws[key]
+                kwarg = :($key=$val)
             end
             if isa(key, Symbol)
                 if key in macro_kws
@@ -178,13 +180,11 @@ macro roc(ex...)
                 GC.@preserve $(vars...) begin
                     local $kernel_args = map(rocconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
-                    local $device = $extract_device(; $(call_kwargs...))
-                    local $kernel = $rocfunction($f, $kernel_tt; device=$device,
-                                                 $(compiler_kwargs...))
-                    local $queue = $extract_queue($device; $(call_kwargs...))
+                    #local $device = $extract_device(; $(call_kwargs...))
+                    local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
+                    #local $queue = $extract_queue($device; $(call_kwargs...))
                     local $signal = $create_event()
-                    $kernel($kernel_args...; queue=$queue, signal=$signal,
-                            $(call_kwargs...))
+                    $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                     $signal
                 end
             end)
@@ -197,9 +197,10 @@ end
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct ROCRefValue{T} <: Ref{T}
-  x::T
+    x::T
 end
 Base.getindex(r::ROCRefValue) = r.x
+Base.setindex!(r::ROCRefValue{T}, value::T) where T = (r.x = value;)
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = ROCRefValue(adapt(to, r[]))
 
 ## interop with HSAArray
@@ -288,9 +289,9 @@ end
     queue = get(kwargs, :queue, default_queue(default_device()))
     signal = get(kwargs, :signal, create_event())
     if config !== nothing
-        roccall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
+        roccall(kernel.fun, tt, args...; kwargs..., config(kernel)..., queue=queue, signal=signal)
     else
-        roccall(kernel.fun, tt, args...; kwargs...)
+        roccall(kernel.fun, tt, args...; kwargs..., queue=queue, signal=signal)
     end
 end
 
@@ -316,7 +317,7 @@ function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...
 end
 
 # actual compilation
-function _rocfunction(spec::FunctionSpec; device=default_device(), kwargs...)
+function _rocfunction(spec::FunctionSpec; device=default_device(), queue=default_queue(device), kwargs...)
     # compile to GCN
     dev_isa = default_isa(device)
     target = ROCCompilerTarget(dev_isa)

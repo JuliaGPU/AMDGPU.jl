@@ -1,4 +1,4 @@
-@testset "Synchronization" begin
+@testset "Trapping" begin
     # TODO: Remove dummy argument once HSARuntime is fixed
     function trapkern(x)
         AMDGPUnative.trap()
