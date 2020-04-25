@@ -66,13 +66,13 @@ Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A
 # FIXME: Boundschecking
 
 @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
-    #@boundscheck checkbounds(A, index)
+    @boundscheck checkbounds(A, index)
     align = datatype_align(T)
     Base.unsafe_load(pointer(A), index, Val(align))::T
 end
 
 @inline function Base.setindex!(A::ROCDeviceArray{T}, x, index::Integer) where {T}
-    #@boundscheck checkbounds(A, index)
+    @boundscheck checkbounds(A, index)
     align = datatype_align(T)
     Base.unsafe_store!(pointer(A), x, index, Val(align))
     return A
