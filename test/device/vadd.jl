@@ -1,7 +1,7 @@
 # The original test :)
 @testset "Vector Addition Kernel" begin
     function vadd(a,b,c)
-        i = threadIdx().x
+        i = workitemIdx().x
         c[i] = a[i] + b[i]
         sync_workgroup()
         return nothing

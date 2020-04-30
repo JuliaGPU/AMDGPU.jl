@@ -1,13 +1,13 @@
 @testset "Kernel Indexing" begin
 
 function idx_kern(X)
-    X[1] = AMDGPUnative.workitemIdx_x()
-    X[2] = AMDGPUnative.workitemIdx_y()
-    X[3] = AMDGPUnative.workitemIdx_z()
+    X[1] = workitemIdx().x
+    X[2] = workitemIdx().y
+    X[3] = workitemIdx().z
 
-    X[4] = AMDGPUnative.workgroupIdx_x()
-    X[5] = AMDGPUnative.workgroupIdx_y()
-    X[6] = AMDGPUnative.workgroupIdx_z()
+    X[4] = workgroupIdx().x
+    X[5] = workgroupIdx().y
+    X[6] = workgroupIdx().z
 
     nothing
 end
@@ -19,13 +19,13 @@ A = Array(HA)
 @test all(A .> 0)
 
 function dim_kern(X)
-    X[1] = AMDGPUnative.workitemDim_x()
-    X[2] = AMDGPUnative.workitemDim_y()
-    X[3] = AMDGPUnative.workitemDim_z()
+    X[1] = workgroupDim().x
+    X[2] = workgroupDim().y
+    X[3] = workgroupDim().z
 
-    X[4] = AMDGPUnative.workgroupDim_x()
-    X[5] = AMDGPUnative.workgroupDim_y()
-    X[6] = AMDGPUnative.workgroupDim_z()
+    X[4] = gridDim().x
+    X[5] = gridDim().y
+    X[6] = gridDim().z
 
     nothing
 end

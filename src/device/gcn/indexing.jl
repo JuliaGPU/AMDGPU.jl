@@ -1,6 +1,6 @@
 # Indexing and dimensions
-export workitemIdx, workgroupIdx, workitemDim, workgroupDim
-export threadIdx, blockIdx, blockDim, gridDim
+export workitemIdx, workgroupIdx, workgroupDim, gridDim, gridDimWG
+export threadIdx, blockIdx, blockDim
 
 @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
     T_int32 = LLVM.Int32Type(JuliaContext())
@@ -95,28 +95,30 @@ _packet_names = fieldnames(HSA.KernelDispatchPacket)
 _packet_offsets = fieldoffset.(HSA.KernelDispatchPacket, 1:length(_packet_names))
 for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # Workitem dimension
-    fn = Symbol("workitemDim_$dim")
+    fn = Symbol("workgroupDim_$dim")
     base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
     @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:max_block_size[dim])), UInt16))
     cufn = Symbol("blockDim_$dim")
     @eval @inline $cufn() = $fn()
 
-    # Workgroup dimension
-    fn = Symbol("workgroupDim_$dim")
+    # Grid dimension (in workitems)
+    fn = Symbol("gridDim_$dim")
     base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
     @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:max_grid_size[dim])), UInt32))
-    cufn = Symbol("gridDim_$dim")
-    @eval @inline $cufn() = $fn()
+    # Grid dimension (in workgroups)
+    fn_wg = Symbol("gridDimWG_$dim")
+    fn_wi_idx = Symbol("workitemIdx_$dim")
+    @eval @inline $fn_wg() = $fn()/$fn_wi_idx()
 end
 
 @inline workitemIdx() = (x=workitemIdx_x(), y=workitemIdx_y(), z=workitemIdx_z())
 @inline workgroupIdx() = (x=workgroupIdx_x(), y=workgroupIdx_y(), z=workgroupIdx_z())
-@inline workitemDim() = (x=workitemDim_x(), y=workitemDim_y(), z=workitemDim_z())
 @inline workgroupDim() = (x=workgroupDim_x(), y=workgroupDim_y(), z=workgroupDim_z())
+@inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
+@inline gridDimWG() = (x=gridDimWG_x(), y=gridDimWG_y(), z=gridDimWG_z())
 
 # For compat with CUDAnative et. al
 
-@inline threadIdx() = (x=workitemIdx_x(), y=workitemIdx_y(), z=workitemIdx_z())
-@inline blockIdx() = (x=workgroupIdx_x(), y=workgroupIdx_y(), z=workgroupIdx_z())
-@inline blockDim() = (x=workitemDim_x(), y=workitemDim_y(), z=workitemDim_z())
-@inline gridDim() = (x=workgroupDim_x(), y=workgroupDim_y(), z=workgroupDim_z())
+@inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
+@inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
+@inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
