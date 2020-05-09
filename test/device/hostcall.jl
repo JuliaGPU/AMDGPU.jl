@@ -39,17 +39,21 @@ end
     HB = HSAArray(B)
 
     dref = Ref{Bool}(false)
-    hc, hc_task = HostCall(Nothing, Tuple{}; return_task=true) do
-        error("Some error")
-        dref[] = true
+
+    # This should throw an exception and the error message should be logged.
+    @test_logs (:error, "Hostcall error") begin
+        hc, hc_task = HostCall(Nothing, Tuple{}; return_task=true) do
+            error("Some error")
+            dref[] = true
+        end
+
+        wait(@roc kernel(HA, HB, hc))
+        sleep(1)
+
+        @test Array(HB)[1] == 1f0
+        @test dref[] == false
+        @test Base.istaskfailed(hc_task)
     end
-
-    wait(@roc kernel(HA, HB, hc))
-
-    sleep(1)
-    @test Array(HB)[1] == 1f0
-    @test dref[] == false
-    @test Base.istaskfailed(hc_task)
 end
 
 @testset "Call: Sync (0 args)" begin
