@@ -10,10 +10,10 @@ version = "1.0.1"
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BinaryProvider]]
-deps = ["Libdl", "SHA"]
-git-tree-sha1 = "5b08ed6036d9d3f0ee6369410b830f8873d4024c"
+deps = ["Libdl", "Logging", "SHA"]
+git-tree-sha1 = "428e9106b1ff27593cbd979afac9b45b82372b8c"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.8"
+version = "0.5.9"
 
 [[CEnum]]
 git-tree-sha1 = "62847acab40e6855a9b5905ccb99c2b5cf6b3ebb"
@@ -22,9 +22,9 @@ version = "0.2.0"
 
 [[CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
-git-tree-sha1 = "c8f94de86731698373f3c82a8aa40d8ab765c50c"
+git-tree-sha1 = "cab4da992adc0a64f63fa30d2db2fd8bec40cab4"
 uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
-version = "0.5.9"
+version = "0.5.11"
 
 [[ConstructionBase]]
 git-tree-sha1 = "a2a6a5fea4d6f730ec4c18a76d27ec10e8ec1c50"
@@ -39,13 +39,9 @@ version = "1.0.2"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "9faa13be79557bf4c5713fb912b0e3c5aa33d046"
+git-tree-sha1 = "6166ecfaf2b8bbf2b68d791bc1d54501f345d314"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.13"
-
-[[Distributed]]
-deps = ["Random", "Serialization", "Sockets"]
-uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+version = "0.17.15"
 
 [[Future]]
 deps = ["Random"]
@@ -53,11 +49,11 @@ uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[GPUCompiler]]
 deps = ["Cthulhu", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs"]
-git-tree-sha1 = "65c397b882e334c2b84f098010e82767b3318faa"
+git-tree-sha1 = "0dfe9106ced74d467314a4a2227125aef2e5cdd5"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl.git"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.1.0"
+version = "0.2.0"
 
 [[HSARuntime]]
 deps = ["CEnum", "Libdl", "Setfield"]
@@ -71,9 +67,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "b6b86801ae2f2682e0a4889315dc76b68db2de71"
+git-tree-sha1 = "93d2e1e960fe47db1a9015e86fad1d47cf67cf59"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "1.3.4"
+version = "1.4.1"
 
 [[Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -96,10 +92,9 @@ deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[OrderedCollections]]
-deps = ["Random", "Serialization", "Test"]
-git-tree-sha1 = "c4c13474d23c60d20a67b217f1d7f22a40edf8f1"
+git-tree-sha1 = "12ce190210d278e12644bcadf5b21cbdcf225cd3"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.1.0"
+version = "1.2.0"
 
 [[Printf]]
 deps = ["Unicode"]
@@ -133,10 +128,6 @@ version = "0.5.4"
 
 [[Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
-
-[[Test]]
-deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]
-uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[TimerOutputs]]
 deps = ["Printf"]
