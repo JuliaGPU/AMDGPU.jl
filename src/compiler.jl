@@ -1,43 +1,28 @@
-## target
+struct ROCCompilerParams <: AbstractCompilerParams end
 
-struct ROCCompilerTarget <: CompositeCompilerTarget
-    parent::GCNCompilerTarget
+ROCCompilerJob = CompilerJob{GCNCompilerTarget,ROCCompilerParams}
 
-    ROCCompilerTarget(dev_isa::String) = new(GCNCompilerTarget(dev_isa))
-end
-
-Base.parent(target::ROCCompilerTarget) = target.parent
+GPUCompiler.runtime_module(::ROCCompilerJob) = AMDGPUnative
 
 # filter out functions from device libs
-GPUCompiler.isintrinsic(target::ROCCompilerTarget, fn::String) =
-    GPUCompiler.isintrinsic(target.parent, fn) || startswith(fn, "rocm")
-
-GPUCompiler.runtime_module(::ROCCompilerTarget) = AMDGPUnative
-
-
-## job
-
-struct ROCCompilerJob <: CompositeCompilerJob
-    parent::GCNCompilerJob
-end
-
-ROCCompilerJob(target::AbstractCompilerTarget, source::FunctionSpec; kwargs...) =
-    ROCCompilerJob(GCNCompilerJob(target, source; kwargs...))
-
-Base.similar(job::ROCCompilerJob, source::FunctionSpec; kwargs...) =
-    ROCCompilerJob(similar(job.parent, source; kwargs...))
-
-Base.parent(job::ROCCompilerJob) = job.parent
+GPUCompiler.isintrinsic(job::ROCCompilerJob, fn::String) =
+    invoke(GPUCompiler.isintrinsic,
+           Tuple{CompilerJob{GCNCompilerTarget}, typeof(fn)},
+           job, fn) ||
+    startswith(fn, "rocm")
 
 function GPUCompiler.process_module!(job::ROCCompilerJob, mod::LLVM.Module)
-    GPUCompiler.process_module!(job.parent, mod)
-
+    invoke(GPUCompiler.process_module!,
+           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)},
+           job, mod)
     #emit_exception_flag!(mod)
 end
 
 function GPUCompiler.link_libraries!(job::ROCCompilerJob, mod::LLVM.Module,
                                      undefined_fns::Vector{String})
-    GPUCompiler.link_libraries!(job.parent, mod, undefined_fns)
+    invoke(GPUCompiler.link_libraries!,
+           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
+           job, mod, undefined_fns)
 
-    link_device_libs!(mod, job.parent.target.parent.dev_isa, undefined_fns)
+    link_device_libs!(mod, job.target.dev_isa, undefined_fns)
 end
