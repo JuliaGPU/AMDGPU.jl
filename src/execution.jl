@@ -312,16 +312,16 @@ in a hot path without degrading performance. New code will be generated automati
 when function changes, or when different types or keyword arguments are provided.
 """
 function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
-    spec = FunctionSpec(f, tt, true, name)
-    GPUCompiler.cached_compilation(_rocfunction, spec; kwargs...)::HostKernel{f,tt}
+    source = FunctionSpec(f, tt, true, name)
+    GPUCompiler.cached_compilation(_rocfunction, source; kwargs...)::HostKernel{f,tt}
 end
 
 # actual compilation
-function _rocfunction(spec::FunctionSpec; device=default_device(), queue=default_queue(device), kwargs...)
+function _rocfunction(source::FunctionSpec; device=default_device(), queue=default_queue(device), kwargs...)
     # compile to GCN
-    dev_isa = default_isa(device)
-    target = ROCCompilerTarget(dev_isa)
-    job = ROCCompilerJob(target, spec; kwargs...)
+    target = GCNCompilerTarget(; dev_isa=default_isa(device), kwargs...)
+    params = ROCCompilerParams()
+    job = CompilerJob(target, source, params)
     obj, kernel_fn, undefined_fns = GPUCompiler.compile(:obj, job; strict=true)
 
     # settings to JIT based on Julia's debug setting
@@ -338,7 +338,7 @@ function _rocfunction(spec::FunctionSpec; device=default_device(), queue=default
     # JIT into an executable kernel object
     mod = ROCModule(codeunits(obj), jit_options)
     fun = ROCFunction(mod, kernel_fn)
-    kernel = HostKernel{spec.f,spec.tt}(mod, fun)
+    kernel = HostKernel{source.f,source.tt}(mod, fun)
 
     #create_exceptions!(mod)
 

@@ -14,8 +14,9 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
                          kernel::Bool=false, kwargs...)
             source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            target = ROCCompilerTarget(default_isa(default_device()))
-            job = ROCCompilerJob(target, source)
+            target = GCNCompilerTarget(; dev_isa=default_isa(default_device()))
+            params = ROCCompilerParams()
+            job = CompilerJob(target, source, params)
             GPUCompiler.$method($(args...); kwargs...)
         end
         $method(@nospecialize(func), @nospecialize(types); kwargs...) =

@@ -8,9 +8,10 @@ GPUCompiler.reset_runtime()
 
 # load or build the runtime for the most likely compilation job given a compute capability
 function load_runtime(dev_isa::String)
-    target = ROCCompilerTarget(dev_isa)
-    dummy_spec = FunctionSpec(()->return, Tuple{})
-    job = ROCCompilerJob(target, dummy_spec)
+    target = GCNCompilerTarget(; dev_isa=dev_isa)
+    dummy_source = FunctionSpec(()->return, Tuple{})
+    params = ROCCompilerParams()
+    job = CompilerJob(target, dummy_source, params)
     GPUCompiler.load_runtime(job)
 end
 
