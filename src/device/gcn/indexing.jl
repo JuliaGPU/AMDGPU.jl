@@ -111,14 +111,68 @@ for (dim,off) in ((:x,1), (:y,2), (:z,3))
     @eval @inline $fn_wg() = $fn()/$fn_wi_idx()
 end
 
+"""
+    workitemIdx()::ROCDim3
+
+Returns the work item index within the work group.
+See also: [`threadIdx`](@ref)
+"""
 @inline workitemIdx() = (x=workitemIdx_x(), y=workitemIdx_y(), z=workitemIdx_z())
+
+"""
+    workgroupIdx()::ROCDim3
+
+Returns the work group index.
+See also: [`blockIdx`](@ref)
+"""
 @inline workgroupIdx() = (x=workgroupIdx_x(), y=workgroupIdx_y(), z=workgroupIdx_z())
+
+"""
+    workgroupDim()::ROCDim3
+
+Returns the size of each workgroup in workitems.
+See also: [`blockDim`](@ref)
+"""
 @inline workgroupDim() = (x=workgroupDim_x(), y=workgroupDim_y(), z=workgroupDim_z())
+
+"""
+    gridDim()::ROCDim3
+
+Returns the size of the grid in workitems.
+This behaviour is different from CUDA where `gridDim` gives the size of the grid in blocks.
+"""
 @inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
+
+"""
+    gridDimWG()::ROCDim3
+
+Returns the size of the grid in workgroups.
+This is equivalent to CUDA's `gridDim`.
+"""
 @inline gridDimWG() = (x=gridDimWG_x(), y=gridDimWG_y(), z=gridDimWG_z())
 
 # For compat with CUDAnative et. al
 
+"""
+    threadIdx()::ROCDim3
+
+Returns the thread index within the block.
+See also: [`workitemIdx`](@ref)
+"""
 @inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
+
+"""
+    blockIdx()::ROCDim3
+
+Returns the block index within the grid.
+See also: [`workgroupIdx`](@ref)
+"""
 @inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
+
+"""
+    blockDim()::ROCDim3
+
+Returns the dimensions of the block.
+See also: [`workgroupDim`](@ref)
+"""
 @inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
