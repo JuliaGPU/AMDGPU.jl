@@ -39,3 +39,22 @@ test:nightly:
 #  allow_failure: true
 #  variables:
 #    CI_BUILD_ARGS: 'LLVM_VER=9.0.1 USE_BINARYBUILDER_LLVM=0'
+
+# other tasks
+
+documentation:
+  extends:
+    - .julia:1.4
+    - .documentation
+  tags:
+    - rocm
+
+pages:
+  stage: deploy
+  script:
+    - mv docs/build public
+  artifacts:
+    paths:
+    - public
+  only:
+    - master

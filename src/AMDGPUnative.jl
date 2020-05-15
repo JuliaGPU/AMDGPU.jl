@@ -39,7 +39,15 @@ include("execution.jl")
 include("reflection.jl")
 
 function __init__()
-    check_deps()
+    try
+        # Try to load deps if possible
+        check_deps()
+    catch err
+        @warn """
+        AMDGPUnative dependencies have not been built, some functionality may be missing.
+        Please run Pkg.build("AMDGPUnative") and reload AMDGPUnative.
+        """
+    end
     @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
 end
 
