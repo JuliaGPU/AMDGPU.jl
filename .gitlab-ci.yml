@@ -42,6 +42,11 @@ test:nightly:
 
 # other tasks
 
+coverage:
+  extends:
+    - .julia:1.4
+    - .coverage
+
 documentation:
   extends:
     - .julia:1.4

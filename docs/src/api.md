@@ -5,6 +5,7 @@
 ```@docs
 @roc
 AMDGPUnative.AbstractKernel
+AMDGPUnative.HostKernel
 AMDGPUnative.rocfunction
 ```
 
