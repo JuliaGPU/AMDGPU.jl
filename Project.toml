@@ -9,7 +9,7 @@ Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 
 [compat]
-CEnum = "0.2"
+CEnum = "0.2, 0.3, 0.4"
 Setfield = "0.5"
 julia = "1"
 
