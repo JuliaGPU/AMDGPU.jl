@@ -20,6 +20,17 @@ function _memset!(ref::Ref{Ptr{Nothing}}, value; len=1)
     end
 end
 
+# Atomic store using LLVM intrinsics
+# Necessary for writing the AQL packet header to the queue
+# prior to launching a kernel.
+@eval atomic_store_n!(x::Ptr{UInt16}, v::UInt16) =
+    Base.llvmcall($"""
+    %ptr = inttoptr i$(Sys.WORD_SIZE) %0 to i16*
+    store atomic i16 %1, i16* %ptr release, align 16
+    ret void
+    """, Cvoid, Tuple{Ptr{UInt16}, UInt16},
+    Base.unsafe_convert(Ptr{UInt16}, x), v)
+
 # Overloads for interface functions
 
 function getinfo(agent::Agent, attribute::HSA.AgentInfo,
