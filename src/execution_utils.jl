@@ -3,8 +3,8 @@
 
 export ROCDim, ROCModule, ROCFunction, roccall
 
-mutable struct ROCModule
-    data::Vector{UInt8}
+mutable struct ROCModule{E}
+    exe::RuntimeExecutable{E}
     options::Dict{Any,Any}
 end
 mutable struct ROCFunction
@@ -167,16 +167,10 @@ end
         push!(ex.args, :($(arg_refs[i]) = Base.RefValue(args[$i])))
     end
 
-    # generate an array with pointers
-    arg_ptrs = [:(Base.unsafe_convert(Ptr{Cvoid}, $(arg_refs[i]))) for i in 1:N]
-
     append!(ex.args, (quote
         GC.@preserve $(arg_refs...) begin
-            kernelParams = [$(arg_ptrs...)]
-
-            # create executable and kernel instance
-            exe = create_executable(get_device(queue), f)
-            kern = create_kernel(get_device(queue), exe, f.entry, args)
+            # create kernel instance
+            kern = create_kernel(get_device(queue), f.mod.exe, f.entry, args)
 
             # launch kernel
             launch_kernel(queue, kern, signal;

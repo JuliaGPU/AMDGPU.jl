@@ -25,14 +25,14 @@ Base.wait(event::RuntimeEvent; kwargs...) = wait(event.event; kwargs...)
 struct RuntimeExecutable{E}
     exe::E
 end
-create_executable(device, func) =
-    RuntimeExecutable(create_executable(RUNTIME[], device, func))
-function create_executable(::typeof(HSA_rt), device, func)
+create_executable(device, entry, obj; globals=()) =
+    RuntimeExecutable(create_executable(RUNTIME[], device, entry, obj; globals=globals))
+function create_executable(::typeof(HSA_rt), device, entry, obj; globals=())
     # link with ld.lld
     ld_path = HSARuntime.ld_lld_path
     @assert ld_path != "" "ld.lld was not found; cannot link kernel"
     path_exe = mktemp() do path_o, io_o
-        write(io_o, func.mod.data)
+        write(io_o, obj)
         flush(io_o)
         path_exe = path_o*".exe"
         run(`$ld_path -shared -o $path_exe $path_o`)
@@ -41,8 +41,10 @@ function create_executable(::typeof(HSA_rt), device, func)
     data = read(path_exe)
     rm(path_exe)
 
-    return HSAExecutable(device.device, data, func.entry)
+    return HSAExecutable(device.device, data, entry; globals=globals)
 end
+HSARuntime.get_global(exe::RuntimeExecutable, sym::Symbol) =
+    HSARuntime.get_global(exe.exe, sym)
 
 struct RuntimeKernel{K}
     kernel::K

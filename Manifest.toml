@@ -49,15 +49,17 @@ uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "8d107937ab16bb23e03efe62af954e46d3cfdc80"
-repo-rev = "c10a45eb1c78e261e1e96efc8f6afa9c4999adeb"
+git-tree-sha1 = "3f405c2aab2ef755d022bd57466a35c6d08a1531"
+repo-rev = "158cd601fc42faed088785a7bde16436cbaa6017"
 repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl.git"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
 version = "0.3.0"
 
 [[HSARuntime]]
 deps = ["CEnum", "Libdl", "Setfield"]
-git-tree-sha1 = "16887a3baae86ebccebcd47c2a2328c96a12fd30"
+git-tree-sha1 = "2e6455b1bcb36471aadfaab4cdeb83a8b3e2cf51"
+repo-rev = "master"
+repo-url = "https://github.com/jpsamaroo/HSARuntime.jl.git"
 uuid = "2c364e2c-59fb-59c3-96f3-194112e690e0"
 version = "0.3.0"
 
@@ -67,9 +69,11 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "93d2e1e960fe47db1a9015e86fad1d47cf67cf59"
+git-tree-sha1 = "dd3f584c3dbefe39b2a8fbafa1a3b77e31e21255"
+repo-rev = "master"
+repo-url = "https://github.com/maleadt/LLVM.jl.git"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "1.4.1"
+version = "1.5.1"
 
 [[Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"

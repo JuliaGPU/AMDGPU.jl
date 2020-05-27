@@ -29,6 +29,7 @@ if AMDGPUnative.configured
             include("device/indexing.jl")
             include("device/hostcall.jl")
             include("device/output.jl")
+            include("device/globals.jl")
             if Base.libllvm_version >= v"7.0"
                 include("device/math.jl")
             else
