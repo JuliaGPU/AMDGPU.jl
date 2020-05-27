@@ -632,8 +632,8 @@ function executable_iterate_symbols(executable::Executable, callback::Ref{Cvoid}
     ccall((:hsa_executable_iterate_symbols, "libhsa-runtime64"), Status, (Executable, Ref{Cvoid}, Ref{Cvoid}), executable, callback, data)
 end
 
-function executable_iterate_agent_symbols(executable::Executable, agent::Agent, callback::Ptr{Cvoid}, data::Ref{ExecutableSymbol})
-    ccall((:hsa_executable_iterate_agent_symbols, "libhsa-runtime64"), Status, (Executable, Agent, Ptr{Cvoid}, Ref{ExecutableSymbol}), executable, agent, callback, data)
+function executable_iterate_agent_symbols(executable::Executable, agent::Agent, callback::Ptr{Cvoid}, data::Ref{Cvoid})
+    ccall((:hsa_executable_iterate_agent_symbols, "libhsa-runtime64"), Status, (Executable, Agent, Ptr{Cvoid}, Ref{Cvoid}), executable, agent, callback, data)
 end
 
 function executable_iterate_program_symbols(executable::Executable, callback::Ptr{Cvoid}, data::Ptr{Cvoid})

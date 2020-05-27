@@ -16,14 +16,11 @@ end
 function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, args::Tuple)
     agent_func = @cfunction(iterate_exec_agent_syms_cb, HSA.Status,
                            (HSA.Executable, HSA.Agent, HSA.ExecutableSymbol, Ptr{Cvoid}))
-    prog_func = @cfunction(iterate_exec_prog_syms_cb, HSA.Status,
-                            (HSA.Executable, HSA.ExecutableSymbol, Ptr{Cvoid}))
     exec_symbol = Ref{HSA.ExecutableSymbol}()
+    exec_ptr = Base.unsafe_convert(Ref{Cvoid}, exec_symbol)
     @debug "Agent symbols"
     HSA.executable_iterate_agent_symbols(exe.executable[], agent.agent,
-                                     agent_func, exec_symbol) |> check
-    #@debug "Program symbols"
-    #hsa_executable_iterate_program_symbols(exe.executable[], prog_func, C_NULL) |> check
+                                         agent_func, exec_ptr) |> check
 
     # TODO: Conditionally disable once ROCR is fixed
     if !isassigned(exec_symbol)
