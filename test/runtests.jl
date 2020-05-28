@@ -1,7 +1,11 @@
 using HSARuntime
 using HSARuntime.HSA
-using AMDGPUnative
 using Test
+
+using Pkg
+Pkg.add(PackageSpec(;name="GPUCompiler",rev="master"))
+Pkg.add(PackageSpec(;name="AMDGPUnative",rev="master"))
+using AMDGPUnative
 
 if HSARuntime.configured
     @testset "HSA Status Error" begin
