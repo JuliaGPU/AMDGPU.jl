@@ -322,7 +322,7 @@ function _rocfunction(source::FunctionSpec; device=default_device(), queue=defau
     target = GCNCompilerTarget(; dev_isa=default_isa(device), kwargs...)
     params = ROCCompilerParams()
     job = CompilerJob(target, source, params)
-    obj, kernel_fn, undefined_fns = GPUCompiler.compile(:obj, job; strict=true)
+    obj, kernel_fn, undefined_fns, undefined_gbls = GPUCompiler.compile(:obj, job; strict=true)
 
     # settings to JIT based on Julia's debug setting
     jit_options = Dict{Any,Any}()
@@ -335,8 +335,14 @@ function _rocfunction(source::FunctionSpec; device=default_device(), queue=defau
     end
     =#
 
-    # JIT into an executable kernel object
-    mod = ROCModule(codeunits(obj), jit_options)
+    # calculate sizes for globals
+    globals = map(gbl->Symbol(gbl.name)=>llvmsize(eltype(gbl.type)),
+                  filter(gbl->gbl.external, undefined_gbls))
+
+    # create executable and kernel
+    obj = codeunits(obj)
+    exe = create_executable(device, kernel_fn, obj; globals=globals)
+    mod = ROCModule(exe, jit_options)
     fun = ROCFunction(mod, kernel_fn)
     kernel = HostKernel{source.f,source.tt}(mod, fun)
 

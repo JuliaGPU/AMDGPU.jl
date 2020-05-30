@@ -39,3 +39,14 @@ blockDim
 sync_workgroup
 ```
 
+### Pointers
+
+```@docs
+AMDGPUnative.DevicePtr
+```
+
+### Global Variables
+
+```@docs
+AMDGPUnative.get_global_pointer
+```
