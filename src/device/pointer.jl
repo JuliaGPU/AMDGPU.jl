@@ -91,23 +91,13 @@ Base.:(+)(x::Integer, y::DevicePtr) = y + x
 
 # memory operations
 
-@static if Base.libllvm_version < v"7.0"
-    # Old values (LLVM 6)
-    Base.convert(::Type{Int}, ::Type{AS.Private})  = 0
-    Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
-    Base.convert(::Type{Int}, ::Type{AS.Constant}) = 2
-    Base.convert(::Type{Int}, ::Type{AS.Local})    = 3
-    Base.convert(::Type{Int}, ::Type{AS.Generic})  = 4
-    Base.convert(::Type{Int}, ::Type{AS.Region})   = 5
-else
-    # New values (LLVM 7+)
-    Base.convert(::Type{Int}, ::Type{AS.Generic})  = 0
-    Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
-    Base.convert(::Type{Int}, ::Type{AS.Region})   = 2
-    Base.convert(::Type{Int}, ::Type{AS.Local})    = 3
-    Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
-    Base.convert(::Type{Int}, ::Type{AS.Private})  = 5
-end
+# New values (LLVM 7+)
+Base.convert(::Type{Int}, ::Type{AS.Generic})  = 0
+Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
+Base.convert(::Type{Int}, ::Type{AS.Region})   = 2
+Base.convert(::Type{Int}, ::Type{AS.Local})    = 3
+Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
+Base.convert(::Type{Int}, ::Type{AS.Private})  = 5
 
 function tbaa_make_child(name::String, constant::Bool=false; ctx::LLVM.Context=JuliaContext())
     tbaa_root = MDNode([MDString("roctbaa", ctx)], ctx)

@@ -40,6 +40,17 @@ end
     @test String(take!(iob)) == "Hello World!Goodbye World!\n"
 end
 
+@testset "Plain, global context" begin
+    function kernel(x)
+        @rocprint "Hello World!"
+        @rocprintln "Goodbye World!"
+        nothing
+    end
+
+    _, msg = @grab_output wait(@roc kernel(1))
+    @test msg == "Hello World!Goodbye World!\n"
+end
+
 #= TODO
 @testset "Interpolated string" begin
     inner_str = "to the"

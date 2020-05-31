@@ -183,7 +183,7 @@ macro roc(ex...)
                     #local $device = $extract_device(; $(call_kwargs...))
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
                     #local $queue = $extract_queue($device; $(call_kwargs...))
-                    local $signal = $create_event()
+                    local $signal = $create_event($kernel.mod.exe)
                     $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                     $signal
                 end
@@ -285,9 +285,8 @@ end
 
 @doc (@doc AbstractKernel) HostKernel
 
-@inline function roccall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
+@inline function roccall(kernel::HostKernel, tt, args...; config=nothing, signal, kwargs...)
     queue = get(kwargs, :queue, default_queue(default_device()))
-    signal = get(kwargs, :signal, create_event())
     if config !== nothing
         roccall(kernel.fun, tt, args...; kwargs..., config(kernel)..., queue=queue, signal=signal)
     else
@@ -346,7 +345,69 @@ function _rocfunction(source::FunctionSpec; device=default_device(), queue=defau
     fun = ROCFunction(mod, kernel_fn)
     kernel = HostKernel{source.f,source.tt}(mod, fun)
 
-    #create_exceptions!(mod)
+    # initialize global output context
+    if any(x->x[1]==:__global_output_context, globals)
+        gbl = get_global(exe, :__global_output_context)
+        gbl_ptr = Base.unsafe_convert(Ptr{GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
+        oc = OutputContext(stdout)
+        Base.unsafe_store!(gbl_ptr, oc)
+    end
+
+    # initialize global exception flag
+    if any(x->x[1]==:__global_exception_flag, globals)
+        gbl = get_global(exe, :__global_exception_flag)
+        gbl_ptr = Base.unsafe_convert(Ptr{Int64}, gbl)
+        Base.unsafe_store!(gbl_ptr, 0)
+
+        # initialize exception ring buffer
+        @assert any(x->x[1]==:__global_exception_ring, globals)
+        gbl = get_global(exe, :__global_exception_ring)
+        gbl_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, gbl)
+        ex_ptr = Base.unsafe_convert(Ptr{ExceptionEntry}, mod.exceptions)
+        unsafe_store!(gbl_ptr, ex_ptr)
+        # setup initial slots
+        for i in 1:MAX_EXCEPTIONS-1
+            unsafe_store!(ex_ptr, ExceptionEntry(0))
+            ex_ptr += sizeof(ExceptionEntry)
+        end
+        # setup tail slot
+        unsafe_store!(ex_ptr, ExceptionEntry(1))
+    end
+
+    # initialize malloc hostcall
+    if any(x->x[1]==:__global_malloc_hostcall, globals)
+        gbl = get_global(exe, :__global_malloc_hostcall)
+        gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,DevicePtr{UInt8,AS.Global},Tuple{UInt64,Csize_t}}}, gbl)
+        hc = HostCall(DevicePtr{UInt8,AS.Global}, Tuple{UInt64,Csize_t}; agent=device.device, continuous=true) do kern, sz
+            buf = Mem.alloc(device.device, sz; coherent=true)
+            mod = EXE_TO_MODULE_MAP[exe.exe].value
+            push!(mod.metadata, KernelMetadata(kern, buf))
+            ptr = DevicePtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
+            @debug "Allocated $ptr ($sz bytes) for kernel $kern on device $device"
+            return DevicePtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
+        end
+        Base.unsafe_store!(gbl_ptr, hc)
+    end
+
+    # initialize free hostcall
+    if any(x->x[1]==:__global_free_hostcall, globals)
+        gbl = get_global(exe, :__global_free_hostcall)
+        gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,DevicePtr{UInt8,AS.Global}}}}, gbl)
+        hc = HostCall(Nothing, Tuple{UInt64,DevicePtr{UInt8,AS.Global}}; agent=device.device, continuous=true) do kern, ptr
+            mod = EXE_TO_MODULE_MAP[exe.exe].value
+            for idx in length(mod.metadata):-1:1
+                if mod.metadata[idx].kern == kern
+                    sz = mod.metadata[idx].buf.bytesize
+                    Mem.free(mod.metadata[idx].buf)
+                    deleteat!(mod.metadata, idx)
+                    @debug "Freed $ptr ($sz bytes) for kernel $kern on device $device"
+                    break
+                end
+            end
+            return nothing
+        end
+        Base.unsafe_store!(gbl_ptr, hc)
+    end
 
     return kernel
 end

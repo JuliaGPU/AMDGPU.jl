@@ -24,6 +24,8 @@ function OutputContext(io::IO=stdout; agent=get_default_agent(), buf_len=2^16, k
     OutputContext(hc)
 end
 
+const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{UInt64,Int64,Tuple{DeviceStaticString{2^16}}}}
+
 ### macros
 
 macro rocprint(oc, str)
@@ -33,9 +35,30 @@ macro rocprintln(oc, str)
     rocprint(oc, str, true)
 end
 
+macro rocprint(str)
+    @gensym oc_ptr oc
+    ex = quote
+        $(esc(oc_ptr)) = AMDGPU.get_global_pointer(Val(:__global_output_context),
+                                                         $GLOBAL_OUTPUT_CONTEXT_TYPE)
+        $(esc(oc)) = Base.unsafe_load($(esc(oc_ptr)))
+    end
+    push!(ex.args, rocprint(oc, str))
+    ex
+end
+macro rocprintln(str)
+    @gensym oc_ptr oc
+    ex = quote
+        $(esc(oc_ptr)) = AMDGPU.get_global_pointer(Val(:__global_output_context),
+                                                         $GLOBAL_OUTPUT_CONTEXT_TYPE)
+        $(esc(oc)) = Base.unsafe_load($(esc(oc_ptr)))
+    end
+    push!(ex.args, rocprint(oc, str, true))
+    ex
+end
+
 ### parse-time helpers
 
-function rocprint(oc, str, nl=false)
+function rocprint(oc, str, nl::Bool=false)
     ex = Expr(:block)
     if !(str isa Expr)
         str = Expr(:string, str)
@@ -50,18 +73,14 @@ function rocprint(oc, str, nl=false)
         dstr = DeviceStaticString{N}()
         push!(ex.args, :(hostcall!($(esc(oc)).hostcall, $dstr)))
     end
+    push!(ex.args, :(nothing))
     return ex
 end
 function rocprint!(ex, N, oc, str::String)
-    # TODO: push!(ex.args, :($rocprint!($(esc(oc)), $(Val(Symbol(str))))))
-    off = N
-    ptr = :(Base.unsafe_convert(DevicePtr{UInt8,AS.Global}, $(esc(oc)).hostcall.buf_ptr))
-    for byte in codeunits(str)
-        push!(ex.args, :(Base.unsafe_store!($ptr, $byte, $off)))
-        off += 1
-    end
-
-    return off
+    @gensym str_ptr
+    push!(ex.args, :($str_ptr = AMDGPU.alloc_string($(Val(Symbol(str))))))
+    push!(ex.args, :(AMDGPU.memcpy!($(esc(oc)).hostcall.buf_ptr+$(N-1), $str_ptr, $(length(str)))))
+    return N+length(str)
 end
 function rocprint!(ex, N, oc, char::Char)
     @assert char == '\0' "Non-null chars not yet implemented"
@@ -84,29 +103,3 @@ end
 =#
 
 ### runtime helpers
-
-#= TODO: LLVM hates me, but this should eventually work
-# FIXME: Pass N and offset oc.buf_ptr appropriately
-@inline @generated function rocprint!(oc::OutputContext, ::Val{str}) where str
-    T_int1 = LLVM.Int1Type(JuliaContext())
-    T_int32 = LLVM.Int32Type(JuliaContext())
-    T_pint8 = LLVM.PointerType(LLVM.Int8Type(JuliaContext()))
-    T_pint8_global = LLVM.PointerType(LLVM.Int8Type(JuliaContext()), convert(Int, AS.Global))
-    T_nothing = LLVM.VoidType(JuliaContext())
-    llvm_f, _ = create_function(T_nothing, [T_pint8_global])
-    mod = LLVM.parent(llvm_f)
-    T_intr = LLVM.FunctionType(T_nothing, [T_pint8_global, T_pint8, T_int32, T_int32, T_int1])
-    intr = LLVM.Function(mod, "llvm.memcpy.p1i8.p0i8.i32", T_intr)
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
-        str_ptr = globalstring_ptr!(builder, String(str))
-        buf_ptr = parameters(llvm_f)[1]
-        # NOTE: There's a hidden alignment parameter (argument 4) that's not documented in the LangRef
-        call!(builder, intr, [buf_ptr, str_ptr, ConstantInt(Int32(length(string(str))), JuliaContext()), ConstantInt(Int32(2), JuliaContext()), ConstantInt(T_int1, 0)])
-        ret!(builder)
-    end
-    Core.println(unsafe_string(LLVM.API.LLVMPrintValueToString(LLVM.ref(llvm_f))))
-    call_function(llvm_f, Nothing, Tuple{DevicePtr{UInt8,AS.Global}}, :((oc.hostcall.buf_ptr,)))
-end
-=#

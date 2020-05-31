@@ -15,7 +15,14 @@ function GPUCompiler.process_module!(job::ROCCompilerJob, mod::LLVM.Module)
     invoke(GPUCompiler.process_module!,
            Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)},
            job, mod)
-    #emit_exception_flag!(mod)
+    # Run this early (before optimization) to ensure we link OCKL
+    emit_exception_user!(mod)
+end
+function GPUCompiler.finish_module!(job::ROCCompilerJob, mod::LLVM.Module)
+    invoke(GPUCompiler.finish_module!,
+           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)},
+           job, mod)
+    delete_exception_user!(mod)
 end
 
 function GPUCompiler.link_libraries!(job::ROCCompilerJob, mod::LLVM.Module,

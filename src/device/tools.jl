@@ -333,6 +333,39 @@ llvmsize(::LLVM.LLVMHalf) = sizeof(Float16)
 llvmsize(::LLVM.LLVMFloat) = sizeof(Float32)
 llvmsize(::LLVM.LLVMDouble) = sizeof(Float64)
 llvmsize(::LLVM.IntegerType) = div(Int(intwidth(GenericValue(LLVM.Int128Type(), -1))), 8)
-llvmsize(ty::LLVM.ArrayType) = length*llvmsize(eltype(ty))
+llvmsize(ty::LLVM.ArrayType) = length(ty)*llvmsize(eltype(ty))
 # TODO: VectorType, StructType, PointerType
 llvmsize(ty) = error("Unknown size for type: $ty, typeof: $(typeof(ty))")
+
+@generated function string_length(ex)
+    T_ex = convert(LLVMType, ex)
+    T_ex_ptr = LLVM.PointerType(T_ex)
+    T_i8_ptr = LLVM.PointerType(LLVM.Int8Type(JuliaContext()))
+    T_i64 = LLVM.Int64Type(JuliaContext())
+    llvm_f, _ = create_function(T_i64, [T_ex])
+    mod = LLVM.parent(llvm_f)
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
+        check = BasicBlock(llvm_f, "check", JuliaContext())
+        done = BasicBlock(llvm_f, "done", JuliaContext())
+
+        position!(builder, entry)
+        init_offset = ConstantInt(0, JuliaContext())
+        input_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_ex_ptr)
+        input_ptr = bitcast!(builder, input_ptr, T_i8_ptr)
+        br!(builder, check)
+
+        position!(builder, check)
+        offset = phi!(builder, T_i64)
+        next_offset = add!(builder, offset, ConstantInt(1, JuliaContext()))
+        append!(LLVM.incoming(offset), [(init_offset, entry), (next_offset, check)])
+        ptr = gep!(builder, input_ptr, [offset])
+        value = load!(builder, ptr)
+        cond = icmp!(builder, LLVM.API.LLVMIntEQ, value, ConstantInt(0x0, JuliaContext()))
+        br!(builder, cond, done, check)
+
+        position!(builder, done)
+        ret!(builder, offset)
+    end
+    return call_function(llvm_f, Csize_t, Tuple{ex}, :((ex,)))
+end
