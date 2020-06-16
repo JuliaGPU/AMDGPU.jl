@@ -3,7 +3,7 @@ using HSARuntime.HSA
 using Test
 
 using Pkg
-Pkg.add(PackageSpec(;name="GPUCompiler",rev="master"))
+#Pkg.add(PackageSpec(;name="GPUCompiler",rev="master"))
 Pkg.add(PackageSpec(;name="AMDGPUnative",rev="master"))
 using AMDGPUnative
 
