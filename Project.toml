@@ -12,7 +12,7 @@ Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 
 [compat]
-Adapt = "0.4, 1.0"
+Adapt = "0.4, 1.0, 2.0"
 BinaryProvider = "0.5"
 GPUCompiler = "0.3"
 HSARuntime = "0.3"
