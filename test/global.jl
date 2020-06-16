@@ -7,7 +7,7 @@ function kernel(X)
 end
 
 hk = AMDGPUnative.rocfunction(kernel, Tuple{Int32})
-exe = AMDGPUnative.create_executable(AMDGPUnative.default_device(), hk.fun; globals=(:myglobal=>sizeof(Float32),))
+exe = hk.mod.exe
 gbl = HSARuntime.get_global(exe.exe, :myglobal)
 gbl_ptr = Base.unsafe_convert(Ptr{Float32}, gbl.ptr)
 @test Base.unsafe_load(gbl_ptr) == 0f0
