@@ -322,7 +322,7 @@ function _rocfunction(source::FunctionSpec; device=default_device(), queue=defau
     target = GCNCompilerTarget(; dev_isa=default_isa(device), kwargs...)
     params = ROCCompilerParams()
     job = CompilerJob(target, source, params)
-    obj, kernel_fn, undefined_fns, undefined_gbls = GPUCompiler.compile(:obj, job; strict=true)
+    obj, kernel_fn, undefined_fns, undefined_gbls = GPUCompiler.compile(:obj, job)
 
     # settings to JIT based on Julia's debug setting
     jit_options = Dict{Any,Any}()
