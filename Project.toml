@@ -16,6 +16,7 @@ Adapt = "0.4, 1.0, 2.0"
 BinaryProvider = "0.5"
 GPUCompiler = "0.4"
 HSARuntime = "0.3"
+LLVM = "1.5"
 Requires = "1"
 julia = "1.4"
 
