@@ -27,9 +27,9 @@ version = "1.0.0"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "af6d9c86e191c917c2276fbede1137e8ea20157f"
+git-tree-sha1 = "be680f1ad03c0a03796aa3fda5a2180df7f83b46"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.17"
+version = "0.17.18"
 
 [[Future]]
 deps = ["Random"]
@@ -45,7 +45,7 @@ version = "0.4.0"
 
 [[HSARuntime]]
 deps = ["CEnum", "Libdl", "Setfield"]
-git-tree-sha1 = "2e6455b1bcb36471aadfaab4cdeb83a8b3e2cf51"
+git-tree-sha1 = "c6dc952113c56838089473d121041e12f54a48f7"
 repo-rev = "master"
 repo-url = "https://github.com/jpsamaroo/HSARuntime.jl.git"
 uuid = "2c364e2c-59fb-59c3-96f3-194112e690e0"
@@ -108,9 +108,9 @@ uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 
 [[Setfield]]
 deps = ["ConstructionBase", "Future", "MacroTools", "Requires"]
-git-tree-sha1 = "ed5045722fcdacf263a90fb9eb9f258598ccebac"
+git-tree-sha1 = "7a151f918819326a6003dba451dabe65f8c0f6fb"
 uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
-version = "0.5.4"
+version = "0.6.0"
 
 [[TimerOutputs]]
 deps = ["Printf"]
