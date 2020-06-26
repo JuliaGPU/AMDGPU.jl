@@ -3,7 +3,7 @@
 
 mutable struct HSAArray{T,N} <: AbstractArray{T,N}
     size::Dims{N}
-    handle::Ptr{T}
+    buffer::Mem.Buffer
 end
 
 # TODO: Support non-isbitstype allocations
@@ -11,14 +11,16 @@ function HSAArray(agent::HSAAgent, ::Type{T}, size::NTuple{N,Int}) where {T,N}
     @assert isprimitivetype(T) "$T is not a primitive type"
     @assert all(x->x>0, size) "Invalid array size: $size"
 
-    region = get_region(agent, :finegrained)
     nbytes = sizeof(T) * prod(size)
-    handle = Ref{Ptr{T}}()
-    HSA.memory_allocate(region[], nbytes, handle) |> check
-    arr = HSAArray{T,N}(size, handle[])
+
+    # Always allocated as coherent memory since fill(), getindex(), and setindex!()
+    # access the buffer pointer directly.
+    buffer = Mem.alloc(agent, nbytes; coherent=true)
+    
+    arr = HSAArray{T,N}(size, buffer)
 
     finalizer(arr) do arr
-        HSA.memory_free(arr.handle) |> check
+        Mem.free(buffer)
     end
 
     return arr
@@ -34,24 +36,17 @@ HSAArray(arr::Array{T,N}) where {T,N} =
 
 function HSAArray(agent::HSAAgent, arr::Array{T,N}) where {T,N}
     harr = HSAArray(agent, T, size(arr))
-    for idx in eachindex(arr)
-        harr[idx] = arr[idx]
-    end
+    Mem.upload!(harr.buffer, arr)
     return harr
 end
 
 function Array(harr::HSAArray{T,N}) where {T,N}
-    arr = Array{T}(undef, size(harr))
-    ref_arr = Ref(arr)
-    GC.@preserve ref_arr begin
-        ccall(:memcpy, Cvoid,
-            (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-            ref_arr, harr.handle, sizeof(arr))
-    end
-    return harr
+    array = Array{T}(undef, size(harr))
+    Mem.download!(array, harr.buffer)
+    array
 end
 
-Base.pointer(arr::HSAArray) = arr.handle
+Base.pointer(arr::HSAArray{T,N}) where {T, N} = Ptr{T}(arr.buffer.ptr)
 Base.IndexStyle(::Type{<:HSAArray}) = Base.IndexLinear()
 Base.IndexStyle(::HSAArray) = Base.IndexLinear()
 

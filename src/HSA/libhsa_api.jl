@@ -481,8 +481,8 @@ function memory_free(ptr::Ptr{T}) where T
     ccall((:hsa_memory_free, "libhsa-runtime64"), Status, (Ptr{T},), ptr)
 end
 
-function memory_copy(dst::Ref{Cvoid}, src::Ref{Cvoid}, size::Integer)
-    ccall((:hsa_memory_copy, "libhsa-runtime64"), Status, (Ref{Cvoid}, Ref{Cvoid}, Csize_t), dst, src, size)
+function memory_copy(dst::Ptr{T}, src::Ptr{T}, size::Integer) where T
+    ccall((:hsa_memory_copy, "libhsa-runtime64"), Status, (Ptr{T}, Ptr{T}, Csize_t), dst, src, size)
 end
 
 function memory_assign_agent(ptr::Ref{Cvoid}, agent::Agent, access::AccessPermission)
@@ -844,20 +844,20 @@ function amd_memory_migrate(ptr::Ref{Cvoid}, memory_pool::MemoryPool, flags::Int
     ccall((:hsa_amd_memory_migrate, "libhsa-runtime64"), Status, (Ref{Cvoid}, MemoryPool, UInt32), ptr, memory_pool, flags)
 end
 
-function amd_memory_lock(host_ptr::Ref{Cvoid}, size::Integer, agents::Ref{Agent}, num_agent::Cint, agent_ptr::Ref{Ref{Cvoid}})
-    ccall((:hsa_amd_memory_lock, "libhsa-runtime64"), Status, (Ref{Cvoid}, Csize_t, Ref{Agent}, Cint, Ref{Ref{Cvoid}}), host_ptr, size, agents, num_agent, agent_ptr)
+function amd_memory_lock(host_ptr::Ptr{Cvoid}, size::Integer, agents::Ref{Agent}, num_agent::Integer, agent_ptr::Ref{Ptr{Cvoid}})
+    ccall((:hsa_amd_memory_lock, "libhsa-runtime64"), Status, (Ptr{Cvoid}, Csize_t, Ref{Agent}, Cint, Ref{Ptr{Cvoid}}), host_ptr, size, agents, num_agent, agent_ptr)
 end
 
 function amd_memory_lock_to_pool(host_ptr::Ref{Cvoid}, size::Integer, agents::Ref{Agent}, num_agent::Cint, pool::MemoryPool, flags::Integer, agent_ptr::Ref{Ref{Cvoid}})
     ccall((:hsa_amd_memory_lock_to_pool, "libhsa-runtime64"), Status, (Ref{Cvoid}, Csize_t, Ref{Agent}, Cint, MemoryPool, UInt32, Ref{Ref{Cvoid}}), host_ptr, size, agents, num_agent, pool, flags, agent_ptr)
 end
 
-function amd_memory_unlock(host_ptr::Ref{Cvoid})
-    ccall((:hsa_amd_memory_unlock, "libhsa-runtime64"), Status, (Ref{Cvoid},), host_ptr)
+function amd_memory_unlock(host_ptr::Ptr{Cvoid})
+    ccall((:hsa_amd_memory_unlock, "libhsa-runtime64"), Status, (Ptr{Cvoid},), host_ptr)
 end
 
-function amd_memory_fill(ptr::Ref{Cvoid}, value::Integer, count::Integer)
-    ccall((:hsa_amd_memory_fill, "libhsa-runtime64"), Status, (Ref{Cvoid}, UInt32, Csize_t), ptr, value, count)
+function amd_memory_fill(ptr::Ptr{Cvoid}, value::UInt32, count::Integer)
+    ccall((:hsa_amd_memory_fill, "libhsa-runtime64"), Status, (Ptr{Cvoid}, UInt32, Csize_t), ptr, value, count)
 end
 
 function amd_interop_map_buffer(num_agents::Integer, agents::Ref{Agent}, interop_handle::Cint, flags::Integer, size::Ref{Csize_t}, ptr::Ref{Ref{Cvoid}}, metadata_size::Ref{Csize_t}, metadata::Ref{Ref{Cvoid}})
@@ -872,8 +872,8 @@ function amd_image_create(agent::Agent, image_descriptor::Ref{ExtImageDescriptor
     ccall((:hsa_amd_image_create, "libhsa-runtime64"), Status, (Agent, Ref{ExtImageDescriptor}, Ref{AMDImageDescriptor}, Ref{Cvoid}, AccessPermission, Ref{Image}), agent, image_descriptor, image_layout, image_data, access_permission, image)
 end
 
-function amd_pointer_info(ptr::Ref{Cvoid}, info::Ref{PointerInfo}, alloc::Ref{Cvoid}, num_agents_accessible::Ref{UInt32}, accessible::Ref{Ref{Agent}})
-    ccall((:hsa_amd_pointer_info, "libhsa-runtime64"), Status, (Ref{Cvoid}, Ref{PointerInfo}, Ref{Cvoid}, Ref{UInt32}, Ref{Ref{Agent}}), ptr, info, alloc, num_agents_accessible, accessible)
+function amd_pointer_info(ptr::Ptr{Cvoid}, info::Ref{PointerInfo}, alloc::Ptr{Cvoid}, num_agents_accessible::Ptr{UInt32}, accessible)
+    ccall((:hsa_amd_pointer_info, "libhsa-runtime64"), Status, (Ptr{Cvoid}, Ref{PointerInfo}, Ptr{Cvoid}, Ptr{UInt32}, Ptr{Cvoid}), ptr, info, alloc, num_agents_accessible, accessible)
 end
 
 function amd_pointer_info_set_userdata(ptr::Ref{Cvoid}, userdata::Ref{Cvoid})

@@ -9,11 +9,9 @@ export Mem
 
 module Mem
 
-
 using ..HSARuntime
 using ..HSARuntime.HSA
-import HSARuntime: check, get_region
-
+import HSARuntime: check, get_region, AGENTS
 
 ## buffer type
 
@@ -21,13 +19,14 @@ struct Buffer
     ptr::Ptr{Cvoid}
     bytesize::Int
     agent::HSAAgent
+    coherent::Bool
 end
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf.ptr)
 
 function view(buf::Buffer, bytes::Int)
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
-    return Mem.Buffer(buf.ptr+bytes, buf.bytesize-bytes, buf.agent)
+    return Buffer(buf.ptr+bytes, buf.bytesize-bytes, buf.agent)
 end
 
 ## refcounting
@@ -100,6 +99,56 @@ Returns the used amount of memory (in bytes), allocated on the agent.
 """
 used() = total()-free()
 
+"""
+    pointerinfo(ptr::Ptr)
+    pointerinfo(buf::Buffer)
+    pointerinfo(a::Array)
+
+Retrieve information about the allocation referenced by the given pointer.
+"""
+function pointerinfo(ptr::Ptr)
+    ptrinfo = Ref{HSA.PointerInfo}()
+
+    HSA.amd_pointer_info(Ptr{Cvoid}(ptr), ptrinfo, C_NULL, Ptr{UInt32}(C_NULL), C_NULL) |> check
+
+    return ptrinfo[]
+end
+pointerinfo(buf::Buffer) = pointerinfo(buf.ptr)
+pointerinfo(a::Array) = pointerinfo(pointer(a))
+
+## Page-locking
+
+"""
+    lock(ptr::Ptr, bytesize::Integer, agent::HSAAgent)
+    lock(ptr, bytesize)
+    lock(a::Array, agent)
+    lock(a)
+
+Page-lock a host pointer allocated by the OS allocator and return a new pointer from
+the given `agent`. For more information, see `hsa_amd_memory_lock()`.
+
+See also: [`unlock`](@ref)
+"""
+function lock(ptr::Ptr, bytesize::Integer, agent::HSAAgent)
+    plocked = Ref{Ptr{Cvoid}}()
+    HSA.amd_memory_lock(Ptr{Cvoid}(ptr), bytesize, Ref(agent.agent), 1, plocked) |> check
+    return plocked[]
+end
+lock(ptr, bytesize) = lock(ptr, bytesize, get_default_agent())
+lock(a::Array, agent::HSAAgent) = lock(pointer(a), sizeof(a), agent)
+lock(a::Array) = lock(pointer(a), sizeof(a), get_default_agent())
+
+"""
+    unlock(ptr::Ptr)
+    unlock(a::Array)
+
+Unlock the host pointer previously page-locked with [`lock`](@ref).
+NB: `ptr` should be the original locked host pointer and not the pointer returned by `lock`!
+"""
+function unlock(ptr::Ptr)
+    HSA.amd_memory_unlock(Ptr{Cvoid}(ptr)) |> check
+end
+unlock(a::Array) = unlock(pointer(a))
 
 ## generic interface (for documentation purposes)
 
@@ -145,19 +194,33 @@ function transfer end
 ## pointer-based
 
 """
-    alloc(bytes::Integer)
+    alloc(bytes::Integer; coherent=false)
+    alloc(agent::HSAAgent, bytes::Integer; coherent=false)
 
-Allocate `bytesize` bytes of fine-grained memory.
+Allocate `bytesize` bytes of HSA-managed memory.
+Allocations are not coherent by default, meaning that the allocated buffer is
+only accessible from the given agent (the default agent if not specified).
+
+If `coherent` is set to `true`, the allocated buffer will be accessible from
+all HSA agents, including the host CPU.
+This, even though convenient, can sometimes be slower than explicit memory transfers.
 """
-function alloc(agent::HSAAgent, bytesize::Integer)
-    bytesize == 0 && return Buffer(C_NULL, 0, agent)
+function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
+    bytesize == 0 && return Buffer(C_NULL, 0, agent, coherent)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
-    region = get_region(agent, :finegrained)
+
+    region_kind = if coherent
+        :finegrained
+    else
+        :coarsegrained
+    end
+
+    region = get_region(agent, region_kind)
     check(HSA.memory_allocate(region[], bytesize, ptr_ref))
-    return Buffer(ptr_ref[], bytesize, agent)
+    return Buffer(ptr_ref[], bytesize, agent, coherent)
 end
-alloc(bytesize) = alloc(get_default_agent(), bytesize)
+alloc(bytesize; kwargs...) = alloc(get_default_agent(), bytesize; kwargs...)
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
@@ -167,14 +230,12 @@ function free(buf::Buffer)
 end
 
 """
-    set!(buf::Buffer, value::T, len::Integer)
+    set!(buf::Buffer, value::UInt32, len::Integer)
 
-Initialize device memory by copying the value `val` for `len` times.
+Write `len` copies of the 32-bit `value` at the start of `buf`.
 """
-function set!(buf::Buffer, value::T, len::Integer) where T<:Unsigned
-    ccall(:memset, Cvoid,
-          (Ptr{Cvoid}, T, Csize_t),
-          buf.ptr, value, len*sizeof(T))
+function set!(buf::Buffer, value::UInt32, len::Integer)
+    HSA.amd_memory_fill(buf.ptr, value, len) |> check
 end
 
 """
@@ -182,10 +243,19 @@ end
 
 Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
-function upload!(dst::Buffer, src::Ref, nbytes::Integer)
-    ccall(:memcpy, Cvoid,
-          (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-          dst.ptr, src, nbytes)
+function upload!(dst::Buffer, src::Ptr{T}, nbytes::Integer) where T
+    # Page-locking coherent memory results in a ReadOnlyMemoryError.
+    plocked = if dst.coherent
+        src
+    else
+        lock(src, nbytes, dst.agent)
+    end
+
+    HSA.memory_copy(Ptr{T}(dst.ptr), Ptr{T}(plocked), nbytes) |> check
+
+    if !dst.coherent
+        unlock(src)
+    end
 end
 
 """
@@ -193,10 +263,18 @@ end
 
 Download `nbytes` memory from `src` on the device to `dst` on the host.
 """
-function download!(dst::Ref, src::Buffer, nbytes::Integer)
-    ccall(:memcpy, Cvoid,
-          (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-          dst, src.ptr, nbytes)
+function download!(dst::Ptr{T}, src::Buffer, nbytes::Integer) where T
+    plocked = if src.coherent
+        dst
+    else
+        lock(dst, nbytes, src.agent)
+    end
+
+    HSA.memory_copy(Ptr{T}(plocked), Ptr{T}(src.ptr), nbytes) |> check
+
+    if !src.coherent
+        unlock(dst)
+    end
 end
 
 """
@@ -205,21 +283,18 @@ end
 Transfer `nbytes` of device memory from `src` to `dst`.
 """
 function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
-    ccall(:memcpy, Cvoid,
-          (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-          dst.ptr, src.ptr, nbytes)
+    HSA.memory_copy(dst.ptr, src.ptr, nbytes) |> check
 end
-
 
 ## array based
 
 """
-    alloc(src::AbstractArray)
+    alloc(src::AbstractArray; alloc_kwargs...)
 
 Allocate space to store the contents of `src`.
 """
-function alloc(src::AbstractArray)
-    return alloc(sizeof(src))
+function alloc(src::AbstractArray; alloc_kwargs...)
+    return alloc(sizeof(src); alloc_kwargs...)
 end
 
 """
@@ -228,16 +303,17 @@ end
 Upload the contents of an array `src` to `dst`.
 """
 function upload!(dst::Buffer, src::AbstractArray)
-    upload!(dst, Ref(src, 1), sizeof(src))
+    GC.@preserve src upload!(dst, pointer(src), sizeof(src))
 end
 
 """
-    upload(src::AbstractArray)::Buffer
+    upload(src::AbstractArray; alloc_kwargs...)::Buffer
 
 Allocates space for and uploads the contents of an array `src`, returning a Buffer.
+For the allocation keywoard arguments see [`alloc`](@ref).
 """
-function upload(src::AbstractArray)
-    dst = alloc(src)
+function upload(src::AbstractArray; alloc_kwargs...)
+    dst = alloc(src; alloc_kwargs...)
     upload!(dst, src)
     return dst
 end
@@ -249,11 +325,9 @@ Downloads memory from `src` to the array at `dst`. The amount of memory download
 determined by calling `sizeof` on the array, so it needs to be properly preallocated.
 """
 function download!(dst::AbstractArray, src::Buffer)
-    ref = Ref(dst, 1)
-    download!(ref, src, sizeof(dst))
+    GC.@preserve dst download!(pointer(dst), src, sizeof(dst))
     return
 end
-
 
 ## type based
 
@@ -266,14 +340,14 @@ function check_type(::Type{Buffer}, T)
 end
 
 """
-    alloc(T::Type, [count::Integer=1])
+    alloc(T::Type, [count::Integer=1]; alloc_kwargs...)
 
 Allocate space for `count` objects of type `T`.
 """
-function alloc(::Type{T}, count::Integer=1) where {T}
+function alloc(::Type{T}, count::Integer=1; alloc_kwargs...) where {T}
     check_type(Buffer, T)
 
-    return alloc(sizeof(T)*count)
+    return alloc(sizeof(T)*count; alloc_kwargs...)
 end
 
 """
@@ -287,4 +361,13 @@ function download(::Type{T}, src::Buffer, count::Integer=1) where {T}
     return dst
 end
 
+# Pretty-printing
+function Base.show(io::IO, ptrinfo::HSA.PointerInfo)
+    println(io, "Pointer type: $(ptrinfo.type)")
+    println(io, "Owner: $(AGENTS[ptrinfo.agentOwner.handle])")
+    println(io, "Agent base address: $(ptrinfo.agentBaseAddress)")
+    println(io, "Host base address: $(ptrinfo.hostBaseAddress)")
+    print(io, "Size (bytes): $(ptrinfo.sizeInBytes)")
 end
+
+end # module Mem
