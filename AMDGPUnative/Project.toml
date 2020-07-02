@@ -1,0 +1,29 @@
+name = "AMDGPUnative"
+uuid = "12f4821f-d7ee-5ba6-b76b-566925c5fcc5"
+version = "0.3.2"
+
+[deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
+GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
+HSARuntime = "2c364e2c-59fb-59c3-96f3-194112e690e0"
+LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+Requires = "ae029012-a4dd-5104-9daa-d747884805df"
+
+[compat]
+Adapt = "0.4, 1.0, 2.0"
+BinaryProvider = "0.5"
+GPUCompiler = "0.4"
+HSARuntime = "0.3"
+LLVM = "1.5"
+Requires = "1"
+julia = "1.4"
+
+[extras]
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["InteractiveUtils", "SpecialFunctions", "Test"]

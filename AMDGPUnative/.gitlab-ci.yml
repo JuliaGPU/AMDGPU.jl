@@ -1,0 +1,58 @@
+include:
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
+
+image: rocm/dev-ubuntu-18.04
+
+# basic tests
+
+test:1.4:
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - rocm
+
+test:nightly:
+  extends:
+    - .julia:nightly
+    - .test
+  tags:
+    - rocm
+  allow_failure: true
+
+
+# special tests
+
+#test:source:llvm9:
+#  extends:
+#    - .julia:source
+#    - .test
+#  tags:
+#    - rocm
+#  allow_failure: true
+#  variables:
+#    CI_BUILD_ARGS: 'LLVM_VER=9.0.1 USE_BINARYBUILDER_LLVM=0'
+
+# other tasks
+
+coverage:
+  extends:
+    - .julia:1.4
+    - .coverage
+
+documentation:
+  extends:
+    - .julia:1.4
+    - .documentation
+  tags:
+    - rocm
+
+pages:
+  stage: deploy
+  script:
+    - mv docs/build public
+  artifacts:
+    paths:
+    - public
+  only:
+    - master
