@@ -1,0 +1,9 @@
+**.swp
+**.brig
+**.hsail
+**.o
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+
+docs/build
