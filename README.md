@@ -48,8 +48,8 @@ with CUDAnative.
 |:---|:---:|:---|
 | Host-side kernel launches | :heavy_check_mark: | See #58 |
 | Dynamic parallelism | :x: |
-| Local (shared) memory | :x: |
-| Coarse-grained memory | :x: |
+| Local (shared) memory | :heavy_check_mark: |
+| Coarse-grained memory | :heavy_check_mark: |
 | Page-locked (pinned) memory | :x: |
 
 ## Questions and Contributions
