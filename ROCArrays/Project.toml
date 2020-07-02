@@ -1,0 +1,32 @@
+name = "ROCArrays"
+uuid = "ddf941ca-5d6a-11e9-36cc-a3fed13dd2fc"
+authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>"]
+version = "0.1.0"
+
+[deps]
+AMDGPUnative = "12f4821f-d7ee-5ba6-b76b-566925c5fcc5"
+AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
+HSARuntime = "2c364e2c-59fb-59c3-96f3-194112e690e0"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[compat]
+AMDGPUnative = "0.2"
+Adapt = "1"
+CEnum = "0.2"
+GPUArrays = "2"
+HSARuntime = "0.2"
+julia = "1"
+
+[extras]
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["FillArrays", "LinearAlgebra", "Random", "Test", "FFTW"]
