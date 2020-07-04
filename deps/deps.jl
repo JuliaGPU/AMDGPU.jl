@@ -30,4 +30,4 @@ if !ext_libs_configured
     const libmiopen = nothing
 end
 
-const configured = hsa_configured && ext_libs_configured
+const configured = hsa_configured
