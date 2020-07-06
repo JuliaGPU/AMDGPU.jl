@@ -10,7 +10,6 @@ hk = AMDGPU.rocfunction(kernel, Tuple{Int32})
 exe = hk.mod.exe
 gbl = AMDGPU.get_global(exe.exe, :myglobal)
 gbl_ptr = Base.unsafe_convert(Ptr{Float32}, gbl.ptr)
-@show gbl_ptr
 @test Base.unsafe_load(gbl_ptr) == 0f0
 Base.unsafe_store!(gbl_ptr, 2f0)
 @test Base.unsafe_load(gbl_ptr) == 2f0

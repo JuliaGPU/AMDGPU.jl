@@ -28,7 +28,7 @@ end
 
 ## main
 
-config_path = joinpath(@__DIR__, "ext.jl")
+const config_path = joinpath(@__DIR__, "ext.jl")
 const previous_config_path = config_path * ".bak"
 
 function write_ext(config)

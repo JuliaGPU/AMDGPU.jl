@@ -49,11 +49,11 @@ version = "2.0.1"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "95aa07bfda5c80ccd57b038570ef79f663ce531f"
+git-tree-sha1 = "3226928dacf00271c95f8d4325cbae34d60878d5"
 repo-rev = "jps/gcn-workaround-allocas"
 repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl.git"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.4.0"
+version = "0.5.0"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -61,9 +61,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "d9c6e1efcaa6c2fcd043da812a62b3e489a109a3"
+git-tree-sha1 = "a662366a5d485dee882077e8da3e1a95a86d097f"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "1.7.0"
+version = "2.0.0"
 
 [[Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -86,9 +86,9 @@ deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[OrderedCollections]]
-git-tree-sha1 = "12ce190210d278e12644bcadf5b21cbdcf225cd3"
+git-tree-sha1 = "293b70ac1780f9584c89268a6e2a560d938a7065"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.2.0"
+version = "1.3.0"
 
 [[Printf]]
 deps = ["Unicode"]

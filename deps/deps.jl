@@ -4,6 +4,9 @@ const hsa_ext = joinpath(@__DIR__, "hsa", "ext.jl")
 if isfile(hsa_ext)
     include(hsa_ext)
 end
+if !isdefined(@__MODULE__, :hsa_configured)
+    const hsa_configured = false
+end
 if !hsa_configured
     const hsa_configured = false
     const libhsaruntime_version = v"0.0"
@@ -19,6 +22,9 @@ const libs_ext = joinpath(@__DIR__, "rocm-external", "ext.jl")
 if isfile(libs_ext)
     include(libs_ext)
 end
+if !isdefined(@__MODULE__, :ext_libs_configured)
+    const ext_libs_configured = false
+end
 if !ext_libs_configured
     # default (non-functional) values for critical variables,
     # making it possible to _load_ the package at all times.
@@ -30,4 +36,4 @@ if !ext_libs_configured
     const libmiopen = nothing
 end
 
-const configured = hsa_configured && ext_libs_configured
+const configured = hsa_configured

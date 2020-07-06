@@ -1,4 +1,4 @@
-using Documenter, AMDGPUnative
+using Documenter, AMDGPU
 
 makedocs(
     sitename="AMDGPU.jl",
