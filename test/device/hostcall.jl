@@ -41,8 +41,6 @@ end
     dref = Ref{Bool}(false)
 
     # This should throw an exception and the error message should be logged.
-    @test_broken "Hostcall error"
-    #=
     @test_logs (:error, "Hostcall error") begin
         hc, hc_task = HostCall(Nothing, Tuple{}; return_task=true) do
             error("Some error")
@@ -56,7 +54,6 @@ end
         @test dref[] == false
         @test Base.istaskfailed(hc_task)
     end
-    =#
 end
 
 @testset "Call: Sync (0 args)" begin

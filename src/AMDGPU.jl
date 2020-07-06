@@ -101,15 +101,10 @@ atexit() do
 end
 function __init__()
     # We want to always be able to load the package
-    if !configured
-        @warn("AMDGPU.jl has not been successfully built, and will not work properly.")
-        @warn("Please run Pkg.build(\"AMDGPU\") and restart Julia.")
-        return
-    end
-
-    # Try to load deps if possible
     try
+        # Try to load deps if possible
         check_deps()
+        @assert configured
     catch err
         @warn """
         AMDGPU dependencies have not been built, some functionality may be missing.
