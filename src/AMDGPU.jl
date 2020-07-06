@@ -100,16 +100,15 @@ atexit() do
     configured && HSA.shut_down()
 end
 function __init__()
-    # We want to always be able to load the package
-    try
-        # Try to load deps if possible
-        check_deps()
-        @assert configured
-    catch err
-        @warn """
+    deps_failed() = @warn """
         AMDGPU dependencies have not been built, some functionality may be missing.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         """
+
+    # We want to always be able to load the package
+    if !configured
+        deps_failed()
+        return
     end
 
     # Make sure we load the library found by the last `] build`
@@ -123,6 +122,14 @@ function __init__()
     agents = get_agents(:gpu)
     if length(agents) > 0
         DEFAULT_AGENT[] = first(agents)
+    end
+
+    try
+        # Try to load device libs if possible
+        check_deps()
+        @assert configured
+    catch err
+        deps_failed()
     end
 
     # Load optional OpenCL integrations
