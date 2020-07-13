@@ -37,7 +37,7 @@ function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
         buf_len += sizeof(T)
     end
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
-    buf = Mem.alloc(agent, buf_len)
+    buf = Mem.alloc(agent, buf_len; coherent=true)
     buf_ptr = DevicePtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
     HostCall{S,RT,AT}(signal, host_sentinel, device_sentinel, buf_ptr, buf_len)
 end
@@ -213,7 +213,7 @@ function HostCall(func, rettype, argtypes; return_task=false,
                 @debug "Hostcall: Host function returning value of type $(typeof(ret))"
                 try
                     ret_len = sizeof(ret)
-                    ret_buf = Mem.alloc(agent, ret_len)
+                    ret_buf = Mem.alloc(agent, ret_len; coherent=true) # FIXME: Don't be coherent
                     ret_buf_ptr = Base.unsafe_convert(Ptr{typeof(ret)}, ret_buf)
                     Base.unsafe_store!(ret_buf_ptr, ret)
                     ret_buf_ptr = Base.unsafe_convert(Ptr{UInt64}, ret_buf)

@@ -152,13 +152,13 @@ take ownership of the memory, calling `free` when the array is no longer referen
 """
 function Base.unsafe_wrap(::Union{Type{ROCArray},Type{ROCArray{T}},Type{ROCArray{T,N}}},
                           p::Ptr{T}, dims::NTuple{N,Int};
-                          own::Bool=false, agent::HSAAgent=HSARuntime.get_default_agent()) where {T,N}
+                          own::Bool=false, agent::HSAAgent=get_default_agent()) where {T,N}
   buf = Mem.Buffer(convert(Ptr{Cvoid}, p), prod(dims) * sizeof(T), agent)
   return ROCArray{T, length(dims)}(buf, dims; own=own)
 end
 function Base.unsafe_wrap(Atype::Union{Type{ROCArray},Type{ROCArray{T}},Type{ROCArray{T,1}}},
                           p::Ptr{T}, dim::Integer;
-                          own::Bool=false, agent::HSAAgent=HSARuntime.get_default_agent()) where {T}
+                          own::Bool=false, agent::HSAAgent=get_default_agent()) where {T}
   unsafe_wrap(Atype, p, (dim,); own=own, agent=agent)
 end
 
@@ -221,14 +221,14 @@ Base.cconvert(::Type{Ptr{T}}, x::ROCArray{T}) where T = buffer(x)
 Base.cconvert(::Type{Ptr{Nothing}}, x::ROCArray) = buffer(x)
 
 
-## interop with AMDGPUnative
+## interop with AMDGPU
 
 function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) where {T,N}
   ptr = Base.unsafe_convert(Ptr{T}, a.buf)
   ROCDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr+a.offset))
 end
 
-Adapt.adapt_storage(::AMDGPUnative.Adaptor, xs::ROCArray{T,N}) where {T,N} =
+Adapt.adapt_storage(::AMDGPU.Adaptor, xs::ROCArray{T,N}) where {T,N} =
   convert(ROCDeviceArray{T,N,AS.Global}, xs)
 
 

@@ -257,7 +257,7 @@ AbstractKernel
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
 
     # replace non-isbits arguments (they should be unused, or compilation would have failed)
-    # alternatively, make HSARuntime allow `launch` with non-isbits arguments.
+    # alternatively, allow `launch` with non-isbits arguments.
     for (i,dt) in enumerate(call_t)
         if !isbitstype(dt)
             call_t[i] = Ptr{Any}

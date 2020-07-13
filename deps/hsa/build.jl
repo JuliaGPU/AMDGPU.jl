@@ -146,9 +146,6 @@ function main()
     end
 
     # find the ld.lld program for linking kernels
-    # NOTE: This isn't needed by HSARuntime.jl directly, but other packages
-    # (like AMDGPUnative.jl) will want it to be available, so we find it for
-    # them
     ld_path = find_ld_lld()
     if ld_path == ""
         build_error("Couldn't find ld.lld.")

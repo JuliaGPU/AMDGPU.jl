@@ -46,7 +46,7 @@ function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String; glo
 
     _globals = Dict{Symbol,Any}()
     for (gbl,sz) in globals
-        gbl_buf = Mem.alloc(agent, sz)
+        gbl_buf = Mem.alloc(agent, sz; coherent=true)
         HSA.executable_agent_global_variable_define(executable[], agent.agent,
                                                     string(gbl), gbl_buf.ptr) |> check
         _globals[gbl] = gbl_buf
