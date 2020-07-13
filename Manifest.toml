@@ -8,9 +8,9 @@ version = "0.5.0"
 
 [[Adapt]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "fd04049c7dd78cfef0b06cdc1f0f181467655712"
+git-tree-sha1 = "0fac443759fa829ed8066db6cf1077d888bb6573"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "1.1.0"
+version = "2.0.2"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -43,9 +43,9 @@ uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
-git-tree-sha1 = "e756da6cee76a5f1436a05827fa8fdf3badc577f"
+git-tree-sha1 = "ae20accf251c6da038fe33cbc2c53d5af7f51344"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "2.0.1"
+version = "4.0.0"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs", "UUIDs"]
