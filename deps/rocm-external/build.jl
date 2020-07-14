@@ -84,7 +84,7 @@ function main()
         # we got here, so the status is non-fatal
         build_error("""
 
-            ROCArrays.jl has been built successfully, but there were warnings.
+            AMDGPU.jl has been built successfully, but there were warnings.
             Some functionality may be unavailable.""")
     end
 end

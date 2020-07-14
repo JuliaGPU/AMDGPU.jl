@@ -148,7 +148,7 @@ function main()
     # find the ld.lld program for linking kernels
     ld_path = find_ld_lld()
     if ld_path == ""
-        build_error("Couldn't find ld.lld.")
+        build_error("Couldn't find ld.lld, please install it with your package manager")
     end
     config[:ld_lld_path] = ld_path
 
@@ -179,7 +179,7 @@ function main()
         # we got here, so the status is non-fatal
         build_error("""
 
-            HSARuntime.jl has been built successfully, but there were warnings.
+            AMDGPU.jl has been built successfully, but there were warnings.
             Some functionality may be unavailable.""")
     end
 end
