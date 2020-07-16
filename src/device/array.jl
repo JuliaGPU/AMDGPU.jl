@@ -63,7 +63,6 @@ Base.length(g::ROCDeviceArray) = prod(g.shape)
 Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
 
 # indexing
-# FIXME: Boundschecking
 
 @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
@@ -77,6 +76,8 @@ end
     Base.unsafe_store!(pointer(A), x, index, Val(align))
     return A
 end
+
+Base.IndexStyle(::Type{<:ROCDeviceArray}) = Base.IndexLinear()
 
 # other
 

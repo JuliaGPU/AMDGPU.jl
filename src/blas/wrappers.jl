@@ -237,6 +237,7 @@ function axpy!(alpha::Ta,
     y
 end
 
+#= FIXME
 ## iamax
 # TODO: fix iamax in julia base
 for (fname, elty) in ((:rocblasIdamax,:Float64),
@@ -278,6 +279,7 @@ for (fname, elty) in ((:rocblasIdamin,:Float64),
     end
 end
 iamin(dx::ROCArray) = iamin(length(dx), dx, 1)
+=#
 
 # Level 2
 ## mv

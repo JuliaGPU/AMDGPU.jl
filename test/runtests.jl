@@ -7,23 +7,20 @@ using InteractiveUtils
 using SpecialFunctions
 using Test
 
-#using Pkg
-#Pkg.add(PackageSpec(;name="GPUCompiler",rev="master"))
+using Random
+Random.seed!(1)
 
 include("util.jl")
 
-# copy-pasta from GPUArrays/src/testsuite.jl
-convert_array(f, x) = f(x)
-convert_array(f, x::Base.RefValue) = x[]
-function compare(f, AT::Type{ROCArray}, xs...; kwargs...)
-    cpu_in = convert_array.(copy, xs)
-    gpu_in = convert_array.(AT, xs)
-    cpu_out = f(cpu_in...; kwargs...)
-    gpu_out = f(gpu_in...; kwargs...)
-    collect(cpu_out) ≈ collect(gpu_out)
-end
-# copy-pasta from CuArrays/test/runtests.jl
-testf(f, xs...; kwargs...) = compare(f, ROCArray, xs...; kwargs...)
+# GPUArrays has a testsuite that isn't part of the main package.
+# Include it directly.
+import GPUArrays
+gpuarrays = pathof(GPUArrays)
+gpuarrays_root = dirname(dirname(gpuarrays))
+include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
+
+import AMDGPU: allowscalar, @allowscalar
+allowscalar(false)
 
 agent_name = AMDGPU.get_name(get_default_agent())
 agent_isa = get_first_isa(get_default_agent())
@@ -49,7 +46,7 @@ if AMDGPU.configured
             include("codegen/synchronization.jl")
             include("codegen/trap.jl")
         end
-        @testset "Device" begin
+        @testset "Device Functions" begin
             include("device/launch.jl")
             include("device/vadd.jl")
             include("device/memory.jl")
@@ -62,6 +59,16 @@ if AMDGPU.configured
             include("device/exceptions.jl")
         end
         @testset "ROCArray" begin
+            @testset "GPUArrays test suite" begin
+                #TestSuite.test(ROCArray)
+                for name in keys(TestSuite.tests)
+                    occursin("broadcast", name) && continue
+                    name == "linear algebra" && continue
+                    @testset "$name" begin
+                        TestSuite.tests[name](ROCArray)
+                    end
+                end
+            end
             @testset "ROCm External Libraries" begin
                 isdefined(AMDGPU, :rocBLAS) ? include("rocarray/blas.jl") : @test_skip "rocBLAS"
                 isdefined(AMDGPU, :rocFFT) ? include("rocarray/fft.jl") : @test_skip "rocFFT"

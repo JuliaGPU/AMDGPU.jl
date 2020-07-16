@@ -64,7 +64,7 @@ function rocblas_dscal(handle, n, alpha::Cdouble, x::ROCArray, incx)
         @check ccall((:rocblas_dscal, "librocblas"),
                      rocblas_status_t,
                      (rocblas_handle, rocblas_int, Ptr{Cdouble}, Ptr{Cdouble}, rocblas_int),
-                     handle, n, ref_alpha, x.handle, incx)
+                     handle, n, ref_alpha, pointer(x), incx)
     end
 end
 function rocblas_sscal(handle, n, alpha::Cfloat, x::ROCArray, incx)
@@ -73,7 +73,7 @@ function rocblas_sscal(handle, n, alpha::Cfloat, x::ROCArray, incx)
         @check ccall((:rocblas_sscal, "librocblas"),
                      rocblas_status_t,
                      (rocblas_handle, rocblas_int, Ptr{Cfloat}, Ptr{Cfloat}, rocblas_int),
-                     handle, n, ref_alpha, x.handle, incx)
+                     handle, n, ref_alpha, pointer(x), incx)
     end
 end
 
@@ -81,39 +81,39 @@ function rocblas_dcopy(handle, n, x::ROCArray, incx, y::ROCArray, incy)
     @check ccall((:rocblas_dcopy, "librocblas"),
                  rocblas_status_t,
                  (rocblas_handle, rocblas_int, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}, rocblas_int),
-                 handle, n, x.handle, incx, y.handle, incy)
+                 handle, n, pointer(x), incx, pointer(y), incy)
 end
 function rocblas_scopy(handle, n, x::ROCArray, incx, y::ROCArray, incy)
     @check ccall((:rocblas_scopy, "librocblas"),
                  rocblas_status_t,
                  (rocblas_handle, rocblas_int, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}, rocblas_int),
-                 handle, n, x.handle, incx, y.handle, incy)
+                 handle, n, pointer(x), incx, pointer(y), incy)
 end
 
 function rocblas_ddot(handle, n, x::ROCArray, incx, y::ROCArray, incy, result)
     @check ccall((:rocblas_ddot, "librocblas"),
                  rocblas_status_t,
                  (rocblas_handle, rocblas_int, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}),
-                 handle, n, x.handle, incx, y.handle, incy, result)
+                 handle, n, pointer(x), incx, pointer(y), incy, result)
 end
 function rocblas_sdot(handle, n, x::ROCArray, incx, y::ROCArray, incy, result)
     @check ccall((:rocblas_sdot, "librocblas"),
                  rocblas_status_t,
                  (rocblas_handle, rocblas_int, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}),
-                 handle, n, x.handle, incx, y.handle, incy, result)
+                 handle, n, pointer(x), incx, pointer(y), incy, result)
 end
 
 function rocblas_dswap(handle, n, x::ROCArray, incx, y::ROCArray, incy)
     @check ccall((:rocblas_dswap, "librocblas"),
                  rocblas_status_t,
                  (rocblas_handle, rocblas_int, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}, rocblas_int),
-                 handle, n, x.handle, incx, y.handle, incy)
+                 handle, n, pointer(x), incx, pointer(y), incy)
 end
 function rocblas_sswap(handle, n, x::ROCArray, incx, y::ROCArray, incy)
     @check ccall((:rocblas_sswap, "librocblas"),
                  rocblas_status_t,
                  (rocblas_handle, rocblas_int, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}, rocblas_int),
-                 handle, n, x.handle, incx, y.handle, incy)
+                 handle, n, pointer(x), incx, pointer(y), incy)
 end
 
 ## Level 2 BLAS
@@ -125,7 +125,7 @@ function rocblas_dgemv(handle, trans::rocblas_operation_t, m::rocblas_int, n::ro
         @check ccall((:rocblas_dgemv, "librocblas"),
                      rocblas_status_t,
                      (rocblas_handle, rocblas_operation_t, rocblas_int, rocblas_int, Ptr{Cdouble}, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble},rocblas_int, Ptr{Cdouble}, Ptr{Cdouble}, rocblas_int),
-                     handle, trans, m, n, ref_alpha, A.handle, lda, x.handle, incx, ref_beta, y.handle, incy)
+                     handle, trans, m, n, ref_alpha, pointer(A), lda, pointer(x), incx, ref_beta, pointer(y), incy)
     end
 end
 function rocblas_sgemv(handle, trans::rocblas_operation_t, m::rocblas_int, n::rocblas_int, alpha::Cfloat, A::ROCMatrix, lda::rocblas_int, x::ROCVector, incx::rocblas_int, beta::Cfloat, y::ROCVector, incy::rocblas_int)
@@ -135,6 +135,6 @@ function rocblas_sgemv(handle, trans::rocblas_operation_t, m::rocblas_int, n::ro
         @check ccall((:rocblas_sgemv, "librocblas"),
                      rocblas_status_t,
                      (rocblas_handle, rocblas_operation_t, rocblas_int, rocblas_int, Ptr{Cfloat}, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat},rocblas_int, Ptr{Cfloat}, Ptr{Cfloat}, rocblas_int),
-                     handle, trans, m, n, ref_alpha, A.handle, lda, x.handle, incx, ref_beta, y.handle, incy)
+                     handle, trans, m, n, ref_alpha, pointer(A), lda, pointer(x), incx, ref_beta, pointer(y), incy)
     end
 end

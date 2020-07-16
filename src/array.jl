@@ -1,128 +1,96 @@
-mutable struct ROCArray{T,N} <: AbstractArray{T,N}
-    size::Dims{N}
-    handle::Ptr{T}
+
+#
+# Device functionality
+#
+
+## execution
+
+struct ROCArrayBackend <: AbstractGPUBackend end
+
+struct ROCKernelContext <: AbstractKernelContext end
+
+function GPUArrays.gpu_call(::ROCArrayBackend, f, args, threads::Int, blocks::Int;
+                            name::Union{String,Nothing})
+    groupsize, gridsize = threads, blocks*threads
+    wait(@roc groupsize=groupsize gridsize=gridsize f(ROCKernelContext(), args...))
 end
+
+## on-device
+
+# indexing
+
+for (f, froc) in (
+        (:blockidx, :blockIdx),
+        (:blockdim, :blockDim),
+        (:threadidx, :threadIdx),
+        (:griddim, :gridDimWG)
+    )
+    @eval GPUArrays.$f(::ROCKernelContext) = AMDGPU.$froc().x
+end
+
+# math
+
+@inline GPUArrays.cos(ctx::ROCKernelContext, x) = cos(x)
+@inline GPUArrays.sin(ctx::ROCKernelContext, x) = sin(x)
+@inline GPUArrays.sqrt(ctx::ROCKernelContext, x) = sqrt(x)
+@inline GPUArrays.log(ctx::ROCKernelContext, x) = log(x)
+
+# memory
+
+@inline function GPUArrays.LocalMemory(ctx::ROCKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}) where {T,dims,id}
+    ptr = AMDGPU.alloc_special(Val(id), T, AMDGPU.AS.Local, Val(prod(dims)))
+    ROCDeviceArray(dims, ptr)
+end
+
+# synchronization
+
+@inline function GPUArrays.synchronize_threads(::ROCKernelContext)
+    AMDGPU.sync_workgroup()
+    return
+end
+
+
+#
+# Host abstractions
+#
+
+
+mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
+    buf::Mem.Buffer
+    own::Bool
+
+    dims::Dims{N}
+    offset::Int
+
+    function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
+        @assert isbitstype(T) "ROCArray only supports bits types"
+        xs = new{T,N}(buf, own, dims, offset)
+        if own
+            Mem.retain(buf)
+            finalizer(unsafe_free!, xs)
+        end
+        return xs
+    end
+end
+
+function unsafe_free!(xs::ROCArray)
+    Mem.release(xs.buf) && Mem.free(xs.buf)
+    return
+end
+
+## aliases
 
 const ROCVector{T} = ROCArray{T,1}
 const ROCMatrix{T} = ROCArray{T,2}
 const ROCVecOrMat{T} = Union{ROCVector{T},ROCMatrix{T}}
 
-# TODO: Support non-isbitstype allocations
-function ROCArray(agent::HSAAgent, ::Type{T}, size::NTuple{N,Int}) where {T,N}
-    @assert isbitstype(T) "$T is not a primitive type"
-    @assert all(x->x>0, size) "Invalid array size: $size"
-    region = get_region(agent, :finegrained)
-    nbytes = sizeof(T) * prod(size)
-    handle = Ref{Ptr{T}}()
-    HSA.memory_allocate(region[], nbytes, handle) |> check
-    arr = ROCArray{T,N}(size, handle[])
-    finalizer(arr) do arr
-        HSA.memory_free(arr.handle) |> check
-    end
-    return arr
-end
-ROCArray(::Type{T}, size::NTuple{N,Int}) where {T,N} =
-    ROCArray(DEFAULT_AGENT[], T, size)
-
-function ROCArray(agent::HSAAgent, arr::Array{T,N}) where {T,N}
-    rarr = ROCArray(agent, T, size(arr))
-    for idx in eachindex(arr)
-        rarr[idx] = arr[idx]
-    end
-    return rarr
-end
-ROCArray(arr::Array{T,N}) where {T,N} =
-    ROCArray(DEFAULT_AGENT[], arr)
-
-function Array(rarr::ROCArray{T,N}) where {T,N}
-    arr = Array{T}(undef, size(rarr))
-    # FIXME: Use Mem
-    ref_arr = Ref(arr)
-    GC.@preserve ref_arr begin
-        ccall(:memcpy, Cvoid,
-            (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-            ref_arr, rarr.handle, sizeof(arr))
-    end
-    return rarr
-end
-
-Base.pointer(arr::ROCArray) = arr.handle
-Base.cconvert(::Type{Ptr{T}}, x::ROCArray{T}) where T = x.handle
-Base.cconvert(::Type{Ptr{Nothing}}, x::ROCArray) = x.handle
-Base.IndexStyle(::Type{<:ROCArray}) = Base.IndexLinear()
-Base.IndexStyle(::ROCArray) = Base.IndexLinear()
-function Base.iterate(A::ROCArray, i=1) # copy-pasta from Base
-    Base.@_inline_meta
-    (i % UInt) - 1 < length(A) ? (@inbounds A[i], i + 1) : nothing
-end
-Base.similar(arr::ROCArray{T,N}) where {T,N} =
-    ROCArray(T, size(arr))
-Base.similar(agent::HSAAgent, arr::ROCArray{T,N}) where {T,N} =
-    ROCArray(agent, T, size(arr))
-Base.similar(arr::ROCArray{T1,N}, ::Type{T2}, dims::Dims) where {T1,N,T2} =
-    similar(DEFAULT_AGENT[], arr, T2, dims)
-function Base.similar(agent::HSAAgent, arr::ROCArray{T1,N}, ::Type{T2}, dims::Dims) where {T1,N,T2}
-    ROCArray(agent, T2, dims)
-end
-
-# copy-pasta from Base
-function Base.stride(arr::ROCArray, i::Int)
-    if i > ndims(arr)
-        return length(ar)
-    end
-    s = 1
-    for n = 1:(i-1)
-        s *= size(arr, n)
-    end
-    return s
-end
-
-Base.size(arr::ROCArray) = arr.size
-Base.length(arr::ROCArray) = prod(size(arr))
-
-function Base.fill!(arr::ROCArray{T,N}, value::T) where {T,N}
-    for idx in 1:length(arr)
-        arr[idx] = value
-    end
-end
-@inline function Base.getindex(arr::ROCArray{T,N}, idx) where {T,N}
-    @boundscheck checkbounds(arr, idx)
-    Base.unsafe_load(pointer(arr), idx)::T
-end
-@inline function Base.setindex!(arr::ROCArray{T,N}, value, idx) where {T,N}
-    @boundscheck checkbounds(arr, idx)
-    Base.unsafe_store!(pointer(arr), value, idx)
-end
-
-#=
-
-mutable struct ROCArray{T,N} <: GPUArray{T,N}
-  buf::Mem.Buffer
-  own::Bool
-
-  dims::Dims{N}
-  offset::Int
-
-  function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
-    xs = new{T,N}(buf, own, dims, offset)
-    if own
-      Mem.retain(buf)
-      finalizer(unsafe_free!, xs)
-    end
-    return xs
-  end
-end
-
-function unsafe_free!(xs::ROCArray)
-  Mem.release(xs.buf) && dealloc(xs.buf, prod(xs.dims)*sizeof(eltype(xs)))
-  return
-end
-
-## construction
+## constructors
 
 # type and dimensionality specified, accepting dims as tuples of Ints
-ROCArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
-  ROCArray{T,N}(alloc(prod(dims)*sizeof(T)), dims)
+function ROCArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
+    buf = Mem.alloc(prod(dims)*sizeof(T))
+    ROCArray{T,N}(buf, dims)
+end
 
 # type and dimensionality specified, accepting dims as series of Ints
 ROCArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} = ROCArray{T,N}(undef, dims)
@@ -130,37 +98,25 @@ ROCArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} = ROCArray{T,N}(
 # type but not dimensionality specified
 ROCArray{T}(::UndefInitializer, dims::Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
 ROCArray{T}(::UndefInitializer, dims::Integer...) where {T} =
-  ROCArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
+    ROCArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
+
+# from Base arrays
+function ROCArray{T,N}(x::Array{T,N}, dims::Dims{N}) where {T,N}
+    r = ROCArray{T,N}(undef, size(x))
+    Mem.upload!(r.buf, pointer(x), sizeof(x))
+    return r
+end
+
+# type as first argument
+# FIXME: Remove me!
+#ROCArray(::Type{T}, dims::Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
 
 # empty vector constructor
 ROCArray{T,1}() where {T} = ROCArray{T,1}(undef, 0)
 
-
 Base.similar(a::ROCArray{T,N}) where {T,N} = ROCArray{T,N}(undef, size(a))
 Base.similar(a::ROCArray{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
 Base.similar(a::ROCArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
-
-
-"""
-  unsafe_wrap(::ROCArray, pointer{T}, dims; own=false, agent::HSAAgent)
-
-Wrap a `ROCArray` object around the data at the address given by `pointer`. The pointer
-element type `T` determines the array element type. `dims` is either an integer (for a 1d
-array) or a tuple of the array dimensions. `own` optionally specified whether Julia should
-take ownership of the memory, calling `free` when the array is no longer referenced. The
-`agent` argument determines the ROC agent where the data is allocated in.
-"""
-function Base.unsafe_wrap(::Union{Type{ROCArray},Type{ROCArray{T}},Type{ROCArray{T,N}}},
-                          p::Ptr{T}, dims::NTuple{N,Int};
-                          own::Bool=false, agent::HSAAgent=get_default_agent()) where {T,N}
-  buf = Mem.Buffer(convert(Ptr{Cvoid}, p), prod(dims) * sizeof(T), agent)
-  return ROCArray{T, length(dims)}(buf, dims; own=own)
-end
-function Base.unsafe_wrap(Atype::Union{Type{ROCArray},Type{ROCArray{T}},Type{ROCArray{T,1}}},
-                          p::Ptr{T}, dim::Integer;
-                          own::Bool=false, agent::HSAAgent=get_default_agent()) where {T}
-  unsafe_wrap(Atype, p, (dim,); own=own, agent=agent)
-end
 
 
 ## array interface
@@ -171,14 +127,10 @@ Base.size(x::ROCArray) = x.dims
 Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
 
 
-## interop with other arrays
+## interop with Julia arrays
 
-ROCArray{T,N}(xs::AbstractArray{T,N}) where {T,N} =
-  isbits(xs) ?
-    (ROCArray{T,N}(undef, size(xs)) .= xs) :
-    copyto!(ROCArray{T,N}(undef, size(xs)), collect(xs))
-
-ROCArray{T,N}(xs::AbstractArray{S,N}) where {T,N,S} = ROCArray{T,N}((x -> T(x)).(xs))
+ROCArray{T,N}(x::AbstractArray{S,N}) where {T,N,S} =
+    ROCArray{T,N}(convert(Array{T}, x), size(x))
 
 # underspecified constructors
 ROCArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = ROCArray{T,N}(xs)
@@ -193,141 +145,116 @@ ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = xs
 
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
-function Base._reshape(parent::ROCArray, dims::Dims)
-  n = length(parent)
-  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return ROCArray{eltype(parent),length(dims)}(parent.buf, dims;
-                                              offset=parent.offset, own=parent.own)
+
+## broadcast
+
+using Base.Broadcast: BroadcastStyle, Broadcasted
+
+struct ROCArrayStyle{N} <: AbstractGPUArrayStyle{N} end
+ROCArrayStyle(::Val{N}) where N = ROCArrayStyle{N}()
+ROCArrayStyle{M}(::Val{N}) where {N,M} = ROCArrayStyle{N}()
+
+BroadcastStyle(::Type{ROCArray{T,N}}) where {T,N} = ROCArrayStyle{N}()
+
+# Allocating the output container
+Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}) where {N,T} =
+    similar(ROCArray{T}, axes(bc))
+Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}, dims...) where {N,T} =
+    ROCArray{T}(undef, dims...)
+
+
+## memory operations
+
+function Base.copyto!(dest::Array{T}, d_offset::Integer,
+                      source::ROCArray{T}, s_offset::Integer,
+                      amount::Integer) where T
+    @boundscheck checkbounds(dest, d_offset+amount-1)
+    @boundscheck checkbounds(source, s_offset+amount-1)
+    Mem.download!(pointer(dest, d_offset),
+                  Mem.view(source.buf, (s_offset-1)*sizeof(T)),
+                  amount*sizeof(T))
+    dest
+end
+function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
+                      source::Array{T}, s_offset::Integer,
+                      amount::Integer) where T
+    @boundscheck checkbounds(dest, d_offset+amount-1)
+    @boundscheck checkbounds(source, s_offset+amount-1)
+    Mem.upload!(Mem.view(dest.buf, (d_offset-1)*sizeof(T)),
+                pointer(source, s_offset),
+                amount*sizeof(T))
+    dest
+end
+function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
+                      source::ROCArray{T}, s_offset::Integer,
+                      amount::Integer) where T
+    @boundscheck checkbounds(dest, d_offset+amount-1)
+    @boundscheck checkbounds(source, s_offset+amount-1)
+    Mem.transfer!(Mem.view(dest.buf, (d_offset-1)*sizeof(T)),
+                  Mem.view(source.buf, (s_offset-1)*sizeof(T)),
+                  amount*sizeof(T))
+    dest
 end
 
-
-
-## interop with C libraries
-
-"""
-  buffer(array::ROCArray [, index])
-
-Get the native address of a ROCArray, optionally at a given location `index`.
-Equivalent of `Base.pointer` on `Array`s.
-"""
-function buffer(xs::ROCArray, index=1)
-  extra_offset = (index-1) * Base.elsize(xs)
-  Mem.Buffer(xs.buf.ptr + xs.offset + extra_offset,
-             sizeof(xs) - extra_offset,
-             xs.buf.agent)
+# TODO: Workaround for hanging copy() broadcast kernel
+function Base.copy(X::ROCArray{T}) where T
+    Xnew = ROCArray{T}(undef, size(X))
+    copyto!(Xnew, 1, X, 1, length(X))
+    Xnew
 end
 
-Base.cconvert(::Type{Ptr{T}}, x::ROCArray{T}) where T = buffer(x)
-Base.cconvert(::Type{Ptr{Nothing}}, x::ROCArray) = buffer(x)
+## fft
+
+#=
+using AbstractFFTs
+
+# defining our own plan type is the easiest way to pass around the plans in FFTW interface
+# without ambiguities
+
+struct FFTPlan{T}
+    p::T
+end
+
+AbstractFFTs.plan_fft(A::ROCArray; kw_args...) = FFTPlan(plan_fft(A.data; kw_args...))
+AbstractFFTs.plan_fft!(A::ROCArray; kw_args...) = FFTPlan(plan_fft!(A.data; kw_args...))
+AbstractFFTs.plan_bfft!(A::ROCArray; kw_args...) = FFTPlan(plan_bfft!(A.data; kw_args...))
+AbstractFFTs.plan_bfft(A::ROCArray; kw_args...) = FFTPlan(plan_bfft(A.data; kw_args...))
+AbstractFFTs.plan_ifft!(A::ROCArray; kw_args...) = FFTPlan(plan_ifft!(A.data; kw_args...))
+AbstractFFTs.plan_ifft(A::ROCArray; kw_args...) = FFTPlan(plan_ifft(A.data; kw_args...))
+
+function Base.:(*)(plan::FFTPlan, A::ROCArray)
+    x = plan.p * A.data
+    ROCArray(x)
+end
+=#
 
 
-## interop with AMDGPU
+## GPUArrays interfaces
+
+GPUArrays.device(x::ROCArray) = x.buf.agent
+
+GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
 
 function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) where {T,N}
-  ptr = Base.unsafe_convert(Ptr{T}, a.buf)
-  ROCDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr+a.offset))
+    ptr = Base.unsafe_convert(Ptr{T}, a.buf)
+    ROCDeviceArray{T,N,AS.Global}(a.dims, AMDGPU.DevicePtr{T,AS.Global}(ptr+a.offset))
 end
+Adapt.adapt_storage(::AMDGPU.Adaptor, x::ROCArray{T,N}) where {T,N} =
+    convert(ROCDeviceArray{T,N,AS.Global}, x)
 
-Adapt.adapt_storage(::AMDGPU.Adaptor, xs::ROCArray{T,N}) where {T,N} =
-  convert(ROCDeviceArray{T,N,AS.Global}, xs)
-
-
-
-## interop with CPU array
-
-# We don't convert isbits types in `adapt`, since they are already
-# considered GPU-compatible.
-
-Adapt.adapt_storage(::Type{<:ROCArray}, xs::AbstractArray) =
-  isbits(xs) ? xs : convert(ROCArray, xs)
-
-Adapt.adapt_storage(::Type{<:ROCArray{T}}, xs::AbstractArray{<:Real}) where T <: AbstractFloat =
-  isbits(xs) ? xs : convert(ROCArray{T}, xs)
-
-Adapt.adapt_storage(::Type{<:Array}, xs::ROCArray) = convert(Array, xs)
-
-Base.collect(x::ROCArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
-
-function Base.unsafe_copyto!(dest::ROCArray{T}, doffs, src::Array{T}, soffs, n) where T
-  Mem.upload!(buffer(dest, doffs), pointer(src, soffs), n*sizeof(T))
-  return dest
+function GPUArrays.unsafe_reinterpret(::Type{T}, A::ROCArray, size::NTuple{N, Integer}; own=A.own) where {T, N}
+    ptr = convert(AMDGPU.DevicePtr{T,AS.Global}, A.buf.ptr)
+    buf = Mem.Buffer(ptr, A.buf.bytesize, A.buf.agent, A.buf.coherent)
+    ROCArray{T,N}(buf, size; offset=A.offset, own=own)
 end
+Base.unsafe_convert(::Type{Ptr{T}}, x::ROCArray{T}) where T =
+    Base.unsafe_convert(Ptr{T}, x.buf)
 
-function Base.unsafe_copyto!(dest::Array{T}, doffs, src::ROCArray{T}, soffs, n) where T
-  Mem.download!(pointer(dest, doffs), buffer(src, soffs), n*sizeof(T))
-  return dest
-end
-
-function Base.unsafe_copyto!(dest::ROCArray{T}, doffs, src::ROCArray{T}, soffs, n) where T
-  Mem.transfer!(buffer(dest, doffs), buffer(src, soffs), n*sizeof(T))
-  return dest
-end
-
-function Base.deepcopy_internal(x::ROCArray, dict::IdDict)
-  haskey(dict, x) && return dict[x]::typeof(x)
-  return dict[x] = copy(x)
-end
-
-
-## utilities
-
-roc(xs) = adapt(ROCArray{Float32}, xs)
-Base.getindex(::typeof(roc), xs...) = ROCArray([xs...])
-
-roczeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), 0)
-rocones(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), 1)
-roczeros(dims...) = roczeros(Float32, dims...)
-rocones(dims...) = rocones(Float32, dims...)
-rocfill(v, dims...) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
-rocfill(v, dims::Dims) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
-
-# optimized implementation of `fill!` for types that are directly supported by memset
-const MemsetTypes = Dict(1=>UInt8, 2=>UInt16, 4=>UInt32)
-const MemsetCompatTypes = Union{UInt8, Int8,
-                                UInt16, Int16, Float16,
-                                UInt32, Int32, Float32}
-function Base.fill!(A::ROCArray{T}, x) where T <: MemsetCompatTypes
-  y = reinterpret(MemsetTypes[sizeof(T)], convert(T, x))
-  Mem.set!(buffer(A), y, length(A))
-  A
-end
-
-
-## generic linear algebra routines
-
-function LinearAlgebra.tril!(A::ROCMatrix{T}, d::Integer = 0) where T
-  function kernel!(_A, _d)
-    li = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    m, n = size(_A)
-    if 0 < li <= m*n
-      i, j = Tuple(CartesianIndices(_A)[li])
-      if i < j - _d
-        _A[i, j] = 0
-      end
+#=
+function GPUArrays.mapreducedim!(f, op, R::ROCArray, A::AbstractArray, init=nothing)
+    if init !== nothing
+        fill!(R, init)
     end
-    return nothing
-  end
-
-  grid, group = rocdims(A)
-  @roc gridsize=grid groupsize=group kernel!(A, d)
-  return A
-end
-
-function LinearAlgebra.triu!(A::ROCMatrix{T}, d::Integer = 0) where T
-  function kernel!(_A, _d)
-    li = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    m, n = size(_A)
-    if 0 < li <= m*n
-      i, j = Tuple(CartesianIndices(_A)[li])
-      if j < i + _d
-        _A[i, j] = 0
-      end
-    end
-    return nothing
-  end
-
-  grid, group = rocdims(A)
-  @roc gridsize=grid groupsize=group kernel!(A, d)
-  return A
+    @allowscalar Base.mapreducedim!(f, op, R.data, A)
 end
 =#

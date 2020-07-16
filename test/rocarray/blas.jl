@@ -1,4 +1,7 @@
+@testset "BLAS" begin
+
 using AMDGPU.rocBLAS
+using AMDGPU.HIP
 import .rocBLAS: rocblas_int
 
 handle = rocBLAS.handle()
@@ -12,8 +15,8 @@ end
     for T in (Float32, Float64)
         A = rand(T, 8, 8)
         x = rand(T, 8)
-        RA = ROCArray(agent, A)
-        Rx = ROCArray(agent, x)
+        RA = ROCArray(A)
+        Rx = ROCArray(x)
         Rb = RA*Rx
         _b = Array(Rb)
         @test isapprox(A*x, _b)
@@ -24,12 +27,13 @@ end
     @testset "scal()" begin
         for T in (Float32, Float64)
             A = rand(T, 8)
-            RA = ROCArray(agent, A)
+            RA = ROCArray(A)
             if T === Float32
                 rocBLAS.rocblas_sscal(handle, 8, 5f0, RA, 1)
             else
                 rocBLAS.rocblas_dscal(handle, 8, 5.0, RA, 1)
             end
+            HIP.hipDeviceSynchronize()
             _A = Array(RA)
             @test isapprox(A .* 5, _A)
         end
@@ -38,13 +42,14 @@ end
         for T in (Float32, Float64)
             A = rand(T, 8)
             B = rand(T, 8)
-            RA = ROCArray(agent, A)
-            RB = ROCArray(agent, B)
+            RA = ROCArray(A)
+            RB = ROCArray(B)
             if T === Float32
                 rocBLAS.rocblas_scopy(handle, 8, RA, 1, RB, 1)
             else
                 rocBLAS.rocblas_dcopy(handle, 8, RA, 1, RB, 1)
             end
+            HIP.hipDeviceSynchronize()
             _A = Array(RA)
             _B = Array(RB)
             @test isapprox(A, _A)
@@ -56,14 +61,15 @@ end
             A = rand(T, 8)
             B = rand(T, 8)
             result = zeros(T, 8)
-            RA = ROCArray(agent, A)
-            RB = ROCArray(agent, B)
+            RA = ROCArray(A)
+            RB = ROCArray(B)
             result = Ref{T}(zero(T))
             if T === Float32
                 rocBLAS.rocblas_sdot(handle, 8, RA, 1, RB, 1, result)
             else
                 rocBLAS.rocblas_ddot(handle, 8, RA, 1, RB, 1, result)
             end
+            HIP.hipDeviceSynchronize()
             @test isapprox(LinearAlgebra.dot(A,B), result[])
         end
     end
@@ -72,13 +78,14 @@ end
             A = rand(T, 8)
             B = rand(T, 8)
             result = zeros(T, 8)
-            RA = ROCArray(agent, A)
-            RB = ROCArray(agent, B)
+            RA = ROCArray(A)
+            RB = ROCArray(B)
             if T === Float32
                 rocBLAS.rocblas_sswap(handle, 8, RA, 1, RB, 1)
             else
                 rocBLAS.rocblas_dswap(handle, 8, RA, 1, RB, 1)
             end
+            HIP.hipDeviceSynchronize()
             _A = Array(RA)
             _B = Array(RB)
             @test isapprox(A, _B)
@@ -91,11 +98,11 @@ end
     @testset "gemv()" begin
         for T in (Float32, Float64)
             A = rand(T, 8, 4)
-            RA = ROCArray(agent, A)
+            RA = ROCArray(A)
             x = rand(T, 4)
-            Rx = ROCArray(agent, x)
+            Rx = ROCArray(x)
             y = zeros(T, 8)
-            Ry = ROCArray(agent, y)
+            Ry = ROCArray(y)
             op = rocBLAS.ROCBLAS_OPERATION_NONE
             m, n = rocblas_int.(size(A))
             lda = m
@@ -105,6 +112,7 @@ end
             else
                 rocBLAS.rocblas_dgemv(handle, op, m, n, 5.0, RA, lda, Rx, incx, 0.0, Ry, incy)
             end
+            HIP.hipDeviceSynchronize()
             _A = Array(RA)
             _x = Array(Rx)
             _y = Array(Ry)
@@ -112,3 +120,5 @@ end
         end
     end
 end
+
+end # testset BLAS
