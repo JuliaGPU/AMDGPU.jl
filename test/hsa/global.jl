@@ -17,7 +17,7 @@ Base.unsafe_store!(gbl_ptr, 2f0)
 dev = AMDGPU.default_device()
 queue = AMDGPU.default_queue(dev)
 kern = AMDGPU.create_kernel(dev, exe, hk.fun.entry, (Int32(3),))
-signal = AMDGPU.create_event()
+signal = AMDGPU.create_event(hk.mod.exe)
 AMDGPU.launch_kernel(queue, kern, signal; groupsize=(1,1,1), gridsize=(1,1,1))
 wait(signal)
 @test Base.unsafe_load(gbl_ptr) == 3f0

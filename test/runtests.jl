@@ -58,6 +58,8 @@ if AMDGPU.configured
             include("device/output.jl")
             include("device/globals.jl")
             include("device/math.jl")
+            include("device/execution_control.jl")
+            include("device/exceptions.jl")
         end
         @testset "ROCArray" begin
             @testset "ROCm External Libraries" begin

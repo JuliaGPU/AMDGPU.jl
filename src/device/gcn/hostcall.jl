@@ -133,7 +133,7 @@ end
         push!(ex.args, :($device_signal_wait(hc.signal, hc.host_sentinel)))
         # Get return buffer and load first value
         ptr = :(Base.unsafe_convert(DevicePtr{DevicePtr{$RT,AS.Global},AS.Global}, hc.buf_ptr))
-        push!(ex.args, :(Base.unsafe_load(Base.unsafe_load($ptr))))
+        push!(ex.args, :(unsafe_load(unsafe_load($ptr))))
     end
 
     return ex
