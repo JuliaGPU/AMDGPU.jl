@@ -59,13 +59,10 @@ function main()
     end
     
     lib_hip = Symbol("libhip")
-    for name in ("hip_hcc", "amdhip64")
-        config[lib_hip] = find_roc_library("lib$name")
-        config[lib_hip] !== nothing && break
-    end
-    if config[lib_hip] == nothing
-        build_warning("Could not find library HIP")
-    end
+    _paths = String[]
+    config[lib_hip] = Libdl.find_library(["libhip_hcc","libamdhip64"], _paths)
+    config[lib_hip] == nothing && build_warning("Could not find library HIP")
+
     ## (re)generate ext.jl
 
     function globals(mod)
