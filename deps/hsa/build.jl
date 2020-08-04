@@ -85,6 +85,8 @@ function find_ld_lld()
     paths = split(get(ENV, "PATH", ""), ":")
     paths = filter(path->path != "", paths)
     paths = map(Base.Filesystem.abspath, paths)
+    ispath("/opt/rocm/llvm/bin/ld.lld") &&
+        push!(paths, "/opt/rocm/llvm/bin/")
     ispath("/opt/rocm/hcc/bin/ld.lld") &&
         push!(paths, "/opt/rocm/hcc/bin/")
     ispath("/opt/rocm/opencl/bin/x86_64/ld.lld") &&

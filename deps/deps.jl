@@ -34,6 +34,7 @@ if !ext_libs_configured
     const librocfft = nothing
     const librocrand = nothing
     const libmiopen = nothing
+    const libhip = nothing
 end
 
 const configured = hsa_configured
