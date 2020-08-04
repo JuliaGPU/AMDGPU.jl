@@ -1,5 +1,6 @@
 module HIP
 
+import ..AMDGPU.libhip
 using CEnum
 
 include("libhip_common.jl")

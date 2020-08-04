@@ -57,7 +57,11 @@ function main()
             build_warning("Could not find library '$name'")
         end
     end
-
+    
+    lib_hip = Symbol("libhip")
+    _paths = String[]
+    config[lib_hip] = Libdl.find_library(["libhip_hcc","libamdhip64"], _paths)
+    config[lib_hip] == nothing && build_warning("Could not find library HIP")
 
     ## (re)generate ext.jl
 
