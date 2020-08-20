@@ -92,16 +92,18 @@ function load_device_libs(dev_isa)
         "ocml.amdgcn.bc",
     )
 
-    for file in bitcode_files
-        ispath(joinpath(device_libs_path, file)) || continue
-        name, ext = splitext(file)
-        lib = get!(libcache, name) do
-            file_path = joinpath(device_libs_path, file)
-            open(file_path) do io
-                parse(LLVM.Module, read(file_path), JuliaContext())
+    JuliaContext() do ctx
+        for file in bitcode_files
+            ispath(joinpath(device_libs_path, file)) || continue
+            name, ext = splitext(file)
+            lib = get!(libcache, name) do
+                file_path = joinpath(device_libs_path, file)
+                open(file_path) do io
+                    parse(LLVM.Module, read(file_path), ctx)
+                end
             end
+            push!(device_libs, lib)
         end
-        push!(device_libs, lib)
     end
 
     @assert !isempty(device_libs) "No device libs detected!"
@@ -114,7 +116,8 @@ function link_device_libs!(mod::LLVM.Module, dev_isa::String, undefined_fns)
     ufns = undefined_fns
     # TODO: only link if used
     # TODO: make these globally/locally configurable
-    link_oclc_defaults!(mod, dev_isa)
+    ctx = LLVM.context(mod)
+    link_oclc_defaults!(mod, dev_isa, ctx)
     for lib in libs
         # override libdevice's triple and datalayout to avoid warnings
         triple!(lib, triple(mod))
@@ -124,7 +127,7 @@ function link_device_libs!(mod::LLVM.Module, dev_isa::String, undefined_fns)
     GPUCompiler.link_library!(mod, libs)
 end
 
-function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String; finite_only=false,
+function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only=false,
                              unsafe_math=false, correctly_rounded_sqrt=true, daz=false)
     # link in some defaults for OCLC knobs, to prevent undefined variable errors
     lib = LLVM.Module("OCLC")
@@ -138,9 +141,9 @@ function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String; finite_only=fals
             "__oclc_unsafe_math_opt"=>Int32(unsafe_math),
             "__oclc_correctly_rounded_sqrt32"=>Int32(correctly_rounded_sqrt),
             "__oclc_daz_opt"=>Int32(daz))
-        gvtype = convert(LLVMType, typeof(value))
+        gvtype = convert(LLVMType, typeof(value), ctx)
         gv = GlobalVariable(lib, gvtype, name, 4)
-        init = ConstantInt(Int32(0), JuliaContext())
+        init = ConstantInt(Int32(0), ctx)
         initializer!(gv, init)
         unnamed_addr!(gv, true)
         constant!(gv, true)

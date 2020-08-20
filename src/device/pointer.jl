@@ -114,69 +114,72 @@ function tbaa_make_child(name::String, constant::Bool=false; ctx::LLVM.Context=J
     return tbaa_access_tag
 end
 
-tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.name.name)))
+tbaa_addrspace(as::Type{<:AddressSpace}, ctx) = tbaa_make_child(lowercase(String(as.name.name)); ctx=ctx)
 
 @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
                                      ::Val{align}=Val(1)) where {T,A,align}
-    eltyp = convert(LLVMType, T)
-    T_int = convert(LLVMType, Int)
-    T_ptr = convert(LLVMType, DevicePtr{T,A})
-    T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
+    JuliaContext() do ctx
+        eltyp = convert(LLVMType, T, ctx)
+        T_int = convert(LLVMType, Int, ctx)
+        T_ptr = convert(LLVMType, DevicePtr{T,A}, ctx)
+        T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
 
-    # create a function
-    param_types = [T_ptr, T_int]
-    llvm_f, _ = create_function(eltyp, param_types)
+        # create a function
+        param_types = [T_ptr, T_int]
+        llvm_f, _ = create_function(eltyp, param_types)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-        ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
-        ld = load!(builder, ptr)
+            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+            ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
+            ld = load!(builder, ptr)
 
-        if A != AS.Generic
-            metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(A)
+            if A != AS.Generic
+                metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(A, ctx)
+            end
+
+            alignment!(ld, align)
+            ret!(builder, ld)
         end
 
-        alignment!(ld, align)
-        ret!(builder, ld)
+        call_function(llvm_f, T, Tuple{DevicePtr{T,A}, Int}, :((p, Int(i-one(i)))))
     end
-
-    call_function(llvm_f, T, Tuple{DevicePtr{T,A}, Int}, :((p, Int(i-one(i)))))
 end
 
 @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
                                        ::Val{align}=Val(1)) where {T,A,align}
-    eltyp = convert(LLVMType, T)
-    T_int = convert(LLVMType, Int)
-    T_ptr = convert(LLVMType, DevicePtr{T,A})
-    T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
+    JuliaContext() do ctx
+        eltyp = convert(LLVMType, T, ctx)
+        T_int = convert(LLVMType, Int, ctx)
+        T_ptr = convert(LLVMType, DevicePtr{T,A}, ctx)
+        T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
 
-    # create a function
-    param_types = [T_ptr, eltyp, T_int]
-    llvm_f, _ = create_function(LLVM.VoidType(JuliaContext()), param_types)
+        # create a function
+        param_types = [T_ptr, eltyp, T_int]
+        llvm_f, _ = create_function(LLVM.VoidType(ctx), param_types)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-        ptr = gep!(builder, ptr, [parameters(llvm_f)[3]])
-        val = parameters(llvm_f)[2]
-        st = store!(builder, val, ptr)
+            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+            ptr = gep!(builder, ptr, [parameters(llvm_f)[3]])
+            val = parameters(llvm_f)[2]
+            st = store!(builder, val, ptr)
 
-        if A != AS.Generic
-            metadata(st)[LLVM.MD_tbaa] = tbaa_addrspace(A)
+            if A != AS.Generic
+                metadata(st)[LLVM.MD_tbaa] = tbaa_addrspace(A, ctx)
+            end
+
+            alignment!(st, align)
+            ret!(builder)
         end
 
-        alignment!(st, align)
-        ret!(builder)
+        call_function(llvm_f, Cvoid, Tuple{DevicePtr{T,A}, T, Int},
+                      :((p, convert(T,x), Int(i-one(i)))))
     end
-
-    call_function(llvm_f, Cvoid, Tuple{DevicePtr{T,A}, T, Int},
-                  :((p, convert(T,x), Int(i-one(i)))))
 end
-

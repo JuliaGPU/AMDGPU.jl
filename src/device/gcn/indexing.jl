@@ -3,71 +3,75 @@ export workitemIdx, workgroupIdx, workgroupDim, gridDim, gridDimWG
 export threadIdx, blockIdx, blockDim
 
 @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
-    T_int32 = LLVM.Int32Type(JuliaContext())
+    JuliaContext() do ctx
+        T_int32 = LLVM.Int32Type(ctx)
 
-    # create function
-    llvm_f, _ = create_function(T_int32)
-    mod = LLVM.parent(llvm_f)
+        # create function
+        llvm_f, _ = create_function(T_int32)
+        mod = LLVM.parent(llvm_f)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        # call the indexing intrinsic
-        intr_typ = LLVM.FunctionType(T_int32)
-        intr = LLVM.Function(mod, "llvm.amdgcn.$fname.id.$name", intr_typ)
-        idx = call!(builder, intr)
+            # call the indexing intrinsic
+            intr_typ = LLVM.FunctionType(T_int32)
+            intr = LLVM.Function(mod, "llvm.amdgcn.$fname.id.$name", intr_typ)
+            idx = call!(builder, intr)
 
-        # attach range metadata
-        range_metadata = MDNode([ConstantInt(Int32(range.start), JuliaContext()),
-                                 ConstantInt(Int32(range.stop), JuliaContext())],
-                                JuliaContext())
-        metadata(idx)[LLVM.MD_range] = range_metadata
-        ret!(builder, idx)
+            # attach range metadata
+            range_metadata = MDNode([ConstantInt(Int32(range.start), ctx),
+                                     ConstantInt(Int32(range.stop), ctx)],
+                                    ctx)
+            metadata(idx)[LLVM.MD_range] = range_metadata
+            ret!(builder, idx)
+        end
+
+        call_function(llvm_f, UInt32)
     end
-
-    call_function(llvm_f, UInt32)
 end
 
 @generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
-    T_int8 = LLVM.Int8Type(JuliaContext())
-    T_int32 = LLVM.Int32Type(JuliaContext())
-    _as = convert(Int, AS.Constant)
-    T_ptr_i8 = LLVM.PointerType(T_int8, _as)
-    T_ptr_i32 = LLVM.PointerType(T_int32, _as)
-    T_ptr_T = LLVM.PointerType(convert(LLVMType, T), _as)
+    JuliaContext() do ctx
+        T_int8 = LLVM.Int8Type(ctx)
+        T_int32 = LLVM.Int32Type(ctx)
+        _as = convert(Int, AS.Constant)
+        T_ptr_i8 = LLVM.PointerType(T_int8, _as)
+        T_ptr_i32 = LLVM.PointerType(T_int32, _as)
+        T_ptr_T = LLVM.PointerType(convert(LLVMType, T, ctx), _as)
 
-    # create function
-    llvm_f, _ = create_function(T_int32)
-    mod = LLVM.parent(llvm_f)
+        # create function
+        llvm_f, _ = create_function(T_int32)
+        mod = LLVM.parent(llvm_f)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        # get the kernel dispatch pointer
-        intr_typ = LLVM.FunctionType(T_ptr_i8)
-        intr = LLVM.Function(mod, "llvm.amdgcn.dispatch.ptr", intr_typ)
-        ptr = call!(builder, intr)
+            # get the kernel dispatch pointer
+            intr_typ = LLVM.FunctionType(T_ptr_i8)
+            intr = LLVM.Function(mod, "llvm.amdgcn.dispatch.ptr", intr_typ)
+            ptr = call!(builder, intr)
 
-        # load the index
-        offset = base+((off-1)*sizeof(T))
-        idx_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(offset,JuliaContext())])
-        idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
-        idx_T = load!(builder, idx_ptr_T)
-        idx = zext!(builder, idx_T, T_int32)
+            # load the index
+            offset = base+((off-1)*sizeof(T))
+            idx_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(offset,ctx)])
+            idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
+            idx_T = load!(builder, idx_ptr_T)
+            idx = zext!(builder, idx_T, T_int32)
 
-        # attach range metadata
-        range_metadata = MDNode([ConstantInt(T(range.start), JuliaContext()),
-                                 ConstantInt(T(range.stop), JuliaContext())],
-                                JuliaContext())
-        metadata(idx_T)[LLVM.MD_range] = range_metadata
-        ret!(builder, idx)
+            # attach range metadata
+            range_metadata = MDNode([ConstantInt(T(range.start), ctx),
+                                     ConstantInt(T(range.stop), ctx)],
+                                    ctx)
+            metadata(idx_T)[LLVM.MD_range] = range_metadata
+            ret!(builder, idx)
+        end
+
+        call_function(llvm_f, UInt32)
     end
-
-    call_function(llvm_f, UInt32)
 end
 
 # TODO: look these up for the current agent/queue

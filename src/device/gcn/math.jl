@@ -1,26 +1,28 @@
 @generated function _intr(::Val{fname}, out_arg, inp_args...) where {fname,}
-    inp_exprs = [:( inp_args[$i] ) for i in 1:length(inp_args)]
-    inp_types = [inp_args...]
-    out_type = convert(LLVMType, out_arg.parameters[1])
+    JuliaContext() do ctx
+        inp_exprs = [:( inp_args[$i] ) for i in 1:length(inp_args)]
+        inp_types = [inp_args...]
+        out_type = convert(LLVMType, out_arg.parameters[1], ctx)
 
-    # create function
-    param_types = LLVMType[convert.(LLVMType, inp_types)...]
-    llvm_f, _ = create_function(out_type, param_types)
-    mod = LLVM.parent(llvm_f)
+        # create function
+        param_types = LLVMType[convert.(LLVMType, inp_types, Ref(ctx))...]
+        llvm_f, _ = create_function(out_type, param_types)
+        mod = LLVM.parent(llvm_f)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        # call the intrinsic
-        intr_typ = LLVM.FunctionType(out_type, param_types)
-        intr = LLVM.Function(mod, string(fname), intr_typ)
-        value = call!(builder, intr, [parameters(llvm_f)...])
-        ret!(builder, value)
+            # call the intrinsic
+            intr_typ = LLVM.FunctionType(out_type, param_types)
+            intr = LLVM.Function(mod, string(fname), intr_typ)
+            value = call!(builder, intr, [parameters(llvm_f)...])
+            ret!(builder, value)
+        end
+
+        call_function(llvm_f, out_arg.parameters[1], Tuple{inp_args...}, Expr(:tuple, inp_exprs...))
     end
-
-    call_function(llvm_f, out_arg.parameters[1], Tuple{inp_args...}, Expr(:tuple, inp_exprs...))
 end
 
 struct GCNIntrinsic

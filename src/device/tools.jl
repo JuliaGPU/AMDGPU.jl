@@ -144,24 +144,26 @@ end
 end
 
 @generated function extract_value(val, ::Type{sub}, ::Val{offset}) where {sub, offset}
-    T_val = convert(LLVMType, val)
-    T_sub = convert(LLVMType, sub)
-    bytes = Core.sizeof(val)
-    T_int = LLVM.IntType(8*bytes, JuliaContext())
+    JuliaContext() do ctx
+        T_val = convert(LLVMType, val, ctx)
+        T_sub = convert(LLVMType, sub, ctx)
+        bytes = Core.sizeof(val)
+        T_int = LLVM.IntType(8*bytes, ctx)
 
-    # create function
-    llvm_f, _ = create_function(T_sub, [T_val])
-    mod = LLVM.parent(llvm_f)
+        # create function
+        llvm_f, _ = create_function(T_sub, [T_val])
+        mod = LLVM.parent(llvm_f)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
-        equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
-        shifted = lshr!(builder, equiv, LLVM.ConstantInt(T_int, offset))
-        # extracted = and!(builder, shifted, 2^32-1)
-        extracted = trunc!(builder, shifted, T_sub)
-        ret!(builder, extracted)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
+            equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
+            shifted = lshr!(builder, equiv, LLVM.ConstantInt(T_int, offset))
+            # extracted = and!(builder, shifted, 2^32-1)
+            extracted = trunc!(builder, shifted, T_sub)
+            ret!(builder, extracted)
+        end
     end
 
     call_function(llvm_f, UInt32, Tuple{val}, :( (val,) ))
@@ -173,25 +175,27 @@ end
 end
 
 @generated function insert_value(val, sub, ::Val{offset}) where {offset}
-    T_val = convert(LLVMType, val)
-    T_sub = convert(LLVMType, sub)
-    bytes = Core.sizeof(val)
-    T_out_int = LLVM.IntType(8*bytes, JuliaContext())
+    JuliaContext() do ctx
+        T_val = convert(LLVMType, val, ctx)
+        T_sub = convert(LLVMType, sub, ctx)
+        bytes = Core.sizeof(val)
+        T_out_int = LLVM.IntType(8*bytes, ctx)
 
-    # create function
-    llvm_f, _ = create_function(T_val, [T_val, T_sub])
-    mod = LLVM.parent(llvm_f)
+        # create function
+        llvm_f, _ = create_function(T_val, [T_val, T_sub])
+        mod = LLVM.parent(llvm_f)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
-        equiv = bitcast!(builder, parameters(llvm_f)[1], T_out_int)
-        ext = zext!(builder, parameters(llvm_f)[2], T_out_int)
-        shifted = shl!(builder, ext, LLVM.ConstantInt(T_out_int, offset))
-        inserted = or!(builder, equiv, shifted)
-        orig = bitcast!(builder, inserted, T_val)
-        ret!(builder, orig)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
+            equiv = bitcast!(builder, parameters(llvm_f)[1], T_out_int)
+            ext = zext!(builder, parameters(llvm_f)[2], T_out_int)
+            shifted = shl!(builder, ext, LLVM.ConstantInt(T_out_int, offset))
+            inserted = or!(builder, equiv, shifted)
+            orig = bitcast!(builder, inserted, T_val)
+            ret!(builder, orig)
+        end
     end
 
     call_function(llvm_f, val, Tuple{val, sub}, :( (val, sub) ))
@@ -338,34 +342,36 @@ llvmsize(ty::LLVM.ArrayType) = length(ty)*llvmsize(eltype(ty))
 llvmsize(ty) = error("Unknown size for type: $ty, typeof: $(typeof(ty))")
 
 @generated function string_length(ex)
-    T_ex = convert(LLVMType, ex)
-    T_ex_ptr = LLVM.PointerType(T_ex)
-    T_i8_ptr = LLVM.PointerType(LLVM.Int8Type(JuliaContext()))
-    T_i64 = LLVM.Int64Type(JuliaContext())
-    llvm_f, _ = create_function(T_i64, [T_ex])
-    mod = LLVM.parent(llvm_f)
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        check = BasicBlock(llvm_f, "check", JuliaContext())
-        done = BasicBlock(llvm_f, "done", JuliaContext())
+    JuliaContext() do ctx
+        T_ex = convert(LLVMType, ex, ctx)
+        T_ex_ptr = LLVM.PointerType(T_ex)
+        T_i8_ptr = LLVM.PointerType(LLVM.Int8Type(ctx))
+        T_i64 = LLVM.Int64Type(ctx)
+        llvm_f, _ = create_function(T_i64, [T_ex])
+        mod = LLVM.parent(llvm_f)
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            check = BasicBlock(llvm_f, "check", ctx)
+            done = BasicBlock(llvm_f, "done", ctx)
 
-        position!(builder, entry)
-        init_offset = ConstantInt(0, JuliaContext())
-        input_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_ex_ptr)
-        input_ptr = bitcast!(builder, input_ptr, T_i8_ptr)
-        br!(builder, check)
+            position!(builder, entry)
+            init_offset = ConstantInt(0, ctx)
+            input_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_ex_ptr)
+            input_ptr = bitcast!(builder, input_ptr, T_i8_ptr)
+            br!(builder, check)
 
-        position!(builder, check)
-        offset = phi!(builder, T_i64)
-        next_offset = add!(builder, offset, ConstantInt(1, JuliaContext()))
-        append!(LLVM.incoming(offset), [(init_offset, entry), (next_offset, check)])
-        ptr = gep!(builder, input_ptr, [offset])
-        value = load!(builder, ptr)
-        cond = icmp!(builder, LLVM.API.LLVMIntEQ, value, ConstantInt(0x0, JuliaContext()))
-        br!(builder, cond, done, check)
+            position!(builder, check)
+            offset = phi!(builder, T_i64)
+            next_offset = add!(builder, offset, ConstantInt(1, ctx))
+            append!(LLVM.incoming(offset), [(init_offset, entry), (next_offset, check)])
+            ptr = gep!(builder, input_ptr, [offset])
+            value = load!(builder, ptr)
+            cond = icmp!(builder, LLVM.API.LLVMIntEQ, value, ConstantInt(0x0, ctx))
+            br!(builder, cond, done, check)
 
-        position!(builder, done)
-        ret!(builder, offset)
+            position!(builder, done)
+            ret!(builder, offset)
+        end
+        call_function(llvm_f, Csize_t, Tuple{ex}, :((ex,)))
     end
-    return call_function(llvm_f, Csize_t, Tuple{ex}, :((ex,)))
 end
