@@ -12,6 +12,13 @@ test:1.4:
   tags:
     - rocm
 
+test:1.5:
+  extends:
+    - .julia:1.5
+    - .test
+  tags:
+    - rocm
+
 test:nightly:
   extends:
     - .julia:nightly
@@ -37,12 +44,12 @@ test:nightly:
 
 coverage:
   extends:
-    - .julia:1.4
+    - .julia:1.5
     - .coverage
 
 documentation:
   extends:
-    - .julia:1.4
+    - .julia:1.5
     - .documentation
   tags:
     - rocm
