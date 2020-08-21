@@ -98,9 +98,7 @@ function load_device_libs(dev_isa)
             name, ext = splitext(file)
             lib = get!(libcache, name) do
                 file_path = joinpath(device_libs_path, file)
-                open(file_path) do io
-                    parse(LLVM.Module, read(file_path), ctx)
-                end
+                parse(LLVM.Module, read(file_path), ctx)
             end
             push!(device_libs, lib)
         end
