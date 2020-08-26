@@ -220,7 +220,7 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
     end
     rocfft_plan_get_work_buffer_size(handle_ref[], worksize_ref)
     # TODO allow empty array in ../array.jl
-    workarea = worksize_ref[]>0 ? ROCArray(Int8, (Int(worksize_ref[]),)) : ROCArray(Int8, (1,))
+    workarea = worksize_ref[]>0 ? ROCArray{Int8}(undef, (Int(worksize_ref[]),)) : ROCArray{Int8}(undef, (1,))
     return handle_ref[], workarea
 end
 
@@ -275,7 +275,7 @@ end
 # FIXME: plan_inv methods allocate needlessly (to provide type parameters and normalization function)
 # Perhaps use FakeArray types to avoid this.
 function plan_inv(p::cROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}) where {T<:rocfftComplexes,N,inplace}
-    X = ROCArray(T, p.sz)
+    X = ROCArray{T}(undef, p.sz)
     xtype = rocfft_transform_type_complex_inverse
     pp = create_plan(xtype, p.sz, T, inplace, p.region)
     ScaledPlan(cROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}(pp..., X, p.sz, xtype, p.region),
@@ -283,7 +283,7 @@ function plan_inv(p::cROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}) where {T<:rocfftCo
 end
 
 function plan_inv(p::cROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}) where {T<:rocfftComplexes,N,inplace}
-    X = ROCArray(T, p.sz)
+    X = ROCArray{T}(undef, p.sz)
     xtype = rocfft_transform_type_complex_forward
     pp = create_plan(xtype, p.sz, T, inplace, p.region)
     ScaledPlan(cROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}(pp..., X, p.sz, xtype, p.region),
@@ -291,8 +291,8 @@ function plan_inv(p::cROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}) where {T<:rocfftCo
 end
 
 function plan_inv(p::rROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}) where {T<:rocfftReals,N,inplace}
-    X = ROCArray(complex(T), p.osz)
-    Y = ROCArray(T, p.sz)
+    X = ROCArray{complex(T)}(undef, p.osz)
+    Y = ROCArray{T}(undef, p.sz)
     xtype = rocfft_transform_type_real_inverse
     pp = create_plan(xtype, p.sz, T, inplace, p.region)
     scale = normalization(Y, p.region)
@@ -300,7 +300,7 @@ function plan_inv(p::rROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}) where {T<:rocfftRe
 end
 
 function plan_inv(p::rROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}) where {T<:rocfftComplexes,N,inplace}
-    X = ROCArray(real(T), p.osz)
+    X = ROCArray{real(T)}(undef, p.osz)
     xtype = rocfft_transform_type_real_forward
     pp = create_plan(xtype, p.osz, T, inplace, p.region)
     scale = normalization(X, p.region)
@@ -332,24 +332,24 @@ function assert_applicable(p::ROCFFTPlan{T,K}, X::ROCArray{T}, Y::ROCArray{Ty}) 
 end
 
 function unsafe_execute!(plan::cROCFFTPlan{T,K,true,N}, X::ROCArray{T,N}) where {T,K,N}
-    rocfft_execute(plan, [X.handle,], C_NULL, plan.execution_info)
+    rocfft_execute(plan, [pointer(X),], C_NULL, plan.execution_info)
 end
 
 function unsafe_execute!(plan::cROCFFTPlan{T,K,false,N}, X::ROCArray{T,N}, Y::ROCArray{T}) where {T,N,K}
     Xcopy = copy(X) # since input array can also be modified
-    rocfft_execute(plan, [Xcopy.handle,], [Y.handle,], plan.execution_info)
+    rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
 end
 
 function unsafe_execute!(plan::rROCFFTPlan{T,ROCFFT_FORWARD,false,N}, X::ROCArray{T,N}, Y::ROCArray{<:rocfftComplexes,N}) where {T<:rocfftReals,N}
     @assert plan.xtype == rocfft_transform_type_real_forward
     Xcopy = copy(X)
-    rocfft_execute(plan, [Xcopy.handle,], [Y.handle,], plan.execution_info)
+    rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
 end
 
 function unsafe_execute!(plan::rROCFFTPlan{T,ROCFFT_INVERSE,false,N}, X::ROCArray{T,N}, Y::ROCArray{<:rocfftReals,N}) where {T<:rocfftComplexes,N}
     @assert plan.xtype == rocfft_transform_type_real_inverse
     Xcopy = copy(X)
-    rocfft_execute(plan, [Xcopy.handle,], [Y.handle,], plan.execution_info)
+    rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
 end
 
 
@@ -369,18 +369,18 @@ function Base.:(*)(p::cROCFFTPlan{T,K,true,N}, x::ROCArray{T,N}) where {T,K,N}
 end
 
 function Base.:(*)(p::cROCFFTPlan{T,K,false,N}, x::ROCArray{T,N}) where {T,K,N}
-    y = ROCArray(T, p.osz)
+    y = ROCArray{T}(undef, p.osz)
     mul!(y, p, x)
 end
 
 function Base.:(*)(p::rROCFFTPlan{T,ROCFFT_FORWARD,false,N}, x::ROCArray{T,N}) where {T<:rocfftReals,N}
     @assert p.xtype == rocfft_transform_type_real_forward
-    y = ROCArray(complex(T), p.osz)
+    y = ROCArray{complex(T)}(undef, p.osz)
     mul!(y, p, x)
 end
 
 function Base.:(*)(p::rROCFFTPlan{T,ROCFFT_INVERSE,false,N}, x::ROCArray{T,N}) where {T<:rocfftComplexes,N}
     @assert p.xtype == rocfft_transform_type_real_inverse
-    y = ROCArray(real(T), p.osz)
+    y = ROCArray{real(T)}(undef, p.osz)
     mul!(y, p, x)
 end

@@ -43,7 +43,7 @@ function LinearAlgebra.BLAS.dotu(DX::ROCArray{T}, DY::ROCArray{T}) where T<:Unio
     dotu(n, DX, 1, DY, 1)
 end
 
-#LinearAlgebra.norm(x::ROCBLASArray) = nrm2(x)
+# FIXME: LinearAlgebra.norm(x::ROCBLASArray) = nrm2(x)
 LinearAlgebra.BLAS.asum(x::ROCBLASArray) = asum(length(x), x, 1)
 
 function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) where T<:ROCBLASFloat
@@ -51,8 +51,10 @@ function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) wher
     axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end
 
+#= FIXME
 Base.argmin(xs::ROCBLASArray{<:ROCBLASReal}) = iamin(xs)
 Base.argmax(xs::ROCBLASArray{<:ROCBLASReal}) = iamax(xs)
+=#
 
 
 

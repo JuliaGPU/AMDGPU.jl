@@ -110,7 +110,7 @@ for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridDimWG_$dim")
     fn_wi_idx = Symbol("workitemIdx_$dim")
-    @eval @inline $fn_wg() = $fn()/$fn_wi_idx()
+    @eval @inline $fn_wg() = div($fn(), $fn_wi_idx())
 end
 
 """
