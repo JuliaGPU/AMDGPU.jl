@@ -22,10 +22,6 @@ export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc, roczeros, rocones, rocfill
 export HSAArray
 
-### Binary Dependencies ###
-
-include(joinpath(dirname(@__DIR__), "deps", "deps.jl"))
-
 ### HSA Runtime ###
 
 include(joinpath(@__DIR__, "hsa", "HSA.jl"))
@@ -84,27 +80,16 @@ include("array.jl")
 roc(xs) = adapt(ROCArray{Float32}, xs)
 allowscalar(x::Bool) = nothing
 
-### External Libraries ###
-
-# TODO: add check
-include("hip/HIP.jl")
-librocblas !== nothing     && include("blas/rocBLAS.jl")
-librocfft !== nothing      && include("fft/rocFFT.jl")
-#librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
-#librocalution !== nothing && include("solver/rocALUTION.jl")
-#librocrand !== nothing    && include("rand/rocRAND.jl")
-#libmiopen !== nothing     && include("dnn/MIOpen.jl")
-
 ### Initialization and Shutdown ###
 
-atexit() do
-    configured && HSA.shut_down()
-end
 function __init__()
     deps_failed() = @warn """
         AMDGPU dependencies have not been built, some functionality may be missing.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         """
+
+    # Load binary dependencies
+    include(joinpath(dirname(@__DIR__), "deps", "deps.jl"))
 
     # We want to always be able to load the package
     if !configured
@@ -112,12 +97,24 @@ function __init__()
         return
     end
 
+    # TODO: add check
+    include(joinpath(@__DIR__, "hip", "HIP.jl"))
+    librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
+    librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
+    #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
+    #librocalution !== nothing && include("solver/rocALUTION.jl")
+    #librocrand !== nothing    && include("rand/rocRAND.jl")
+    #libmiopen !== nothing     && include("dnn/MIOpen.jl")
+
     # Make sure we load the library found by the last `] build`
     push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
     # TODO: Do the same (if possible) for the debug library
 
     # Initialize the HSA runtime
     HSA.init() |> check
+    atexit() do
+        configured && HSA.shut_down()
+    end
 
     # Populate the default agent
     agents = get_agents(:gpu)
