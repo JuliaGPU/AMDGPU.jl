@@ -26,7 +26,7 @@ RUN curl -L https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.1-lin
     tar -xzvf /tmp/julia-1.5.1.tar.gz
 
 # Install AMDGPU.jl
-RUN /root/julia-1.5.1/bin/julia -E "using Pkg; Pkg.add(\"AMDGPU\"); Pkg.build(\"AMDGPU\")"
+RUN /root/julia-1.5.1/bin/julia -E "using Pkg; Pkg.add(\"AMDGPU\");"
 
 VOLUME ["/root/.julia"]
 ENTRYPOINT ["/root/julia-1.5.1/bin/julia"]
