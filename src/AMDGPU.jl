@@ -83,69 +83,77 @@ allowscalar(x::Bool) = nothing
 ### Initialization and Shutdown ###
 
 function __init__()
-    deps_failed() = @warn """
-        AMDGPU dependencies have not been built, some functionality may be missing.
+    # Load binary dependencies
+    include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
+
+    if hsa_configured
+        # Make sure we load the library found by the last `] build`
+        push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
+        # TODO: Do the same (if possible) for the debug library
+
+        # Initialize the HSA runtime
+        status = HSA.init()
+        if status == HSA.STATUS_SUCCESS
+            # Register shutdown hook
+            atexit() do
+                HSA.shut_down()
+            end
+
+            # Populate the default agent
+            agents = get_agents(:gpu)
+            if length(agents) > 0
+                DEFAULT_AGENT[] = first(agents)
+            end
+
+            # Load ROCm external libraries
+            if ext_libs_configured
+                libhip !== nothing         && include(joinpath(@__DIR__, "hip", "HIP.jl"))
+                librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
+                librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
+                #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
+                #librocalution !== nothing && include("solver/rocALUTION.jl")
+                #librocrand !== nothing    && include("rand/rocRAND.jl")
+                #libmiopen !== nothing     && include("dnn/MIOpen.jl")
+
+                # Ensure external libraries are up to date
+                function check_library(name, path)
+                    path === nothing && return
+                    if !ispath(path)
+                        @warn "$name library has changed. Please run Pkg.build(\"AMDGPU\") and restart Julia."
+                    end
+                end
+                check_library("rocBLAS", librocblas)
+                check_library("rocSPARSE", librocsparse)
+                check_library("rocALUTION", librocalution)
+                check_library("rocFFT", librocfft)
+                check_library("rocRAND", librocrand)
+                check_library("MIOpen", libmiopen)
+            else
+                @warn """
+                ROCm external libraries have not been built, runtime functionality will be unavailable.
+                Please run Pkg.build("AMDGPU") and reload AMDGPU.
+                """
+            end
+        else
+            @warn "HSA initialization failed with code $status"
+        end
+    else
+        @warn """
+        HSA runtime has not been built, runtime functionality will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         """
-
-    # Load binary dependencies
-    include(joinpath(dirname(@__DIR__), "deps", "deps.jl"))
-
-    # We want to always be able to load the package
-    if !configured
-        deps_failed()
-        return
     end
 
-    # TODO: add check
-    include(joinpath(@__DIR__, "hip", "HIP.jl"))
-    librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
-    librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-    #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
-    #librocalution !== nothing && include("solver/rocALUTION.jl")
-    #librocrand !== nothing    && include("rand/rocRAND.jl")
-    #libmiopen !== nothing     && include("dnn/MIOpen.jl")
-
-    # Make sure we load the library found by the last `] build`
-    push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
-    # TODO: Do the same (if possible) for the debug library
-
-    # Initialize the HSA runtime
-    HSA.init() |> check
-    atexit() do
-        configured && HSA.shut_down()
-    end
-
-    # Populate the default agent
-    agents = get_agents(:gpu)
-    if length(agents) > 0
-        DEFAULT_AGENT[] = first(agents)
-    end
-
-    try
-        # Try to load device libs if possible
-        check_deps()
-        @assert configured
-    catch err
-        deps_failed()
+    # Check whether device intrinsics are available
+    if !ispath(device_libs_path)
+        @warn """
+        ROCm-Device-Libs have not been downloaded, device intrinsics will be unavailable.
+        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        """
     end
 
     # Load optional OpenCL integrations
     @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
-
-    # Ensure external libraries are up to date
-    function check_library(name, path)
-        path === nothing && return
-        if !ispath(path)
-            @warn "$name library has changed. Please run Pkg.build(\"AMDGPU\") and restart Julia."
-        end
-    end
-    check_library("rocBLAS", librocblas)
-    check_library("rocSPARSE", librocsparse)
-    check_library("rocALUTION", librocalution)
-    check_library("rocFFT", librocfft)
-    check_library("rocRAND", librocrand)
-    check_library("MIOpen", libmiopen)
 end
 
 end # module
