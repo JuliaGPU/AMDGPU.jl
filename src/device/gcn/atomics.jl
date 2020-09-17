@@ -66,6 +66,7 @@ const binops = Dict(
 const atomic_acquire = LLVM.API.LLVMAtomicOrderingAcquire
 const atomic_release = LLVM.API.LLVMAtomicOrderingRelease
 const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
+const atomic_sequentially_consistent = LLVM.API.LLVMAtomicOrderingSequentiallyConsistent
 
 for T in (Int32, Int64, UInt32, UInt64)
     ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]

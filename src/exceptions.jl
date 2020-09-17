@@ -54,6 +54,13 @@ function emit_exception_user!(mod::LLVM.Module)
                 loaded_value = call!(builder, signal_load, [ConstantInt(0; ctx),
                                                             # __ATOMIC_ACQUIRE == 2
                                                             ConstantInt(Int32(2); ctx)])
+                T_signal_cas = LLVM.FunctionType(T_i64, [T_i64, T_i64, T_i64, T_i32])
+                signal_cas = LLVM.Function(mod, "__ockl_hsa_signal_cas", T_signal_cas)
+                loaded_value = call!(builder, signal_cas, [ConstantInt(0;ctx),
+                                                           ConstantInt(0;ctx),
+                                                           ConstantInt(0;ctx),
+                                                           # __ATOMIC_ACQ_REL == 4
+                                                           ConstantInt(Int32(4); ctx)])
                 ret!(builder)
             end
         #end
