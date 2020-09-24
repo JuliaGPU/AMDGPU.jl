@@ -7,8 +7,10 @@ end
 function HSASignal()
     signal = HSASignal(Ref{Signal}())
     HSA.signal_create(1, 0, C_NULL, signal.signal)
+    hsaref!()
     finalizer(signal) do signal
         HSA.signal_destroy(signal.signal[]) |> check
+        hsaunref!()
     end
     return signal
 end

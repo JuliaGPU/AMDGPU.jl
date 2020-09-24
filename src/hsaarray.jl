@@ -19,8 +19,10 @@ function HSAArray(agent::HSAAgent, ::Type{T}, size::NTuple{N,Int}) where {T,N}
 
     arr = HSAArray{T,N}(size, buffer)
 
+    hsaref!()
     finalizer(arr) do arr
         Mem.free(buffer)
+        hsaunref!()
     end
 
     return arr

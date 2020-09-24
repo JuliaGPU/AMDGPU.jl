@@ -26,10 +26,12 @@ function ROCModule(exe, options)
     mod = ROCModule(exe, options, metadata, exceptions)
     _exe = exe.exe
     EXE_TO_MODULE_MAP[_exe] = WeakRef(mod)
+    hsaref!()
     finalizer(mod) do x
         # FIXME: Free all metadata
         Mem.free(mod.exceptions)
         delete!(EXE_TO_MODULE_MAP, _exe)
+        hsaunref!()
     end
 end
 mutable struct ROCFunction
