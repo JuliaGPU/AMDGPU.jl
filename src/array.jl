@@ -66,6 +66,7 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
         xs = new{T,N}(buf, own, dims, offset)
         if own
+            hsaref!()
             Mem.retain(buf)
             finalizer(unsafe_free!, xs)
         end
@@ -75,6 +76,7 @@ end
 
 function unsafe_free!(xs::ROCArray)
     Mem.release(xs.buf) && Mem.free(xs.buf)
+    hsaunref!()
     return
 end
 

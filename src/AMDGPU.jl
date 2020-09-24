@@ -82,6 +82,16 @@ allowscalar(x::Bool) = nothing
 
 ### Initialization and Shutdown ###
 
+const HSA_REFCOUNT = Threads.Atomic{UInt}(0)
+hsaref!() = Threads.atomic_add!(HSA_REFCOUNT, UInt(1))
+function hsaunref!()
+    if Threads.atomic_cas!(HSA_REFCOUNT, UInt(1), UInt(0)) == UInt(1)
+        HSA.shut_down()
+    else
+        Threads.atomic_sub!(HSA_REFCOUNT, UInt(1))
+    end
+end
+
 function __init__()
     # Load binary dependencies
     include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
@@ -94,9 +104,10 @@ function __init__()
         # Initialize the HSA runtime
         status = HSA.init()
         if status == HSA.STATUS_SUCCESS
+            hsaref!()
             # Register shutdown hook
             atexit() do
-                HSA.shut_down()
+                hsaunref!()
             end
 
             # Populate the default agent

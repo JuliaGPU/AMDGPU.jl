@@ -61,12 +61,14 @@ function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String; glo
     exe = HSAExecutable(agent, executable, data, _globals)
 
     # TODO: Ensure no derived kernels are in flight during finalization
+    hsaref!()
     finalizer(exe) do exe
         HSA.executable_destroy(exe.executable[]) |> check
         for buf in values(exe.globals)
             Mem.free(buf)
         end
         HSA.code_object_reader_destroy(code_object_reader[]) |> check
+        hsaunref!()
     end
 
     return exe

@@ -73,8 +73,10 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     kernel = HSAKernelInstance(agent, exe, symbol, args, kernel_object,
                                kernarg_segment_size, group_segment_size,
                                private_segment_size, kernarg_address)
+    hsaref!()
     finalizer(kernel) do kernel
         HSA.memory_free(kernel.kernarg_address[]) |> check
+        hsaunref!()
     end
     return kernel
 end

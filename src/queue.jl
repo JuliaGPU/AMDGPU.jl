@@ -20,8 +20,10 @@ function HSAQueue(agent::HSAAgent)
                      C_NULL, C_NULL, typemax(UInt32), typemax(UInt32),
                      queue.queue) |> check
 
+    hsaref!()
     finalizer(queue) do queue
         HSA.queue_destroy(queue.queue[]) |> check
+        hsaunref!()
     end
     return queue
 end
