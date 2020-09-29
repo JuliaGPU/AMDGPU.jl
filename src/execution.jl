@@ -310,19 +310,23 @@ The output of this function is automatically cached, i.e. you can simply call `r
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
+function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=default_device(), kwargs...)
     source = FunctionSpec(f, tt, true, name)
-    GPUCompiler.cached_compilation(_rocfunction, source; kwargs...)::HostKernel{f,tt}
+    cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
+    GPUCompiler.cached_compilation(cache, rocfunction_compile, rocfunction_link,
+                                   source; device=device, kwargs...)::HostKernel{f,tt}
 end
 
-# actual compilation
-function _rocfunction(source::FunctionSpec; device=default_device(), queue=default_queue(device), kwargs...)
-    # compile to GCN
+const rocfunction_cache = Dict{RuntimeDevice,Dict{UInt,Any}}()
+
+# compile to GCN
+function rocfunction_compile(@nospecialize(source::FunctionSpec); device, queue=default_queue(device), kwargs...)
     target = GCNCompilerTarget(; dev_isa=default_isa(device), kwargs...)
     params = ROCCompilerParams()
     job = CompilerJob(target, source, params)
-    obj, kernel_fn, undefined_fns, undefined_gbls = GPUCompiler.compile(:obj, job)
-
+    return GPUCompiler.compile(:obj, job)
+end
+function rocfunction_link(@nospecialize(source::FunctionSpec), (obj, kernel_fn, undefined_fns, undefined_gbls); device, kwargs...)
     # settings to JIT based on Julia's debug setting
     jit_options = Dict{Any,Any}()
     #= TODO
