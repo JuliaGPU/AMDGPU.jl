@@ -63,7 +63,7 @@ if AMDGPU.configured
                 #TestSuite.test(ROCArray)
                 for name in keys(TestSuite.tests)
                     occursin("broadcast", name) && continue
-                    name == "indexing" && continue
+                    occursin(r"^indexing", name) && continue
                     name == "linear algebra" && continue
                     name == "iterator constructors" && continue
                     name == "uniformscaling" && continue
