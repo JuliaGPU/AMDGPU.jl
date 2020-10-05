@@ -377,14 +377,14 @@ function _rocfunction(source::FunctionSpec; device=default_device(), queue=defau
     # initialize malloc hostcall
     if any(x->x[1]==:__global_malloc_hostcall, globals)
         gbl = get_global(exe, :__global_malloc_hostcall)
-        gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,DevicePtr{UInt8,AS.Global},Tuple{UInt64,Csize_t}}}, gbl)
-        hc = HostCall(DevicePtr{UInt8,AS.Global}, Tuple{UInt64,Csize_t}; agent=device.device, continuous=true) do kern, sz
+        gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Ptr{Cvoid},Tuple{UInt64,Csize_t}}}, gbl)
+        hc = HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; agent=device.device, continuous=true) do kern, sz
             buf = Mem.alloc(device.device, sz; coherent=true)
+            ptr = buf.ptr
             mod = EXE_TO_MODULE_MAP[exe.exe].value
             push!(mod.metadata, KernelMetadata(kern, buf))
-            ptr = DevicePtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
             @debug "Allocated $ptr ($sz bytes) for kernel $kern on device $device"
-            return DevicePtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
+            return ptr
         end
         Base.unsafe_store!(gbl_ptr, hc)
     end
@@ -392,11 +392,11 @@ function _rocfunction(source::FunctionSpec; device=default_device(), queue=defau
     # initialize free hostcall
     if any(x->x[1]==:__global_free_hostcall, globals)
         gbl = get_global(exe, :__global_free_hostcall)
-        gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,DevicePtr{UInt8,AS.Global}}}}, gbl)
-        hc = HostCall(Nothing, Tuple{UInt64,DevicePtr{UInt8,AS.Global}}; agent=device.device, continuous=true) do kern, ptr
+        gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,Ptr{Cvoid}}}}, gbl)
+        hc = HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; agent=device.device, continuous=true) do kern, ptr
             mod = EXE_TO_MODULE_MAP[exe.exe].value
             for idx in length(mod.metadata):-1:1
-                if mod.metadata[idx].kern == kern
+                if mod.metadata[idx].kern == kern && mod.metadata[idx].buf.ptr == ptr
                     sz = mod.metadata[idx].buf.bytesize
                     Mem.free(mod.metadata[idx].buf)
                     deleteat!(mod.metadata, idx)

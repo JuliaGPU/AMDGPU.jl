@@ -39,7 +39,7 @@ end
 
 function malloc_kernel(X)
     ptr = AMDGPU.malloc(Csize_t(4))
-    X[1] = ptr
+    X[1] = convert(AMDGPU.DevicePtr{UInt64,AS.Global}, ptr)
     AMDGPU.free(ptr)
     nothing
 end

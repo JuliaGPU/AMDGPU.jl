@@ -28,14 +28,14 @@ allocated specifically on and for `agent`, and is only accessible to that agent
 unless transferred using the various functions in the `Mem` module. If memory
 should be globally accessible by the CPU and by all GPUs, the kwarg
 `coherent=true` may be passed, which utilizes Unified Memory instead. Memory
-should be freed once no longer necessary with `Mem.free(buf)`.
+should be freed once it's no longer in use with `Mem.free(buf)`.
 
 Global memory allocated by a kernel is automatically freed when the kernel
 completes, which is done in the `wait` call on the host. This behavior can be
 disabled by passing `cleanup=false` to `wait`.
 
 Global memory may also be allocated and freed dynamically from kernels by
-calling `AMDGPU.malloc(::Csize_t)::DevicePtr` and `AMDGPU.free(::DevicePtr)`.
+calling `AMDGPU.malloc(::Csize_t)::Ptr{Cvoid}` and `AMDGPU.free(::Ptr{Cvoid})`.
 This memory allocation/deallocation uses hostcalls to operate, and so is
 relatively slow, but is also very useful. Currently, memory allocated with
 `AMDGPU.malloc` is coherent.

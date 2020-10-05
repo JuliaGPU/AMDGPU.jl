@@ -36,7 +36,7 @@ function report_exception(ex)
             # We get a ReadOnlyMemoryError without this copy because the data is pinned to the device
             # TODO: Don't use an expensive host malloc
             ex_len = string_length(ex)
-            copy_buf = malloc(ex_len)
+            copy_buf = convert(DevicePtr{UInt8,AS.Global}, malloc(ex_len))
             memcpy!(copy_buf, DevicePtr{UInt8,AS.Global}(ex), ex_len)
             unsafe_store!(convert(DevicePtr{UInt64}, ring_ptr)+sizeof(UInt64), UInt64(copy_buf))
             break
