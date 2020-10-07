@@ -39,12 +39,6 @@ blockDim
 sync_workgroup
 ```
 
-### Pointers
-
-```@docs
-AMDGPU.DevicePtr
-```
-
 ### Global Variables
 
 ```@docs

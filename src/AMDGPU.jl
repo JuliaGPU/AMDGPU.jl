@@ -11,6 +11,7 @@ using GPUCompiler
 using Adapt
 using Requires
 import LinearAlgebra
+using Printf
 import Core: LLVMPtr
 
 ### Exports ###

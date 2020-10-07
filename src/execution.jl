@@ -350,6 +350,18 @@ default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
     oc = OutputContext(stdout)
     Base.unsafe_store!(gbl_ptr, oc)
 end
+default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
+    # initialize global printf context
+    # Return type of Int to force synchronizing behavior for @rocprintfw
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
+    hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; agent=device.device, continuous=true, buf_len=2^16) do _
+        fmt, args = unsafe_load(reinterpret(LLVMPtr{ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
+        @debug "@rocprintf with $fmt and $(args)"
+        @eval @printf($fmt, $(args...))
+        return 0
+    end
+    Base.unsafe_store!(gbl_ptr, hc)
+end
 default_global_hooks[:__global_exception_flag] = (gbl, mod, device) -> begin
     # initialize global exception flag
     gbl_ptr = Base.unsafe_convert(Ptr{Int64}, gbl)
