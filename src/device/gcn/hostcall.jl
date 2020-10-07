@@ -17,9 +17,8 @@ struct HostCall{S,RT,AT}
     buf_len::UInt
 end
 function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
-                    agent=get_default_agent()) where S
-    @assert S == UInt64
-    # TODO: Just use atomic_add!
+                  agent=get_default_agent(), buf_len=nothing) where {S<:UInt64}
+    # FIXME: atomic_add!
     host_sentinel, device_sentinel = lock(SENTINEL_LOCK) do
         host_sentinel = SENTINEL_COUNTER[]
         SENTINEL_COUNTER[] += 1
@@ -31,10 +30,12 @@ function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
         end
         return host_sentinel, device_sentinel
     end
-    buf_len = 0
-    for T in AT.parameters
-        @assert isbitstype(T) "Hostcall arguments must be bits-type"
-        buf_len += sizeof(T)
+    if buf_len === nothing
+        buf_len = 0
+        for T in AT.parameters
+            @assert isbitstype(T) "Hostcall arguments must be bits-type"
+            buf_len += sizeof(T)
+        end
     end
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.alloc(agent, buf_len; coherent=true)
@@ -195,9 +196,9 @@ Note: This API is currently experimental and is subject to change at any time.
 """
 function HostCall(func, rettype, argtypes; return_task=false,
                   agent=get_default_agent(), maxlat=DEFAULT_HOSTCALL_LATENCY,
-                  continuous=false)
+                  continuous=false, buf_len=nothing)
     signal = HSASignal()
-    hc = HostCall(rettype, argtypes, signal.signal[].handle; agent=agent)
+    hc = HostCall(rettype, argtypes, signal.signal[].handle; agent=agent, buf_len=buf_len)
 
     tsk = @async begin
         ret_buf = Ref{Mem.Buffer}()
