@@ -11,6 +11,7 @@ makedocs(
         "Memory" => "memory.md",
         "Intrinsics" => [
             "Execution Control" => "execution_control.md",
+            "Wavefront Operations" => "wavefront_ops.md",
         ],
         "API Reference" => "api.md"
     ]
