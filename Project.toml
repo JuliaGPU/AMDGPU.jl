@@ -26,7 +26,7 @@ GPUCompiler = "0.7"
 LLVM = "3"
 Requires = "1"
 Setfield = "0.5, 0.6, 0.7"
-julia = "1.4"
+julia = "1.5"
 
 [extras]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
