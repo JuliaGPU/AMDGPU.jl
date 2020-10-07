@@ -61,13 +61,15 @@ end
 end
 
 # TODO: Support various types of len
-@inline @generated function memcpy!(dest_ptr::LLVMPtr{UInt8,DestAS}, src_ptr::LLVMPtr{UInt8,SrcAS}, len::LT) where {DestAS,SrcAS,LT<:Union{Int64,UInt64}}
+@inline @generated function memcpy!(dest_ptr::LLVMPtr{UInt8,DestAS}, src_ptr::LLVMPtr{UInt8,SrcAS}, len::LT, ::Val{volatile}) where {DestAS,SrcAS,LT<:Union{Int64,UInt64},volatile}
+    JuliaContext() do ctx
     Context() do ctx
         T_nothing = LLVM.VoidType(ctx)
         T_pint8_dest = convert(LLVMType, dest_ptr; ctx)
         T_pint8_src = convert(LLVMType, src_ptr; ctx)
         T_int64 = convert(LLVMType, len; ctx)
         T_int1 = LLVM.Int1Type(ctx)
+        volatile = Int(volatile)
 
         llvm_f, _ = create_function(T_nothing, [T_pint8_dest, T_pint8_src, T_int64])
         mod = LLVM.parent(llvm_f)
@@ -79,21 +81,22 @@ end
 
             dest_ptr_i8 = parameters(llvm_f)[1]
             src_ptr_i8  = parameters(llvm_f)[2]
-            call!(builder, intr, [dest_ptr_i8, src_ptr_i8, parameters(llvm_f)[3], ConstantInt(T_int1, 0)])
+            call!(builder, intr, [dest_ptr_i8, src_ptr_i8, parameters(llvm_f)[3], ConstantInt(T_int1, volatile)])
             ret!(builder)
         end
         call_function(llvm_f, Nothing, Tuple{LLVMPtr{UInt8,DestAS},LLVMPtr{UInt8,SrcAS},LT}, :dest_ptr, :src_ptr, :len)
     end
 end
-memcpy!(dest_ptr::LLVMPtr{T,DestAS}, src_ptr::LLVMPtr{T,SrcAS}, len::Integer) where {T,DestAS,SrcAS} =
-    memcpy!(reinterpret(LLVMPtr{UInt8,DestAS}, dest_ptr), reinterpret(LLVMPtr{UInt8,SrcAS}, src_ptr), UInt64(len))
-@inline @generated function memset!(dest_ptr::LLVMPtr{UInt8,DestAS}, value::UInt8, len::LT) where {DestAS,LT<:Union{Int64,UInt64}}
+memcpy!(dest_ptr::LLVMPtr{T,DestAS}, src_ptr::LLVMPtr{T,SrcAS}, len::Integer, volatile::Val=Val(false)) where {T,DestAS,SrcAS} =
+    memcpy!(reinterpret(LLVMPtr{UInt8,DestAS}, dest_ptr), reinterpret(LLVMPtr{UInt8,SrcAS}, src_ptr), UInt64(len), volatile)
+@inline @generated function memset!(dest_ptr::LLVMPtr{UInt8,DestAS}, value::UInt8, len::LT, ::Val{volatile}) where {DestAS,LT<:Union{Int64,UInt64},volatile}
     Context() do ctx
         T_nothing = LLVM.VoidType(ctx)
         T_pint8_dest = convert(LLVMType, dest_ptr; ctx)
         T_int8 = convert(LLVMType, value; ctx)
         T_int64 = convert(LLVMType, len; ctx)
         T_int1 = LLVM.Int1Type(ctx)
+        volatile = Int(volatile)
 
         llvm_f, _ = create_function(T_nothing, [T_pint8_dest, T_int8, T_int64])
         mod = LLVM.parent(llvm_f)
@@ -103,11 +106,11 @@ memcpy!(dest_ptr::LLVMPtr{T,DestAS}, src_ptr::LLVMPtr{T,SrcAS}, len::Integer) wh
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
-            call!(builder, intr, [parameters(llvm_f)[1], parameters(llvm_f)[2], parameters(llvm_f)[3], ConstantInt(T_int1, 0)])
+            call!(builder, intr, [parameters(llvm_f)[1], parameters(llvm_f)[2], parameters(llvm_f)[3], ConstantInt(T_int1, volatile)])
             ret!(builder)
         end
         call_function(llvm_f, Nothing, Tuple{LLVMPtr{UInt8,DestAS},UInt8,LT}, :dest_ptr, :value, :len)
     end
 end
-memset!(dest_ptr::LLVMPtr{T,DestAS}, value::UInt8, len::Integer) where {T,DestAS} =
-    memset!(convert(LLVMPtr{UInt8,DestAS}, dest_ptr), value, UInt64(len))
+memset!(dest_ptr::LLVMPtr{T,DestAS}, value::UInt8, len::Integer, volatile::Val=Val(false)) where {T,DestAS} =
+    memset!(convert(LLVMPtr{UInt8,DestAS}, dest_ptr), value, UInt64(len), volatile)
