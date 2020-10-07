@@ -3,10 +3,15 @@
 # which Julia types map to a given LLVM type
 const llvmtypes = Dict{Type,Symbol}(
     Nothing => :void,
+    Bool    => :i1,
     Int8    => :i8,
     Int16   => :i16,
     Int32   => :i32,
     Int64   => :i64,
+    UInt8   => :i8,
+    UInt16  => :i16,
+    UInt32  => :i32,
+    UInt64  => :i64,
     Float32 => :float,
     Float64 => :double,
 )
@@ -14,6 +19,7 @@ const llvmtypes = Dict{Type,Symbol}(
 # which LLVM types map to a given Julia type
 const jltypes = Dict{Symbol,Type}(
     :void   => Nothing,
+    :i1     => Bool,
     :i8     => Int8,
     :i16    => Int16,
     :i32    => Int32,
@@ -25,10 +31,15 @@ const jltypes = Dict{Symbol,Type}(
 # which Julia types map to a given ROC lib type
 const fntypes = Dict{Type,Symbol}(
     Nothing => :void,
+    Bool    => :bool,
     Int8    => :i8,
     Int16   => :i16,
     Int32   => :i32,
     Int64   => :i64,
+    UInt8   => :u8,
+    UInt16  => :u16,
+    UInt32  => :u32,
+    UInt64  => :u64,
     Float16 => :f16,
     Float32 => :f32,
     Float64 => :f64
