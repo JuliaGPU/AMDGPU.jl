@@ -5,13 +5,6 @@ image: rocm/dev-ubuntu-18.04
 
 # basic tests
 
-test:1.4:
-  extends:
-    - .julia:1.4
-    - .test
-  tags:
-    - rocm
-
 test:1.5:
   extends:
     - .julia:1.5
