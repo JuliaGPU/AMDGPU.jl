@@ -11,8 +11,8 @@ function split_kwargs(kwargs)
     macro_kws    = [:dynamic]
     compiler_kws = [:name, :device, :queue, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config, :queue]
-    alias_kws    = Dict(:blocks=>:gridsize, :threads=>:groupsize,
-                        :agent=>:device, :stream=>:queue)
+    alias_kws    = Dict(:agent=>:device, :stream=>:queue)
+                        # FIXME: These should be computed: :blocks=>:gridsize, :threads=>:groupsize,
     macro_kwargs = []
     compiler_kwargs = []
     call_kwargs = []
