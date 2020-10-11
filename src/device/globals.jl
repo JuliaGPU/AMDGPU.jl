@@ -23,7 +23,7 @@
             global_var = GlobalVariable(mod, T_global, global_name_string, 1)
             linkage!(global_var, LLVM.API.LLVMExternalLinkage)
             extinit!(global_var, true)
-            set_used!(mod, global_var)
+            #set_used!(mod, global_var)
         end
 
         # Generate IR that computes the global's address.
