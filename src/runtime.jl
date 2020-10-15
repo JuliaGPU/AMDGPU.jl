@@ -7,8 +7,9 @@ default_device(::typeof(HSA_rt)) = get_default_agent()
 struct RuntimeQueue{Q}
     queue::Q
 end
-default_queue(device) = RuntimeQueue(default_queue(RUNTIME[], device))
-default_queue(::typeof(HSA_rt), device) =
+default_queue() = default_queue(default_device())
+default_queue(device::RuntimeDevice) = RuntimeQueue(default_queue(RUNTIME[], device))
+default_queue(::typeof(HSA_rt), device::RuntimeDevice) =
     get_default_queue(device.device)
 get_device(queue::RuntimeQueue{HSAQueue}) = RuntimeDevice(queue.queue.agent)
 
@@ -112,3 +113,5 @@ function launch_kernel(::typeof(HSA_rt), queue, kern, event;
     launch!(queue.queue, kern.kernel, signal;
                        workgroup_size=groupsize, grid_size=gridsize)
 end
+barrier_and!(queue, events::Vector{<:RuntimeEvent}) = barrier_and!(queue, map(x->x.event,events))
+barrier_and!(queue, signals::Vector{HSAStatusSignal}) = barrier_and!(queue, map(x->x.signal,signals))
