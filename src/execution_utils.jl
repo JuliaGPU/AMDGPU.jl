@@ -175,6 +175,21 @@ This is a low-level call, preferably use [`roccall`](@ref) instead.
     _launch(queue, signal, f, groupsize, gridsize, args...)
 end
 
+## HSA object preservation while a kernel is active
+
+const SIGNAL_PRESERVED = IdDict{HSASignal, Vector{Any}}()
+
+function preserve!(sig::HSASignal, @nospecialize(x))
+    set = get!(()->Any[], SIGNAL_PRESERVED, sig)
+    push!(set, x)
+end
+preserve!(sig::HSAStatusSignal, @nospecialize(x)) = preserve!(sig.signal, x)
+preserve!(ev::RuntimeEvent, @nospecialize(x)) = preserve!(ev.event, x)
+
+unpreserve!(sig::HSASignal) = delete!(SIGNAL_PRESERVED, sig)
+unpreserve!(sig::HSAStatusSignal) = unpreserve!(sig.signal)
+unpreserve!(ev::RuntimeEvent) = unpreserve!(ev.event)
+
 # we need a generated function to get an args array,
 # without having to inspect the types at runtime
 @generated function _launch(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction,
@@ -202,6 +217,12 @@ end
             # launch kernel
             launch_kernel(queue, kern, signal;
                           groupsize=groupsize, gridsize=gridsize)
+
+            # preserve kernel and arguments
+            $preserve!(signal, kern)
+            for arg in args
+                $preserve!(signal, arg)
+            end
         end
     end).args)
 

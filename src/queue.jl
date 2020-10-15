@@ -44,4 +44,3 @@ function get_default_queue(agent::HSAAgent)
         end
     end
 end
-
