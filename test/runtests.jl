@@ -57,6 +57,7 @@ if AMDGPU.configured
             include("device/math.jl")
             include("device/execution_control.jl")
             include("device/exceptions.jl")
+            include("device/deps.jl")
         end
         @testset "ROCArray" begin
             @testset "GPUArrays test suite" begin

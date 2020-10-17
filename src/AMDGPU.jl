@@ -27,6 +27,8 @@ export HSAArray
 include(joinpath(@__DIR__, "hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
 
+struct Adaptor end
+
 include("extras.jl")
 include("error.jl")
 include("agent.jl")
@@ -46,8 +48,6 @@ if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
 end
 =#
 include("runtime.jl")
-
-struct Adaptor end
 
 # Device sources must load _before_ the compiler infrastructure
 # because of generated functions.

@@ -362,9 +362,10 @@ function rocfunction_link(@nospecialize(source::FunctionSpec), (obj, kernel_fn, 
         gbl = get_global(exe, :__global_exception_flag)
         gbl_ptr = Base.unsafe_convert(Ptr{Int64}, gbl)
         Base.unsafe_store!(gbl_ptr, 0)
+    end
 
-        # initialize exception ring buffer
-        @assert any(x->x[1]==:__global_exception_ring, globals)
+    # initialize exception ring buffer
+    if any(x->x[1]==:__global_exception_ring, globals)
         gbl = get_global(exe, :__global_exception_ring)
         gbl_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, gbl)
         ex_ptr = Base.unsafe_convert(Ptr{ExceptionEntry}, mod.exceptions)

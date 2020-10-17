@@ -44,6 +44,8 @@ end
 
 ## device signal functions
 # TODO: device_signal_load, device_signal_add!, etc.
+@inline device_signal_store!(signal::HSA.Signal, value::Int64) =
+    device_signal_store!(signal.handle, value)
 @inline @generated function device_signal_store!(signal::UInt64, value::Int64)
     JuliaContext() do ctx
         T_nothing = convert(LLVMType, Nothing, ctx)
@@ -72,6 +74,8 @@ end
         call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :((signal,value)))
     end
 end
+@inline device_signal_wait(signal::HSA.Signal, value::Int64) =
+    device_signal_wait(signal.handle, value)
 @inline @generated function device_signal_wait(signal::UInt64, value::Int64)
     JuliaContext() do ctx
         T_nothing = convert(LLVMType, Nothing, ctx)

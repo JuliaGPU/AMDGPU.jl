@@ -4,9 +4,9 @@ mutable struct HSASignal
     signal::Ref{Signal}
 end
 
-function HSASignal()
+function HSASignal(init::Integer=1)
     signal = HSASignal(Ref{Signal}())
-    HSA.signal_create(1, 0, C_NULL, signal.signal)
+    HSA.signal_create(Int64(init), 0, C_NULL, signal.signal)
     hsaref!()
     finalizer(signal) do signal
         HSA.signal_destroy(signal.signal[]) |> check
@@ -14,6 +14,8 @@ function HSASignal()
     end
     return signal
 end
+
+Adapt.adapt_structure(::Adaptor, sig::HSASignal) = sig.signal[]
 
 """
     Base.wait(signal::HSASignal; soft=true, minlat=0.01)

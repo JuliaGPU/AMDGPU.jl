@@ -7,8 +7,9 @@ default_device(::typeof(HSA_rt)) = get_default_agent()
 struct RuntimeQueue{Q}
     queue::Q
 end
-default_queue(device) = RuntimeQueue(default_queue(RUNTIME[], device))
-default_queue(::typeof(HSA_rt), device) =
+default_queue() = default_queue(default_device())
+default_queue(device::RuntimeDevice) = RuntimeQueue(default_queue(RUNTIME[], device))
+default_queue(::typeof(HSA_rt), device::RuntimeDevice) =
     get_default_queue(device.device)
 get_device(queue::RuntimeQueue{HSAQueue}) = RuntimeDevice(queue.queue.agent)
 
@@ -29,6 +30,7 @@ end
 create_event(::typeof(HSA_rt), exe) = HSAStatusSignal(HSASignal(), exe.exe)
 function Base.wait(event::RuntimeEvent{HSAStatusSignal}; check_exceptions=true, cleanup=true, kwargs...)
     wait(event.event.signal; kwargs...) # wait for completion signal
+    unpreserve!(event) # allow kernel-associated objects to be freed
     exe = event.event.exe
     mod = EXE_TO_MODULE_MAP[exe].value
     agent = exe.agent
@@ -112,3 +114,7 @@ function launch_kernel(::typeof(HSA_rt), queue, kern, event;
     launch!(queue.queue, kern.kernel, signal;
                        workgroup_size=groupsize, grid_size=gridsize)
 end
+barrier_and!(queue, events::Vector{<:RuntimeEvent}) = barrier_and!(queue, map(x->x.event,events))
+barrier_and!(queue, signals::Vector{HSAStatusSignal}) = barrier_and!(queue, map(x->x.signal,signals))
+barrier_or!(queue, events::Vector{<:RuntimeEvent}) = barrier_or!(queue, map(x->x.event,events))
+barrier_or!(queue, signals::Vector{HSAStatusSignal}) = barrier_or!(queue, map(x->x.signal,signals))
