@@ -116,3 +116,5 @@ function launch_kernel(::typeof(HSA_rt), queue, kern, event;
 end
 barrier_and!(queue, events::Vector{<:RuntimeEvent}) = barrier_and!(queue, map(x->x.event,events))
 barrier_and!(queue, signals::Vector{HSAStatusSignal}) = barrier_and!(queue, map(x->x.signal,signals))
+barrier_or!(queue, events::Vector{<:RuntimeEvent}) = barrier_or!(queue, map(x->x.event,events))
+barrier_or!(queue, signals::Vector{HSAStatusSignal}) = barrier_or!(queue, map(x->x.signal,signals))

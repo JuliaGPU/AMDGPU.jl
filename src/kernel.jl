@@ -81,18 +81,40 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     return kernel
 end
 
-function barrier_and!(queue::HSAQueue, signals::Vector{HSASignal})
-    comp_signal = HSASignal()
-    barrier_and!(queue, comp_signal, signals)
-    comp_signal
+struct HSASignalSet{T}
+    signals::Vector{HSASignal}
 end
-function barrier_and!(queue::HSAQueue, comp_signal::HSASignal, signals::Vector{HSASignal})
-    for signal_set in Iterators.partition(signals, 5)
-        _launch!(HSA.BarrierAndPacket, queue, comp_signal) do _packet
-            @set! _packet.dep_signal = ntuple(i->length(signal_set)>=i ? signal_set[i].signal[] : HSA.Signal(0), 5)
-            _packet
+HSASignalSet{T}() where T = HSASignalSet{T}(HSASignal[])
+Base.wait(ss::HSASignalSet{HSA.BarrierAndPacket}) = wait.(ss.signals)
+function Base.wait(ss::HSASignalSet{HSA.BarrierOrPacket})
+    #= FIXME
+    # We need to hack around the fact that barrier OR packets don't handle more
+    # than 5 dependencies. We could implement the waiting in software, and emit
+    # a barrier that waits on a signal tied to that waiter.
+    =#
+    @warn "Waiting on OR barriers waits on all partitioned barriers to complete" maxlog=1
+    wait.(ss.signals)
+end
+
+barrier_and!(signals::Vector) = barrier_and!(default_queue().queue, signals)
+barrier_or!(signals::Vector) = barrier_or!(default_queue().queue, signals)
+barrier_and!(queue::HSAQueue, signals::Vector{HSASignal}) =
+    barrier!(HSA.BarrierAndPacket, queue, signals)
+barrier_or!(queue::HSAQueue, signals::Vector{HSASignal}) =
+    barrier!(HSA.BarrierOrPacket, queue, signals)
+function barrier!(T, queue::HSAQueue, signals::Vector{HSASignal})
+    outset = HSASignalSet{T}()
+    if !isempty(signals)
+        for signal_set in Iterators.partition(signals, 5)
+            comp_signal = HSASignal()
+            _launch!(T, queue, comp_signal) do _packet
+                @set! _packet.dep_signal = ntuple(i->length(signal_set)>=i ? signal_set[i].signal[] : HSA.Signal(0), 5)
+                _packet
+            end
+            push!(outset.signals, comp_signal)
         end
     end
+    return outset
 end
 
 # TODO Docstring
