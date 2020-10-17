@@ -5,6 +5,7 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Quick Start" => "quickstart.md",
+        "Kernel Dependencies" => "kernel_deps.md",
         "Global Variables" => "globals.md",
         "Exceptions" => "exceptions.md",
         "Memory" => "memory.md",
