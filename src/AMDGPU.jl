@@ -123,7 +123,10 @@ function __init__()
                 librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
                 #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
                 #librocalution !== nothing && include("solver/rocALUTION.jl")
-                #librocrand !== nothing    && include("rand/rocRAND.jl")
+                if librocrand !== nothing
+                    include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
+                    include(joinpath(@__DIR__, "random.jl"))
+                end
                 #libmiopen !== nothing     && include("dnn/MIOpen.jl")
 
                 # Ensure external libraries are up to date
