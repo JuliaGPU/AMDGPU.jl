@@ -9,7 +9,7 @@ export @roc, rocconvert, rocfunction, nextwarp, prevwarp
 # the code it generates, or the execution
 function split_kwargs(kwargs)
     macro_kws    = [:dynamic]
-    compiler_kws = [:name, :device, :queue]
+    compiler_kws = [:name, :device, :queue, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config, :queue]
     alias_kws    = Dict(:blocks=>:gridsize, :threads=>:groupsize,
                         :agent=>:device, :stream=>:queue)
@@ -66,24 +66,6 @@ function assign_args!(code, args)
     end
 
     return vars, var_exprs
-end
-
-# extract device/queue from arguments, filling in defaults if needed
-function extract_device(;device=nothing, agent=nothing, kwargs...)
-    if device !== nothing
-        return device
-    elseif agent !== nothing
-        return agent
-    else
-        return default_device()
-    end
-end
-function extract_queue(device; queue=nothing, kwargs...)
-    if queue !== nothing
-        return queue
-    else
-        return default_queue(device)
-    end
 end
 
 
@@ -180,9 +162,7 @@ macro roc(ex...)
                 GC.@preserve $(vars...) begin
                     local $kernel_args = map(rocconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
-                    #local $device = $extract_device(; $(call_kwargs...))
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
-                    #local $queue = $extract_queue($device; $(call_kwargs...))
                     local $signal = $create_event($kernel.mod.exe)
                     $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                     $signal
@@ -320,13 +300,13 @@ end
 const rocfunction_cache = Dict{RuntimeDevice,Dict{UInt,Any}}()
 
 # compile to GCN
-function rocfunction_compile(@nospecialize(source::FunctionSpec); device, queue=default_queue(device), kwargs...)
+function rocfunction_compile(@nospecialize(source::FunctionSpec); device, queue=default_queue(device), global_hooks=NamedTuple(), kwargs...)
     target = GCNCompilerTarget(; dev_isa=default_isa(device), kwargs...)
     params = ROCCompilerParams()
     job = CompilerJob(target, source, params)
     return GPUCompiler.compile(:obj, job)
 end
-function rocfunction_link(@nospecialize(source::FunctionSpec), (obj, kernel_fn, undefined_fns, undefined_gbls); device, kwargs...)
+function rocfunction_link(@nospecialize(source::FunctionSpec), (obj, kernel_fn, undefined_fns, undefined_gbls); device, global_hooks=NamedTuple(), kwargs...)
     # settings to JIT based on Julia's debug setting
     jit_options = Dict{Any,Any}()
     #= TODO
@@ -349,72 +329,81 @@ function rocfunction_link(@nospecialize(source::FunctionSpec), (obj, kernel_fn, 
     fun = ROCFunction(mod, kernel_fn)
     kernel = HostKernel{source.f,source.tt}(mod, fun)
 
-    # initialize global output context
-    if any(x->x[1]==:__global_output_context, globals)
-        gbl = get_global(exe, :__global_output_context)
-        gbl_ptr = Base.unsafe_convert(Ptr{GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
-        oc = OutputContext(stdout)
-        Base.unsafe_store!(gbl_ptr, oc)
-    end
-
-    # initialize global exception flag
-    if any(x->x[1]==:__global_exception_flag, globals)
-        gbl = get_global(exe, :__global_exception_flag)
-        gbl_ptr = Base.unsafe_convert(Ptr{Int64}, gbl)
-        Base.unsafe_store!(gbl_ptr, 0)
-    end
-
-    # initialize exception ring buffer
-    if any(x->x[1]==:__global_exception_ring, globals)
-        gbl = get_global(exe, :__global_exception_ring)
-        gbl_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, gbl)
-        ex_ptr = Base.unsafe_convert(Ptr{ExceptionEntry}, mod.exceptions)
-        unsafe_store!(gbl_ptr, ex_ptr)
-        # setup initial slots
-        for i in 1:MAX_EXCEPTIONS-1
-            unsafe_store!(ex_ptr, ExceptionEntry(0))
-            ex_ptr += sizeof(ExceptionEntry)
+    # initialize globals from hooks
+    for gname in first.(globals)
+        hook = nothing
+        if haskey(default_global_hooks, gname)
+            hook = default_global_hooks[gname]
+        elseif haskey(global_hooks, gname)
+            hook = global_hooks[gname]
         end
-        # setup tail slot
-        unsafe_store!(ex_ptr, ExceptionEntry(1))
-    end
-
-    # initialize malloc hostcall
-    if any(x->x[1]==:__global_malloc_hostcall, globals)
-        gbl = get_global(exe, :__global_malloc_hostcall)
-        gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Ptr{Cvoid},Tuple{UInt64,Csize_t}}}, gbl)
-        hc = HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; agent=device.device, continuous=true) do kern, sz
-            buf = Mem.alloc(device.device, sz; coherent=true)
-            ptr = buf.ptr
-            mod = EXE_TO_MODULE_MAP[exe.exe].value
-            push!(mod.metadata, KernelMetadata(kern, buf))
-            @debug "Allocated $ptr ($sz bytes) for kernel $kern on device $device"
-            return ptr
+        if hook !== nothing
+            @debug "Initializing global $gname"
+            gbl = get_global(exe, gname)
+            hook(gbl, mod, device)
+        else
+            @debug "Uninitialized global $gname"
+            continue
         end
-        Base.unsafe_store!(gbl_ptr, hc)
-    end
-
-    # initialize free hostcall
-    if any(x->x[1]==:__global_free_hostcall, globals)
-        gbl = get_global(exe, :__global_free_hostcall)
-        gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,Ptr{Cvoid}}}}, gbl)
-        hc = HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; agent=device.device, continuous=true) do kern, ptr
-            mod = EXE_TO_MODULE_MAP[exe.exe].value
-            for idx in length(mod.metadata):-1:1
-                if mod.metadata[idx].kern == kern && mod.metadata[idx].buf.ptr == ptr
-                    sz = mod.metadata[idx].buf.bytesize
-                    Mem.free(mod.metadata[idx].buf)
-                    deleteat!(mod.metadata, idx)
-                    @debug "Freed $ptr ($sz bytes) for kernel $kern on device $device"
-                    break
-                end
-            end
-            return nothing
-        end
-        Base.unsafe_store!(gbl_ptr, hc)
     end
 
     return kernel
+end
+
+const default_global_hooks = Dict{Symbol,Function}()
+
+default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
+    # initialize global output context
+    gbl_ptr = Base.unsafe_convert(Ptr{GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
+    oc = OutputContext(stdout)
+    Base.unsafe_store!(gbl_ptr, oc)
+end
+default_global_hooks[:__global_exception_flag] = (gbl, mod, device) -> begin
+    # initialize global exception flag
+    gbl_ptr = Base.unsafe_convert(Ptr{Int64}, gbl)
+    Base.unsafe_store!(gbl_ptr, 0)
+end
+default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
+    # initialize exception ring buffer
+    gbl_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, gbl)
+    ex_ptr = Base.unsafe_convert(Ptr{ExceptionEntry}, mod.exceptions)
+    unsafe_store!(gbl_ptr, ex_ptr)
+    # setup initial slots
+    for i in 1:MAX_EXCEPTIONS-1
+        unsafe_store!(ex_ptr, ExceptionEntry(0))
+        ex_ptr += sizeof(ExceptionEntry)
+    end
+    # setup tail slot
+    unsafe_store!(ex_ptr, ExceptionEntry(1))
+end
+default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
+    # initialize malloc hostcall
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Ptr{Cvoid},Tuple{UInt64,Csize_t}}}, gbl)
+    hc = HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; agent=device.device, continuous=true) do kern, sz
+        buf = Mem.alloc(device.device, sz; coherent=true)
+        ptr = buf.ptr
+        push!(mod.metadata, KernelMetadata(kern, buf))
+        @debug "Allocated $ptr ($sz bytes) for kernel $kern on device $device"
+        return ptr
+    end
+    Base.unsafe_store!(gbl_ptr, hc)
+end
+default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
+    # initialize free hostcall
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,Ptr{Cvoid}}}}, gbl)
+    hc = HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; agent=device.device, continuous=true) do kern, ptr
+        for idx in length(mod.metadata):-1:1
+            if mod.metadata[idx].kern == kern && mod.metadata[idx].buf.ptr == ptr
+                sz = mod.metadata[idx].buf.bytesize
+                Mem.free(mod.metadata[idx].buf)
+                deleteat!(mod.metadata, idx)
+                @debug "Freed $ptr ($sz bytes) for kernel $kern on device $device"
+                break
+            end
+        end
+        return nothing
+    end
+    Base.unsafe_store!(gbl_ptr, hc)
 end
 
 # https://github.com/JuliaLang/julia/issues/14919

@@ -169,6 +169,18 @@ end
 
 struct HostCallException <: Exception
     reason::String
+    err::Union{Exception,Nothing}
+    bt::Union{Vector,Nothing}
+end
+HostCallException(reason) = HostCallException(reason, nothing, backtrace())
+HostCallException(reason, err) = HostCallException(reason, err, catch_backtrace())
+function Base.showerror(io::IO, err::HostCallException)
+    print(io, "HostCallException: $(err.reason)")
+    if err.err !== nothing || err.bt !== nothing
+        print(io, ":\n")
+    end
+    err.err !== nothing && Base.showerror(io, err.err)
+    err.bt !== nothing && Base.show_backtrace(io, err.bt)
 end
 
 """
@@ -194,13 +206,13 @@ function HostCall(func, rettype, argtypes; return_task=false,
                 try
                     _hostwait(signal.signal[], hc.device_sentinel; maxlat=maxlat)
                 catch err
-                    throw(HostCallException("Hostcall: Error during hostwait"))
+                    throw(HostCallException("Error during hostwait", err))
                 end
                 if length(argtypes.parameters) > 0
                     args = try
                         _hostcall_args(hc)
                     catch err
-                        throw(HostCallException("Hostcall: Error getting arguments"))
+                        throw(HostCallException("Error getting arguments", err))
                     end
                     @debug "Hostcall: Got arguments of length $(length(args))"
                 else
@@ -209,14 +221,14 @@ function HostCall(func, rettype, argtypes; return_task=false,
                 ret = try
                     func(args...,)
                 catch err
-                    throw(HostCallException("Hostcall: Error executing host function"))
+                    throw(HostCallException("Error executing host function", err))
                 end
                 rettype === Nothing && return
                 if typeof(ret) != rettype
-                    throw(HostCallException("Hostcall: Host function result of wrong type: $(typeof(ret)), expected $rettype"))
+                    throw(HostCallException("Host function result of wrong type: $(typeof(ret)), expected $rettype"))
                 end
                 if !isbits(ret)
-                    throw(HostCallException("Hostcall: Host function result not isbits: $(typeof(ret))"))
+                    throw(HostCallException("Host function result not isbits: $(typeof(ret))"))
                 end
                 @debug "Hostcall: Host function returning value of type $(typeof(ret))"
                 try
@@ -229,7 +241,7 @@ function HostCall(func, rettype, argtypes; return_task=false,
                     Base.unsafe_store!(args_buf_ptr, ret_buf_ptr)
                     HSA.signal_store_release(signal.signal[], hc.host_sentinel)
                 catch err
-                    throw(HostCallException("Hostcall: Error returning hostcall result"))
+                    throw(HostCallException("Error returning hostcall result", err))
                 end
                 @debug "Hostcall: Host function return completed"
                 continuous || break

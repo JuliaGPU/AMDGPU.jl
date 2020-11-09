@@ -34,39 +34,29 @@ creates a global and uses its value to increment the indices of an array:
 ```julia
 function my_kernel(A)
     idx = workitemIdx().x
-    ptr = AMDGPU.get_global_pointer(Val(:myglobal), Int64)
+    ptr = AMDGPU.get_global_pointer(Val(:myglobal), Float32)
     A[idx] += Base.unsafe_load(ptr)
     nothing
 end
 ```
 
-Now, let's compile this kernel and get a pointer to this newly-declared global
-variable. We'll also create an `HSAArray` that we intend to pass to the kernel:
+In order to access and modify this global before the kernel is launched, we can
+specify a hook function to `@roc` which will be passed the global pointer as an
+argument:
 
 ```julia
-HA = HSAArray(ones(Float32, 4))
-kern = rocfunction(my_kernel, Tuple{typeof(rocconvert(HA))})
-gbl = AMDGPU.get_global(kern.mod.exe, :myglobal)
-gbl_ptr = Base.unsafe_convert(Ptr{Int64}, gbl.ptr)
+function myglobal_hook(gbl, mod, dev)
+    gbl_ptr = Base.unsafe_convert(Ptr{Float32}, gbl.ptr)
+    Base.unsafe_store!(gbl_ptr, 42f0)
+end
+RA = ROCArray(ones(Float32, 4))
+wait(@roc groupsize=4 global_hooks=(myglobal=myglobal_hook,) my_kernel(RA))
 ```
 
-And now `gbl_ptr` is a pointer (specifically a `Ptr{Int64}`) to the memory that
-represents the global variable `myglobal`. We can't guarantee the initial value
-of a newly-initialized global variable, so let's write a value to that global
-variable and then read it back:
-
-```julia
-Base.unsafe_store!(gbl_ptr, 42)
-println(Base.unsafe_load(gbl_ptr))
-```
-
-And now `myglobal` has the value 42, of type `Int64`. Now, let's invoke the
-kernel with `@roc` (keeping in mind that the kernel's signature must be the
-same as in our call to `rocfunction` above:
-
-```julia
-wait(@roc groupsize=4 my_kernel(HA))
-```
+In the above function, `gbl_ptr` is a pointer (specifically a `Ptr{Float32}`)
+to the memory that represents the global variable `myglobal`. We can't
+guarantee the initial value of an uninitialized global variable, so we need
+to write a value to that global variable (in this case `42::Float32`).
 
 We can then read the values of `HA` and see that it's what we expect:
 
