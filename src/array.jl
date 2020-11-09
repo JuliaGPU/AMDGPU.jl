@@ -205,6 +205,82 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
+## views
+
+# optimize view to return a CuArray when contiguous
+
+struct Contiguous end
+struct NonContiguous end
+
+# NOTE: this covers more cases than the I<:... in Base.FastContiguousSubArray
+ROCIndexStyle() = Contiguous()
+ROCIndexStyle(I...) = NonContiguous()
+ROCIndexStyle(::Base.ScalarIndex...) = Contiguous()
+ROCIndexStyle(i1::Colon, ::Base.ScalarIndex...) = Contiguous()
+ROCIndexStyle(i1::AbstractUnitRange, ::Base.ScalarIndex...) = Contiguous()
+ROCIndexStyle(i1::Colon, I...) = ROCIndexStyle(I...)
+
+rocviewlength() = ()
+@inline rocviewlength(::Real, I...) = rocviewlength(I...) # skip scalar
+@inline rocviewlength(i1::AbstractUnitRange, I...) = (Base.unsafe_length(i1), rocviewlength(I...)...)
+@inline rocviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (Base.unsafe_length(i1),)
+
+@inline function Base.view(A::ROCArray, I::Vararg{Any,N}) where {N}
+    J = to_indices(A, I)
+    @boundscheck begin
+        # Base's boundscheck accesses the indices, so make sure they reside on the CPU.
+        # this is expensive, but it's a bounds check after all.
+        J_cpu = map(j->adapt(Array, j), J)
+        checkbounds(A, J_cpu...)
+    end
+    J_gpu = map(j->adapt(ROCArray, j), J)
+    unsafe_view(A, J_gpu, ROCIndexStyle(I...))
+end
+
+@inline function unsafe_view(A, I, ::Contiguous)
+    unsafe_contiguous_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I, rocviewlength(I...))
+end
+@inline function unsafe_contiguous_view(a::ROCArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
+    offset = Base.compute_offset1(a, 1, I) * sizeof(T)
+
+    Mem.retain(a.buf)
+    b = ROCArray{T,M}(a.buf, dims, offset=a.offset+offset, own=false)
+    finalizer(unsafe_free!, b)
+    return b
+end
+
+@inline function unsafe_view(A, I, ::NonContiguous)
+    Base.unsafe_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I...)
+end
+
+#FIXME: add pointer conversions
+
+## reshape
+
+# optimize reshape to return a ROCArray
+
+function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
+  if prod(dims) != length(a)
+      throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
+  end
+
+  if N == M && dims == size(a)
+      return a
+  end
+
+  Mem.retain(a.buf)
+  b = ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
+  finalizer(unsafe_free!, b)
+  return b
+end
+
+# allow missing dimensions with Colon()
+if VERSION < v"1.6.0-DEV.1358"
+Base.reshape(parent::ROCArray, dims::Tuple{Vararg{Union{Int,Colon}}}) =
+  Base.reshape(parent, Base._reshape_uncolon(parent, dims))
+end
+
+
 ## fft
 
 #=
