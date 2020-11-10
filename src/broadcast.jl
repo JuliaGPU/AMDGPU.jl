@@ -6,13 +6,13 @@ struct ROCArrayStyle{N} <: AbstractGPUArrayStyle{N} end
 ROCArrayStyle(::Val{N}) where N = ROCArrayStyle{N}()
 ROCArrayStyle{M}(::Val{N}) where {N,M} = ROCArrayStyle{N}()
 
-BroadcastStyle(::Type{ROCArray{T,N}}) where {T,N} = ROCArrayStyle{N}()
+BroadcastStyle(::Type{<:ROCArray{T,N}}) where {T,N} = ROCArrayStyle{N}()
 
 Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}) where {N,T} =
     similar(ROCArray{T}, axes(bc))
 
-Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}, dims) where {N,T} =
-    ROCArray{T}(undef, dims)
+Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}, dims...) where {N,T} =
+    ROCArray{T}(undef, dims...)
 
 
 ## replace base functions with libdevice alternatives
@@ -25,7 +25,7 @@ Broadcast.broadcasted(::ROCArrayStyle{N}, f, args...) where {N} =
 
 const device_intrinsics = :[
     cos, cospi, sin, sinpi, tan, acos, asin, atan,
-    cosh, sinh, tanh, acosh, asinh, atanh, angle,
+    cosh, sinh, tanh, acosh, asinh, atanh,
     log, log10, log1p, log2, logb, ilogb,
     exp, exp2, exp10, expm1, ldexp,
     erf, erfinv, erfc, erfcinv, erfcx,

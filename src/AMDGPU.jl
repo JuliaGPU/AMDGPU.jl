@@ -73,7 +73,7 @@ include("array.jl")
 #include("indexing.jl")
 include("broadcast.jl")
 #include("matmul.jl")
-#include("mapreduce.jl")
+include("mapreduce.jl")
 #include("gpuarray_interface.jl")
 
 allowscalar(x::Bool) = nothing
