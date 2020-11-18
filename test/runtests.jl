@@ -1,5 +1,5 @@
 using AMDGPU
-using AMDGPU: HSA, AS
+using AMDGPU: HSA, AS, HIP
 using GPUCompiler
 using LinearAlgebra
 using LLVM, LLVM.Interop

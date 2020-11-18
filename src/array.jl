@@ -260,24 +260,24 @@ end
 # optimize reshape to return a ROCArray
 
 function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
-  if prod(dims) != length(a)
-      throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
-  end
+    if prod(dims) != length(a)
+        throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
+    end
 
-  if N == M && dims == size(a)
-      return a
-  end
+    if N == M && dims == size(a)
+        return a
+    end
 
-  Mem.retain(a.buf)
-  b = ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
-  finalizer(unsafe_free!, b)
-  return b
+    Mem.retain(a.buf)
+    b = ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
+    finalizer(unsafe_free!, b)
+    return b
 end
 
 # allow missing dimensions with Colon()
 if VERSION < v"1.6.0-DEV.1358"
-Base.reshape(parent::ROCArray, dims::Tuple{Vararg{Union{Int,Colon}}}) =
-  Base.reshape(parent, Base._reshape_uncolon(parent, dims))
+    Base.reshape(parent::ROCArray, dims::Tuple{Vararg{Union{Int,Colon}}}) =
+    Base.reshape(parent, Base._reshape_uncolon(parent, dims))
 end
 
 

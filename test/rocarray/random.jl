@@ -1,3 +1,4 @@
+@testset "random" begin
 # NOTE: tests should cover both pow2 and non-pow2 dims
 
 # in-place
@@ -8,7 +9,11 @@ for (f,T) in ((rand!,Float32),
               (rand_poisson!,Cuint)),
     d in (2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
     A = ROCArray{T}(undef, d)
+    fill!(A, T(0))
     f(A)
+    if f !== rand_poisson!
+        @test !iszero(mycollect(A))
+    end
 end
 
 # out-of-place, with implicit type
@@ -31,17 +36,19 @@ for (f,T) in ((AMDGPU.rand,Float32), (AMDGPU.randn,Float32), (AMDGPU.rand_logn,F
     @test eltype(A) == T
 end
 
-#=
+# FIXME: Int64 support
 # unsupported types that fall back to GPUArrays
-for (f,T) in ((AMDGPU.rand,Int64),),
+for (f,T) in ((rand!,Int32),),
+    d in (2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
+    A = ROCArray{T}(undef, d)
+    fill!(A, T(0))
+    f(A)
+    @test !iszero(mycollect(A))
+end
+for (f,T) in ((AMDGPU.rand,Int32),),
     args in ((T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
     A = f(args...)
     @test eltype(A) == T
-end
-for (f,T) in ((rand!,Int64),),
-    d in (2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
-    A = ROCArray{T}(undef, d)
-    f(A)
 end
 
 @test_throws ErrorException randn!(ROCArray{Cuint}(undef, 10))
@@ -51,16 +58,19 @@ end
 # seeding of both generators
 AMDGPU.seed!()
 AMDGPU.seed!(1)
-## AMDGPU CURAND
+## AMDGPU rocrand
 AMDGPU.seed!(1)
-A = AMDGPU.rand(Float32, 1)
+a = AMDGPU.rand(Float32, 1)
 AMDGPU.seed!(1)
-B = AMDGPU.rand(Float32, 1)
-@test all(A .== B)
-## GPUArrays fallback
+b = AMDGPU.rand(Float32, 1)
+# fixme: uncomment once mapreduce works
+@test iszero(mycollect(a) - mycollect(b))
+#@test all(a .== b)
+## gpuarrays fallback
 AMDGPU.seed!(1)
-A = AMDGPU.rand(Int64, 1)
+a = AMDGPU.rand(Int32, 1)
 AMDGPU.seed!(1)
-B = AMDGPU.rand(Int64, 1)
-@test all(A .== B)
-=#
+b = AMDGPU.rand(Int32, 1)
+@test iszero(mycollect(a) - mycollect(b))
+#@test all(a .== b)
+end # testset
