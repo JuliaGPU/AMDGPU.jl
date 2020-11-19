@@ -20,7 +20,6 @@ include("random.jl")
 
 # TODO: implement thread local RNG like CUDA.jl
 const ROCRAND_RNG = Ref{Union{Nothing,RNG}}(nothing)
-const GPUARRAY_RNG = Ref{Union{Nothing,GPUArrays.RNG}}(nothing)
 
 function default_rng()
     if ROCRAND_RNG[] == nothing
@@ -28,21 +27,6 @@ function default_rng()
         Random.seed!(ROCRAND_RNG[])
     end
     return ROCRAND_RNG[]::RNG
-end
-
-function GPUArrays.default_rng(::Type{<:ROCArray})
-    if GPUARRAY_RNG[] == nothing
-        agent = AMDGPU.default_device().device.agent
-        p = Ref{UInt32}()
-        GC.@preserve p begin
-            AMDGPU.getinfo(agent, HSA.AGENT_INFO_WORKGROUP_MAX_SIZE, p) |> AMDGPU.check
-            N = Int(p[])
-        end
-        state = ROCArray{NTuple{4, UInt32}}(undef, N)
-        GPUARRAY_RNG[] = GPUArrays.RNG(state)
-        Random.seed!(GPUARRAY_RNG[])
-    end
-    return GPUARRAY_RNG[]::GPUArrays.RNG
 end
 
 end
