@@ -35,7 +35,7 @@ julia> import Pkg; Pkg.add("AMDGPU")
 
 ## Project Status
 
-The package is tested against, and being developed for, Julia `1.4` and above.
+The package is tested against, and being developed for, Julia `1.5` and above.
 Only 64-bit Linux is supported and working at this time, until ROCm is ported
 to other platforms. It is recommended to use a version of Julia with LLVM 9.0
 or higher.  This package is under active maintenance and is reasonably
@@ -50,7 +50,7 @@ with CUDA.jl.
 | Dynamic parallelism | :x: |
 | Local (shared) memory | :heavy_check_mark: |
 | Coarse-grained memory | :heavy_check_mark: |
-| Page-locked (pinned) memory | :x: |
+| Page-locked (pinned) memory | :heavy_check_mark: |
 
 ## Questions and Contributions
 
