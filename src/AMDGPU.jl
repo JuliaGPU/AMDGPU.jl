@@ -123,7 +123,7 @@ function __init__()
                 librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
                 #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
                 #librocalution !== nothing && include("solver/rocALUTION.jl")
-                #librocrand !== nothing    && include("rand/rocRAND.jl")
+                librocrand !== nothing && include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
                 #libmiopen !== nothing     && include("dnn/MIOpen.jl")
 
                 # Ensure external libraries are up to date
@@ -148,6 +148,8 @@ function __init__()
         else
             @warn "HSA initialization failed with code $status"
         end
+        # we need to load it after rocRAND.jl
+        include(joinpath(@__DIR__, "random.jl"))
     else
         @warn """
         HSA runtime has not been built, runtime functionality will be unavailable.

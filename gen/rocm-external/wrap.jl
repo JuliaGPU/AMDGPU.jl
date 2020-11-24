@@ -193,7 +193,6 @@ end
 
 
 function process(name, headers...; kwargs...)
-    output_file, common_file = wrap(name, headers...; kwargs...)
     text = read(output_file, String)
 
 
@@ -249,8 +248,8 @@ function process(name, headers...; kwargs...)
     ## move to destination
 
     for src in (output_file, common_file)
-        dst = joinpath(dirname(@__DIR__), "src", name[4:end], src)
-        cp(src, dst; force=true)
+        dst = abspath(joinpath(dirname(@__DIR__), "../src", name[4:end], src))
+        isdir(dirname(dst)) && cp(src, dst; force=true)
     end
 
 
@@ -309,6 +308,7 @@ function main()
     end
 
     process_if_existing("rocfft", "rocfft-version.h", "rocfft.h", "rocfft-export.h")
+    process_if_existing("rocrand", "rocrand_version.h", "rocrand_discrete_types.h", "rocrand.h")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

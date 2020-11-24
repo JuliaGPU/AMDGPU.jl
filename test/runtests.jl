@@ -1,5 +1,5 @@
 using AMDGPU
-using AMDGPU: HSA, AS
+using AMDGPU: HSA, AS, HIP
 using GPUCompiler
 using LinearAlgebra
 using LLVM, LLVM.Interop
@@ -81,6 +81,7 @@ if AMDGPU.configured
             @testset "ROCm External Libraries" begin
                 isdefined(AMDGPU, :rocBLAS) ? include("rocarray/blas.jl") : @test_skip "rocBLAS"
                 isdefined(AMDGPU, :rocFFT) ? include("rocarray/fft.jl") : @test_skip "rocFFT"
+                isdefined(AMDGPU, :rocRAND) ? include("rocarray/random.jl") : @test_skip "rocRAND"
             end
         end
     end
