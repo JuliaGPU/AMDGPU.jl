@@ -6,6 +6,7 @@ using ..AMDGPU: librocrand
 
 using CEnum
 
+export rand_logn!, rand_poisson!, rand_logn, rand_poisson
 
 include("librocrand_common.jl")
 include("error.jl")
@@ -28,5 +29,6 @@ function default_rng()
     end
     return ROCRAND_RNG[]::RNG
 end
+
 
 end
