@@ -40,7 +40,7 @@ Random.seed!(rng::RNG, ::Nothing) = Random.seed!(rng)
 
 # uniform
 const UniformType = Union{Type{UInt32}, Type{Cuchar}, Type{UInt16}, Type{Float16}, Type{Float32}, Type{Float64}}
-const UniformArray = ROCArray{<:Union{UInt32, Cuchar, UInt16, Float16, Float32,Float64}}
+const DUniformArray = ROCArray{<:Union{UInt32, Cuchar, UInt16, Float16, Float32,Float64}}
 for (f,T) in ((:rocrand_generate, :UInt32), (:rocrand_generate_char,:Cuchar),
               (:rocrand_generate_short, :UInt16), (:rocrand_generate_uniform, :Float32),
               (:rocrand_generate_uniform_double, :Float64), (:rocrand_generate_uniform_half, :Float16))
@@ -151,3 +151,29 @@ rand_logn(rng::RNG, T::LognormalType, dim1::Integer, dims::Integer...; kwargs...
     rand_logn(rng, T, Dims((dim1, dims...)); kwargs...)
 rand_poisson(rng::RNG, T::PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
     rand_poisson(rng, T, Dims((dim1, dims...)); kwargs...)
+
+# rand_logn! and rand_poisson! without specified rng
+rand_logn!(A::rocRAND.LognormalArray; kwargs...) = rand_logn!(default_rng(), A; kwargs...)
+rand_poisson!(A::rocRAND.PoissonArray; kwargs...) = rand_poisson!(default_rng(), A; kwargs...)
+
+rand_logn(T::rocRAND.LognormalType, dims::Dims; kwargs...) = rand_logn(default_rng(), T, dims; kwargs...)
+rand_poisson(T::rocRAND.PoissonType, dims::Dims; kwargs...) = rand_poisson(default_rng(), T, dims; kwargs...)
+
+rand_logn(T::rocRAND.LognormalType, dim1::Integer, dims::Integer...; kwargs...) =
+    rand_logn(default_rng(), T, Dims((dim1, dims...)); kwargs...)
+rand_poisson(T::rocRAND.PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
+    rand_poisson(default_rng(), T, Dims((dim1, dims...)); kwargs...)
+rand_logn(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
+    rand_logn!(ROCArray{T}(undef, dim1, dims...); kwargs...)
+rand_poisson(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
+    rand_poisson!(ROCArray{T}(undef, dim1, dims...); kwargs...)
+rand_logn(dim1::Integer, dims::Integer...; kwargs...) =
+    rand_logn(default_rng(), Dims((dim1, dims...)); kwargs...)
+rand_poisson(dim1::Integer, dims::Integer...; kwargs...) =
+    rand_poisson(default_rng(), Dims((dim1, dims...)); kwargs...)
+rand_logn(T::Type, dims::Dims; kwargs...) = rand_logn!(ROCArray{T}(undef, dims...); kwargs...)
+rand_poisson(T::Type, dims::Dims; kwargs...) = rand_poisson!(ROCArray{T}(undef, dims...); kwargs...)
+rand_logn!(A::ROCArray; kwargs...) =
+    error("AMDGPU.jl does not support generating lognormally-distributed random numbers of type $(eltype(A))")
+rand_poisson!(A::ROCArray; kwargs...) =
+    error("AMDGPU.jl does not support generating Poisson-distributed random numbers of type $(eltype(A))")

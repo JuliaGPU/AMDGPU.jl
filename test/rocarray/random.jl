@@ -1,9 +1,14 @@
-@testset "random" begin
+@testset "rand" begin
 # NOTE: tests should cover both pow2 and non-pow2 dims
 
+# for rand_logn! and rand_poisson!
+using AMDGPU.rocRAND
+
 # in-place
-for (f,T) in ((rand!,Float32),
+for (f,T) in ((rand!, Float16),
+              (rand!,Float32),
               (rand!,Cuint),
+              (randn!,Float16),
               (randn!,Float32),
               (rand_logn!,Float32),
               (rand_poisson!,Cuint)),
@@ -37,12 +42,13 @@ for (f,T) in ((AMDGPU.rand,Float32), (AMDGPU.randn,Float32), (AMDGPU.rand_logn,F
 end
 
 # FIXME: Int64 support
-# unsupported types that fall back to GPUArrays
+# GPUArrays rng
+# unsupported types that always fall back to GPUArrays
 for (f,T) in ((rand!,Int32),),
     d in (2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
     A = ROCArray{T}(undef, d)
     fill!(A, T(0))
-    f(A)
+    f(AMDGPU.gpuarrays_rng(), A)
     @test !iszero(mycollect(A))
 end
 for (f,T) in ((AMDGPU.rand,Int32),),
