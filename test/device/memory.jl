@@ -26,12 +26,12 @@ end
 A = ones(Float32, 1)
 B = zeros(Float32, 1)
 
-HA = HSAArray(A)
-HB = HSAArray(B)
+RA = ROCArray(A)
+RB = ROCArray(B)
 
-wait(@roc memory_static_kernel(HA, HB))
+wait(@roc memory_static_kernel(RA, RB))
 
-@test Array(HA) ≈ Array(HB)
+@test Array(RA) ≈ Array(RB)
 
 end
 
@@ -39,16 +39,16 @@ end
 
 function malloc_kernel(X)
     ptr = AMDGPU.malloc(Csize_t(4))
-    X[1] = convert(AMDGPU.DevicePtr{UInt64,AS.Global}, ptr)
+    X[1] = reinterpret(UInt64, ptr)
     AMDGPU.free(ptr)
     nothing
 end
 
-HA = HSAArray(zeros(UInt64, 1))
+RA = ROCArray(zeros(UInt64, 1))
 
-wait(@roc malloc_kernel(HA))
+wait(@roc malloc_kernel(RA))
 
-@test Array(HA)[1] != 0
+@test Array(RA)[1] != 0
 
 end
 
@@ -61,11 +61,11 @@ end
 
 A = rand(Float32, 4)
 B = zeros(Float32, 4)
-HA, HB = HSAArray.((A,B))
+RA, RB = ROCArray.((A,B))
 
-wait(@roc memcpy_kernel(HA,HB))
+wait(@roc memcpy_kernel(RA,RB))
 
-@test A == collect(HA) == collect(HB)
+@test A == collect(RA) == collect(RB)
 
 function memset_kernel(X,y)
     AMDGPU.memset!(X.ptr, y, div(length(X),2))
@@ -73,11 +73,11 @@ function memset_kernel(X,y)
 end
 
 A = zeros(UInt8, 4)
-HA = HSAArray(A)
+RA = ROCArray(A)
 
-wait(@roc memset_kernel(HA,0x3))
+wait(@roc memset_kernel(RA,0x3))
 
-@test all(collect(HA)[1:2] .== 0x3)
-@test all(collect(HA)[3:4] .== 0x0)
+@test all(collect(RA)[1:2] .== 0x3)
+@test all(collect(RA)[3:4] .== 0x0)
 
 end

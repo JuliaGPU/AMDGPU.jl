@@ -13,7 +13,7 @@ struct HostCall{S,RT,AT}
     signal::S
     host_sentinel::Int
     device_sentinel::Int
-    buf_ptr::DevicePtr{UInt8,AS.Global}
+    buf_ptr::LLVMPtr{UInt8,AS.Global}
     buf_len::UInt
 end
 function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
@@ -38,7 +38,7 @@ function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
     end
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.alloc(agent, buf_len; coherent=true)
-    buf_ptr = DevicePtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
+    buf_ptr = LLVMPtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
     HostCall{S,RT,AT}(signal, host_sentinel, device_sentinel, buf_ptr, buf_len)
 end
 
@@ -125,7 +125,7 @@ end
         T = args[i]
         sz = sizeof(T)
         # TODO: Should we do what CUDAnative does instead?
-        ptr = :(Base.unsafe_convert(DevicePtr{$T,AS.Global}, hc.buf_ptr+$off-1))
+        ptr = :(reinterpret(LLVMPtr{$T,AS.Global}, hc.buf_ptr+$off-1))
         push!(ex.args, :(Base.unsafe_store!($ptr, args[$i])))
         off += sz
     end
@@ -140,7 +140,7 @@ end
         # Wait on doorbell (hc.host_sentinel)
         push!(ex.args, :($device_signal_wait(hc.signal, hc.host_sentinel)))
         # Get return buffer and load first value
-        ptr = :(Base.unsafe_convert(DevicePtr{DevicePtr{$RT,AS.Global},AS.Global}, hc.buf_ptr))
+        ptr = :(reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global}, hc.buf_ptr))
         push!(ex.args, :(unsafe_load(unsafe_load($ptr))))
     end
 
@@ -158,7 +158,7 @@ end
         T = AT.parameters[i]
         sz = sizeof(T)
         # TODO: Should we do what CUDAnative does instead?
-        ptr = :(Base.unsafe_convert(DevicePtr{$T,AS.Global}, hc.buf_ptr+$off-1))
+        ptr = :(reinterpret(LLVMPtr{$T,AS.Global}, hc.buf_ptr+$off-1))
         # FIXME: We should not be using a device intrinsic here, even though it works...
         push!(ex.args, :(Base.unsafe_load($ptr)))
         off += sz
@@ -237,7 +237,7 @@ function HostCall(func, rettype, argtypes; return_task=false,
                     ret_buf_ptr = Base.unsafe_convert(Ptr{typeof(ret)}, ret_buf)
                     Base.unsafe_store!(ret_buf_ptr, ret)
                     ret_buf_ptr = Base.unsafe_convert(Ptr{UInt64}, ret_buf)
-                    args_buf_ptr = convert(Ptr{UInt64}, hc.buf_ptr)
+                    args_buf_ptr = reinterpret(Ptr{UInt64}, hc.buf_ptr)
                     Base.unsafe_store!(args_buf_ptr, ret_buf_ptr)
                     HSA.signal_store_release(signal.signal[], hc.host_sentinel)
                 catch err

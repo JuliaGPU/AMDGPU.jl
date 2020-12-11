@@ -29,7 +29,7 @@ agent_isa = get_first_isa(get_default_agent())
 @testset "AMDGPU" begin
 
 @testset "Core" begin
-include("pointer.jl")
+@test_skip include("pointer.jl")
 end
 
 if AMDGPU.configured

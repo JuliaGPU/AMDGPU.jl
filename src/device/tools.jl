@@ -134,19 +134,6 @@ macro wrap(call, attrs="")
     end
 end
 
-# julia.h: jl_datatype_align
-Base.@pure function datatype_align(::Type{T}) where {T}
-    # typedef struct {
-    #     uint32_t nfields;
-    #     uint32_t alignment : 9;
-    #     uint32_t haspadding : 1;
-    #     uint32_t npointers : 20;
-    #     uint32_t fielddesc_type : 2;
-    # } jl_datatype_layout_t;
-    field = T.layout + sizeof(UInt32)
-    unsafe_load(convert(Ptr{UInt16}, field)) & convert(Int16, 2^9-1)
-end
-
 # generalization of word-based primitives
 
 # extract bits from a larger value
@@ -349,10 +336,12 @@ llvmsize(::LLVM.LLVMFloat) = sizeof(Float32)
 llvmsize(::LLVM.LLVMDouble) = sizeof(Float64)
 llvmsize(::LLVM.IntegerType) = div(Int(intwidth(GenericValue(LLVM.Int128Type(), -1))), 8)
 llvmsize(ty::LLVM.ArrayType) = length(ty)*llvmsize(eltype(ty))
-# TODO: VectorType, StructType, PointerType
+llvmsize(ty::LLVM.StructType) = ispacked(ty) ? sum(llvmsize(elem) for elem in elements(ty)) : 8*length(elements(ty)) # FIXME: Properly determine non-packed sizing
+llvmsize(ty::LLVM.PointerType) = div(Sys.WORD_SIZE, 8)
+llvmsize(ty::LLVM.VectorType) = size(ty)
 llvmsize(ty) = error("Unknown size for type: $ty, typeof: $(typeof(ty))")
 
-@generated function string_length(ex)
+@generated function string_length(ex::Union{Ptr,LLVMPtr})
     JuliaContext() do ctx
         T_ex = convert(LLVMType, ex, ctx)
         T_ex_ptr = LLVM.PointerType(T_ex)
@@ -367,7 +356,14 @@ llvmsize(ty) = error("Unknown size for type: $ty, typeof: $(typeof(ty))")
 
             position!(builder, entry)
             init_offset = ConstantInt(0, ctx)
-            input_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_ex_ptr)
+            input_ptr = if T_ex isa LLVM.PointerType
+                parameters(llvm_f)[1]
+            else
+                inttoptr!(builder, parameters(llvm_f)[1], T_ex_ptr)
+            end
+            if LLVM.addrspace(llvmtype(input_ptr)) != LLVM.addrspace(T_ex_ptr)
+                input_ptr = addrspacecast!(builder, input_ptr, T_ex_ptr)
+            end
             input_ptr = bitcast!(builder, input_ptr, T_i8_ptr)
             br!(builder, check)
 

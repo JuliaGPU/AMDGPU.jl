@@ -20,12 +20,10 @@
     for T in (Cint, Clong, Cuint, Culong)
         X = rand(T(1):T(100), 64)
         for op in (Base.:+, max, min, Base.:&, Base.:|, Base.:⊻)
-            @info "reduce $T $op"
             RX, RY = ROCArray(X), ROCArray(zeros(T,1))
             wait(@roc groupsize=64 reduce_kernel(op,RX,RY))
             @test Array(RY)[1] == reduce(op,X)
 
-            @info "scan $T $op"
             RX, RY = ROCArray(X), ROCArray(zeros(T,64))
             wait(@roc groupsize=64 scan_kernel(op,RX,RY))
             @test Array(RY) == accumulate(op,X)
@@ -34,12 +32,10 @@
     for T in (Float32, Float64)
         X = rand(T, 64)
         for op in (Base.:+, max, min)
-            @info "reduce $T $op"
             RX, RY = ROCArray(X), ROCArray(zeros(T,1))
             wait(@roc groupsize=64 reduce_kernel(op,RX,RY))
             @test Array(RY)[1] ≈ reduce(op,X)
 
-            @info "scan $T $op"
             RX, RY = ROCArray(X), ROCArray(zeros(T,64))
             wait(@roc groupsize=64 scan_kernel(op,RX,RY))
             @test Array(RY) ≈ accumulate(op,X)
@@ -49,7 +45,6 @@
               zeros(Cint, 64),
               ones(Cint, 64),
               )
-        @info "all/any/same $(typeof(X))"
         RX, RY = ROCArray(X), ROCArray(zeros(Bool,3))
         wait(@roc groupsize=64 bool_kernel(RX,RY))
         Y = Array(RY)

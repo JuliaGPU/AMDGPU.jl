@@ -11,8 +11,8 @@
     a = round.(rand(Float32, dims) * 100)
     b = round.(rand(Float32, dims) * 100)
 
-    d_a = HSAArray(a)
-    d_b = HSAArray(b)
+    d_a = ROCArray(a)
+    d_b = ROCArray(b)
     d_c = similar(d_a)
     len = prod(dims)
 
