@@ -4,14 +4,14 @@ export OutputContext, @rocprint, @rocprintln
 struct DeviceStaticString{N} end
 Base.sizeof(dss::DeviceStaticString{N}) where N = N
 
-function Base.unsafe_load(ptr::DevicePtr{DeviceStaticString{N},AS.Global}) where N
-    vec_ptr = convert(Ptr{UInt8}, ptr)
+function Base.unsafe_load(ptr::LLVMPtr{DeviceStaticString{N},AS.Global}) where N
+    vec_ptr = reinterpret(Ptr{UInt8}, ptr)
     vec_raw = Base.unsafe_wrap(Vector{UInt8}, vec_ptr, (N,))
     idx = findfirst(x->x==0, vec_raw)
     idx = idx === nothing ? N : idx
     return vec_raw[1:idx-1]
 end
-Base.unsafe_store!(ptr::DevicePtr{<:DeviceStaticString}, x) = nothing
+Base.unsafe_store!(ptr::LLVMPtr{<:DeviceStaticString,1}, x) = nothing
 
 struct OutputContext{HC}
     hostcall::HC
@@ -85,7 +85,7 @@ end
 function rocprint!(ex, N, oc, char::Char)
     @assert char == '\0' "Non-null chars not yet implemented"
     byte = UInt8(char)
-    ptr = :(Base.unsafe_convert(DevicePtr{UInt8,AS.Global}, $(esc(oc)).hostcall.buf_ptr))
+    ptr = :(reinterpret(LLVMPtr{UInt8,AS.Global}, $(esc(oc)).hostcall.buf_ptr))
     push!(ex.args, :(Base.unsafe_store!($ptr, $byte, $N)))
     return N+1
 end

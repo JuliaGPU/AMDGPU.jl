@@ -20,10 +20,11 @@ end
 
 struct ExceptionEntry
     kern::UInt64
-    ptr::DevicePtr{UInt8,AS.Global}
+    ptr::LLVMPtr{UInt8,AS.Global}
 end
-ExceptionEntry(kern) = ExceptionEntry(kern, DevicePtr{UInt8,AS.Global}(0))
-ExceptionEntry() = ExceptionEntry(0)
+# FIXME: https://github.com/JuliaLang/julia/issues/38864
+#ExceptionEntry(kern) = ExceptionEntry(kern, LLVMPtr{UInt8,AS.Global}(0))
+#ExceptionEntry() = ExceptionEntry(0)
 
 ## exception codegen
 
@@ -31,7 +32,8 @@ ExceptionEntry() = ExceptionEntry(0)
 function emit_exception_user!(mod::LLVM.Module)
     # add a fake user for __ockl_hsa_signal_store and __ockl_hsa_signal_load
     if !haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
-        JuliaContext() do ctx
+        ctx = LLVM.context(mod)
+        #JuliaContext() do ctx
             ft = LLVM.FunctionType(LLVM.VoidType(ctx))
             fn = LLVM.Function(mod, "__fake_global_exception_flag_user", ft)
             Builder(ctx) do builder
@@ -53,7 +55,7 @@ function emit_exception_user!(mod::LLVM.Module)
                                                             ConstantInt(Int32(2), ctx)])
                 ret!(builder)
             end
-        end
+        #end
     end
     @assert haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
 end

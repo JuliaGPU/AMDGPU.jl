@@ -1,7 +1,7 @@
 name = "AMDGPU"
 uuid = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>"]
-version = "0.2.1"
+version = "0.2.2"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -23,11 +23,11 @@ Adapt = "0.4, 1.0, 2.0"
 BinaryProvider = "0.5"
 CEnum = "0.2, 0.3, 0.4"
 GPUArrays = "~5.0, ~5.1"
-GPUCompiler = "0.8"
+GPUCompiler = "0.9"
 LLVM = "3"
 Requires = "1"
 Setfield = "0.5, 0.6, 0.7"
-julia = "1.5"
+julia = "1.6"
 
 [extras]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"

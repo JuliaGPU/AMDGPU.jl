@@ -25,28 +25,28 @@ ROCDeviceArray
 
 struct ROCDeviceArray{T,N,A} <: AbstractArray{T,N}
     shape::Dims{N}
-    ptr::DevicePtr{T,A}
+    ptr::LLVMPtr{T,A}
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::DevicePtr{T,A}) where {T,A,N} = new(shape,ptr)
+    ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N} = new(shape,ptr)
 end
 
 const ROCDeviceVector = ROCDeviceArray{T,1,A} where {T,A}
 const ROCDeviceMatrix = ROCDeviceArray{T,2,A} where {T,A}
 
 # outer constructors, non-parameterized
-ROCDeviceArray(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-ROCDeviceArray(len::Integer,              p::DevicePtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
+ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
+ROCDeviceArray(len::Integer,              p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
 
 # outer constructors, partially parameterized
-ROCDeviceArray{T}(dims::NTuple{N,<:Integer},   p::DevicePtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-ROCDeviceArray{T}(len::Integer,                p::DevicePtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
-ROCDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
-ROCDeviceVector{T}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
+ROCDeviceArray{T}(dims::NTuple{N,<:Integer},   p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
+ROCDeviceArray{T}(len::Integer,                p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
+ROCDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
+ROCDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
 
 # outer constructors, fully parameterized
-ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(Int.(dims), p)
-ROCDeviceVector{T,A}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
+ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(Int.(dims), p)
+ROCDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
 
 # getters
 
@@ -60,19 +60,19 @@ Base.length(g::ROCDeviceArray) = prod(g.shape)
 
 # conversions
 
-Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
+Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
 
 # indexing
 
 @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
-    align = datatype_align(T)
+    align = Base.datatype_alignment(T)
     Base.unsafe_load(pointer(A), index, Val(align))::T
 end
 
 @inline function Base.setindex!(A::ROCDeviceArray{T}, x, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
-    align = datatype_align(T)
+    align = Base.datatype_alignment(T)
     Base.unsafe_store!(pointer(A), x, index, Val(align))
     return A
 end

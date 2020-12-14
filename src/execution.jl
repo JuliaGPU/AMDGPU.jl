@@ -161,7 +161,7 @@ macro roc(ex...)
             quote
                 GC.@preserve $(vars...) begin
                     local $kernel_args = map(rocconvert, ($(var_exprs...),))
-                    local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
+                    local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
                     local $signal = $create_event($kernel.mod.exe)
                     $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
@@ -185,7 +185,7 @@ Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = ROCRefValue(adapt(to, r[]
 
 ## interop with HSAArray
 function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::HSAArray{T,N}) where {T,N}
-    ROCDeviceArray{T,N,AS.Global}(a.size, DevicePtr{T,AS.Global}(pointer(a)))
+    ROCDeviceArray{T,N,AS.Global}(a.size, LLVMPtr{T,AS.Global}(pointer(a)))
 end
 
 Adapt.adapt_storage(::Adaptor, xs::HSAArray{T,N}) where {T,N} =
@@ -370,11 +370,11 @@ default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
     unsafe_store!(gbl_ptr, ex_ptr)
     # setup initial slots
     for i in 1:MAX_EXCEPTIONS-1
-        unsafe_store!(ex_ptr, ExceptionEntry(0))
+        unsafe_store!(ex_ptr, ExceptionEntry(0, LLVMPtr{UInt8,1}(0)))
         ex_ptr += sizeof(ExceptionEntry)
     end
     # setup tail slot
-    unsafe_store!(ex_ptr, ExceptionEntry(1))
+    unsafe_store!(ex_ptr, ExceptionEntry(1, LLVMPtr{UInt8,1}(0)))
 end
 default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
     # initialize malloc hostcall

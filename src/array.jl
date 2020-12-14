@@ -315,13 +315,13 @@ GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
 
 function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) where {T,N}
     ptr = Base.unsafe_convert(Ptr{T}, a.buf)
-    ROCDeviceArray{T,N,AS.Global}(a.dims, AMDGPU.DevicePtr{T,AS.Global}(ptr+a.offset))
+    ROCDeviceArray{T,N,AS.Global}(a.dims, AMDGPU.LLVMPtr{T,AS.Global}(ptr+a.offset))
 end
 Adapt.adapt_storage(::AMDGPU.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
 
 function GPUArrays.unsafe_reinterpret(::Type{T}, A::ROCArray, size::NTuple{N, Integer}; own=A.own) where {T, N}
-    ptr = convert(AMDGPU.DevicePtr{T,AS.Global}, A.buf.ptr)
+    ptr = convert(AMDGPU.LLVMPtr{T,AS.Global}, A.buf.ptr)
     buf = Mem.Buffer(ptr, A.buf.bytesize, A.buf.agent, A.buf.coherent)
     ROCArray{T,N}(buf, size; offset=A.offset, own=own)
 end

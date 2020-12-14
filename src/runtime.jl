@@ -31,11 +31,11 @@ create_event(::typeof(HSA_rt), exe) = HSAStatusSignal(HSASignal(), exe.exe)
 function Base.wait(event::RuntimeEvent{HSAStatusSignal}; check_exceptions=true, cleanup=true, kwargs...)
     wait(event.event.signal; kwargs...) # wait for completion signal
     unpreserve!(event) # allow kernel-associated objects to be freed
-    exe = event.event.exe
+    exe = event.event.exe::HSAExecutable{Mem.Buffer}
     mod = EXE_TO_MODULE_MAP[exe].value
     agent = exe.agent
     ex = nothing
-    signal_handle = event.event.signal.signal[].handle
+    signal_handle = (event.event.signal.signal[]::HSA.Signal).handle
     if haskey(exe.globals, :__global_exception_flag)
         # Check if any wavefront for this kernel threw an exception
         ex_flag = get_global(exe, :__global_exception_flag)
@@ -46,13 +46,13 @@ function Base.wait(event::RuntimeEvent{HSAStatusSignal}; check_exceptions=true, 
             if check_exceptions && haskey(exe.globals, :__global_exception_ring)
                 # Check for and collect any exceptions, and clear their slots
                 ex_ring = get_global(exe, :__global_exception_ring)
-                ex_ring_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, ex_ring)
-                ex_ring_ptr = unsafe_load(ex_ring_ptr)
+                ex_ring_ptr_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, ex_ring)
+                ex_ring_ptr = unsafe_load(ex_ring_ptr_ptr)
                 while (ex_ring_value = unsafe_load(ex_ring_ptr)).kern != 1
                     if ex_ring_value.kern == signal_handle
-                        push!(ex_strings, unsafe_string(convert(Ptr{UInt8}, ex_ring_value.ptr)))
+                        push!(ex_strings, unsafe_string(reinterpret(Ptr{UInt8}, ex_ring_value.ptr)))
                         # FIXME: Write rest of entry first, then CAS 0 to kern field
-                        unsafe_store!(ex_ring_ptr, ExceptionEntry())
+                        unsafe_store!(ex_ring_ptr, ExceptionEntry(UInt64(0), LLVMPtr{UInt8,1}(0)))
                     end
                     ex_ring_ptr += sizeof(ExceptionEntry)
                 end

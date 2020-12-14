@@ -25,20 +25,20 @@ end
 
 function report_exception(ex)
     # Add kernel ID and exception string to exception ring buffer
-    ring_ptr = get_global_pointer(Val(:__global_exception_ring), DevicePtr{ExceptionEntry,AS.Global})
+    ring_ptr = get_global_pointer(Val(:__global_exception_ring), LLVMPtr{ExceptionEntry,AS.Global})
     ring_ptr = unsafe_load(ring_ptr)
     our_signal = _completion_signal()
     prev = UInt64(1)
     while prev != UInt64(0)
         # Try to write to this slot, and skip if we fail (because another wavefront wrote first)
-        prev = atomic_cas!(convert(DevicePtr{UInt64,AS.Global}, ring_ptr), UInt64(0), our_signal)
+        prev = atomic_cas!(reinterpret(LLVMPtr{UInt64,AS.Global}, ring_ptr), UInt64(0), our_signal)
         if prev == UInt64(0)
             # We get a ReadOnlyMemoryError without this copy because the data is pinned to the device
             # TODO: Don't use an expensive host malloc
-            ex_len = string_length(ex)
-            copy_buf = convert(DevicePtr{UInt8,AS.Global}, malloc(ex_len))
-            memcpy!(copy_buf, DevicePtr{UInt8,AS.Global}(ex), ex_len)
-            unsafe_store!(convert(DevicePtr{UInt64}, ring_ptr)+sizeof(UInt64), UInt64(copy_buf))
+            ex_len = string_length(ex)::Csize_t
+            copy_buf = reinterpret(LLVMPtr{UInt8,AS.Global}, malloc(ex_len))
+            memcpy!(copy_buf, reinterpret(LLVMPtr{UInt8,AS.Global}, ex), ex_len)
+            Base.unsafe_store!(reinterpret(LLVMPtr{UInt64,AS.Global}, ring_ptr+sizeof(UInt64)), UInt64(copy_buf))
             break
         elseif prev == UInt64(1)
             # Tail slot, give up
@@ -61,7 +61,6 @@ function report_exception_name(ex)
     =#
     @rocprint("""
         ERROR: an exception was thrown during kernel execution.
-        Stacktrace:
         """)
     return
 end
@@ -75,9 +74,7 @@ end
 
 ## ROCm device library
 
-const libcache = Dict{String, LLVM.Module}()
-
-function load_device_libs(dev_isa)
+function load_device_libs(dev_isa, ctx)
     device_libs_path === nothing && return
 
     isa_short = replace(dev_isa, "gfx"=>"")
@@ -92,16 +89,12 @@ function load_device_libs(dev_isa)
         "ocml.amdgcn.bc",
     )
 
-    JuliaContext() do ctx
-        for file in bitcode_files
-            ispath(joinpath(device_libs_path, file)) || continue
-            name, ext = splitext(file)
-            lib = get!(libcache, name) do
-                file_path = joinpath(device_libs_path, file)
-                parse(LLVM.Module, read(file_path), ctx)
-            end
-            push!(device_libs, lib)
-        end
+    for file in bitcode_files
+        ispath(joinpath(device_libs_path, file)) || continue
+        name, ext = splitext(file)
+        file_path = joinpath(device_libs_path, file)
+        lib = parse(LLVM.Module, read(file_path), ctx)
+        push!(device_libs, lib)
     end
 
     @assert !isempty(device_libs) "No device libs detected!"
@@ -109,12 +102,11 @@ function load_device_libs(dev_isa)
 end
 
 function link_device_libs!(mod::LLVM.Module, dev_isa::String, undefined_fns)
-    libs::Vector{LLVM.Module} = load_device_libs(dev_isa)
-
     ufns = undefined_fns
     # TODO: only link if used
     # TODO: make these globally/locally configurable
     ctx = LLVM.context(mod)
+    libs = load_device_libs(dev_isa, ctx)::Vector{LLVM.Module}
     link_oclc_defaults!(mod, dev_isa, ctx)
     for lib in libs
         # override libdevice's triple and datalayout to avoid warnings
@@ -128,7 +120,7 @@ end
 function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only=false,
                              unsafe_math=false, correctly_rounded_sqrt=true, daz=false)
     # link in some defaults for OCLC knobs, to prevent undefined variable errors
-    lib = LLVM.Module("OCLC")
+    lib = LLVM.Module("OCLC", ctx)
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
 

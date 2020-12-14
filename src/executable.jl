@@ -1,8 +1,8 @@
-mutable struct HSAExecutable
+mutable struct HSAExecutable{B} # FIXME: Don't parameterize on Mem.Buffer
     agent::HSAAgent
     executable::Ref{HSA.Executable}
     data::Vector{UInt8}
-    globals::Dict{Symbol,Any} # FIXME: Any -> Mem.Buffer
+    globals::Dict{Symbol,B}
 end
 
 ### @cfunction Callbacks ###
@@ -44,7 +44,7 @@ function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String; glo
                               HSA.DEFAULT_FLOAT_ROUNDING_MODE_NEAR,
                               C_NULL, executable) |> check
 
-    _globals = Dict{Symbol,Any}()
+    _globals = Dict{Symbol,Mem.Buffer}()
     for (gbl,sz) in globals
         gbl_buf = Mem.alloc(agent, sz; coherent=true)
         HSA.executable_agent_global_variable_define(executable[], agent.agent,
@@ -76,5 +76,5 @@ end
 
 function get_global(exe::HSAExecutable, symbol::Symbol)
     @assert symbol in keys(exe.globals) "No such global in executable: $symbol"
-    return exe.globals[symbol]
+    return exe.globals[symbol]::Mem.Buffer
 end
