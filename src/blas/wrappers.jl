@@ -94,7 +94,7 @@ for (fname, elty) in ((:rocblas_dscal,:Float64),
             @check ccall(($(string(fname)), librocblas), rocblas_status_t,
                          (rocblas_handle, Cint, Ptr{$elty}, Ptr{$elty},
                           Cint),
-                         handle(), n, [DA], DX, incx)
+                         handle(), n, Ref(DA), DX, incx)
             DX
         end
     end
@@ -109,11 +109,11 @@ for (fname, elty, celty) in ((:rocblas_sscal, :Float32, :ComplexF32),
                        DX::ROCArray{$celty},
                        incx::Integer)
             #DY = reinterpret($elty,DX,(2*n,))
-            #$(rocblascall(fname))(handle(),2*n,[DA],DY,incx)
+            #$(rocblascall(fname))(handle(),2*n,Ref(DA),DY,incx)
             @check ccall(($(string(fname)), librocblas), rocblas_status_t,
                          (rocblas_handle, Cint, Ptr{$elty}, Ptr{$celty},
                           Cint),
-                         handle(), 2*n, [DA], DX, incx)
+                         handle(), 2*n, Ref(DA), DX, incx)
             DX
         end
     end
@@ -316,7 +316,7 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
                          (rocblas_handle, rocblas_operation_t, Cint, Cint,
                          Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
                          Cint, Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         roctrans, m, n, [alpha], A, lda, X, incx, [beta], Y,
+                         roctrans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y,
                          incy)
             Y
         end
@@ -363,8 +363,8 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
                          (rocblas_handle, rocblas_operation_t, Cint, Cint,
                           Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint,
                           Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty},
-                          Cint), handle(), roctrans, m, n, kl, ku, [alpha], A,
-                         lda, x, incx, [beta], y, incy)
+                          Cint), handle(), roctrans, m, n, kl, ku, Ref(alpha), A,
+                         lda, x, incx, Ref(beta), y, incy)
             y
         end
         function gbmv(trans::Char,
@@ -420,8 +420,8 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
                          Cint,Ptr{$elty}, Ptr{$elty}, Cint,
                          Ptr{$elty}, Cint, Ptr{$elty},
                          Ptr{$elty},Cint),
-                         handle(), rocuplo, n, [alpha],
-                         A, lda, x, incx, [beta], y, incy)
+                         handle(), rocuplo, n, Ref(alpha),
+                         A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function symv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty}, x::ROCVector{$elty})
@@ -462,8 +462,8 @@ for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
                          Cint,Ptr{$elty}, Ptr{$elty}, Cint,
                          Ptr{$elty}, Cint, Ptr{$elty},
                          Ptr{$elty},Cint),
-                         handle(), rocuplo, n, [alpha],
-                         A, lda, x, incx, [beta], y, incy)
+                         handle(), rocuplo, n, Ref(alpha),
+                         A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function hemv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty},
@@ -508,7 +508,7 @@ for (fname, elty) in ((:rocblas_dsbmv,:Float64),
                          (rocblas_handle, rocblas_fill_t, Cint, Cint,
                          Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
                          Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         rocuplo, n, k, [alpha], A, lda, x, incx, [beta], y,
+                         rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y,
                          incy)
             y
         end
@@ -552,7 +552,7 @@ for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
                          (rocblas_handle, rocblas_fill_t, Cint, Cint,
                          Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
                          Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         rocuplo, n, k, [alpha], A, lda, x, incx, [beta], y,
+                         rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y,
                          incy)
             y
         end
@@ -765,7 +765,7 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
             @check ccall(($(string(fname)),librocblas), rocblas_status_t,
                          (rocblas_handle, Cint, Cint, Ptr{$elty},
                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                         Cint), handle(), m, n, [alpha], x, incx, y,
+                         Cint), handle(), m, n, Ref(alpha), x, incx, y,
                          incy, A, lda)
             A
         end
@@ -796,7 +796,7 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
             @check ccall(($(string(fname)),librocblas), rocblas_status_t,
                          (rocblas_handle, rocblas_fill_t, Cint,
                          Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                         handle(), rocuplo, n, [alpha], x, incx, A,
+                         handle(), rocuplo, n, Ref(alpha), x, incx, A,
                          lda)
             A
         end
@@ -820,7 +820,7 @@ for (fname, elty) in ((:rocblas_zher,:ComplexF64),
             @check ccall(($(string(fname)),librocblas), rocblas_status_t,
                          (rocblas_handle, rocblas_fill_t, Cint,
                          Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                         handle(), rocuplo, n, [alpha], x, incx, A,
+                         handle(), rocuplo, n, Ref(alpha), x, incx, A,
                          lda)
             A
         end
@@ -848,7 +848,7 @@ for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
                          (rocblas_handle, rocblas_fill_t, Cint,
                           Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
                           Ptr{$elty}, Cint),
-                         handle(), rocuplo, n, [alpha], x, incx, y, incy, A,
+                         handle(), rocuplo, n, Ref(alpha), x, incx, y, incy, A,
                          lda)
             A
         end
@@ -894,7 +894,7 @@ for (fname, elty) in
                           Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
                           Ptr{$elty}, Cint),
                          handle(), roctransA,
-                         roctransB, m, n, k, [alpha], A, lda, B, ldb, [beta],
+                         roctransB, m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta),
                          C, ldc)
             C
         end
@@ -971,7 +971,7 @@ for (fname, elty) in
                           Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}}, Cint, Ptr{$elty},
                           Ptr{Ptr{$elty}}, Cint, Cint),
                          handle(), roctransA,
-                         roctransB, m, n, k, [alpha], Aptrs, lda, Bptrs, ldb, [beta],
+                         roctransB, m, n, k, Ref(alpha), Aptrs, lda, Bptrs, ldb, Ref(beta),
                          Cptrs, ldc, length(A))
             C
         end
@@ -1047,7 +1047,7 @@ for (fname, elty) in
                          Ptr{$elty}, Cint, Cint, Ptr{$elty}, Cint, Cint, Ptr{$elty},
                          Ptr{$elty}, Cint, Cint, Cint),
                         handle(), roctransA,
-                        roctransB, m, n, k, [alpha], A, lda, strideA, B, ldb, strideB, [beta],
+                        roctransB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta),
                         C, ldc, strideC, batchCount)
            C
         end
@@ -1106,7 +1106,7 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
                           Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
                           Ptr{$elty}, Cint),
                          handle(), rocside,
-                         rocuplo, m, n, [alpha], A, lda, B, ldb, [beta], C,
+                         rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C,
                          ldc)
             C
         end
@@ -1156,8 +1156,8 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
                         (rocblas_handle, rocblas_fill_t,
                          rocblas_operation_t, Cint, Cint, Ptr{$elty},
                          Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty}, Cint),
-                        handle(), rocuplo, roctrans, n, k, [alpha], A,
-                        lda, [beta], C, ldc)
+                        handle(), rocuplo, roctrans, n, k, Ref(alpha), A,
+                        lda, Ref(beta), C, ldc)
             C
         end
     end
@@ -1210,7 +1210,7 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
                         Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
                          Cint, Ptr{$elty}, Ptr{$elty}, Cint),
                         handle(),
-                        rocside, rocuplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
+                        rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
            C
        end
        function hemm(uplo::Char,
@@ -1253,8 +1253,8 @@ for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
                         (rocblas_handle, rocblas_fill_t,
                          rocblas_operation_t, Cint, Cint, Ptr{$elty},
                          Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty}, Cint),
-                        handle(), rocuplo, roctrans, n, k, [alpha], A,
-                        lda, [beta], C, ldc)
+                        handle(), rocuplo, roctrans, n, k, Ref(alpha), A,
+                        lda, Ref(beta), C, ldc)
            C
        end
        function herk(uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty})
@@ -1308,7 +1308,7 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
                           Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
                           Ptr{$elty}, Cint),
                          handle(), rocuplo,
-                         roctrans, n, k, [alpha], A, lda, B, ldb, [beta], C,
+                         roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C,
                          ldc)
             C
         end
@@ -1364,7 +1364,7 @@ for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
                          Ptr{$elty1}, Cint, Ptr{$elty1}, Cint, Ptr{$elty2},
                          Ptr{$elty1}, Cint),
                         handle(), rocuplo, roctrans, n, k,
-                        [alpha], A, lda, B, ldb, [beta], C, ldc)
+                        Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
            C
        end
        function her2k(uplo::Char,
@@ -1428,7 +1428,7 @@ for (mmname, smname, elty) in
                           Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
                           Cint),
                          handle(), rocside, rocuplo, roctransa,
-                         rocdiag, m, n, [alpha], A, lda, B, ldb, C, ldc)
+                         rocdiag, m, n, Ref(alpha), A, lda, B, ldb, C, ldc)
             C
         end
         function trmm(side::Char,
@@ -1471,7 +1471,7 @@ for (mmname, smname, elty) in
                            rocblas_diagonal_t, Cint, Cint, Ptr{$elty},
                            Ptr{$elty}, Cint, Ptr{$elty}, Cint),
                           handle(), rocside, rocuplo, roctransa, rocdiag,
-                          m, n, [alpha], A, lda, B, ldb)
+                          m, n, Ref(alpha), A, lda, B, ldb)
             B
         end
         function trsm(side::Char,
@@ -1532,7 +1532,7 @@ for (fname, elty) in
                           Ptr{$elty}, Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}},
                           Cint, Cint),
                          handle(), rocside, rocuplo,
-                         roctransa, rocdiag, m, n, [alpha], Aptrs, lda,
+                         roctransa, rocdiag, m, n, Ref(alpha), Aptrs, lda,
                          Bptrs, ldb, length(A))
             B
         end
@@ -1589,7 +1589,7 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
                         (rocblas_handle, rocblas_operation_t, rocblas_operation_t,
                          Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
                          Ptr{$elty}, Cint, Ptr{$elty}, Cint), handle(),
-                        roctransa, roctransb, m, n, [alpha], A, lda, [beta], B, ldb, C, ldc)
+                        roctransa, roctransb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc)
            C
        end
        function geam(transa::Char,
@@ -1756,7 +1756,7 @@ for (fname, elty) in
                          (rocblas_handle, Cint, Cint, Ptr{Ptr{$elty}},
                           Cint, Ptr{Ptr{$elty}}, Ptr{Cint}, Cint),
                          handle(), m, n, Aptrs, lda,
-                         Tauptrs, [info], length(A))
+                         Tauptrs, Ref(info), length(A))
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
@@ -1811,7 +1811,7 @@ for (fname, elty) in
                           Cint, Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}},
                           Cint, Ptr{Cint}, Ptr{Cint}, Cint),
                          handle(), roctrans, m, n, nrhs, Aptrs, lda,
-                         Cptrs, ldc, [info], infoarray, length(A))
+                         Cptrs, ldc, Ref(info), infoarray, length(A))
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
