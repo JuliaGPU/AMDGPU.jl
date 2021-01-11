@@ -20,3 +20,23 @@
     eval(:(@roc stream=$queue $kernel(1)))
     eval(:(@roc agent=$device queue=$queue $kernel(1)))
 end
+
+@testset "Function/Argument Conversion" begin
+    @testset "Closure as Argument" begin
+        function kernel(closure)
+            closure()
+            nothing
+        end
+        function outer(a_dev, val)
+            f() = a_dev[] = val
+            @roc kernel(f)
+        end
+
+        a = [1.]
+        a_dev = ROCArray(a)
+
+        outer(a_dev, 2.)
+
+        @test Array(a_dev) == [2.]
+    end
+end
