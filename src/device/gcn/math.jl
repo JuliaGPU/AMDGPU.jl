@@ -6,7 +6,7 @@ for jltype in (
     append!(MATH_INTRINSICS, GCNIntrinsic.((
         :sin, :cos, :tan, :asin, :acos, :atan, :atan2,
         :sinh, :cosh, :tanh, :asinh, :acosh, :atanh,
-        :sinpi, :cospi, :tanpi, :sincospi,
+        :sinpi, :cospi, :tanpi,
         :asinpi, :acospi, :atanpi, :atan2pi,
         :sqrt, :rsqrt, :cbrt, :rcbrt, :recip,
         :log, :log2, :log10, :log1p, :logb, :ilogb,
@@ -39,6 +39,9 @@ for jltype in (
     )))
     =#
     #push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,), out_arg=(jltype, Int32), isinverted=true))
+
+    # Multi-output functions
+    push!(MATH_INTRINSICS, GCNIntrinsic(:sincospi; inp_args=(jltype,), out_arg=jltype, isbroken=true))
 end
 
 let jltype=Float32
