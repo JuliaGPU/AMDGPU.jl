@@ -12,7 +12,7 @@ catch err
     @test err isa AMDGPU.KernelException
     if err isa AMDGPU.KernelException
         @test err.exstr !== nothing
-        @test occursin("boundserror", err.exstr)
+        @test occursin("BoundsError", err.exstr)
     end
 end
 

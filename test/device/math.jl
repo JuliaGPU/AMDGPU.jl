@@ -20,19 +20,8 @@
             if $(QuoteNode(jlintr)) == :acosh
                 a .+= one($T)
             end
-            d_a = HSAArray(a)
+            d_a = ROCArray(a)
             len = prod(dims)
-
-            @debug begin
-                aspace = AMDGPU.AS.Global
-                arrdims = ndims(a)
-                arrT = ROCDeviceArray{Float32,arrdims,aspace}
-                @debug "LLVM IR"
-                AMDGPU.code_llvm($intr_kern, Tuple{arrT}; kernel=true)
-                @debug "GCN Device Code"
-                AMDGPU.code_gcn($intr_kern, Tuple{arrT}; kernel=true)
-                ""
-            end
 
             wait(@roc groupsize=len $intr_kern(d_a))
             _a = Array(d_a)
