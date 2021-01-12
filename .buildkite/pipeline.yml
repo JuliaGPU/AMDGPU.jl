@@ -4,13 +4,37 @@
 steps:
   - label: "Julia 1.6"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: 1.6
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.4:
-#      - JuliaCI/julia-coverage#v0.3:
-#          codecov: true
+      - JuliaCI/julia-coverage#v0.3:
+          codecov: true
     agents:
       queue: "juliagpu"
       rocm: "*"
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 60
+
+  - label: "Documentation"
+    plugins:
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
+    command: |
+      julia --project -e '
+        println("--- :julia: Instantiating project")
+        using Pkg
+        Pkg.instantiate()
+        Pkg.activate("docs")
+        Pkg.instantiate()
+        push!(LOAD_PATH, @__DIR__)
+
+        println("+++ :julia: Building documentation")
+        include("docs/make.jl")'
+    agents:
+      queue: "juliagpu"
+      rocm: "*"
+    if: build.message !~ /\[skip docs\]/
+    timeout_in_minutes: 60
+
+env:
+  SECRET_CODECOV_TOKEN: "lVqFGgrywYmQrILXBcP8i6TosP+q/W2oTDVLIdkWFWscd/a61oSVb8Tycq3qvngsrdmKU9EevdQo+1x+w7cu4IuTq63ahQc0RFgi4Q29hC52OgN2wFql984Cqq3T96P3jyV0ZljaRT+a+9AY0oWmmCph55amvvQ4DOMq3tfGDbp7gdueQvJmSYQGVT3/9Sjn4/esYppcKBGltQqQX2E7WrHLpnqRmsmjcSeZ/S/+PgPRb4ZnpBecAUP2d/MlPgKfP0ZUGbDlcbGu+ZDZNksxKIYuAlNrWPhpNAro7hACfEk4T5RRpNiwmJyXJZ8LUD8zNYIUKSmHjUtmqhNXgujWXA==;U2FsdGVkX1/v/P2Y7KZsvC55Au6eET37uDE6M5I6J275maix+SMD0EoJQ19cFp/lae+G8V7dvpPGfrh4hj2nOg=="
