@@ -7,8 +7,8 @@ exceptions! For example, the following kernel will throw a `KernelException`:
 function throwkernel(A)
     A[0] = 1
 end
-HA = HSAArray(zeros(Int,1))
-wait(@roc throwkernel(HA))
+RA = ROCArray(zeros(Int,1))
+wait(@roc throwkernel(RA))
 ```
 
 Kernels that hit an exception will write some exception information into a

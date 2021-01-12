@@ -19,10 +19,10 @@ Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 
 [compat]
 AbstractFFTs = "0.5"
-Adapt = "0.4, 1.0, 2.0"
+Adapt = "3.0"
 BinaryProvider = "0.5"
 CEnum = "0.2, 0.3, 0.4"
-GPUArrays = "~5.0, ~5.1"
+GPUArrays = "6"
 GPUCompiler = "0.9"
 LLVM = "3"
 Requires = "1"

@@ -10,17 +10,17 @@
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     dref = Ref{Bool}(false)
     hc = HostCall(Nothing, Tuple{}) do
         dref[] = true
     end
 
-    wait(@roc kernel(HA, HB, hc))
+    wait(@roc kernel(RA, RB, hc))
 
-    @test Array(HB)[1] == 1f0
+    @test Array(RB)[1] == 1f0
     sleep(1)
     @test dref[] == true
 end
@@ -35,8 +35,8 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     dref = Ref{Bool}(false)
 
@@ -47,10 +47,10 @@ end
             dref[] = true
         end
 
-        wait(@roc kernel(HA, HB, hc))
+        wait(@roc kernel(RA, RB, hc))
         sleep(1)
 
-        @test Array(HB)[1] == 1f0
+        @test Array(RB)[1] == 1f0
         @test dref[] == false
         @test Base.istaskfailed(hc_task)
     end
@@ -66,17 +66,17 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     hc = HostCall(Float32, Tuple{}) do
         1f0
     end
 
-    wait(@roc kernel(HA, HB, hc))
+    wait(@roc kernel(RA, RB, hc))
 
     sleep(1)
-    @test Array(HB)[1] == 2f0
+    @test Array(RB)[1] == 2f0
 end
 
 @testset "Call: Sync (1 arg)" begin
@@ -89,17 +89,17 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     hc = HostCall(Float32, Tuple{Float32}) do arg1
         arg1 + 1f0
     end
 
-    wait(@roc kernel(HA, HB, hc))
+    wait(@roc kernel(RA, RB, hc))
 
     sleep(1)
-    @test Array(HB)[1] == 44f0
+    @test Array(RB)[1] == 44f0
 end
 
 @testset "Call: Sync (2 homogeneous args)" begin
@@ -112,17 +112,17 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     hc = HostCall(Float32, Tuple{Float32,Float32}) do arg1, arg2
         arg1 + arg2 + 1f0
     end
 
-    wait(@roc kernel(HA, HB, hc))
+    wait(@roc kernel(RA, RB, hc))
 
     sleep(1)
-    @test Array(HB)[1] == 47f0
+    @test Array(RB)[1] == 47f0
 end
 
 @testset "Call: Sync (2 heterogeneous args)" begin
@@ -135,17 +135,17 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     hc = HostCall(Float32, Tuple{Float32,Int16}) do arg1, arg2
         arg1 + Float32(arg2) + 1f0
     end
 
-    wait(@roc kernel(HA, HB, hc))
+    wait(@roc kernel(RA, RB, hc))
 
     sleep(1)
-    @test Array(HB)[1] == 47f0
+    @test Array(RB)[1] == 47f0
 end
 
 @testset "Call: Sync (2 heterogeneous args, return homogeneous tuple)" begin
@@ -158,17 +158,17 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     hc = HostCall(Tuple{Float32,Float32}, Tuple{Float32,Int16}) do arg1, arg2
         (arg1 + Float32(arg2) + 1f0, 1f0)
     end
 
-    wait(@roc kernel(HA, HB, hc))
+    wait(@roc kernel(RA, RB, hc))
 
     sleep(1)
-    @test Array(HB)[1] == 48f0
+    @test Array(RB)[1] == 48f0
 end
 
 @testset "Call: Sync (2 heterogeneous args, return heterogeneous tuple)" begin
@@ -181,17 +181,17 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     hc = HostCall(Tuple{Float32,Int64}, Tuple{Float32,Int16}) do arg1, arg2
         (arg1 + Float32(arg2) + 1f0, 1)
     end
 
-    wait(@roc kernel(HA, HB, hc))
+    wait(@roc kernel(RA, RB, hc))
 
     sleep(1)
-    @test Array(HB)[1] == 48f0
+    @test Array(RB)[1] == 48f0
 end
 
 @testset "Call: Sync (2 hostcalls, 1 kernel)" begin
@@ -205,8 +205,8 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     hc1 = HostCall(Float32, Tuple{Float32}) do arg1
         arg1 + 1f0
@@ -215,10 +215,10 @@ end
         arg1 + 2f0
     end
 
-    wait(@roc kernel(HA, HB, hc1, hc2))
+    wait(@roc kernel(RA, RB, hc1, hc2))
 
     sleep(1)
-    @test Array(HB)[1] == 11f0
+    @test Array(RB)[1] == 11f0
 end
 
 @testset "Call: Sync (1 hostcall, 2 kernels)" begin
@@ -231,19 +231,19 @@ end
 
     A = ones(Float32, 1)
     B = zeros(Float32, 1)
-    HA = HSAArray(A)
-    HB = HSAArray(B)
+    RA = ROCArray(A)
+    RB = ROCArray(B)
 
     hc = HostCall(Float32, Tuple{Float32}; continuous=true) do arg1
         arg1 + 1f0
     end
 
     # FIXME: wait() hangs here, probably race condition?
-    @roc kernel(HA, HB, hc)
-    @roc kernel(HA, HB, hc)
+    @roc kernel(RA, RB, hc)
+    @roc kernel(RA, RB, hc)
 
     sleep(1)
-    @test Array(HB)[1] == 5f0
+    @test Array(RB)[1] == 5f0
 end
 
 end

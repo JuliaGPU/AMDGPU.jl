@@ -58,11 +58,11 @@ to the memory that represents the global variable `myglobal`. We can't
 guarantee the initial value of an uninitialized global variable, so we need
 to write a value to that global variable (in this case `42::Float32`).
 
-We can then read the values of `HA` and see that it's what we expect:
+We can then read the values of `RA` and see that it's what we expect:
 
 ```julia-repl
-julia> A = Array(HA)
-4-element HSAArray{Float32,1}:
+julia> A = Array(RA)
+4-element ROCArray{Float32,1}:
  43.0
  43.0
  43.0
