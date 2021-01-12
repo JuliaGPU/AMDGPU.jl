@@ -105,24 +105,10 @@ being slightly faster.
 """
 roccall
 
-@inline function roccall(f::ROCFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
-                         queue::RuntimeQueue, signal::RuntimeEvent, kwargs...) where N
-    # this cannot be inferred properly (because types only contains `DataType`s),
-    # which results in the call `@generated _roccall` getting expanded upon first use
-    _roccall(queue, signal, f, Tuple{types...}, values; kwargs...)
-end
-
-@inline function roccall(f::ROCFunction, tt::Type, values::Vararg{Any,N};
-                         queue::RuntimeQueue, signal::RuntimeEvent, kwargs...) where N
-    # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
-    # which means the generated function can be expanded earlier
-    _roccall(queue, signal, f, tt, values; kwargs...)
-end
-
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function _roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, args::Vararg{Any,N};
-                             groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
+@generated function roccall(f::ROCFunction, tt::Type, args::Vararg{Any,N}; queue::RuntimeQueue,
+                             signal::RuntimeEvent, groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
 
     # the type of `tt` is Type{Tuple{<:DataType...}}
     types = tt.parameters[1].parameters
@@ -142,9 +128,9 @@ end
     end
 
     append!(ex.args, (quote
-        GC.@preserve $(converted_args...) begin
+        #GC.@preserve $(converted_args...) begin
             launch(queue, signal, f, groupsize, gridsize, ($(arg_ptrs...),))
-        end
+        #end
     end).args)
 
     return ex
