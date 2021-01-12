@@ -4,10 +4,10 @@
 
 | **Documentation**                                                       | **Build Status**                                              |
 |:---------------------------------------:|:-------------------------------------------------------------:|
-| [![][docs-master-img]][docs-master-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
+| [![][docs-master-img]][docs-master-url] | [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] |
 
-[gitlab-img]: https://gitlab.com/JuliaGPU/AMDGPU.jl/badges/master/pipeline.svg
-[gitlab-url]: https://gitlab.com/JuliaGPU/AMDGPU.jl/commits/master
+[buildkite-img]: https://badge.buildkite.com/b1b3b0e3d13add4aa5a64c866937fde364ad777813725ef887.svg?branch=master
+[buildkite-url]: https://buildkite.com/julialang/amdgpu-dot-jl
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/AMDGPU.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/AMDGPU.jl
