@@ -38,7 +38,6 @@ if AMDGPU.configured
         @testset "HSA" begin
             include("hsa/error.jl")
             include("hsa/agent.jl")
-            include("hsa/array.jl")
             include("hsa/memory.jl")
         end
         @testset "Codegen" begin

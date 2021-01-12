@@ -15,13 +15,12 @@ import Core: LLVMPtr
 
 ### Exports ###
 
-export HSAAgent, HSAQueue, HSAExecutable, HSAKernelInstance, HSAArray, HSASignal
+export HSAAgent, HSAQueue, HSAExecutable, HSAKernelInstance, HSASignal
 export get_agents, profile, get_first_isa, launch!
 export get_default_agent, get_default_queue
 
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc, roczeros, rocones, rocfill
-export HSAArray
 
 ### HSA Runtime ###
 
@@ -38,8 +37,6 @@ include("signal.jl")
 include("executable.jl")
 include("kernel.jl")
 include("memory.jl")
-# TODO: Remove me:
-include("hsaarray.jl")
 
 @enum DeviceRuntime HSA_rt OCL_rt
 const RUNTIME = Ref{DeviceRuntime}(HSA_rt)

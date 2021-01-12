@@ -183,14 +183,6 @@ Base.getindex(r::ROCRefValue) = r.x
 Base.setindex!(r::ROCRefValue{T}, value::T) where T = (r.x = value;)
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = ROCRefValue(adapt(to, r[]))
 
-## interop with HSAArray
-function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::HSAArray{T,N}) where {T,N}
-    ROCDeviceArray{T,N,AS.Global}(a.size, LLVMPtr{T,AS.Global}(pointer(a)))
-end
-
-Adapt.adapt_storage(::Adaptor, xs::HSAArray{T,N}) where {T,N} =
-    convert(ROCDeviceArray{T,N,AS.Global}, xs)
-
 """
     rocconvert(x)
 

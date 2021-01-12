@@ -13,9 +13,9 @@ function idx_kern(X)
 end
 
 A = zeros(Int64, 6)
-HA = HSAArray(A)
-@roc groupsize=(1,2,3) gridsize=(4,5,6) idx_kern(HA)
-A = Array(HA)
+RA = ROCArray(A)
+@roc groupsize=(1,2,3) gridsize=(4,5,6) idx_kern(RA)
+A = Array(RA)
 @test all(A .> 0)
 
 function dim_kern(X)
@@ -31,9 +31,9 @@ function dim_kern(X)
 end
 
 A = zeros(Int64, 6)
-HA = HSAArray(A)
-wait(@roc groupsize=(1,2,3) gridsize=(4,5,6) dim_kern(HA))
-A = Array(HA)
+RA = ROCArray(A)
+wait(@roc groupsize=(1,2,3) gridsize=(4,5,6) dim_kern(RA))
+A = Array(RA)
 @test A ≈ [1,2,3,4,5,6]
 
 end

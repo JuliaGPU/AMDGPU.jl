@@ -5,9 +5,9 @@ function oob_kernel(X)
     nothing
 end
 
-HA = HSAArray(ones(Float32, 4))
+RA = ROCArray(ones(Float32, 4))
 try
-    wait(@roc oob_kernel(HA))
+    wait(@roc oob_kernel(RA))
 catch err
     @test err isa AMDGPU.KernelException
     if err isa AMDGPU.KernelException

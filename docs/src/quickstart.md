@@ -49,13 +49,13 @@ c_cpu = a + b
 ```
 
 To do the same computation on the GPU, we first need to copy the two input arrays `a` and `b` to the device.
-Toward that end, we will use the `HSAArray` type to represent our GPU arrays.
+Toward that end, we will use the `ROCArray` type to represent our GPU arrays.
 We can create the two arrays by passing the host data to the constructor as follows:
 
 ```julia
 using AMDGPU
-a_d = HSAArray(a)
-b_d = HSAArray(b)
+a_d = ROCArray(a)
+b_d = ROCArray(b)
 ```
 
 We need to create one additional array `c_d` to store the results:
@@ -63,10 +63,6 @@ We need to create one additional array `c_d` to store the results:
 ```julia
 c_d = similar(a_d)
 ```
-
-!!! note
-    `HSAArray` is a lightweight low-level array type, that does not support the GPUArrays.jl interface.
-    Production code should instead use `ROCArray` once its ready, in a similar fashion to `CuArray`.
 
 In this example, the postfix `_d` distinguishes a device memory object from its host memory counterpart.
 This convention is completely arbitrary and you may name your device-side variables whatever you like; they are regular Julia variables.
