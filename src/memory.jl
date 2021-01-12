@@ -108,9 +108,10 @@ Retrieve information about the allocation referenced by the given pointer.
 """
 function pointerinfo(ptr::Ptr)
     ptrinfo = Ref{HSA.PointerInfo}()
-
+    ccall(:memset, Ptr{Cvoid},
+                   (Ptr{HSA.PointerInfo}, UInt8, Csize_t),
+                   Base.unsafe_convert(Ptr{HSA.PointerInfo}, ptrinfo), UInt8(0), sizeof(HSA.PointerInfo))
     HSA.amd_pointer_info(Ptr{Cvoid}(ptr), ptrinfo, C_NULL, Ptr{UInt32}(C_NULL), C_NULL) |> check
-
     return ptrinfo[]
 end
 pointerinfo(buf::Buffer) = pointerinfo(buf.ptr)
@@ -131,6 +132,9 @@ See also: [`unlock`](@ref)
 """
 function lock(ptr::Ptr, bytesize::Integer, agent::HSAAgent)
     plocked = Ref{Ptr{Cvoid}}()
+    ccall(:memset, Ptr{Cvoid},
+                   (Ptr{Ptr{Cvoid}}, UInt8, Csize_t),
+                   Base.unsafe_convert(Ptr{Ptr{Cvoid}}, plocked), UInt8(0), sizeof(Ptr{Cvoid}))
     HSA.amd_memory_lock(Ptr{Cvoid}(ptr), bytesize, Ref(agent.agent), 1, plocked) |> check
     return plocked[]
 end
@@ -245,17 +249,22 @@ Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
 function upload!(dst::Buffer, src::Ptr{T}, nbytes::Integer) where T
     # Page-locking coherent memory results in a ReadOnlyMemoryError.
+    #= FIXME: HSA_STATUS_ERROR_INVALID_ARGUMENT
     plocked = if dst.coherent
         src
     else
         lock(src, nbytes, dst.agent)
     end
+    =#
+    plocked = src
 
     HSA.memory_copy(Ptr{T}(dst.ptr), Ptr{T}(plocked), nbytes) |> check
 
+    #=
     if !dst.coherent
         unlock(src)
     end
+    =#
 end
 
 """
@@ -264,17 +273,22 @@ end
 Download `nbytes` memory from `src` on the device to `dst` on the host.
 """
 function download!(dst::Ptr{T}, src::Buffer, nbytes::Integer) where T
+    #= FIXME: HSA_STATUS_ERROR_INVALID_ARGUMENT
     plocked = if src.coherent
         dst
     else
         lock(dst, nbytes, src.agent)
     end
+    =#
+    plocked = dst
 
     HSA.memory_copy(Ptr{T}(plocked), Ptr{T}(src.ptr), nbytes) |> check
 
+    #=
     if !src.coherent
         unlock(dst)
     end
+    =#
 end
 
 """
