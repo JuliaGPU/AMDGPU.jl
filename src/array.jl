@@ -1,4 +1,3 @@
-
 #
 # Device functionality
 #
@@ -170,6 +169,7 @@ Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}, dims...) where {N,T} 
 function Base.copyto!(dest::Array{T}, d_offset::Integer,
                       source::ROCArray{T}, s_offset::Integer,
                       amount::Integer) where T
+    amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
     Mem.download!(pointer(dest, d_offset),
@@ -180,6 +180,7 @@ end
 function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
                       source::Array{T}, s_offset::Integer,
                       amount::Integer) where T
+    amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
     Mem.upload!(Mem.view(dest.buf, (d_offset-1)*sizeof(T)),
@@ -190,6 +191,7 @@ end
 function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
                       source::ROCArray{T}, s_offset::Integer,
                       amount::Integer) where T
+    amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
     Mem.transfer!(Mem.view(dest.buf, (d_offset-1)*sizeof(T)),
@@ -207,7 +209,7 @@ end
 
 ## views
 
-# optimize view to return a CuArray when contiguous
+# optimize view to return a ROCArray when contiguous
 
 struct Contiguous end
 struct NonContiguous end
@@ -319,6 +321,42 @@ function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) w
 end
 Adapt.adapt_storage(::AMDGPU.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
+
+
+## interop with CPU arrays
+
+# We don't convert isbits types in `adapt`, since they are already
+# considered GPU-compatible.
+
+Adapt.adapt_storage(::Type{ROCArray}, xs::AT) where {AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(ROCArray, xs)
+
+# if an element type is specified, convert to it
+Adapt.adapt_storage(::Type{<:ROCArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(ROCArray{T}, xs)
+
+Adapt.adapt_storage(::Type{Array}, xs::ROCArray) = convert(Array, xs)
+
+
+## Float32-preferring conversion
+
+struct Float32Adaptor end
+
+Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray) =
+  isbits(xs) ? xs : convert(ROCArray, xs)
+
+Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
+  isbits(xs) ? xs : convert(ROCArray{Float32}, xs)
+
+Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
+  isbits(xs) ? xs : convert(ROCArray{ComplexF32}, xs)
+
+# not for Float16
+Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
+  isbits(xs) ? xs : convert(ROCArray, xs)
+
+roc(xs) = adapt(Float32Adaptor(), xs)
+
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::ROCArray{T}) where T =
     Base.unsafe_convert(Ptr{T}, x.buf)

@@ -121,7 +121,7 @@ end
 
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function _roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, args::NTuple{N,Any};
+@generated function _roccall(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction, tt::Type, args::Vararg{Any,N};
                              groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
 
     # the type of `tt` is Type{Tuple{<:DataType...}}
@@ -132,9 +132,9 @@ end
 
     # convert the argument values to match the kernel's signature (specified by the user)
     # (this mimics `lower-ccall` in julia-syntax.scm)
-    converted_args = Vector{Symbol}(undef, N)
-    arg_ptrs = Vector{Symbol}(undef, N)
-    for i in 1:N
+    converted_args = Vector{Symbol}(undef, length(args))
+    arg_ptrs = Vector{Symbol}(undef, length(args))
+    for i in 1:length(args)
         converted_args[i] = gensym()
         arg_ptrs[i] = gensym()
         push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))

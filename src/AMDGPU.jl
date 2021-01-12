@@ -68,7 +68,6 @@ include("reflection.jl")
 
 ### ROCArray ###
 
-#include("memory.jl")
 include("array.jl")
 #include("subarray.jl")
 #include("utils.jl")
@@ -78,7 +77,6 @@ include("array.jl")
 #include("mapreduce.jl")
 #include("gpuarray_interface.jl")
 
-roc(xs) = adapt(ROCArray{Float32}, xs)
 allowscalar(x::Bool) = nothing
 
 ### Initialization and Shutdown ###
