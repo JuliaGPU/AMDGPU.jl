@@ -35,6 +35,9 @@ end
 if AMDGPU.configured
     @test length(get_agents()) > 0
     if length(get_agents()) > 0
+        @testset "Frontend" begin
+            include("frontend/launch.jl")
+        end
         @testset "HSA" begin
             include("hsa/error.jl")
             include("hsa/agent.jl")
@@ -45,7 +48,6 @@ if AMDGPU.configured
             include("codegen/trap.jl")
         end
         @testset "Device Functions" begin
-            include("device/launch.jl")
             include("device/vadd.jl")
             include("device/memory.jl")
             include("device/indexing.jl")
