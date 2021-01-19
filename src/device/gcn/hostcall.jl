@@ -115,8 +115,15 @@ end
         call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :((signal,value)))
     end
 end
+
+## Device
+
 "Calls the host function stored in `hc` with arguments `args`."
-@inline @generated function hostcall!(hc::HostCall{UInt64,RT,AT}, args...) where {RT,AT}
+@inline function hostcall!(hc::HostCall{UInt64,RT,AT}, args...) where {RT,AT}
+    _hostcall_write_args!(hc, args...)
+    _hostcall!(hc)
+end
+@inline @generated function _hostcall_write_args!(hc::HostCall{UInt64,RT,AT}, args...) where {RT,AT}
     ex = Expr(:block)
 
     # Copy arguments into buffer
@@ -131,24 +138,25 @@ end
         off += sz
     end
 
+    return ex
+end
+@inline @generated function _hostcall!(hc::HostCall{UInt64,RT,AT}) where {RT,AT}
+    ex = Expr(:block)
+
     # Ring the doorbell
     push!(ex.args, :($device_signal_store!(hc.signal, hc.device_sentinel)))
 
-    if RT === Nothing
-        # Async hostcall
-        push!(ex.args, :(nothing))
-    else
-        # Wait on doorbell (hc.host_sentinel)
-        push!(ex.args, :($device_signal_wait(hc.signal, hc.host_sentinel)))
-        # Get return buffer and load first value
-        ptr = :(reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global}, hc.buf_ptr))
-        push!(ex.args, :(unsafe_load(unsafe_load($ptr))))
-    end
+    # Wait on doorbell
+    push!(ex.args, :($device_signal_wait(hc.signal, hc.host_sentinel)))
+
+    # Get return buffer and load first value
+    ptr = :(reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global}, hc.buf_ptr))
+    push!(ex.args, :(unsafe_load(unsafe_load($ptr))))
 
     return ex
 end
 
-## hostcall
+## Host
 
 @generated function _hostcall_args(hc::HostCall{UInt64,RT,AT}) where {RT,AT}
     ex = Expr(:tuple)
@@ -224,7 +232,6 @@ function HostCall(func, rettype, argtypes; return_task=false,
                 catch err
                     throw(HostCallException("Error executing host function", err))
                 end
-                rettype === Nothing && return
                 if typeof(ret) != rettype
                     throw(HostCallException("Host function result of wrong type: $(typeof(ret)), expected $rettype"))
                 end
