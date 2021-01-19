@@ -1,3 +1,5 @@
+export wavefrontsize
+
 const WAVEFRONT_INTRINSICS = GCNIntrinsic[]
 
 # FIXME: Float16
@@ -56,3 +58,6 @@ for intr in WAVEFRONT_INTRINSICS
         return $(intr.isinverted ? :(1-y) : :y)
     end
 end
+
+"Returns the wavefront size of the currently-executing kernel."
+wavefrontsize() = ccall("extern llvm.amdgcn.wavefrontsize", llvmcall, UInt32, ())
