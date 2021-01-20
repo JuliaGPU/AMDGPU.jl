@@ -14,6 +14,7 @@ function main()
             "Kernel Dependencies" => "kernel_deps.md",
             "Global Variables" => "globals.md",
             "Exceptions" => "exceptions.md",
+            "Printing" => "printing.md",
             "Memory" => "memory.md",
             "Intrinsics" => [
                 "Execution Control" => "execution_control.md",
