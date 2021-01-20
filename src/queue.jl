@@ -22,6 +22,7 @@ function HSAQueue(agent::HSAAgent)
 
     hsaref!()
     finalizer(queue) do queue
+        # TODO: Only if queue is live
         HSA.queue_destroy(queue.queue[]) |> check
         hsaunref!()
     end
@@ -43,4 +44,10 @@ function get_default_queue(agent::HSAAgent)
             return HSAQueue(agent)
         end
     end
+end
+
+"Kills all kernels executing on the given queue, and destroys the queue."
+function kill_queue!(queue::HSAQueue)
+    HSA.queue_destroy(queue.queue[]) |> check
+    delete!(DEFAULT_QUEUES, queue.agent)
 end

@@ -204,16 +204,18 @@ Note: This API is currently experimental and is subject to change at any time.
 """
 function HostCall(func, rettype, argtypes; return_task=false,
                   agent=get_default_agent(), maxlat=DEFAULT_HOSTCALL_LATENCY,
-                  continuous=false, buf_len=nothing)
+                  timeout=nothing, continuous=false, buf_len=nothing)
     signal = HSASignal()
     hc = HostCall(rettype, argtypes, signal.signal[].handle; agent=agent, buf_len=buf_len)
 
     tsk = @async begin
         ret_buf = Ref{Mem.Buffer}()
-        try
-            while true
+        while true
+            try
                 try
-                    _hostwait(signal.signal[], hc.device_sentinel; maxlat=maxlat)
+                    if !_hostwait(signal.signal[], hc.device_sentinel; maxlat=maxlat, timeout=timeout)
+                        error("Hostwait timeout")
+                    end
                 catch err
                     throw(HostCallException("Error during hostwait", err))
                 end
@@ -253,21 +255,23 @@ function HostCall(func, rettype, argtypes; return_task=false,
                 end
                 @debug "Hostcall: Host function return completed"
                 continuous || break
+            catch err
+                @error "Hostcall error" exception=(err,catch_backtrace())
+                # TODO: Gracefully terminate just the immediate waiters
+                # FIXME: Get the right queue
+                kill_queue!(get_default_queue(agent))
+                continuous || rethrow(err)
             end
-        catch err
-            @error "Hostcall error" exception=(err,catch_backtrace())
-            rethrow(err)
-        finally
-            # TODO: This is probably a bad idea to free while the kernel might
-            # still hold a reference. We should probably have some way to
-            # reference count these buffers from kernels (other than just
-            # using a ROCArray, which can't currently be serialized to the
-            # GPU).
-            if isassigned(ret_buf)
-                Mem.free(ret_buf)
-            end
-            Mem.free(hc.buf_ptr)
         end
+        # TODO: This is probably a bad idea to free while the kernel might
+        # still hold a reference. We should probably have some way to
+        # reference count these buffers from kernels (other than just
+        # using a ROCArray, which can't currently be serialized to the
+        # GPU).
+        if isassigned(ret_buf)
+            Mem.free(ret_buf)
+        end
+        Mem.free(hc.buf_ptr)
     end
 
     if return_task
@@ -280,13 +284,22 @@ end
 # CPU functions
 get_value(hc::HostCall{UInt64,RT,AT} where {RT,AT}) =
     HSA.signal_load_scacquire(HSA.Signal(hc.signal))
-function _hostwait(signal, sentinel; maxlat=DEFAULT_HOSTCALL_LATENCY)
+function _hostwait(signal, sentinel; maxlat=DEFAULT_HOSTCALL_LATENCY, timeout=nothing)
     @debug "Hostcall: Waiting on signal for sentinel: $sentinel"
+    start_time = time_ns()
     while true
         value = HSA.signal_load_scacquire(signal)
         if value == sentinel
             @debug "Hostcall: Signal triggered with sentinel: $sentinel"
-            return
+            return true
+        end
+        if timeout !== nothing
+            now_time = time_ns()
+            diff_time = (now_time - start_time) / 10^9
+            if diff_time > timeout
+                @debug "Hostcall: Signal wait timeout with sentinel: $sentinel"
+                return false
+            end
         end
         sleep(maxlat)
     end

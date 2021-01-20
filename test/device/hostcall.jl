@@ -49,10 +49,10 @@ end
             nothing
         end
 
-        wait(@roc kernel(RA, RB, hc))
+        @roc kernel(RA, RB, hc)
         sleep(1)
 
-        @test Array(RB)[1] == 1f0
+        @test Array(RB)[1] == 0f0
         @test dref[] == false
         @test Base.istaskfailed(hc_task)
     end
