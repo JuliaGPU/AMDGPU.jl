@@ -126,6 +126,10 @@ function main()
     config = Dict{Symbol,Any}(:hsa_configured => false, :ext_libs_configured => false)
     write_ext(config, config_path)
 
+    # Skip build if running under AutoMerge
+    if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
+        exit(0)
+    end
 
     ## discover stuff
 
