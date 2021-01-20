@@ -20,3 +20,9 @@
     eval(:(@roc stream=$queue $kernel(1)))
     eval(:(@roc agent=$device queue=$queue $kernel(1)))
 end
+
+@testset "No-argument kernel" begin
+    kernel() = nothing
+
+    wait(@roc kernel())
+end

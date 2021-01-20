@@ -41,7 +41,12 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
 
     if kernarg_segment_size[] == 0
         # FIXME: Hidden arguments!
-        kernarg_segment_size[] = sum(sizeof.(args))
+        if length(args) > 0
+            kernarg_segment_size[] = sum(sizeof.(args))
+        else
+            # Allocate some memory anyway, #10
+            kernarg_segment_size[] = max(kernarg_segment_size[], 8)
+        end
     end
 
     group_segment_size = Ref{UInt32}(0)
