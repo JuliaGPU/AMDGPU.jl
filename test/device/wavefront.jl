@@ -53,3 +53,13 @@
         @test_skip Y[3] == (length(unique(X)) == 1)
     end
 end
+
+@testset "Wavefront Information" begin
+    function kernel(X)
+        X[1] = wavefrontsize()
+        nothing
+    end
+    RX = ROCArray(zeros(UInt32, 1))
+    wait(@roc kernel(RX))
+    @test RX[1] == 64
+end

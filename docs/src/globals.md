@@ -19,7 +19,7 @@ pointer.
 Global variables can be created within kernels with the
 [`AMDGPU.get_global_pointer`](@ref) function, which both declares the
 global variable, and returns a pointer to it (specifically a
-[`AMDGPU.DevicePtr`](@ref)). Once a kernel which declares a global is
+`Core.LLVMPtr`). Once a kernel which declares a global is
 compiled for GPU execution (either by [`@roc`](@ref) or [`rocfunction`](@ref)),
 the global is allocated memory and made available to the kernel (during the
 linking stage). Globals are unique by name, and so you shouldn't attempt to

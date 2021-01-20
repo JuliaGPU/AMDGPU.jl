@@ -1,4 +1,4 @@
-@testset "Output" begin
+@testset "@rocprintln" begin
 
 @testset "Plain, no newline" begin
     function kernel(oc)
@@ -66,5 +66,55 @@ end
     @test String(take!(iob)) == "Hello to the World!\n"
 end
 =#
+
+end
+
+@testset "@rocprintf" begin
+
+@testset "Plain" begin
+    function kernel(x)
+        @rocprintf "Hello World!\n"
+        nothing
+    end
+
+    _, msg = @grab_output wait(@roc kernel(1))
+    @test msg == "Hello World!\n"
+end
+
+@testset "Integer argument" begin
+    function kernel(x)
+        @rocprintf "Value: %d\n" x
+        nothing
+    end
+
+    _, msg = @grab_output wait(@roc kernel(42))
+    @test msg == "Value: 42\n"
+end
+
+@testset "Multiple arguments" begin
+    function kernel(x)
+        y = 0.123401
+        @rocprintf "Value: %d | %.4f\n" x y
+        nothing
+    end
+
+    _, msg = @grab_output wait(@roc kernel(42))
+    @test msg == "Value: 42 | 0.1234\n"
+end
+
+@testset "Wave serialized" begin
+    function kernel(x)
+        for i in 1:workgroupDim().x
+            idx = workitemIdx().x
+            if idx == i
+                @rocprintf "[%d] " idx
+            end
+        end
+        nothing
+    end
+
+    _, msg = @grab_output wait(@roc groupsize=8 kernel(1))
+    @test msg == "[1] [2] [3] [4] [5] [6] [7] [8] "
+end
 
 end

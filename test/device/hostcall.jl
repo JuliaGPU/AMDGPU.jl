@@ -1,6 +1,6 @@
 @testset "Hostcall" begin
 
-@testset "Call: Async" begin
+@testset "Call: No return or arguments" begin
     function kernel(a,b,sig)
         hostcall!(sig)
         b[1] = a[1]
@@ -16,6 +16,7 @@
     dref = Ref{Bool}(false)
     hc = HostCall(Nothing, Tuple{}) do
         dref[] = true
+        nothing
     end
 
     wait(@roc kernel(RA, RB, hc))
@@ -25,7 +26,7 @@
     @test dref[] == true
 end
 
-@testset "Call: Async error" begin
+@testset "Call: Error" begin
     function kernel(a,b,sig)
         hostcall!(sig)
         b[1] = a[1]
@@ -45,18 +46,19 @@ end
         hc, hc_task = HostCall(Nothing, Tuple{}; return_task=true) do
             error("Some error")
             dref[] = true
+            nothing
         end
 
-        wait(@roc kernel(RA, RB, hc))
+        @roc kernel(RA, RB, hc)
         sleep(1)
 
-        @test Array(RB)[1] == 1f0
+        @test Array(RB)[1] == 0f0
         @test dref[] == false
         @test Base.istaskfailed(hc_task)
     end
 end
 
-@testset "Call: Sync (0 args)" begin
+@testset "Call: (0 args)" begin
     function kernel(a,b,sig)
         inc = hostcall!(sig)::Float32
         b[1] = a[1] + inc
@@ -79,7 +81,7 @@ end
     @test Array(RB)[1] == 2f0
 end
 
-@testset "Call: Sync (1 arg)" begin
+@testset "Call: (1 arg)" begin
     function kernel(a,b,sig)
         inc = hostcall!(sig, 42f0)::Float32
         b[1] = a[1] + inc
@@ -102,7 +104,7 @@ end
     @test Array(RB)[1] == 44f0
 end
 
-@testset "Call: Sync (2 homogeneous args)" begin
+@testset "Call: (2 homogeneous args)" begin
     function kernel(a,b,sig)
         inc = hostcall!(sig, 42f0, 3f0)::Float32
         b[1] = a[1] + inc
@@ -125,7 +127,7 @@ end
     @test Array(RB)[1] == 47f0
 end
 
-@testset "Call: Sync (2 heterogeneous args)" begin
+@testset "Call: (2 heterogeneous args)" begin
     function kernel(a,b,sig)
         inc = hostcall!(sig, 42f0, Int16(3))::Float32
         b[1] = a[1] + inc
@@ -148,7 +150,7 @@ end
     @test Array(RB)[1] == 47f0
 end
 
-@testset "Call: Sync (2 heterogeneous args, return homogeneous tuple)" begin
+@testset "Call: (2 heterogeneous args, return homogeneous tuple)" begin
     function kernel(a,b,sig)
         inc1, inc2 = hostcall!(sig, 42f0, Int16(3))::Tuple{Float32,Float32}
         b[1] = a[1] + inc1 + inc2
@@ -171,7 +173,7 @@ end
     @test Array(RB)[1] == 48f0
 end
 
-@testset "Call: Sync (2 heterogeneous args, return heterogeneous tuple)" begin
+@testset "Call: (2 heterogeneous args, return heterogeneous tuple)" begin
     function kernel(a,b,sig)
         inc1, inc2 = hostcall!(sig, 42f0, Int16(3))::Tuple{Float32,Int64}
         b[1] = a[1] + inc1 + Float32(inc2)
@@ -194,7 +196,7 @@ end
     @test Array(RB)[1] == 48f0
 end
 
-@testset "Call: Sync (2 hostcalls, 1 kernel)" begin
+@testset "Call: (2 hostcalls, 1 kernel)" begin
     function kernel(a,b,sig1,sig2)
         inc1 = hostcall!(sig1, 3f0)::Float32
         inc2 = hostcall!(sig2, 4f0)::Float32
@@ -221,7 +223,7 @@ end
     @test Array(RB)[1] == 11f0
 end
 
-@testset "Call: Sync (1 hostcall, 2 kernels)" begin
+@testset "Call: (1 hostcall, 2 kernels)" begin
     function kernel(a,b,sig)
         inc = hostcall!(sig, 3f0)::Float32
         b[1] = a[1] + inc

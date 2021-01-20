@@ -8,9 +8,9 @@
     eval(:(@roc groupsize=2 $kernel(1)))
     eval(:(@roc groupsize=2 gridsize=4 $kernel(1)))
     eval(:(@roc gridsize=2 $kernel(1)))
-    eval(:(@roc threads=2 $kernel(1)))
-    eval(:(@roc blocks=4 $kernel(1)))
-    eval(:(@roc threads=2 gridsize=4 $kernel(1)))
+    #eval(:(@roc threads=2 $kernel(1)))
+    #eval(:(@roc blocks=4 $kernel(1)))
+    #eval(:(@roc threads=2 gridsize=4 $kernel(1)))
 
     # Device/queue selection and aliases
     eval(:(@roc device=$device $kernel(1)))
