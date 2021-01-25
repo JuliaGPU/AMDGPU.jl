@@ -78,6 +78,11 @@ if AMDGPU.configured
                 end
             end
             @testset "ROCm External Libraries" begin
+                if parse(Bool, get(ENV, "CI", "false"))
+                    @test isdefined(AMDGPU, :rocBLAS)
+                    @test isdefined(AMDGPU, :rocFFT)
+                    @test isdefined(AMDGPU, :rocRAND)
+                end
                 isdefined(AMDGPU, :rocBLAS) ? include("rocarray/blas.jl") : @test_skip "rocBLAS"
                 isdefined(AMDGPU, :rocFFT) ? include("rocarray/fft.jl") : @test_skip "rocFFT"
                 isdefined(AMDGPU, :rocRAND) ? include("rocarray/random.jl") : @test_skip "rocRAND"
