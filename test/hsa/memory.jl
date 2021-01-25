@@ -58,6 +58,7 @@ end
     @test src == dst
 end
 
+#=
 @testset "Pointer information" begin
     default_agent = get_default_agent()
 
@@ -88,6 +89,7 @@ end
     @test Mem.pointerinfo(pointer(a)).type == HSA.POINTER_TYPE_UNKNOWN
     @test Mem.pointerinfo(plocked).type == HSA.POINTER_TYPE_UNKNOWN
 end
+=#
 
 @testset "Exceptions" begin
     @test_throws ArgumentError Mem.alloc(Function, 1)   # abstract
