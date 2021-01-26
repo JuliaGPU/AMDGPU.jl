@@ -258,6 +258,7 @@ function upload!(dst::Buffer, src::Ptr{T}, nbytes::Integer) where T
     =#
     plocked = src
 
+    nbytes > 0 || return
     HSA.memory_copy(Ptr{T}(dst.ptr), Ptr{T}(plocked), nbytes) |> check
 
     #=
@@ -282,6 +283,7 @@ function download!(dst::Ptr{T}, src::Buffer, nbytes::Integer) where T
     =#
     plocked = dst
 
+    nbytes > 0 || return
     HSA.memory_copy(Ptr{T}(plocked), Ptr{T}(src.ptr), nbytes) |> check
 
     #=
@@ -297,6 +299,7 @@ end
 Transfer `nbytes` of device memory from `src` to `dst`.
 """
 function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
+    nbytes > 0 || return
     HSA.memory_copy(dst.ptr, src.ptr, nbytes) |> check
 end
 
