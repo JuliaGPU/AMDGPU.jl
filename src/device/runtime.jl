@@ -49,25 +49,39 @@ function report_exception(ex)
     return
 end
 
-# FIXME: report_oom(sz) = @rocprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
-report_oom(sz) = @rocprintln("ERROR: Out of dynamic GPU memory")
+report_oom(sz) = @rocprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+
+function device_string_to_host(ex)
+    ex_ptr = reinterpret(LLVMPtr{UInt8,1}, ex)
+    ex_len = string_length(ex_ptr)
+    ex_str = reinterpret(LLVMPtr{UInt8,1}, malloc(Csize_t(ex_len+1)))
+    if reinterpret(UInt64, ex_str) == 0
+        @rocprintf("Device-to-host string conversion failed\n")
+        return reinterpret(Cstring, 0)
+    end
+    memcpy!(ex_str, ex_ptr, ex_len)
+    unsafe_store!(ex_str+ex_len, UInt8(0))
+    reinterpret(Cstring, ex_str)
+end
 
 function report_exception_name(ex)
-    #= FIXME
+    # Pass argument in host buffer
+    ex_str = device_string_to_host(ex)
     @rocprintf("""
         ERROR: a %s was thrown during kernel execution.
         Stacktrace:
-        """, ex)
-    =#
-    @rocprint("""
-        ERROR: an exception was thrown during kernel execution.
-        """)
+        """, ex_str)
+    free(reinterpret(Ptr{Cvoid}, ex_str))
     return
 end
 
 function report_exception_frame(idx, func, file, line)
-    # FIXME: @rocprintf(" [%i] %s at %s:%i\n", idx, func, file, line)
-    #@rocprintln(" [%i] %s at %s:%i")
+    # Pass arguments in host buffers
+    func_str = device_string_to_host(func)
+    file_str = device_string_to_host(file)
+    @rocprintf(" [%i] %s at %s:%i\n", idx, func_str, file_str, line)
+    free(reinterpret(Ptr{Cvoid}, func_str))
+    free(reinterpret(Ptr{Cvoid}, file_str))
     return
 end
 

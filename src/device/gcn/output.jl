@@ -132,6 +132,7 @@ macro rocprintf(fmt, args...)
     push!(ex.args, :($device_signal_store!($printf_hc.signal, $READY_SENTINEL)))
     =#
     push!(ex.args, :($_hostcall!($printf_hc)))
+    push!(ex.args, :(nothing))
     ex
 end
 

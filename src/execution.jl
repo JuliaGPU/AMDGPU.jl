@@ -356,6 +356,7 @@ default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
     hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; agent=device.device, continuous=true, buf_len=2^16) do _
         fmt, args = unsafe_load(reinterpret(LLVMPtr{ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
+        args = map(x->x isa Cstring ? unsafe_string(x) : x, args)
         @debug "@rocprintf with $fmt and $(args)"
         @eval @printf($fmt, $(args...))
         return 0
