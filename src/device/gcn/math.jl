@@ -14,7 +14,6 @@ for jltype in (
         :erf, :erfinv, :erfc, :erfcinv, :erfcx,
         # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
         :isnormal, :nearbyint, :nextafter,
-        :pow, :pown, :powr,
         :tgamma, :j0, :j1, :y0, :y1,
     ); inp_args=(jltype,), out_arg=jltype))
 
@@ -32,20 +31,18 @@ for jltype in (
     push!(MATH_INTRINSICS, GCNIntrinsic(:abs, :fabs; inp_args=(jltype,), out_arg=jltype))
     # TODO: abs(::Union{Int32,Int64})
 
-    # FIXME: Multi-argument functions
-    #=
-    push!(MATH_INTRINSICS, = map(intr->GCNIntrinsic(intr), (
-        :sincos, :frexp, :ldexp, :copysign,
-    )))
-    =#
+    # Multi-argument functions
+    push!(MATH_INTRINSICS, GCNIntrinsic(:pow; inp_args=(jltype,jltype), out_arg=jltype))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:pow, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
+    # TODO: push!(MATH_INTRINSICS, GCNIntrinsic(:pow, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
+    # TODO: :sincos, :frexp, :ldexp, :copysign,
     #push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,), out_arg=(jltype, Int32), isinverted=true))
 
     # Multi-output functions
     push!(MATH_INTRINSICS, GCNIntrinsic(:sincospi; inp_args=(jltype,), out_arg=jltype, isbroken=true))
 end
 
-let jltype=Float32
-    # TODO: Float64 is broken for some reason, try to re-enable on a newer LLVM
+for jltype in (Float32, Float64)
     push!(MATH_INTRINSICS, GCNIntrinsic(:isfinite; inp_args=(jltype,), out_arg=Int32))
     push!(MATH_INTRINSICS, GCNIntrinsic(:isinf; inp_args=(jltype,), out_arg=Int32))
     push!(MATH_INTRINSICS, GCNIntrinsic(:isnan; inp_args=(jltype,), out_arg=Int32))

@@ -8,9 +8,9 @@ version = "0.5.0"
 
 [[Adapt]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "87491f7d03ae1b423a353aff99cf61a45e3c993a"
+git-tree-sha1 = "4146c39f29be88c3f0cef732f86e5ab640d2e22d"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "3.1.0"
+version = "3.1.1"
 
 [[ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -77,9 +77,7 @@ version = "6.2.0"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Scratch", "Serialization", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "52477f9ef0a4b7da2fcb8671a500be054db29127"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl.git"
+git-tree-sha1 = "6ab1bc883bc13919c25acc0fe0dea707f61ae39c"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
 version = "0.9.1"
 
@@ -98,16 +96,12 @@ deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
 
 [[LibCURL_jll]]
-deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
+deps = ["Libdl"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
 
 [[LibGit2]]
-deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
+deps = ["NetworkOptions", "Printf"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
-
-[[LibSSH2_jll]]
-deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
-uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
 
 [[Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -128,10 +122,6 @@ version = "0.5.6"
 [[Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
-
-[[MbedTLS_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
@@ -226,11 +216,3 @@ uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
-
-[[Zlib_jll]]
-deps = ["Libdl"]
-uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-
-[[nghttp2_jll]]
-deps = ["Artifacts", "Libdl"]
-uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
