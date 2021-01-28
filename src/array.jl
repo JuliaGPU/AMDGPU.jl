@@ -147,23 +147,6 @@ ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = xs
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
 
-## broadcast
-
-using Base.Broadcast: BroadcastStyle, Broadcasted
-
-struct ROCArrayStyle{N} <: AbstractGPUArrayStyle{N} end
-ROCArrayStyle(::Val{N}) where N = ROCArrayStyle{N}()
-ROCArrayStyle{M}(::Val{N}) where {N,M} = ROCArrayStyle{N}()
-
-BroadcastStyle(::Type{ROCArray{T,N}}) where {T,N} = ROCArrayStyle{N}()
-
-# Allocating the output container
-Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}) where {N,T} =
-    similar(ROCArray{T}, axes(bc))
-Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}, dims...) where {N,T} =
-    ROCArray{T}(undef, dims...)
-
-
 ## memory operations
 
 function Base.copyto!(dest::Array{T}, d_offset::Integer,

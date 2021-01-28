@@ -22,9 +22,7 @@ include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 import AMDGPU: allowscalar, @allowscalar
 allowscalar(false)
 
-agent_name = AMDGPU.get_name(get_default_agent())
-agent_isa = get_first_isa(get_default_agent())
-@info "Testing using device $agent_name with ISA $agent_isa"
+@info "Testing using device $(get_default_agent())"
 
 @testset "AMDGPU" begin
 
@@ -87,6 +85,9 @@ if AMDGPU.configured
                 isdefined(AMDGPU, :rocFFT) ? include("rocarray/fft.jl") : @test_skip "rocFFT"
                 isdefined(AMDGPU, :rocRAND) ? include("rocarray/random.jl") : @test_skip "rocRAND"
             end
+        end
+        @testset "External Packages" begin
+            include("external/forwarddiff.jl")
         end
     end
 else
