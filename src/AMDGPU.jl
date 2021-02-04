@@ -25,6 +25,7 @@ export roc, roczeros, rocones, rocfill
 
 ### HSA Runtime ###
 
+const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath(@__DIR__, "hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
 

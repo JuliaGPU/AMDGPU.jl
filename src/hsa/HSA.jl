@@ -1,5 +1,7 @@
 module HSA
 
+import ..AMDGPU: libhsaruntime
+
 using CEnum
 
 include("libhsa_common.jl")
