@@ -108,6 +108,10 @@ function load_device_libs(dev_isa, ctx)
         name, ext = splitext(file)
         file_path = joinpath(device_libs_path, file)
         lib = parse(LLVM.Module, read(file_path), ctx)
+        for f in LLVM.functions(lib)
+            attrs = function_attributes(f)
+            delete!(attrs, StringAttribute("target-features"))
+        end
         push!(device_libs, lib)
     end
 
