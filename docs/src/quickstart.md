@@ -32,7 +32,7 @@ using AMDGPU
 
     ```julia
     using Libdl
-    Libdl.dlopen("/opt/rocm/hsa/lib/libhsa-runtime64.so")
+    Libdl.dlopen("/opt/rocm/hsa/lib/libhsa-runtime64.so.1")
     ```
 
 ## Running a simple kernel

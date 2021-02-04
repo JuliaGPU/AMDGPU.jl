@@ -43,7 +43,7 @@ I recommend adding your user to the "video" group, and setting the
 ownership of /dev/kfd to root:video with 660 permissions.
 
 The correct libraries in your LD_LIBRARY_PATH or standard library locations:
-* libhsa-runtime64.so
+* libhsa-runtime64.so.1
 * libhsakmt.so
 
 In terms of Linux kernel versions, just pick the newest one you can. If

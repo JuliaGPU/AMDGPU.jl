@@ -61,8 +61,8 @@ function find_hsa_library(lib, dirs)
     for dir in dirs
         files = readdir(dir)
         for file in files
-            @info "$file: $(startswith(basename(file), lib * ".so"))"
-            if startswith(basename(file), lib * ".so")
+            @info "$file: $(basename(file) == lib * ".so.1")"
+            if basename(file) == lib * ".so.1"
                 return joinpath(dir, file)
             end
         end
@@ -140,9 +140,9 @@ function main()
 
     roc_dirs = find_roc_paths()
 
-    config[:libhsaruntime_path] = find_hsa_library("libhsa-runtime64", roc_dirs)
+    config[:libhsaruntime_path] = find_hsa_library("libhsa-runtime64.so.1", roc_dirs)
     if config[:libhsaruntime_path] == nothing
-        build_error("Could not find HSA runtime library.")
+        build_error("Could not find HSA runtime library v1.")
     end
 
     # initializing the library isn't necessary, but flushes out errors that otherwise would
