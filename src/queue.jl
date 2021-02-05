@@ -22,8 +22,9 @@ function HSAQueue(agent::HSAAgent)
 
     hsaref!()
     finalizer(queue) do queue
-        # TODO: Only if queue is live
-        HSA.queue_destroy(queue.queue[]) |> check
+        # NOTE: We don't check the result since queues might be
+        # invactivated/destroyed by us (for hostcall failures)
+        HSA.queue_destroy(queue.queue[])
         hsaunref!()
     end
     return queue
