@@ -13,6 +13,7 @@ using Requires
 import LinearAlgebra
 using Printf
 import Core: LLVMPtr
+using Scratch
 
 ### Exports ###
 
@@ -89,6 +90,9 @@ function hsaunref!()
         Threads.atomic_sub!(HSA_REFCOUNT, UInt(1))
     end
 end
+
+# Executable debug cache
+exe_cache = nothing
 
 function __init__()
     # Load binary dependencies
@@ -168,6 +172,9 @@ function __init__()
 
     # Load optional @requires packages
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
+
+    # Set scratch path
+    global exe_cache = @get_scratch!("exe_cache")
 end
 
 end # module
