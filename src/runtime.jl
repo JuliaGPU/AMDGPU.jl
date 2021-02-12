@@ -28,6 +28,7 @@ struct HSAStatusSignal
     exe::HSAExecutable
 end
 create_event(::typeof(HSA_rt), exe) = HSAStatusSignal(HSASignal(), exe.exe)
+Base.wait(event::HSAStatusSignal; kwargs...) = wait(RuntimeEvent(event); kwargs...)
 function Base.wait(event::RuntimeEvent{HSAStatusSignal}; check_exceptions=true, cleanup=true, kwargs...)
     wait(event.event.signal; kwargs...) # wait for completion signal
     unpreserve!(event) # allow kernel-associated objects to be freed

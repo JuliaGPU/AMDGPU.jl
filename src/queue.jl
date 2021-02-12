@@ -30,6 +30,7 @@ function HSAQueue(agent::HSAAgent)
     end
     return queue
 end
+HSAQueue() = HSAQueue(get_default_agent())
 
 get_default_queue() = get_default_queue(get_default_agent())
 

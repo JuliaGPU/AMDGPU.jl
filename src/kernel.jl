@@ -111,6 +111,8 @@ end
 
 barrier_and!(signals::Vector) = barrier_and!(default_queue().queue, signals)
 barrier_or!(signals::Vector) = barrier_or!(default_queue().queue, signals)
+barrier_and!(queue::HSAQueue, signals::Vector{HSA.Signal}) = barrier_and!(queue, map(HSASignal, signals))
+barrier_or!(queue::HSAQueue, signals::Vector{HSA.Signal}) = barrier_or!(queue, map(HSASignal, signals))
 barrier_and!(queue::HSAQueue, signals::Vector{HSASignal}) =
     barrier!(HSA.BarrierAndPacket, queue, signals)
 barrier_or!(queue::HSAQueue, signals::Vector{HSASignal}) =
