@@ -43,7 +43,7 @@ export alloc_special, alloc_local
     end
 end
 
-@inline alloc_local(id, T, len) = alloc_special(Val(id), Val(T), Val(AS.Local), Val(len))
+@inline alloc_local(id, T, len) = alloc_special(Val(id), T, Val(AS.Local), Val(len))
 
 @inline @generated function alloc_string(::Val{str}) where str
     JuliaContext() do ctx
