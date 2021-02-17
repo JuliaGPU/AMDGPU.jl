@@ -14,7 +14,7 @@
 
     @testset "ISAs" begin
         agent = get_default_agent()
-        agent_isa = get_first_isa(agent)
+        agent_isa = get_first_isa_string(agent)
         @test length(agent_isa) > 0
     end
 end

@@ -501,8 +501,8 @@ function isa_from_name(name, isa::Ref{ISA})
     ccall((:hsa_isa_from_name, libhsaruntime), Status, (Cstring, Ref{ISA}), name, isa)
 end
 
-function agent_iterate_isas(agent::Agent, callback::Ref{Cvoid}, data::Ref{ISA})
-    ccall((:hsa_agent_iterate_isas, libhsaruntime), Status, (Agent, Ptr{Cvoid}, Ptr{Cvoid}), agent, callback, data)
+function agent_iterate_isas(agent::Agent, callback::Ref{Cvoid}, data::Ref{T}) where T
+    ccall((:hsa_agent_iterate_isas, libhsaruntime), Status, (Agent, Ref{Cvoid}, Ref{T}), agent, callback, data)
 end
 
 function isa_get_info(isa::ISA, attribute::ISAInfo, index::Integer, value::Ref{Cvoid})

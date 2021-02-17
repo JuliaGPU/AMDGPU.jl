@@ -17,7 +17,7 @@ import Core: LLVMPtr
 ### Exports ###
 
 export HSAAgent, HSAQueue, HSAExecutable, HSAKernelInstance, HSASignal
-export get_agents, profile, get_first_isa, launch!
+export get_agents, profile, get_first_isa_string, launch!
 export get_default_agent, get_default_queue
 
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
