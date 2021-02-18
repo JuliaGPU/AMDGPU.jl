@@ -20,8 +20,8 @@ export alloc_special, alloc_local
         gv_typ = LLVM.ArrayType(eltyp, len)
         gv = GlobalVariable(mod, gv_typ, string(id), as)
         if len > 0
-            linkage!(gv, LLVM.API.LLVMInternalLinkage)
-            initializer!(gv, null(gv_typ))
+            linkage!(gv, LLVM.API.LLVMExternalLinkage)
+            # NOTE: Backend doesn't support initializer for local AS
         end
 
         # by requesting a larger-than-datatype alignment, we might be able to vectorize.
