@@ -65,10 +65,18 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     HSA.memory_allocate(kernarg_region[],
                         kernarg_segment_size[],
                         kernarg_address) |> check
-    ctr = 0x0
 
+    # Fill kernel argument buffer
+    # FIXME: Query kernarg segment alignment
+    ctr = 0x0
     for arg in args
         rarg = Ref(arg)
+        align = Base.datatype_alignment(typeof(arg))
+        rem = mod(ctr, align)
+        if rem > 0
+            ctr += align-rem
+        end
+        #@info "Storing $(typeof(arg)) at offset $ctr"
         ccall(:memcpy, Cvoid,
             (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
             kernarg_address[]+ctr, rarg, sizeof(arg))

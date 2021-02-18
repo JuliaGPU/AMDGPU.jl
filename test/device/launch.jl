@@ -26,3 +26,15 @@ end
 
     wait(@roc kernel())
 end
+
+@testset "Kernel argument alignment" begin
+    function kernel(x, y)
+        if Int64(x) != y
+            error("Fail!")
+        end
+        nothing
+    end
+    x = rand(UInt32)
+    y = Int64(x)
+    wait(@roc kernel(x, y))
+end
