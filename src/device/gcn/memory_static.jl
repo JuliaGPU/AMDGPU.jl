@@ -20,8 +20,8 @@ export alloc_special, alloc_local
         gv_typ = LLVM.ArrayType(eltyp, len)
         gv = GlobalVariable(mod, gv_typ, string(id), as)
         if len > 0
-            linkage!(gv, LLVM.API.LLVMInternalLinkage)
-            initializer!(gv, null(gv_typ))
+            linkage!(gv, LLVM.API.LLVMExternalLinkage)
+            # NOTE: Backend doesn't support initializer for local AS
         end
 
         # by requesting a larger-than-datatype alignment, we might be able to vectorize.
@@ -43,7 +43,7 @@ export alloc_special, alloc_local
     end
 end
 
-@inline alloc_local(id, T, len) = alloc_special(Val(id), Val(T), Val(AS.Local), Val(len))
+@inline alloc_local(id, T, len) = alloc_special(Val(id), T, Val(AS.Local), Val(len))
 
 @inline @generated function alloc_string(::Val{str}) where str
     JuliaContext() do ctx

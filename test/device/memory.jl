@@ -2,7 +2,7 @@
 
 function memory_static_kernel(a,b)
     # Local
-    ptr_local = alloc_special(Val(:local), Float32, Val(AS.Local), Val(1))
+    ptr_local = alloc_local(:local, Float32, 1)
     unsafe_store!(ptr_local, a[1])
     b[1] = unsafe_load(ptr_local)
 
