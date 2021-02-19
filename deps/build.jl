@@ -1,6 +1,7 @@
 # copied from CUDAdrv/deps/build.jl
 
 using Libdl
+using hsa_rocr_jll
 
 function version_hsa(libpath)
     lib = Libdl.dlopen(libpath)

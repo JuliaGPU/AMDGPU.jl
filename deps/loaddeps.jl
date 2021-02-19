@@ -1,5 +1,8 @@
 # HSA runtime and ROCm External Libraries
 ## copied from CUDAdrv/src/CUDAdrv.jl
+using hsa_rocr_jll
+using hsakmt_roct_jll
+
 const ext = joinpath(@__DIR__, "ext.jl")
 if !isfile(ext)
     @warn "Didn't find $ext, please build AMDGPU.jl"
