@@ -49,6 +49,6 @@ end
 
 "Kills all kernels executing on the given queue, and destroys the queue."
 function kill_queue!(queue::HSAQueue)
-    HSA.queue_destroy(queue.queue[]) |> check
+    finalize(queue)
     delete!(DEFAULT_QUEUES, queue.agent)
 end
