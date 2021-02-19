@@ -1,7 +1,6 @@
 mutable struct HSAExecutable{B} # FIXME: Don't parameterize on Mem.Buffer
     agent::HSAAgent
     executable::Ref{HSA.Executable}
-    data::Vector{UInt8}
     globals::Dict{Symbol,B}
 end
 
@@ -29,15 +28,28 @@ function iterate_exec_agent_syms_cb(exe::HSA.Executable, agent::HSA.Agent,
 end
 
 # TODO Docstring
+function HSAExecutable(agent::HSAAgent, path::String, symbol::String; globals=())
+    code_object_reader = Ref{HSA.CodeObjectReader}(HSA.CodeObjectReader(0))
+    @assert isfile(path)
+    open(path, "r") do io
+        HSA.code_object_reader_create_from_file(Int32(fd(io)),
+                                                code_object_reader) |> check
+    end
+
+    HSAExecutable(agent, code_object_reader, symbol; globals=globals)
+end
 function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String; globals=())
+    code_object_reader = Ref{HSA.CodeObjectReader}(HSA.CodeObjectReader(0))
+    HSA.code_object_reader_create_from_memory(data, sizeof(data),
+                                              code_object_reader) |> check
+
+    HSAExecutable(agent, code_object_reader, symbol; globals=globals)
+end
+function HSAExecutable(agent::HSAAgent, code_object_reader::Ref{HSA.CodeObjectReader}, symbol::String; globals=())
     #= NOTE: Everything I can see indicates that profile is always FULL
     profile = Ref{HSA.Profile}()
     HSA.agent_get_info(agent.agent, HSA.AGENT_INFO_PROFILE, profile) |> check
     =#
-
-    code_object_reader = Ref{HSA.CodeObjectReader}(HSA.CodeObjectReader(0))
-    HSA.code_object_reader_create_from_memory(data, sizeof(data),
-                                              code_object_reader) |> check
 
     executable = Ref{HSA.Executable}()
     HSA.executable_create_alt(HSA.PROFILE_BASE,
@@ -58,7 +70,7 @@ function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String; glo
 
     HSA.executable_freeze(executable[], "") |> check
 
-    exe = HSAExecutable(agent, executable, data, _globals)
+    exe = HSAExecutable(agent, executable, _globals)
 
     # TODO: Ensure no derived kernels are in flight during finalization
     hsaref!()
