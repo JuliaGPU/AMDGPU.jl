@@ -1,6 +1,9 @@
 # copied from CUDAdrv/deps/build.jl
 
 using Libdl
+if !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
+    using hsa_rocr_jll
+end
 
 function version_hsa(libpath)
     lib = Libdl.dlopen(libpath)
