@@ -16,14 +16,13 @@ const MAX_EXCEPTIONS = 256
 const EXE_TO_MODULE_MAP = IdDict{Any,WeakRef}()
 mutable struct ROCModule{E}
     exe::RuntimeExecutable{E}
-    options::Dict{Any,Any}
     metadata::Vector{KernelMetadata}
     exceptions::Mem.Buffer
 end
-function ROCModule(exe, options)
+function ROCModule(exe)
     metadata = KernelMetadata[]
     exceptions = Mem.alloc(sizeof(ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
-    mod = ROCModule(exe, options, metadata, exceptions)
+    mod = ROCModule(exe, metadata, exceptions)
     _exe = exe.exe
     EXE_TO_MODULE_MAP[_exe] = WeakRef(mod)
     hsaref!()

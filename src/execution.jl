@@ -282,44 +282,41 @@ The output of this function is automatically cached, i.e. you can simply call `r
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=default_device(), kwargs...)
+function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=default_device(), global_hooks=NamedTuple(), kwargs...)
     source = FunctionSpec(f, tt, true, name)
     cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
-    GPUCompiler.cached_compilation(cache, rocfunction_compile, rocfunction_link,
-                                   source; device=device, kwargs...)::HostKernel{f,tt}
+    target = GCNCompilerTarget(; dev_isa=default_isa(device))
+    params = ROCCompilerParams(device, global_hooks)
+    job = CompilerJob(target, source, params)
+    GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::HostKernel{f,tt}
 end
 
 const rocfunction_cache = Dict{RuntimeDevice,Dict{UInt,Any}}()
 
 # compile to GCN
-function rocfunction_compile(@nospecialize(source::FunctionSpec); device, queue=default_queue(device), global_hooks=NamedTuple(), kwargs...)
-    target = GCNCompilerTarget(; dev_isa=default_isa(device), kwargs...)
-    params = ROCCompilerParams()
-    job = CompilerJob(target, source, params)
-    return GPUCompiler.compile(:obj, job)
-end
-function rocfunction_link(@nospecialize(source::FunctionSpec), (obj, kernel_fn, undefined_fns, undefined_gbls); device, global_hooks=NamedTuple(), kwargs...)
-    # settings to JIT based on Julia's debug setting
-    jit_options = Dict{Any,Any}()
-    #= TODO
-    jit_options = Dict{ROCjit_option,Any}()
-    if Base.JLOptions().debug_level == 1
-        jit_options[JIT_GENERATE_LINE_INFO] = true
-    elseif Base.JLOptions().debug_level >= 2
-        jit_options[JIT_GENERATE_DEBUG_INFO] = true
-    end
-    =#
+function rocfunction_compile(@nospecialize(job::CompilerJob))
+    # compile
+    method_instance, world = GPUCompiler.emit_julia(job)
+    ir, kernel = GPUCompiler.emit_llvm(job, method_instance, world)
+    obj = GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMObjectFile)
 
-    # calculate sizes for globals
-    globals = map(gbl->Symbol(gbl.name)=>llvmsize(eltype(gbl.type)),
-                  filter(gbl->gbl.external, undefined_gbls))
+    # find undefined globals and calculate sizes
+    globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
+                  filter(x->isextinit(x), collect(LLVM.globals(ir))))
+
+    return (;obj, entry=LLVM.name(kernel), globals)
+end
+function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
+    device = job.params.device
+    global_hooks = job.params.global_hooks
+    obj, entry, globals = compiled.obj, compiled.entry, compiled.globals
 
     # create executable and kernel
     obj = codeunits(obj)
-    exe = create_executable(device, kernel_fn, obj; globals=globals)
-    mod = ROCModule(exe, jit_options)
-    fun = ROCFunction(mod, kernel_fn)
-    kernel = HostKernel{source.f,source.tt}(mod, fun)
+    exe = create_executable(device, entry, obj; globals=globals)
+    mod = ROCModule(exe)
+    fun = ROCFunction(mod, entry)
+    kernel = HostKernel{job.source.f,job.source.tt}(mod, fun)
 
     # initialize globals from hooks
     for gname in first.(globals)
