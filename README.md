@@ -4,7 +4,7 @@
 
 | **Documentation**                                                       | **Build Status**                                              |
 |:---------------------------------------:|:-------------------------------------------------------------:|
-| [![][docs-master-img]][docs-master-url] | [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] |
+| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] |
 
 [buildkite-img]: https://badge.buildkite.com/b1b3b0e3d13add4aa5a64c866937fde364ad777813725ef887.svg?branch=master
 [buildkite-url]: https://buildkite.com/julialang/amdgpu-dot-jl
@@ -12,14 +12,17 @@
 [codecov-img]: https://codecov.io/gh/JuliaGPU/AMDGPU.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/AMDGPU.jl
 
-[docs-master-img]: https://img.shields.io/badge/docs-master-blue.svg
-[docs-master-url]: https://juliagpu.gitlab.io/AMDGPU.jl/
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://juliagpu.github.io/AMDGPU.jl/stable
+
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://juliagpu.github.io/AMDGPU.jl/dev
 
 
 
 ## Quick start
 
-The package can be installed with the Julia package manager.
+AMDGPU.jl can be installed with the Julia package manager.
 From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 
 ```
@@ -35,7 +38,7 @@ julia> import Pkg; Pkg.add("AMDGPU")
 
 ## Project Status
 
-The package is tested against, and being developed for, Julia `1.5` and above.
+The package is tested against, and being developed for, Julia `1.6` and above.
 Only 64-bit Linux is supported and working at this time, until ROCm is ported
 to other platforms. It is recommended to use a version of Julia with LLVM 9.0
 or higher.  This package is under active maintenance and is reasonably
@@ -64,7 +67,7 @@ Contributions are very welcome, as are feature requests and suggestions. Please 
 ## Acknowledgment
 
 AMDGPU would not have been possible without the work by Tim Besard and
-contributors to [CUDAnative.jl](https://github.com/JuliaGPU/CUDAnative.jl) and
+contributors to [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) and
 [LLVM.jl](https://github.com/maleadt/LLVM.jl).
 
 ## License
