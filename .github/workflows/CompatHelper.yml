@@ -2,15 +2,28 @@ name: CompatHelper
 
 on:
   schedule:
-    - cron: '00 00 * * *'
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   CompatHelper:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
+      - name: Get Julia compatibility
+        id: julia_compat
+        # NOTE: this requires a julia compat lower-bound with minor version!
+        run : |
+          version=$(grep '^julia = ' Project.toml | grep -o '".*"' | cut -d '"' -f2)
+          echo "::set-output name=version::$version"
+      - uses: julia-actions/setup-julia@v1
+        with:
+          # version: ${{ steps.julia_compat.outputs.version }}
+          version: "1.6-nightly"
       - name: Pkg.add("CompatHelper")
         run: julia -e 'using Pkg; Pkg.add("CompatHelper")'
       - name: CompatHelper.main()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: julia -e 'using CompatHelper; CompatHelper.main()'
+        run: julia -e 'using CompatHelper; CompatHelper.main( (; registries) -> CompatHelper._update_manifests(String[pwd()]; registries = registries, delete_old_manifest = false) )'
+
