@@ -6,15 +6,6 @@
 # reset the runtime cache from global scope, so that any change triggers recompilation
 GPUCompiler.reset_runtime()
 
-# load or build the runtime for the most likely compilation job given a compute capability
-function load_runtime(dev_isa::String)
-    target = GCNCompilerTarget(; dev_isa=dev_isa)
-    dummy_source = FunctionSpec(()->return, Tuple{})
-    params = ROCCompilerParams()
-    job = CompilerJob(target, dummy_source, params)
-    GPUCompiler.load_runtime(job)
-end
-
 function signal_exception()
     flag_ptr = get_global_pointer(Val(:__global_exception_flag), Int64)
     unsafe_store!(flag_ptr, 1)

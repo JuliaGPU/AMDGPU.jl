@@ -1,4 +1,7 @@
-struct ROCCompilerParams <: AbstractCompilerParams end
+struct ROCCompilerParams <: AbstractCompilerParams
+    device::RuntimeDevice{HSAAgent}
+    global_hooks::NamedTuple
+end
 
 ROCCompilerJob = CompilerJob{GCNCompilerTarget,ROCCompilerParams}
 
