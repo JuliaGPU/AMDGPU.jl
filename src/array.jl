@@ -141,7 +141,6 @@ ROCArray(A::AbstractArray{T,N}) where {T,N} = ROCArray{T,N}(A)
 # idempotency
 ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = xs
 
-
 ## conversions
 
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
@@ -343,12 +342,3 @@ roc(xs) = adapt(Float32Adaptor(), xs)
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::ROCArray{T}) where T =
     Base.unsafe_convert(Ptr{T}, x.buf)
-
-#=
-function GPUArrays.mapreducedim!(f, op, R::ROCArray, A::AbstractArray, init=nothing)
-    if init !== nothing
-        fill!(R, init)
-    end
-    @allowscalar Base.mapreducedim!(f, op, R.data, A)
-end
-=#

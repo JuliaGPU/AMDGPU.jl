@@ -68,7 +68,6 @@ if AMDGPU.configured
                     name == "fft" && continue
                     name == "random" && continue
                     name == "base" && continue
-                    name == "mapreduce essentials" && continue
                     name == "mapreduce derivatives" && continue
                     @testset "$name" begin
                         TestSuite.tests[name](ROCArray)

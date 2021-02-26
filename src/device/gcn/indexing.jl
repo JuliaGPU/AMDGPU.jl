@@ -21,8 +21,8 @@ export threadIdx, blockIdx, blockDim
             idx = call!(builder, intr)
 
             # attach range metadata
-            range_metadata = MDNode([ConstantInt(Int32(range.start), ctx),
-                                     ConstantInt(Int32(range.stop), ctx)],
+            range_metadata = MDNode([ConstantInt(UInt32(range.start), ctx),
+                                     ConstantInt(UInt32(range.stop), ctx)],
                                     ctx)
             metadata(idx)[LLVM.MD_range] = range_metadata
             ret!(builder, idx)
@@ -75,15 +75,17 @@ end
 end
 
 # TODO: look these up for the current agent/queue
-const max_block_size = (x=1024, y=1024, z=1024)
-const max_grid_size  = (x=65535, y=65535, z=65535)
+# TODO: grids can be up to typemax(UInt64)
+const _max_group_size = (x=1023, y=1023, z=1023)
+const _max_groups     = (x=typemax(UInt32)-1, y=typemax(UInt32)-1, z=typemax(UInt32)-1)
+const _max_grid_size  = (x=typemax(UInt32)-1, y=typemax(UInt32)-1, z=typemax(UInt32)-1)
 
 for dim in (:x, :y, :z)
     # Workitem index
     fname = Symbol("workitem")
     fn = Symbol("workitemIdx_$dim")
     intr = Symbol("$dim")
-    @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:max_block_size[dim])))) + 1
+    @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:_max_group_size[dim])))) + 1
     cufn = Symbol("threadIdx_$dim")
     @eval @inline $cufn() = $fn()
 
@@ -91,22 +93,22 @@ for dim in (:x, :y, :z)
     fname = Symbol("workgroup")
     fn = Symbol("workgroupIdx_$dim")
     intr = Symbol("$dim")
-    @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:max_grid_size[dim])))) + 1
+    @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:_max_groups[dim])))) + 1
     cufn = Symbol("blockIdx_$dim")
     @eval @inline $cufn() = $fn()
 end
 for (dim,off) in ((:x,1), (:y,2), (:z,3))
-    # Workitem dimension
+    # Workgroup dimension (in workitems)
     fn = Symbol("workgroupDim_$dim")
     base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
-    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:max_block_size[dim])), UInt16))
+    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:_max_group_size[dim])), UInt16))
     cufn = Symbol("blockDim_$dim")
     @eval @inline $cufn() = $fn()
 
     # Grid dimension (in workitems)
     fn = Symbol("gridDim_$dim")
     base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
-    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:max_grid_size[dim])), UInt32))
+    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:_max_grid_size[dim])), UInt32))
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridDimWG_$dim")
     fn_wi_idx = Symbol("workitemIdx_$dim")
