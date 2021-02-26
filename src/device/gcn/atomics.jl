@@ -161,6 +161,31 @@ for T in [Float32, Float64]
     end
 end
 
+# memory fence
+
+@inline @generated function memfence!(::Val{order}) where {order}
+    JuliaContext() do ctx
+        _order = if order == :acq
+            atomic_acquire
+        elseif order == :rel
+            atomic_release
+        elseif order == :acq_rel
+            atomic_acquire_release
+        elseif order == :seq_cst
+            atomic_sequentially_consistent
+        else
+            error("Invalid memory order $order")
+        end
+        llvm_f, _ = create_function(LLVM.VoidType(ctx))
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
+            fence!(builder, _order)
+            ret!(builder)
+        end
+        call_function(llvm_f)
+    end
+end
 
 ## documentation
 
