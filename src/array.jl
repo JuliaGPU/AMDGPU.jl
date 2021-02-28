@@ -53,7 +53,6 @@ end
 # Host abstractions
 #
 
-
 mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     buf::Mem.Buffer
     own::Bool
@@ -61,9 +60,11 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     dims::Dims{N}
     offset::Int
 
+    syncstate::SyncState
+
     function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        xs = new{T,N}(buf, own, dims, offset)
+        xs = new{T,N}(buf, own, dims, offset, SyncState())
         if own
             hsaref!()
             Mem.retain(buf)
@@ -77,6 +78,21 @@ function unsafe_free!(xs::ROCArray)
     Mem.release(xs.buf) && Mem.free(xs.buf)
     hsaunref!()
     return
+end
+
+wait!(x::ROCArray) = wait!(x.syncstate)
+mark!(x::ROCArray, s) = mark!(x.syncstate, s)
+wait!(xs::Vector{<:ROCArray}) = foreach(wait!, xs)
+mark!(xs::Vector{<:ROCArray}, s) = foreach(x->mark!(x,s), xs)
+wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(wait!, xs)
+mark!(xs::NTuple{N,<:ROCArray} where N, s) = foreach(x->mark!(x,s), xs)
+function Adapt.adapt_storage(::WaitAdaptor, x::ROCArray)
+    wait!(x.syncstate)
+    x
+end
+function Adapt.adapt_storage(ma::MarkAdaptor, x::ROCArray)
+    mark!(x.syncstate, ma.s)
+    x
 end
 
 ## aliases

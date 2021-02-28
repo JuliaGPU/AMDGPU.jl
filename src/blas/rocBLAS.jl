@@ -1,6 +1,7 @@
 module rocBLAS
 
 using ..AMDGPU
+import AMDGPU: wait!, mark!
 
 using LinearAlgebra
 
