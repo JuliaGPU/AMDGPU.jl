@@ -33,7 +33,7 @@ function kernel(x)
         idx = workitemIdx().x
         if i == idx
             @rocprintf "My index is %d\n" idx
-        ed
+        end
     end
     nothing
 end
