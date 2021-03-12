@@ -276,11 +276,13 @@ Low-level interface to compile a function invocation for the currently-active GP
 a callable kernel object. For a higher-level interface, use [`@roc`](@ref).
 
 The following keyword arguments are supported:
-- `name`: override the name that the kernel will have in the generated code
+- `name`: overrides the name that the kernel will have in the generated code
+- `device`: chooses which device to compile the kernel for
+- `global_hooks`: specifies maps from global variable name to initializer hook
 
 The output of this function is automatically cached, i.e. you can simply call `rocfunction`
 in a hot path without degrading performance. New code will be generated automatically, when
-when function changes, or when different types or keyword arguments are provided.
+function definitions change, or when different types or keyword arguments are provided.
 """
 function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=default_device(), global_hooks=NamedTuple(), kwargs...)
     source = FunctionSpec(f, tt, true, name)
