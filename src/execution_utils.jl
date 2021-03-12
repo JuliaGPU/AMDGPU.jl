@@ -153,9 +153,13 @@ This is a low-level call, preferably use [`roccall`](@ref) instead.
     groupsize = ROCDim3(groupsize)
     gridsize = ROCDim3(gridsize)
     (groupsize.x>0 && groupsize.y>0 && groupsize.z>0) ||
-        throw(ArgumentError("Group dimensions should be non-null"))
+        throw(ArgumentError("Group dimensions must be non-zero"))
     (gridsize.x>0 && gridsize.y>0 && gridsize.z>0) ||
-        throw(ArgumentError("Grid dimensions should be non-null"))
+        throw(ArgumentError("Grid dimensions must be non-zero"))
+    (groupsize.x<=_max_group_size.x+1 &&
+     groupsize.y<=_max_group_size.y+1 &&
+     groupsize.z<=_max_group_size.z+1) ||
+        throw(ArgumentError("Group dimensions too large"))
 
     _launch(queue, signal, f, groupsize, gridsize, args...)
 end

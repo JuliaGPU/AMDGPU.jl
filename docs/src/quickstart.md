@@ -79,6 +79,10 @@ end
 
 This simple kernel starts by getting the current thread ID using [`workitemIdx`](@ref) and then performs the addition of the elements from `a` and `b`, storing the result in `c`.
 
+Like OpenCL, AMDGPU has the concept of "workitems", "workgroups", and the "grid". A workitem is a single thread of execution, capable of performing arithmentic operations. Workitems are grouped into "wavefronts" ("warps" in CUDA) which share the same compute unit, and execute the same instructions simulatenously. The workgroup is a logical unit of compute supported by hardware which comprises multiple wavefronts, which shares resources (specifically local memory) and can be efficiently synchronized. A workgroup may be executed by one or multiple hardware compute units, making it often the only dimension of importance for smaller kernel launches.
+
+The grid is the domain over which the *entire* kernel executes over. The index of a single workitem can be uniquely identified by its grid index (computed linearly as `(workgroupDim().x * (workgroupIdx().x - 1)) + workitemIdx().x` when only a single dimension is used). The grid will be split into multiple workgroups by hardware automatically, and the kernel does not complete until all workgroups complete.
+
 Notice how we explicitly specify that this function does not return a value by adding the `return` statement.
 This is necessary for all GPU kernels and we can enforce it by adding a `return`, `return nothing`, or even `nothing` at the end of the kernel.
 If this statement is omitted, Julia will attempt to return the value of the last evaluated expression, in this case a `Float64`, which will cause a compilation failure as kernels cannot return values.
@@ -124,4 +128,3 @@ c = Array(c_d)
 using Test
 @test isapprox(c, c_cpu)
 ```
-
