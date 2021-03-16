@@ -2,7 +2,7 @@ module rocRAND
 
 using ..HSA
 using ..AMDGPU
-using ..AMDGPU: librocrand
+using ..AMDGPU: librocrand, mark!, wait!
 
 using CEnum
 
