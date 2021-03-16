@@ -33,7 +33,6 @@ end
             else
                 rocBLAS.rocblas_dscal(handle, 8, 5.0, RA, 1)
             end
-            HIP.hipDeviceSynchronize()
             _A = Array(RA)
             @test isapprox(A .* 5, _A)
         end
@@ -49,7 +48,6 @@ end
             else
                 rocBLAS.rocblas_dcopy(handle, 8, RA, 1, RB, 1)
             end
-            HIP.hipDeviceSynchronize()
             _A = Array(RA)
             _B = Array(RB)
             @test isapprox(A, _A)
@@ -69,7 +67,6 @@ end
             else
                 rocBLAS.rocblas_ddot(handle, 8, RA, 1, RB, 1, result)
             end
-            HIP.hipDeviceSynchronize()
             @test isapprox(LinearAlgebra.dot(A,B), result[])
         end
     end
@@ -85,7 +82,6 @@ end
             else
                 rocBLAS.rocblas_dswap(handle, 8, RA, 1, RB, 1)
             end
-            HIP.hipDeviceSynchronize()
             _A = Array(RA)
             _B = Array(RB)
             @test isapprox(A, _B)
@@ -112,7 +108,6 @@ end
             else
                 rocBLAS.rocblas_dgemv(handle, op, m, n, 5.0, RA, lda, Rx, incx, 0.0, Ry, incy)
             end
-            HIP.hipDeviceSynchronize()
             _A = Array(RA)
             _x = Array(Rx)
             _y = Array(Ry)
