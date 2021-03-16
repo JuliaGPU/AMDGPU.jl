@@ -170,6 +170,7 @@ function Base.copyto!(dest::Array{T}, d_offset::Integer,
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
+    wait!(source)
     Mem.download!(pointer(dest, d_offset),
                   Mem.view(source.buf, (s_offset-1)*sizeof(T)),
                   amount*sizeof(T))
@@ -181,6 +182,7 @@ function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
+    wait!(dest)
     Mem.upload!(Mem.view(dest.buf, (d_offset-1)*sizeof(T)),
                 pointer(source, s_offset),
                 amount*sizeof(T))
@@ -192,6 +194,8 @@ function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
+    wait!(dest)
+    wait!(source)
     Mem.transfer!(Mem.view(dest.buf, (d_offset-1)*sizeof(T)),
                   Mem.view(source.buf, (s_offset-1)*sizeof(T)),
                   amount*sizeof(T))
