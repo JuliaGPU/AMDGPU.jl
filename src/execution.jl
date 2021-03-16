@@ -2,6 +2,28 @@
 
 export @roc, rocconvert, rocfunction, nextwarp, prevwarp
 
+## host to device value conversion
+
+# Base.RefValue isn't GPU compatible, so provide a compatible alternative
+struct ROCRefValue{T} <: Ref{T}
+    x::T
+end
+Base.getindex(r::ROCRefValue) = r.x
+Base.setindex!(r::ROCRefValue{T}, value::T) where T = (r.x = value;)
+Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = ROCRefValue(adapt(to, r[]))
+
+"""
+    rocconvert(x)
+
+This function is called for every argument to be passed to a kernel, allowing it to be
+converted to a GPU-friendly format. By default, the function does nothing and returns the
+input object `x` as-is.
+
+Do not add methods to this function, but instead extend the underlying Adapt.jl package and
+register methods for the the `AMDGPU.Adaptor` type.
+"""
+rocconvert(arg) = adapt(Adaptor(), arg)
+
 
 ## helper functions
 
@@ -160,7 +182,7 @@ macro roc(ex...)
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
-                    local $kernel_args = map(rocconvert, ($(var_exprs...),))
+                    local $kernel_args = map($rocconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
                     local $signal = $create_event($kernel.mod.exe)
@@ -172,28 +194,6 @@ macro roc(ex...)
     return esc(code)
 end
 
-
-## host to device value conversion
-
-# Base.RefValue isn't GPU compatible, so provide a compatible alternative
-struct ROCRefValue{T} <: Ref{T}
-    x::T
-end
-Base.getindex(r::ROCRefValue) = r.x
-Base.setindex!(r::ROCRefValue{T}, value::T) where T = (r.x = value;)
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = ROCRefValue(adapt(to, r[]))
-
-"""
-    rocconvert(x)
-
-This function is called for every argument to be passed to a kernel, allowing it to be
-converted to a GPU-friendly format. By default, the function does nothing and returns the
-input object `x` as-is.
-
-Do not add methods to this function, but instead extend the underlying Adapt.jl package and
-register methods for the the `AMDGPU.Adaptor` type.
-"""
-rocconvert(arg) = adapt(Adaptor(), arg)
 
 
 ## abstract kernel functionality

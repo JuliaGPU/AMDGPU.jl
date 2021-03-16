@@ -90,10 +90,38 @@ function hsaunref!()
     end
 end
 
-function __init__()
-    # Load binary dependencies
-    include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
+# Load binary dependencies
+include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
 
+# Load ROCm external libraries
+if ext_libs_configured
+    libhip !== nothing         && include(joinpath(@__DIR__, "hip", "HIP.jl"))
+    librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
+    librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
+    #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
+    #librocalution !== nothing && include("solver/rocALUTION.jl")
+    librocrand !== nothing && include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
+    #libmiopen !== nothing     && include("dnn/MIOpen.jl")
+
+    # Ensure external libraries are up to date
+    function check_library(name, path)
+        path === nothing && return
+        if !ispath(path)
+            @warn "$name library has changed. Please run Pkg.build(\"AMDGPU\") and restart Julia."
+        end
+    end
+    check_library("rocBLAS", librocblas)
+    check_library("rocSPARSE", librocsparse)
+    check_library("rocALUTION", librocalution)
+    check_library("rocFFT", librocfft)
+    check_library("rocRAND", librocrand)
+    check_library("MIOpen", libmiopen)
+end
+
+# we need to load it after rocRAND.jl
+include(joinpath(@__DIR__, "random.jl"))
+
+function __init__()
     if hsa_configured
         # Make sure we load the library found by the last `] build`
         push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
@@ -114,30 +142,7 @@ function __init__()
                 DEFAULT_AGENT[] = first(agents)
             end
 
-            # Load ROCm external libraries
-            if ext_libs_configured
-                libhip !== nothing         && include(joinpath(@__DIR__, "hip", "HIP.jl"))
-                librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
-                librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-                #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
-                #librocalution !== nothing && include("solver/rocALUTION.jl")
-                librocrand !== nothing && include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
-                #libmiopen !== nothing     && include("dnn/MIOpen.jl")
-
-                # Ensure external libraries are up to date
-                function check_library(name, path)
-                    path === nothing && return
-                    if !ispath(path)
-                        @warn "$name library has changed. Please run Pkg.build(\"AMDGPU\") and restart Julia."
-                    end
-                end
-                check_library("rocBLAS", librocblas)
-                check_library("rocSPARSE", librocsparse)
-                check_library("rocALUTION", librocalution)
-                check_library("rocFFT", librocfft)
-                check_library("rocRAND", librocrand)
-                check_library("MIOpen", libmiopen)
-            else
+            if !ext_libs_configured
                 @warn """
                 ROCm external libraries have not been built, runtime functionality will be unavailable.
                 Please run Pkg.build("AMDGPU") and reload AMDGPU.
@@ -146,8 +151,6 @@ function __init__()
         else
             @warn "HSA initialization failed with code $status"
         end
-        # we need to load it after rocRAND.jl
-        include(joinpath(@__DIR__, "random.jl"))
     else
         @warn """
         HSA runtime has not been built, runtime functionality will be unavailable.
