@@ -64,16 +64,15 @@ function rocprint(oc, str, nl::Bool=false)
         str = Expr(:string, str)
     end
     @assert str.head == :string
-    # TODO: push!(ex.args, :($_hostcall_lock!($(esc(oc)).hostcall)))
     for (idx,arg) in enumerate(str.args)
         if nl && idx == length(str.args)
             arg *= '\n'
         end
+        push!(ex.args, :($_hostcall_lock!($(esc(oc)).hostcall)))
         N = rocprint!(ex, 1, oc, arg)
         N = rocprint!(ex, N, oc, '\0')
-        dstr = DeviceStaticString{N}()
+        push!(ex.args, :($_hostcall!($(esc(oc)).hostcall)))
     end
-    push!(ex.args, :($_hostcall!($(esc(oc)).hostcall)))
     push!(ex.args, :(nothing))
     return ex
 end
@@ -110,27 +109,13 @@ macro rocprintf(fmt, args...)
                                                                         HostCall{UInt64,Int64,LLVMPtr{ROCPrintfBuffer,AS.Global}}))))
     push!(ex.args, :($device_ptr = reinterpret($(LLVMPtr{UInt64,AS.Global}), $printf_hc.buf_ptr)))
 
-    #= FIXME: https://github.com/JuliaGPU/AMDGPU.jl/pull/50
-    #push!(ex.args, :($device_signal_wait($printf_hc.signal, $READY_SENTINEL)))
-    #push!(ex.args, :($device_signal_store!($printf_hc.signal, $DEVICE_LOCK_SENTINEL)))
-    push!(ex.args, quote
-        if AMDGPU.workitemIdx().x == 1
-            $_hostcall_lock!($printf_hc)
-        end
-    end)
-    =#
+    push!(ex.args, :($_hostcall_lock!($printf_hc)))
 
     push!(ex.args, :($device_ptr = AMDGPU._rocprintf_fmt($device_ptr, $device_fmt_ptr, $(sizeof(fmt)))))
     for arg in args
         push!(ex.args, :($device_ptr = AMDGPU._rocprintf_arg($device_ptr, $(esc(arg)))))
     end
     push!(ex.args, :(unsafe_store!($device_ptr, UInt64(0))))
-    #= FIXME: Same as above
-    push!(ex.args, :(AMDGPU.memfence!(Val(:seq_cst))))
-    push!(ex.args, :($device_signal_store!($printf_hc.signal, $DEVICE_MSG_SENTINEL)))
-    push!(ex.args, :($device_signal_wait($printf_hc.signal, $HOST_MSG_SENTINEL)))
-    push!(ex.args, :($device_signal_store!($printf_hc.signal, $READY_SENTINEL)))
-    =#
     push!(ex.args, :($_hostcall!($printf_hc)))
     push!(ex.args, :(nothing))
     ex
@@ -166,7 +151,7 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
     fmt_len = unsafe_load(ptr)
     ptr += sizeof(UInt64)
     fmt_buf = Vector{UInt8}(undef, fmt_len)
-    HSA.memory_copy(convert(Ptr{Cvoid}, pointer(fmt_buf)), convert(Ptr{Cvoid}, fmt_ptr), fmt_len)
+    HSA.memory_copy(convert(Ptr{Cvoid}, pointer(fmt_buf)), convert(Ptr{Cvoid}, fmt_ptr), fmt_len) |> check
     fmt = String(fmt_buf)
     args = []
     while true
@@ -187,8 +172,12 @@ function _rocprintf_fmt(ptr, fmt_ptr, fmt_len)
     ptr += sizeof(UInt64)
     return ptr
 end
+@generated function ptr_from_type(::Type{T}) where T
+    ptr = pointer_from_objref(T)
+    return UInt64(ptr)
+end
 function _rocprintf_arg(ptr, arg::T) where T
-    T_ptr = pointer_from_objref(T)
+    T_ptr = ptr_from_type(T)
     unsafe_store!(ptr, T_ptr)
     ptr += sizeof(UInt64)
     unsafe_store!(reinterpret(LLVMPtr{T,1}, ptr), arg)

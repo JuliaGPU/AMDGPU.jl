@@ -30,17 +30,13 @@ end
 
 # TODO Docstring
 function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String; globals=())
-    #= NOTE: Everything I can see indicates that profile is always FULL
-    profile = Ref{HSA.Profile}()
-    HSA.agent_get_info(agent.agent, HSA.AGENT_INFO_PROFILE, profile) |> check
-    =#
-
     code_object_reader = Ref{HSA.CodeObjectReader}(HSA.CodeObjectReader(0))
     HSA.code_object_reader_create_from_memory(data, sizeof(data),
                                               code_object_reader) |> check
 
     executable = Ref{HSA.Executable}()
-    HSA.executable_create_alt(HSA.PROFILE_BASE,
+    # NOTE: Everything I can see indicates that profile is always FULL
+    HSA.executable_create_alt(profile(agent),
                               HSA.DEFAULT_FLOAT_ROUNDING_MODE_NEAR,
                               C_NULL, executable) |> check
 

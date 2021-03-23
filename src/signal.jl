@@ -6,7 +6,7 @@ end
 
 function HSASignal(init::Integer=1)
     signal = HSASignal(Ref{Signal}())
-    HSA.signal_create(Int64(init), 0, C_NULL, signal.signal)
+    HSA.signal_create(Int64(init), 0, C_NULL, signal.signal) |> check
     hsaref!()
     finalizer(signal) do signal
         HSA.signal_destroy(signal.signal[]) |> check

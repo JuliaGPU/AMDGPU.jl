@@ -66,6 +66,7 @@ const binops = Dict(
 const atomic_acquire = LLVM.API.LLVMAtomicOrderingAcquire
 const atomic_release = LLVM.API.LLVMAtomicOrderingRelease
 const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
+const atomic_sequentially_consistent = LLVM.API.LLVMAtomicOrderingSequentiallyConsistent
 
 for T in (Int32, Int64, UInt32, UInt64)
     ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]
@@ -161,6 +162,31 @@ for T in [Float32, Float64]
     end
 end
 
+# memory fence
+
+@inline @generated function memfence!(::Val{order}) where {order}
+    JuliaContext() do ctx
+        _order = if order == :acq
+            atomic_acquire
+        elseif order == :rel
+            atomic_release
+        elseif order == :acq_rel
+            atomic_acquire_release
+        elseif order == :seq_cst
+            atomic_sequentially_consistent
+        else
+            error("Invalid memory order $order")
+        end
+        llvm_f, _ = create_function(LLVM.VoidType(ctx))
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
+            fence!(builder, _order)
+            ret!(builder)
+        end
+        call_function(llvm_f)
+    end
+end
 
 ## documentation
 
