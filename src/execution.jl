@@ -314,8 +314,10 @@ function rocfunction_compile(@nospecialize(job::CompilerJob))
     # find undefined globals and calculate sizes
     globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
                   filter(x->isextinit(x), collect(LLVM.globals(ir))))
+    entry = LLVM.name(kernel)
+    dispose(ir)
 
-    return (;obj, entry=LLVM.name(kernel), globals)
+    return (;obj, entry, globals)
 end
 function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
     device = job.params.device
@@ -360,7 +362,7 @@ default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
 end
 default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     # initialize global printf context
-    # Return type of Int to force synchronizing behavior for @rocprintfw
+    # Return type of Int to force synchronizing behavior
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
     hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; agent=device.device, continuous=true, buf_len=2^16) do _
         fmt, args = unsafe_load(reinterpret(LLVMPtr{ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
