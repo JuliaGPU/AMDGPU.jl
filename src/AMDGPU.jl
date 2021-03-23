@@ -13,6 +13,7 @@ using Requires
 import LinearAlgebra
 using Printf
 import Core: LLVMPtr
+using LRUCache
 
 ### Exports ###
 
