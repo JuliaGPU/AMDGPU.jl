@@ -218,8 +218,12 @@ function _rocprintf_fmt(ptr, fmt_ptr, fmt_len)
     ptr += sizeof(UInt64)
     return ptr
 end
+@generated function ptr_from_type(::Type{T}) where T
+    ptr = pointer_from_objref(T)
+    return UInt64(ptr)
+end
 function _rocprintf_arg(ptr, arg::T) where T
-    T_ptr = pointer_from_objref(T)
+    T_ptr = ptr_from_type(T)
     unsafe_store!(ptr, T_ptr)
     ptr += sizeof(UInt64)
     unsafe_store!(reinterpret(LLVMPtr{T,1}, ptr), arg)
