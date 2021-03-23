@@ -295,14 +295,15 @@ function definitions change, or when different types or keyword arguments are pr
 """
 function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=default_device(), global_hooks=NamedTuple(), kwargs...)
     source = FunctionSpec(f, tt, true, name)
-    cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
+    cache = get!(()->LRU{UInt,Any}(;maxsize=256), rocfunction_cache, device)
     target = GCNCompilerTarget(; dev_isa=default_isa(device))
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
     GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::HostKernel{f,tt}
 end
 
-const rocfunction_cache = Dict{RuntimeDevice,Dict{UInt,Any}}()
+# FIXME: Concretize cache element
+const rocfunction_cache = Dict{RuntimeDevice,LRU{UInt,Any}}()
 
 # compile to GCN
 function rocfunction_compile(@nospecialize(job::CompilerJob))

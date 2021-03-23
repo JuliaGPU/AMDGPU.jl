@@ -13,7 +13,7 @@ end
 ## module and function
 
 const MAX_EXCEPTIONS = 256
-const EXE_TO_MODULE_MAP = IdDict{Any,WeakRef}()
+const EXE_TO_MODULE_MAP = WeakKeyDict{Any,WeakRef}()
 mutable struct ROCModule{E}
     exe::RuntimeExecutable{E}
     metadata::Vector{KernelMetadata}
