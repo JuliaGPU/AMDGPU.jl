@@ -30,7 +30,7 @@ rocconvert(arg) = adapt(Adaptor(), arg)
 # split keyword arguments to `@roc` into ones affecting the macro itself, the compiler and
 # the code it generates, or the execution
 function split_kwargs(kwargs)
-    macro_kws    = [:dynamic]
+    macro_kws    = [:dynamic, :launch]
     compiler_kws = [:name, :device, :queue, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config, :queue]
     alias_kws    = Dict(:agent=>:device, :stream=>:queue)
@@ -104,6 +104,7 @@ performed, scheduling a kernel launch on the specified (or default) HSA queue.
 
 Several keyword arguments are supported that influence the behavior of `@roc`.
 - `dynamic`: use dynamic parallelism to launch device-side kernels
+- `launch`: whether to launch the kernel
 - arguments that influence kernel compilation: see [`rocfunction`](@ref) and
   [`dynamic_rocfunction`](@ref)
 - arguments that influence kernel launch: see [`AMDGPU.HostKernel`](@ref) and
@@ -146,11 +147,15 @@ macro roc(ex...)
 
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
+    launch = true
     for kwarg in macro_kwargs
         key,val = kwarg.args
         if key == :dynamic
-            isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @roc should be a constant value"))
+            isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @roc should be a constant Bool"))
             dynamic = val::Bool
+        elseif key == :launch
+            isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @roc should be a constant Bool"))
+            launch = val::Bool
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
@@ -185,9 +190,13 @@ macro roc(ex...)
                     local $kernel_args = map($rocconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
-                    local $signal = $create_event($kernel.mod.exe)
-                    $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
-                    $signal
+                    if $launch
+                        local $signal = $create_event($kernel.mod.exe)
+                        $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
+                        $signal
+                    else
+                        $kernel
+                    end
                 end
             end)
         end
@@ -305,8 +314,10 @@ function rocfunction_compile(@nospecialize(job::CompilerJob))
     # find undefined globals and calculate sizes
     globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
                   filter(x->isextinit(x), collect(LLVM.globals(ir))))
+    entry = LLVM.name(kernel)
+    dispose(ir)
 
-    return (;obj, entry=LLVM.name(kernel), globals)
+    return (;obj, entry, globals)
 end
 function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
     device = job.params.device
@@ -351,7 +362,7 @@ default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
 end
 default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     # initialize global printf context
-    # Return type of Int to force synchronizing behavior for @rocprintfw
+    # Return type of Int to force synchronizing behavior
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
     hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; agent=device.device, continuous=true, buf_len=2^16) do _
         fmt, args = unsafe_load(reinterpret(LLVMPtr{ROCPrintfBuffer,AS.Global}, hc.buf_ptr))

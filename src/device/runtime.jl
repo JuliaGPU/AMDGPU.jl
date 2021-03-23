@@ -124,6 +124,7 @@ function link_device_libs!(mod::LLVM.Module, dev_isa::String, undefined_fns)
     end
 
     GPUCompiler.link_library!(mod, libs)
+    dispose.(libs)
 end
 
 function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only=false,

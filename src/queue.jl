@@ -7,6 +7,7 @@ Each queue is uniquely associated with an agent.
 mutable struct HSAQueue
     agent::HSAAgent
     queue::Ref{Ptr{HSA.Queue}}
+    active::Bool
 end
 
 const DEFAULT_QUEUES = IdDict{HSAAgent,HSAQueue}()
@@ -15,16 +16,16 @@ function HSAQueue(agent::HSAAgent)
     queue_size = Ref{UInt32}(0)
     getinfo(agent.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
     @assert queue_size[] > 0
-    queue = HSAQueue(agent, Ref{Ptr{HSA.Queue}}())
+    queue = HSAQueue(agent, Ref{Ptr{HSA.Queue}}(), true)
     HSA.queue_create(agent.agent, queue_size[], HSA.QUEUE_TYPE_SINGLE,
                      C_NULL, C_NULL, typemax(UInt32), typemax(UInt32),
                      queue.queue) |> check
 
     hsaref!()
     finalizer(queue) do queue
-        # NOTE: We don't check the result since queues might be
-        # invactivated/destroyed by us (for hostcall failures)
-        HSA.queue_destroy(queue.queue[])
+        if queue.active
+            HSA.queue_destroy(queue.queue[]) |> check
+        end
         hsaunref!()
     end
     return queue
@@ -49,6 +50,7 @@ end
 
 "Kills all kernels executing on the given queue, and destroys the queue."
 function kill_queue!(queue::HSAQueue)
-    finalize(queue)
+    queue.active = false
     delete!(DEFAULT_QUEUES, queue.agent)
+    HSA.queue_destroy(queue.queue[]) |> check
 end
