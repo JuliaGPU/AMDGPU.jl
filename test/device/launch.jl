@@ -25,6 +25,11 @@
     @test_throws ArgumentError eval(:(@roc groupsize=0 $kernel()))
     eval(:(@roc groupsize=1024 $kernel()))
     @test_throws ArgumentError eval(:(@roc groupsize=1025 $kernel()))
+
+    # No-launch
+    @test eval(:(@roc launch=true $kernel())) isa HSASignal
+    @test eval(:(@roc launch=false $kernel())) isa AMDGPU.HostKernel
+    @test_throws Exception eval(:(@roc launch=1 $kernel())) # TODO: ArgumentError
 end
 
 @testset "No-argument kernel" begin
