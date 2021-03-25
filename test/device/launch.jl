@@ -49,3 +49,13 @@ end
     y = Int64(x)
     wait(@roc kernel(x, y))
 end
+
+@testset "Signal waiting" begin
+    kernel() = nothing
+
+    sig = @roc kernel()
+    wait(sig)
+    wait(sig.event)
+    wait(sig.event.signal)
+    wait(sig.event.signal.signal[])
+end

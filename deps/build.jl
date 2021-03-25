@@ -11,9 +11,15 @@ function version_hsa(libpath)
     major_ref = Ref{Cushort}(typemax(Cushort))
     minor_ref = Ref{Cushort}(typemax(Cushort))
     status = ccall(sym, Cint, (Cint, Ptr{Cushort}), 0, major_ref)
-    @assert status == 0 "HSA error: $status"
+    if status != 0
+        @warn "HSA error: $status"
+        return v"0"
+    end
     status = ccall(sym, Cint, (Cint, Ptr{Cushort}), 1, minor_ref)
-    @assert status == 0 "HSA error: $status"
+    if status != 0
+        @warn "HSA error: $status"
+        return v"0"
+    end
     return VersionNumber(major_ref[], minor_ref[])
 end
 
@@ -138,21 +144,24 @@ function main()
 
     # check that we're running Linux
     if !Sys.islinux()
-        build_error("Not running Linux, which is the only platform currently supported by the ROCm Runtime.")
+        build_warning("Not running Linux, which is the only platform currently supported by the ROCm Runtime.")
+        return
     end
 
     roc_dirs = find_roc_paths()
 
     config[:libhsaruntime_path] = find_hsa_library("libhsa-runtime64.so.1", roc_dirs)
     if config[:libhsaruntime_path] == nothing
-        build_error("Could not find HSA runtime library v1.")
+        build_warning("Could not find HSA runtime library v1.")
+        return
     end
 
     # initializing the library isn't necessary, but flushes out errors that otherwise would
     # happen during `version` or, worse, at package load time.
     status = init_hsa(config[:libhsaruntime_path])
     if status != 0
-        build_error("Initializing HSA runtime failed with code $status.")
+        build_warning("Initializing HSA runtime failed with code $status.")
+        return
     end
 
     config[:libhsaruntime_version] = version_hsa(config[:libhsaruntime_path])
@@ -160,13 +169,15 @@ function main()
     # also shutdown just in case
     status = shutdown_hsa(config[:libhsaruntime_path])
     if status != 0
-        build_error("Shutdown of HSA runtime failed with code $status.")
+        build_warning("Shutdown of HSA runtime failed with code $status.")
+        return
     end
 
     # find the ld.lld program for linking kernels
     ld_path = find_ld_lld()
     if ld_path == ""
-        build_error("Couldn't find ld.lld, please install it with your package manager")
+        build_warning("Couldn't find ld.lld, please install it with your package manager")
+        return
     end
     config[:ld_lld_path] = ld_path
 
@@ -209,7 +220,7 @@ function main()
 
     if status != 0
         # we got here, so the status is non-fatal
-        build_error("""
+        build_warning("""
 
             AMDGPU.jl has been built successfully, but there were warnings.
             Some functionality may be unavailable.""")
@@ -246,7 +257,8 @@ if dl_info === nothing && unsatisfied
     # If we don't have a compatible .tar.gz to download, complain.
     # Alternatively, you could attempt to install from a separate provider,
     # build from source or something even more ambitious here.
-    error("Your platform (\"$(Sys.MACHINE)\", parsed as \"$(triplet(platform_key_abi()))\") is not supported by this package!")
+    @warn "Your platform (\"$(Sys.MACHINE)\", parsed as \"$(triplet(platform_key_abi()))\") is not supported by this package!"
+    return
 end
 
 # If we have a download, and we are unsatisfied (or the version we're

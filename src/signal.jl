@@ -14,6 +14,7 @@ function HSASignal(init::Integer=1)
     end
     return signal
 end
+HSASignal(signal::HSA.Signal) = HSASignal(Ref(signal))
 
 Adapt.adapt_structure(::Adaptor, sig::HSASignal) = sig.signal[]
 
@@ -51,3 +52,4 @@ function Base.wait(signal::HSASignal; soft=true, minlat=0.01, timeout=nothing)
     end
 end
 
+Base.wait(signal::HSA.Signal; kwargs...) = wait(HSASignal(signal); kwargs...)
