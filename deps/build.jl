@@ -258,7 +258,7 @@ if dl_info === nothing && unsatisfied
     # Alternatively, you could attempt to install from a separate provider,
     # build from source or something even more ambitious here.
     @warn "Your platform (\"$(Sys.MACHINE)\", parsed as \"$(triplet(platform_key_abi()))\") is not supported by this package!"
-    return
+    exit(0)
 end
 
 # If we have a download, and we are unsatisfied (or the version we're
