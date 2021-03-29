@@ -156,6 +156,16 @@ function __init__()
         HSA runtime has not been built, runtime functionality will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         """
+
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_HSA_MUST_LOAD", "0"))
+            println("Diagnostics:")
+            println("-- deps/build.log")
+            println(String(read(joinpath(@__DIR__, "..", "deps", "build.log"))))
+            println("-- permissions")
+            run(`ls -lah /dev/kfd`)
+            run(`ls -lah /dev/dri`)
+            run(`id`)
+        end
     end
 
     # Check whether device intrinsics are available
