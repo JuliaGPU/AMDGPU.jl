@@ -60,8 +60,9 @@ function emit_exception_user!(mod::LLVM.Module)
     @assert haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
 end
 function delete_exception_user!(mod::LLVM.Module)
-    if haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
-        delete!(mod, LLVM.functions(mod)["__fake_global_exception_flag_user"])
+    fns = LLVM.functions(mod)
+    if haskey(fns, "__fake_global_exception_flag_user")
+        unsafe_delete!(mod, fns["__fake_global_exception_flag_user"])
     end
     @assert !haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
 end
