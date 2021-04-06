@@ -38,10 +38,3 @@ macro grab_output(ex, io=stdout)
         end
     end
 end
-
-#FIXME: remove once we have a proper sync implementation
-function mycollect(x::ROCArray{T,N}) where {T,N}
-    # need to synchronize otherwise some library functions are not executed
-    HIP.hipDeviceSynchronize()
-    collect(x)
-end

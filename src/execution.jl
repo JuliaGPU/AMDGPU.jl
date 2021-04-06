@@ -190,9 +190,11 @@ macro roc(ex...)
                     local $kernel_args = map($rocconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
+                    foreach($wait!, ($(var_exprs...),))
                     if $launch
                         local $signal = $create_event($kernel.mod.exe)
                         $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
+                        foreach(x->$mark!(x, $signal), ($(var_exprs...),))
                         $signal
                     else
                         $kernel

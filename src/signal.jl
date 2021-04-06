@@ -19,7 +19,7 @@ HSASignal(signal::HSA.Signal) = HSASignal(Ref(signal))
 Adapt.adapt_structure(::Adaptor, sig::HSASignal) = sig.signal[]
 
 """
-    Base.wait(signal::HSASignal; soft=true, minlat=0.01)
+    Base.wait(signal::HSASignal; soft=true, minlat=0.001)
 
 Waits on an `HSASignal` to decrease below 1. If `soft=true` (default), uses
 tasks to poll the signal, otherwise uses HSA's signal waiter. `minlat` sets
@@ -27,7 +27,7 @@ the minimum latency for the software waiter; lower values can decrease latency
 at the cost of increased polling load. `timeout`, if not `nothing`, sets the
 timeout for the signal, after which the call will error.
 """
-function Base.wait(signal::HSASignal; soft=true, minlat=0.01, timeout=nothing)
+function Base.wait(signal::HSASignal; soft=true, minlat=0.001, timeout=nothing)
     if soft
         start_time = time_ns()
         while true

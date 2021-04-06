@@ -1,8 +1,7 @@
 module rocFFT
 
 using ..AMDGPU
-using ..AMDGPU: librocfft
-using ..HIP: hipStreamSynchronize
+using ..AMDGPU: librocfft, mark!, wait!
 
 using CEnum
 

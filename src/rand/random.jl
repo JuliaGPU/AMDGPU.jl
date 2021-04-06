@@ -46,7 +46,9 @@ for (f,T) in ((:rocrand_generate, :UInt32), (:rocrand_generate_char,:Cuchar),
               (:rocrand_generate_uniform_double, :Float64), (:rocrand_generate_uniform_half, :Float16))
     @eval begin
         function Random.rand!(rng::RNG, A::ROCArray{$(T)})
+            wait!(A)
             $(f)(rng, A, length(A))
+            mark!(C_NULL, A)
             return A
         end
     end

@@ -20,17 +20,17 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     p = plan_fft(d_X)
     Y = zeros(T, p.osz)
     d_Y = p * d_X;
-    Y = mycollect(d_Y)
+    Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_ifft(d_Y)
     d_Z = pinv * d_Y
-    Z = mycollect(d_Z)
+    Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 
     pinv2 = inv(p)
     d_Z = pinv2 * d_Y
-    Z = mycollect(d_Z)
+    Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 
@@ -40,12 +40,12 @@ function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     copyto!(d_X, X)
     p = plan_fft!(d_X)
     p * d_X
-    Y = mycollect(d_X)
+    Y = collect(d_X)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_ifft!(d_X)
     pinv * d_X
-    Z = mycollect(d_X)
+    Z = collect(d_X)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 
@@ -55,12 +55,12 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     copyto!(d_X, X)
     p = plan_fft!(d_X,region)
     p * d_X
-    Y = mycollect(d_X)
+    Y = collect(d_X)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_ifft!(d_X,region)
     pinv * d_X
-    Z = mycollect(d_X)
+    Z = collect(d_X)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 
@@ -154,22 +154,22 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     copyto!(d_X, X)
     p = plan_rfft(d_X)
     d_Y = p * d_X
-    Y = mycollect(d_Y)
+    Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_irfft(d_Y,size(X,1))
     d_Z = pinv * d_Y
-    Z = mycollect(d_Z)
+    Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 
     pinv2 = inv(p)
     d_Z = pinv2 * d_Y
-    Z = mycollect(d_Z)
+    Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 
     pinv3 = inv(pinv)
     d_W = pinv3 * d_X
-    W = mycollect(d_W)
+    W = collect(d_W)
     @test isapprox(W, Y, rtol = MYRTOL, atol = MYATOL)
 end
 
@@ -179,12 +179,12 @@ function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
     copyto!(d_X, X)
     p = plan_rfft(d_X,region)
     d_Y = p * d_X
-    Y = mycollect(d_Y)
+    Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_irfft(d_Y,size(X,region[1]),region)
     d_Z = pinv * d_Y
-    Z = mycollect(d_Z)
+    Z = collect(d_Z)
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 

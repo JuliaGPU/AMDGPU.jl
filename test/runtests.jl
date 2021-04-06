@@ -83,6 +83,7 @@ if AMDGPU.configured
                 isdefined(AMDGPU, :rocBLAS) ? include("rocarray/blas.jl") : @test_skip "rocBLAS"
                 isdefined(AMDGPU, :rocFFT) ? include("rocarray/fft.jl") : @test_skip "rocFFT"
                 isdefined(AMDGPU, :rocRAND) ? include("rocarray/random.jl") : @test_skip "rocRAND"
+                include("rocarray/nmf.jl")
             end
         end
         @testset "External Packages" begin

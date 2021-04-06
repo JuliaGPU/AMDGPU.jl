@@ -17,7 +17,7 @@ for (f,T) in ((rand!, Float16),
     fill!(A, T(0))
     f(A)
     if f !== rand_poisson!
-        @test !iszero(mycollect(A))
+        @test !iszero(collect(A))
     end
 end
 
@@ -49,7 +49,7 @@ for (f,T) in ((rand!,Int32),),
     A = ROCArray{T}(undef, d)
     fill!(A, T(0))
     f(AMDGPU.gpuarrays_rng(), A)
-    @test !iszero(mycollect(A))
+    @test !iszero(collect(A))
 end
 for (f,T) in ((AMDGPU.rand,Int32),),
     args in ((T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
@@ -70,13 +70,13 @@ a = AMDGPU.rand(Float32, 1)
 AMDGPU.seed!(1)
 b = AMDGPU.rand(Float32, 1)
 # fixme: uncomment once mapreduce works
-@test iszero(mycollect(a) - mycollect(b))
+@test iszero(collect(a) - collect(b))
 #@test all(a .== b)
 ## gpuarrays fallback
 AMDGPU.seed!(1)
 a = AMDGPU.rand(Int32, 1)
 AMDGPU.seed!(1)
 b = AMDGPU.rand(Int32, 1)
-@test iszero(mycollect(a) - mycollect(b))
+@test iszero(collect(a) - collect(b))
 #@test all(a .== b)
 end # testset

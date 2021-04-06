@@ -213,7 +213,7 @@ function HostCall(func, rettype, argtypes; return_task=false,
         while true
             try
                 try
-                    if !_hostwait(signal.signal[], hc.device_sentinel; maxlat=maxlat, timeout=timeout)
+                    if !_hostwait(signal, hc.device_sentinel; maxlat=maxlat, timeout=timeout)
                         error("Hostwait timeout")
                     end
                 catch err
@@ -288,7 +288,7 @@ function _hostwait(signal, sentinel; maxlat=DEFAULT_HOSTCALL_LATENCY, timeout=no
     @debug "Hostcall: Waiting on signal for sentinel: $sentinel"
     start_time = time_ns()
     while true
-        value = HSA.signal_load_scacquire(signal)
+        value = HSA.signal_load_scacquire(signal.signal[])
         if value == sentinel
             @debug "Hostcall: Signal triggered with sentinel: $sentinel"
             return true

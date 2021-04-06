@@ -48,6 +48,7 @@ if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
 end
 =#
 include("runtime.jl")
+include("sync.jl")
 
 # Device sources must load _before_ the compiler infrastructure
 # because of generated functions.
