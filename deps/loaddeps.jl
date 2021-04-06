@@ -5,13 +5,16 @@ if !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
     using hsakmt_roct_jll
 end
 
-const ext = joinpath(@__DIR__, "ext.jl")
-if !isfile(ext)
-    @warn "Didn't find $ext, please build AMDGPU.jl"
-    const hsa_configured = false
-    const ext_libs_configured = false
-else
-    include(ext)
+try
+    include("ext.jl")
+catch err
+    if !isfile(joinpath(@__DIR__, "ext.jl"))
+        @warn "Didn't find $ext, please build AMDGPU.jl"
+        @eval const hsa_configured = false
+        @eval const ext_libs_configured = false
+    else
+        rethrow(err)
+    end
 end
 
 # Default (non-functional) values for critical variables,
