@@ -26,7 +26,7 @@ end
 @eval atomic_store_n!(x::Ptr{UInt16}, v::UInt16) =
     Base.llvmcall($"""
     %ptr = inttoptr i$(Sys.WORD_SIZE) %0 to i16*
-    store atomic i16 %1, i16* %ptr release, align 16
+    store atomic i16 %1, i16* %ptr release, align 64
     ret void
     """, Cvoid, Tuple{Ptr{UInt16}, UInt16},
     Base.unsafe_convert(Ptr{UInt16}, x), v)

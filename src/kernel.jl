@@ -157,17 +157,12 @@ end
 
 function _launch!(f, T, queue::HSAQueue, signal::HSASignal)
     # Obtain the current queue write index and queue size
-    _queue_size = Ref{UInt32}(0)
-    getinfo(queue.agent.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, _queue_size) |> check
-    queue_size = _queue_size[]
+    _queue = unsafe_load(queue.queue[])
+    queue_size = _queue.size
     write_index = HSA.queue_add_write_index_scacq_screl(queue.queue[], UInt64(1))
 
     # Yield until queue has space
-    while true
-        read_index = HSA.queue_load_read_index_scacquire(queue.queue[])
-        if write_index < read_index + queue_size
-            break
-        end
+    while write_index - HSA.queue_load_read_index_scacquire(queue.queue[]) >= queue_size
         yield()
     end
 
@@ -176,14 +171,11 @@ function _launch!(f, T, queue::HSAQueue, signal::HSASignal)
     ccall(:memset, Cvoid,
           (Ptr{Cvoid}, Cint, Csize_t),
           dispatch_packet, 0, sizeof(T))
-    _packet = dispatch_packet[]
-    _packet = f(_packet)
-    dispatch_packet = Ref{T}(_packet)
+    dispatch_packet[] = f(dispatch_packet[])
 
-    _queue = unsafe_load(queue.queue[])
-    queueMask = UInt32(_queue.size - 1)
+    queueMask = UInt32(queue_size - 1)
     baseaddr_ptr = Ptr{HSA.KernelDispatchPacket}(_queue.base_address)
-    baseaddr_ptr += sizeof(HSA.KernelDispatchPacket) * (write_index & queueMask)
+    baseaddr_ptr = baseaddr_ptr + sizeof(HSA.KernelDispatchPacket) * (write_index & queueMask)
     dispatch_packet_ptr = convert(Ptr{HSA.KernelDispatchPacket}, Base.unsafe_convert(Ptr{T}, dispatch_packet))
     unsafe_copyto!(baseaddr_ptr, dispatch_packet_ptr, 1)
 
@@ -191,11 +183,11 @@ function _launch!(f, T, queue::HSAQueue, signal::HSASignal)
     packetheadertype(::Type{HSA.BarrierAndPacket}) = HSA.PACKET_TYPE_BARRIER_AND
     packetheadertype(::Type{HSA.BarrierOrPacket}) = HSA.PACKET_TYPE_BARRIER_OR
 
-    # Atomically store the header
+    # Create and atomically store the header
     header = Ref{UInt16}(0)
-    header[] |= Int(HSA.FENCE_SCOPE_SYSTEM) << Int(HSA.PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
-    header[] |= Int(HSA.FENCE_SCOPE_SYSTEM) << Int(HSA.PACKET_HEADER_RELEASE_FENCE_SCOPE)
-    header[] |= Int(packetheadertype(T)) << Int(HSA.PACKET_HEADER_TYPE)
+    header[] |= UInt16(HSA.FENCE_SCOPE_SYSTEM) << UInt16(HSA.PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
+    header[] |= UInt16(HSA.FENCE_SCOPE_SYSTEM) << UInt16(HSA.PACKET_HEADER_RELEASE_FENCE_SCOPE)
+    header[] |= UInt16(packetheadertype(T))    << UInt16(HSA.PACKET_HEADER_TYPE)
     atomic_store_n!(Base.unsafe_convert(Ptr{UInt16}, baseaddr_ptr), header[])
 
     # Ring the doorbell to dispatch the kernel

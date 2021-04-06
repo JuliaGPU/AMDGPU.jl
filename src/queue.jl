@@ -17,7 +17,7 @@ function HSAQueue(agent::HSAAgent)
     getinfo(agent.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
     @assert queue_size[] > 0
     queue = HSAQueue(agent, Ref{Ptr{HSA.Queue}}(), true)
-    HSA.queue_create(agent.agent, queue_size[], HSA.QUEUE_TYPE_SINGLE,
+    HSA.queue_create(agent.agent, queue_size[], HSA.QUEUE_TYPE_MULTI,
                      C_NULL, C_NULL, typemax(UInt32), typemax(UInt32),
                      queue.queue) |> check
 
