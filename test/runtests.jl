@@ -85,6 +85,7 @@ if AMDGPU.configured
                 isdefined(AMDGPU, :rocRAND) ? include("rocarray/random.jl") : @test_skip "rocRAND"
                 include("rocarray/nmf.jl")
             end
+            include("rocarray/base.jl")
         end
         @testset "External Packages" begin
             include("external/forwarddiff.jl")
