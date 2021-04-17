@@ -189,15 +189,18 @@ function isas(agent::HSAAgent)
     HSA.agent_iterate_isas(agent.agent, func, isas) |> check
     isas[]
 end
-function get_first_isa_string(agent::HSAAgent)
-    isa = first(isas(agent))
+const isa_regex = r"([a-z]*)-([a-z]*)-([a-z]*)--([a-z0-9]*)([a-zA-Z0-9+]*)"
+function Base.convert(::Type{String}, isa::HSA.ISA)
     len = Ref{Cuint}(0)
     getinfo(isa, HSA.ISA_INFO_NAME_LENGTH, len) |> check
-    name = repeat(" ", len[])
+    name = Vector{UInt8}(undef, len[])
     getinfo(isa, HSA.ISA_INFO_NAME, name) |> check
-    isa_name = string(rstrip(last(split(name, "-")), '\0'))
-    return isa_name
+    name = String(name)
+    m = match(isa_regex, name)
+    @assert m !== nothing "Failed to match ISA name pattern: $name"
+    return m.captures[4]
 end
+get_first_isa_string(agent::HSAAgent) = convert(String, first(isas(agent)))
 function max_group_size(isa::HSA.ISA)
     size = Ref{UInt32}(0)
     getinfo(isa, HSA.ISA_INFO_WORKGROUP_MAX_SIZE, size)
