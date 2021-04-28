@@ -189,8 +189,10 @@ function isas(agent::HSAAgent)
     HSA.agent_iterate_isas(agent.agent, func, isas) |> check
     isas[]
 end
-const isa_regex = r"([a-z]*)-([a-z]*)-([a-z]*)--([a-z0-9]*)([a-zA-Z0-9+]*)"
-function Base.convert(::Type{String}, isa::HSA.ISA)
+
+# TODO: PCRE regexes are not thread-safe
+const isa_regex = r"([a-z]*)-([a-z]*)-([a-z]*)--([a-z0-9]*)([a-zA-Z0-9+\-:]*)"
+function parse_isa(isa::HSA.ISA)
     len = Ref{Cuint}(0)
     getinfo(isa, HSA.ISA_INFO_NAME_LENGTH, len) |> check
     name = Vector{UInt8}(undef, len[])
@@ -198,9 +200,30 @@ function Base.convert(::Type{String}, isa::HSA.ISA)
     name = String(name)
     m = match(isa_regex, name)
     @assert m !== nothing "Failed to match ISA name pattern: $name"
-    return m.captures[4]
+    m
 end
-get_first_isa_string(agent::HSAAgent) = convert(String, first(isas(agent)))
+
+function llvm_arch_features(isa::HSA.ISA)
+    m = parse_isa(isa)
+    arch = m.captures[4]
+    features = join(map(x->x[1:end-1],
+                        filter(x->!isempty(x) && (x[end]=='+'),
+                               split(m.captures[5], ':'))),
+                    ",+")
+    if !isempty(features)
+        features = '+'*features
+    end
+    if Base.libllvm_version < v"12"
+        features = replace(features, "sramecc"=>"sram-ecc")
+    end
+    return (arch, features)
+end
+architecture(isa::HSA.ISA) = llvm_arch_features(isa)[1]
+features(isa::HSA.ISA) = llvm_arch_features(isa)[2]
+
+get_first_isa_string(agent::HSAAgent) = architecture(first(isas(agent)))
+get_first_feature_string(agent::HSAAgent) = features(first(isas(agent)))
+
 function max_group_size(isa::HSA.ISA)
     size = Ref{UInt32}(0)
     getinfo(isa, HSA.ISA_INFO_WORKGROUP_MAX_SIZE, size)

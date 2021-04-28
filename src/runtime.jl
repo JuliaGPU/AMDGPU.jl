@@ -14,7 +14,7 @@ default_queue(::typeof(HSA_rt), device::RuntimeDevice) =
 get_device(queue::RuntimeQueue{HSAQueue}) = RuntimeDevice(queue.queue.agent)
 
 default_isa(device::RuntimeDevice{HSAAgent}) =
-    get_first_isa_string(device.device)
+    first(isas(device.device))
 
 struct RuntimeEvent{E}
     event::E
