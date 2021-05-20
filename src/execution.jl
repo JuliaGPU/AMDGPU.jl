@@ -298,7 +298,11 @@ function definitions change, or when different types or keyword arguments are pr
 function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=default_device(), global_hooks=NamedTuple(), kwargs...)
     source = FunctionSpec(f, tt, true, name)
     cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
-    target = GCNCompilerTarget(; dev_isa=default_isa(device))
+    agent = device.device
+    isa = default_isa(device)
+    arch = architecture(isa)
+    feat = features(isa)
+    target = GCNCompilerTarget(; dev_isa=arch, features=feat)
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
     GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::HostKernel{f,tt}
