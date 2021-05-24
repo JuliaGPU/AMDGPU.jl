@@ -147,6 +147,7 @@ function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only
         initializer!(gv, init)
         unnamed_addr!(gv, true)
         constant!(gv, true)
+        linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
     end
 
     link!(mod, lib)
