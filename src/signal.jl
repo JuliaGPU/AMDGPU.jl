@@ -42,7 +42,8 @@ function Base.wait(signal::HSASignal; soft=true, minlat=0.01, timeout=nothing)
                     error("Timeout while waiting on signal")
                 end
             end
-            sleep(minlat)
+            # sleep(minlat)
+	    yield()
         end
     else
         # Wait on the dispatch completion signal until the kernel is finished
