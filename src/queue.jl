@@ -21,11 +21,14 @@ function HSAQueue(agent::HSAAgent)
                      C_NULL, C_NULL, typemax(UInt32), typemax(UInt32),
                      queue.queue) |> check
 
+    active_kernels[queue] = Vector{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal}}()
+
     hsaref!()
     finalizer(queue) do queue
         if queue.active
             HSA.queue_destroy(queue.queue[]) |> check
         end
+        delete!(active_kernels, queue)
         hsaunref!()
     end
     return queue

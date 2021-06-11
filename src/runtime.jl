@@ -19,15 +19,17 @@ default_isa(device::RuntimeDevice{HSAAgent}) =
 struct RuntimeEvent{E}
     event::E
 end
-create_event(exe) = RuntimeEvent(create_event(RUNTIME[], exe))
+create_event(exe; kwargs...) = RuntimeEvent(create_event(RUNTIME[], exe; kwargs...))
 Base.wait(event::RuntimeEvent, exe) = wait(event.event, exe)
 
 "Tracks the completion and status of a kernel's execution."
 struct HSAStatusSignal
     signal::HSASignal
     exe::HSAExecutable
+    queue::HSAQueue
 end
-create_event(::typeof(HSA_rt), exe) = HSAStatusSignal(HSASignal(), exe.exe)
+create_event(::typeof(HSA_rt), exe; queue=get_default_queue(), kwargs...) =
+    HSAStatusSignal(HSASignal(), exe.exe, queue.queue)
 Base.wait(event::HSAStatusSignal; kwargs...) = wait(RuntimeEvent(event); kwargs...)
 function Base.wait(event::RuntimeEvent{HSAStatusSignal}; check_exceptions=true, cleanup=true, kwargs...)
     wait(event.event.signal; kwargs...) # wait for completion signal
@@ -35,6 +37,7 @@ function Base.wait(event::RuntimeEvent{HSAStatusSignal}; check_exceptions=true, 
     exe = event.event.exe::HSAExecutable{Mem.Buffer}
     mod = EXE_TO_MODULE_MAP[exe].value
     agent = exe.agent
+    queue = event.event.queue
     ex = nothing
     signal_handle = (event.event.signal.signal[]::HSA.Signal).handle
     if haskey(exe.globals, :__global_exception_flag)
@@ -73,6 +76,7 @@ function Base.wait(event::RuntimeEvent{HSAStatusSignal}; check_exceptions=true, 
             end
         end
     end
+    deleteat!(active_kernels[queue], findall(x->x==event.event, active_kernels[queue]))
     ex !== nothing && throw(ex)
 end
 
