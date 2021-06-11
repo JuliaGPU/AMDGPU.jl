@@ -13,10 +13,10 @@
 [codecov-url]: https://codecov.io/gh/JuliaGPU/AMDGPU.jl
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-stable-url]: https://juliagpu.github.io/AMDGPU.jl/stable
+[docs-stable-url]: https://amdgpu.juliagpu.org/stable
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[docs-dev-url]: https://juliagpu.github.io/AMDGPU.jl/dev
+[docs-dev-url]: https://amdgpu.juliagpu.org/dev
 
 
 
