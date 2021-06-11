@@ -48,6 +48,7 @@ if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
 end
 =#
 include("runtime.jl")
+include("statussignal.jl")
 include("sync.jl")
 
 # Device sources must load _before_ the compiler infrastructure
@@ -59,6 +60,8 @@ include(joinpath("device", "gcn.jl"))
 include(joinpath("device", "runtime.jl"))
 include(joinpath("device", "llvm.jl"))
 include(joinpath("device", "globals.jl"))
+
+const active_kernels = IdDict{HSAQueue,Vector{AMDGPU.HSAStatusSignal}}()
 
 include("compiler.jl")
 include("execution_utils.jl")
