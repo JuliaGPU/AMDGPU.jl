@@ -2,7 +2,7 @@
 
 !!! tip
     This documentation assumes that you are familiar with the main concepts of GPU programming and mostly describes the specifics of running Julia code on AMD GPUs.
-    For a much more gentle introduction to GPGPU with Julia consult the well-written [CUDA.jl documentation](https://juliagpu.gitlab.io/CUDA.jl).
+    For a much more gentle introduction to GPGPU with Julia consult the well-written [CUDA.jl documentation](https://cuda.juliagpu.org/stable/).
 
 ## The ROCm stack
 
