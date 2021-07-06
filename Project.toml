@@ -1,7 +1,7 @@
 name = "AMDGPU"
 uuid = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>"]
-version = "0.2.7"
+version = "0.2.8"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -27,7 +27,7 @@ Adapt = "3.0"
 BinaryProvider = "0.5"
 CEnum = "0.2, 0.3, 0.4"
 GPUArrays = "6"
-GPUCompiler = "0.11.5"
+GPUCompiler = "0.12"
 LLVM = "3"
 MacroTools = "0.5"
 Requires = "1"
