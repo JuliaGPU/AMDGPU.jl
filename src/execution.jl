@@ -313,11 +313,11 @@ const rocfunction_cache = Dict{RuntimeDevice,Dict{UInt,Any}}()
 # compile to GCN
 function rocfunction_compile(@nospecialize(job::CompilerJob))
     # compile
-    method_instance, _ = GPUCompiler.emit_julia(job)
+    method_instance, mi_meta = GPUCompiler.emit_julia(job)
     ir, ir_meta = GPUCompiler.emit_llvm(job, method_instance)
     kernel = ir_meta.entry
 
-    obj = GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMObjectFile)
+    obj, obj_meta = GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMObjectFile)
 
     # find undefined globals and calculate sizes
     globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
