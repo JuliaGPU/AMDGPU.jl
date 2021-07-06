@@ -317,7 +317,7 @@ function rocfunction_compile(@nospecialize(job::CompilerJob))
     ir, ir_meta = GPUCompiler.emit_llvm(job, method_instance)
     kernel = ir_meta.entry
 
-    obj, obj_meta = GPUCompiler.emit_asm(job, ir, kernel; format=LLVM.API.LLVMObjectFile)
+    obj, obj_meta = GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMObjectFile)
 
     # find undefined globals and calculate sizes
     globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
