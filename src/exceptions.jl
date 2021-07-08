@@ -3,13 +3,13 @@
 ## exception type
 
 struct KernelException <: Exception
-    dev::RuntimeDevice
+    agent::HSAAgent
     exstr::Union{String,Nothing}
 end
-KernelException(dev) = KernelException(dev, nothing)
+KernelException(agent) = KernelException(agent, nothing)
 
 function Base.showerror(io::IO, err::KernelException)
-    print(io, "KernelException: exception(s) thrown during kernel execution on device $(err.dev.device)")
+    print(io, "KernelException: exception(s) thrown during kernel execution on device $(err.agent)")
     if err.exstr !== nothing
         println(io, ":")
         print(io, err.exstr)

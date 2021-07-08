@@ -37,17 +37,9 @@ include("agent.jl")
 include("queue.jl")
 include("signal.jl")
 include("executable.jl")
+include("statussignal.jl")
 include("kernel.jl")
 include("memory.jl")
-
-@enum DeviceRuntime HSA_rt OCL_rt
-const RUNTIME = Ref{DeviceRuntime}(HSA_rt)
-#=
-if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
-    RUNTIME[] = OCL_rt
-end
-=#
-include("runtime.jl")
 include("sync.jl")
 
 # Device sources must load _before_ the compiler infrastructure

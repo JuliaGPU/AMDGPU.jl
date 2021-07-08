@@ -230,6 +230,8 @@ function max_group_size(isa::HSA.ISA)
     size[]
 end
 
+get_default_isa(agent::HSAAgent) = first(isas(agent))
+
 ### Regions
 
 function regions(agent::HSAAgent)

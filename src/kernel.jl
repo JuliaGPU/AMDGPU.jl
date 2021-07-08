@@ -113,6 +113,10 @@ barrier_and!(signals::Vector) = barrier_and!(default_queue().queue, signals)
 barrier_or!(signals::Vector) = barrier_or!(default_queue().queue, signals)
 barrier_and!(queue::HSAQueue, signals::Vector{HSA.Signal}) = barrier_and!(queue, map(HSASignal, signals))
 barrier_or!(queue::HSAQueue, signals::Vector{HSA.Signal}) = barrier_or!(queue, map(HSASignal, signals))
+barrier_and!(queue::HSAQueue, signals::Vector{HSAStatusSignal}) =
+    barrier_and!(queue, map(x->x.signal,signals))
+barrier_or!(queue::HSAQueue, signals::Vector{HSAStatusSignal}) =
+    barrier_or!(queue, map(x->x.signal,signals))
 barrier_and!(queue::HSAQueue, signals::Vector{HSASignal}) =
     barrier!(HSA.BarrierAndPacket, queue, signals)
 barrier_or!(queue::HSAQueue, signals::Vector{HSASignal}) =
@@ -131,6 +135,15 @@ function barrier!(T, queue::HSAQueue, signals::Vector{HSASignal})
     end
     return outset
 end
+
+create_kernel(agent, exe, entry, args) =
+    HSAKernelInstance(agent, exe, entry, args)
+
+launch_kernel(queue, kern, signal::HSAStatusSignal; kwargs...) =
+    launch_kernel(queue, kern, signal.signal; kwargs...)
+launch_kernel(queue, kern, signal::HSASignal;
+              groupsize=nothing, gridsize=nothing) =
+    launch!(queue, kern, signal; workgroup_size=groupsize, grid_size=gridsize)
 
 # TODO Docstring
 function launch!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal;

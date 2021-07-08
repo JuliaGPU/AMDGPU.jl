@@ -12,13 +12,13 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
 
     @eval begin
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
-                         kernel::Bool=false, device=default_device(), kwargs...)
+                         kernel::Bool=false, agent=get_default_agent(), kwargs...)
             source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            isa = default_isa(device)
+            isa = get_default_isa(agent)
             arch = architecture(isa)
             feat = features(isa)
             target = GCNCompilerTarget(; dev_isa=arch,features=feat)
-            params = ROCCompilerParams(device, NamedTuple())
+            params = ROCCompilerParams(agent, NamedTuple())
             job = CompilerJob(target, source, params)
             GPUCompiler.$method($(args...); kwargs...)
         end

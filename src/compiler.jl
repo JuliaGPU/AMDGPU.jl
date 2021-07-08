@@ -1,5 +1,5 @@
 struct ROCCompilerParams <: AbstractCompilerParams
-    device::RuntimeDevice{HSAAgent}
+    agent::HSAAgent
     global_hooks::NamedTuple
 end
 
