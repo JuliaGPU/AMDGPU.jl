@@ -48,7 +48,7 @@ function Base.wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true,
             end
         end
     end
-    deleteat!(active_kernels[event.queue], findall(x->x==event, active_kernels[event.queue]))
+    deleteat!(active_kernels[signal.queue], findall(x->x==signal, active_kernels[signal.queue]))
     ex !== nothing && throw(ex)
 end
 
