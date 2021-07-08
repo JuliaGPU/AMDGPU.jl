@@ -14,8 +14,8 @@ end
 
 const MAX_EXCEPTIONS = 256
 const EXE_TO_MODULE_MAP = IdDict{Any,WeakRef}()
-mutable struct ROCModule{E}
-    exe::HSAExecutable
+mutable struct ROCModule{B}
+    exe::HSAExecutable{B}
     metadata::Vector{KernelMetadata}
     exceptions::Mem.Buffer
 end
