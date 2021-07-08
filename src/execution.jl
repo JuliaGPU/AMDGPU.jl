@@ -31,7 +31,7 @@ rocconvert(arg) = adapt(Adaptor(), arg)
 # the code it generates, or the execution
 function split_kwargs(kwargs)
     macro_kws    = [:dynamic, :launch]
-    compiler_kws = [:name, :queue, :global_hooks]
+    compiler_kws = [:name, :agent, :queue, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config, :queue]
     alias_kws    = Dict(:device=>:agent, :stream=>:queue)
                         # FIXME: These should be computed: :blocks=>:gridsize, :threads=>:groupsize,
