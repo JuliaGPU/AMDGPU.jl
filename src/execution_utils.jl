@@ -14,8 +14,8 @@ end
 
 const MAX_EXCEPTIONS = 256
 const EXE_TO_MODULE_MAP = IdDict{Any,WeakRef}()
-mutable struct ROCModule{E}
-    exe::RuntimeExecutable{E}
+mutable struct ROCModule{B}
+    exe::HSAExecutable{B}
     metadata::Vector{KernelMetadata}
     exceptions::Mem.Buffer
 end
@@ -23,13 +23,12 @@ function ROCModule(exe)
     metadata = KernelMetadata[]
     exceptions = Mem.alloc(sizeof(ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
     mod = ROCModule(exe, metadata, exceptions)
-    _exe = exe.exe
-    EXE_TO_MODULE_MAP[_exe] = WeakRef(mod)
+    EXE_TO_MODULE_MAP[exe] = WeakRef(mod)
     hsaref!()
     finalizer(mod) do x
         # FIXME: Free all metadata
         Mem.free(mod.exceptions)
-        delete!(EXE_TO_MODULE_MAP, _exe)
+        delete!(EXE_TO_MODULE_MAP, exe)
         hsaunref!()
     end
 end
@@ -78,7 +77,7 @@ end
 
 """
     roccall(f::ROCFunction, types, values...;
-            queue::RuntimeQueue, signal::RuntimeEvent,
+            queue::HSAQueue, signal::HSAStatusSignal,
             groupsize::ROCDim, gridsize::ROCDim)
 
 `ccall`-like interface for launching a ROC function `f` on a GPU.
@@ -106,8 +105,8 @@ roccall
 
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function roccall(f::ROCFunction, tt::Type, args::Vararg{Any,N}; queue::RuntimeQueue,
-                             signal::RuntimeEvent, groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
+@generated function roccall(f::ROCFunction, tt::Type, args::Vararg{Any,N}; queue::HSAQueue,
+                             signal::HSAStatusSignal, groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
 
     # the type of `tt` is Type{Tuple{<:DataType...}}
     types = tt.parameters[1].parameters
@@ -136,7 +135,7 @@ roccall
 end
 
 """
-    launch(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction,
+    launch(queue::HSAQueue, signal::HSAStatusSignal, f::ROCFunction,
            groupsize::ROCDim, gridsize::ROCDim, args...)
 
 Low-level call to launch a ROC function `f` on the GPU, using `groupsize` and
@@ -148,7 +147,7 @@ copied to the internal kernel parameter buffer, or a pointer to device memory.
 
 This is a low-level call, preferably use [`roccall`](@ref) instead.
 """
-@inline function launch(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction,
+@inline function launch(queue::HSAQueue, signal::HSAStatusSignal, f::ROCFunction,
                         groupsize::ROCDim, gridsize::ROCDim, args...)
     groupsize = ROCDim3(groupsize)
     gridsize = ROCDim3(gridsize)
@@ -173,15 +172,13 @@ function preserve!(sig::HSASignal, @nospecialize(x))
     push!(set, x)
 end
 preserve!(sig::HSAStatusSignal, @nospecialize(x)) = preserve!(sig.signal, x)
-preserve!(ev::RuntimeEvent, @nospecialize(x)) = preserve!(ev.event, x)
 
 unpreserve!(sig::HSASignal) = delete!(SIGNAL_PRESERVED, sig)
 unpreserve!(sig::HSAStatusSignal) = unpreserve!(sig.signal)
-unpreserve!(ev::RuntimeEvent) = unpreserve!(ev.event)
 
 # we need a generated function to get an args array,
 # without having to inspect the types at runtime
-@generated function _launch(queue::RuntimeQueue, signal::RuntimeEvent, f::ROCFunction,
+@generated function _launch(queue::HSAQueue, signal::HSAStatusSignal, f::ROCFunction,
                             groupsize::ROCDim3, gridsize::ROCDim3,
                             args::NTuple{N,Any}) where N
 
@@ -201,9 +198,10 @@ unpreserve!(ev::RuntimeEvent) = unpreserve!(ev.event)
     append!(ex.args, (quote
         GC.@preserve $(arg_refs...) begin
             # create kernel instance
-            kern = create_kernel(get_device(queue), f.mod.exe, f.entry, args)
+            kern = create_kernel(queue.agent, f.mod.exe, f.entry, args)
 
             # launch kernel
+            push!($active_kernels[queue], signal)
             launch_kernel(queue, kern, signal;
                           groupsize=groupsize, gridsize=gridsize)
 

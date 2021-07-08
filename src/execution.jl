@@ -31,9 +31,9 @@ rocconvert(arg) = adapt(Adaptor(), arg)
 # the code it generates, or the execution
 function split_kwargs(kwargs)
     macro_kws    = [:dynamic, :launch]
-    compiler_kws = [:name, :device, :queue, :global_hooks]
+    compiler_kws = [:name, :agent, :queue, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config, :queue]
-    alias_kws    = Dict(:agent=>:device, :stream=>:queue)
+    alias_kws    = Dict(:device=>:agent, :stream=>:queue)
                         # FIXME: These should be computed: :blocks=>:gridsize, :threads=>:groupsize,
     macro_kwargs = []
     compiler_kwargs = []
@@ -163,7 +163,7 @@ macro roc(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym kernel_args kernel_tt device kernel queue signal
+    @gensym kernel_args kernel_tt kernel signal
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -192,7 +192,7 @@ macro roc(ex...)
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
                     foreach($wait!, ($(var_exprs...),))
                     if $launch
-                        local $signal = $create_event($kernel.mod.exe)
+                        local $signal = $create_signal($kernel.mod.exe; $(call_kwargs...))
                         $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                         foreach(x->$mark!(x, $signal), ($(var_exprs...),))
                         $signal
@@ -269,7 +269,7 @@ end
 @doc (@doc AbstractKernel) HostKernel
 
 @inline function roccall(kernel::HostKernel, tt, args...; config=nothing, signal, kwargs...)
-    queue = get(kwargs, :queue, default_queue(default_device()))
+    queue = get(kwargs, :queue, get_default_queue())
     if config !== nothing
         roccall(kernel.fun, tt, args...; kwargs..., config(kernel)..., queue=queue, signal=signal)
     else
@@ -288,27 +288,26 @@ a callable kernel object. For a higher-level interface, use [`@roc`](@ref).
 
 The following keyword arguments are supported:
 - `name`: overrides the name that the kernel will have in the generated code
-- `device`: chooses which device to compile the kernel for
+- `agent`: chooses which agent to compile the kernel for
 - `global_hooks`: specifies maps from global variable name to initializer hook
 
 The output of this function is automatically cached, i.e. you can simply call `rocfunction`
 in a hot path without degrading performance. New code will be generated automatically, when
 function definitions change, or when different types or keyword arguments are provided.
 """
-function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=default_device(), global_hooks=NamedTuple(), kwargs...)
+function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, agent=get_default_agent(), global_hooks=NamedTuple(), kwargs...)
     source = FunctionSpec(f, tt, true, name)
-    cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
-    agent = device.device
-    isa = default_isa(device)
+    cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, agent)
+    isa = get_default_isa(agent)
     arch = architecture(isa)
     feat = features(isa)
     target = GCNCompilerTarget(; dev_isa=arch, features=feat)
-    params = ROCCompilerParams(device, global_hooks)
+    params = ROCCompilerParams(agent, global_hooks)
     job = CompilerJob(target, source, params)
     GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::HostKernel{f,tt}
 end
 
-const rocfunction_cache = Dict{RuntimeDevice,Dict{UInt,Any}}()
+const rocfunction_cache = Dict{HSAAgent,Dict{UInt,Any}}()
 
 # compile to GCN
 function rocfunction_compile(@nospecialize(job::CompilerJob))
@@ -328,13 +327,13 @@ function rocfunction_compile(@nospecialize(job::CompilerJob))
     return (;obj, entry, globals)
 end
 function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
-    device = job.params.device
+    agent = job.params.agent
     global_hooks = job.params.global_hooks
     obj, entry, globals = compiled.obj, compiled.entry, compiled.globals
 
     # create executable and kernel
     obj = codeunits(obj)
-    exe = create_executable(device, entry, obj; globals=globals)
+    exe = create_executable(agent, entry, obj; globals=globals)
     mod = ROCModule(exe)
     fun = ROCFunction(mod, entry)
     kernel = HostKernel{job.source.f,job.source.tt}(mod, fun)
@@ -350,7 +349,7 @@ function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
         if hook !== nothing
             @debug "Initializing global $gname"
             gbl = get_global(exe, gname)
-            hook(gbl, mod, device)
+            hook(gbl, mod, agent)
         else
             @debug "Uninitialized global $gname"
             continue
@@ -362,17 +361,17 @@ end
 
 const default_global_hooks = Dict{Symbol,Function}()
 
-default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
+default_global_hooks[:__global_output_context] = (gbl, mod, agent) -> begin
     # initialize global output context
     gbl_ptr = Base.unsafe_convert(Ptr{GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
     oc = OutputContext(stdout)
     Base.unsafe_store!(gbl_ptr, oc)
 end
-default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
+default_global_hooks[:__global_printf_context] = (gbl, mod, agent) -> begin
     # initialize global printf context
     # Return type of Int to force synchronizing behavior
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
-    hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; agent=device.device, continuous=true, buf_len=2^16) do _
+    hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; agent=agent, continuous=true, buf_len=2^16) do _
         fmt, args = unsafe_load(reinterpret(LLVMPtr{ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
         args = map(x->x isa Cstring ? unsafe_string(x) : x, args)
         @debug "@rocprintf with $fmt and $(args)"
@@ -381,12 +380,12 @@ default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     end
     Base.unsafe_store!(gbl_ptr, hc)
 end
-default_global_hooks[:__global_exception_flag] = (gbl, mod, device) -> begin
+default_global_hooks[:__global_exception_flag] = (gbl, mod, agent) -> begin
     # initialize global exception flag
     gbl_ptr = Base.unsafe_convert(Ptr{Int64}, gbl)
     Base.unsafe_store!(gbl_ptr, 0)
 end
-default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
+default_global_hooks[:__global_exception_ring] = (gbl, mod, agent) -> begin
     # initialize exception ring buffer
     gbl_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, gbl)
     ex_ptr = Base.unsafe_convert(Ptr{ExceptionEntry}, mod.exceptions)
@@ -399,28 +398,28 @@ default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
     # setup tail slot
     unsafe_store!(ex_ptr, ExceptionEntry(1, LLVMPtr{UInt8,1}(0)))
 end
-default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
+default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, agent) -> begin
     # initialize malloc hostcall
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Ptr{Cvoid},Tuple{UInt64,Csize_t}}}, gbl)
-    hc = HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; agent=device.device, continuous=true) do kern, sz
-        buf = Mem.alloc(device.device, sz; coherent=true)
+    hc = HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; agent=agent, continuous=true) do kern, sz
+        buf = Mem.alloc(agent, sz; coherent=true)
         ptr = buf.ptr
         push!(mod.metadata, KernelMetadata(kern, buf))
-        @debug "Allocated $ptr ($sz bytes) for kernel $kern on device $device"
+        @debug "Allocated $ptr ($sz bytes) for kernel $kern on agent $agent"
         return ptr
     end
     Base.unsafe_store!(gbl_ptr, hc)
 end
-default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
+default_global_hooks[:__global_free_hostcall] = (gbl, mod, agent) -> begin
     # initialize free hostcall
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,Ptr{Cvoid}}}}, gbl)
-    hc = HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; agent=device.device, continuous=true) do kern, ptr
+    hc = HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; agent=agent, continuous=true) do kern, ptr
         for idx in length(mod.metadata):-1:1
             if mod.metadata[idx].kern == kern && mod.metadata[idx].buf.ptr == ptr
                 sz = mod.metadata[idx].buf.bytesize
                 Mem.free(mod.metadata[idx].buf)
                 deleteat!(mod.metadata, idx)
-                @debug "Freed $ptr ($sz bytes) for kernel $kern on device $device"
+                @debug "Freed $ptr ($sz bytes) for kernel $kern on agent $agent"
                 break
             end
         end
@@ -444,7 +443,7 @@ end
 @inline roccall(kernel::DeviceKernel, tt, args...; kwargs...) =
     dynamic_roccall(kernel.fun, tt, args...; kwargs...)
 
-# FIXME: duplication with roccall
+#= FIXME: duplication with roccall
 @generated function dynamic_roccall(f::Ptr{Cvoid}, tt::Type, args...;
                                      blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
                                      stream=CuDefaultStream())
@@ -473,6 +472,7 @@ end
 
     return ex
 end
+=#
 
 
 ## device-side API

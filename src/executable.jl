@@ -78,3 +78,19 @@ function get_global(exe::HSAExecutable, symbol::Symbol)
     @assert symbol in keys(exe.globals) "No such global in executable: $symbol"
     return exe.globals[symbol]::Mem.Buffer
 end
+
+function create_executable(agent, entry, obj; globals=())
+    # link with ld.lld
+    @assert ld_lld_path != "" "ld.lld was not found; cannot link kernel"
+    path_exe = mktemp() do path_o, io_o
+        write(io_o, obj)
+        flush(io_o)
+        path_exe = path_o*".exe"
+        run(`$ld_lld_path -shared -o $path_exe $path_o`)
+        path_exe
+    end
+    data = read(path_exe)
+    rm(path_exe)
+
+    return HSAExecutable(agent, data, entry; globals=globals)
+end

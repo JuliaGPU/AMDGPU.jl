@@ -37,17 +37,9 @@ include("agent.jl")
 include("queue.jl")
 include("signal.jl")
 include("executable.jl")
+include("statussignal.jl")
 include("kernel.jl")
 include("memory.jl")
-
-@enum DeviceRuntime HSA_rt OCL_rt
-const RUNTIME = Ref{DeviceRuntime}(HSA_rt)
-#=
-if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
-    RUNTIME[] = OCL_rt
-end
-=#
-include("runtime.jl")
 include("sync.jl")
 
 # Device sources must load _before_ the compiler infrastructure
@@ -59,6 +51,8 @@ include(joinpath("device", "gcn.jl"))
 include(joinpath("device", "runtime.jl"))
 include(joinpath("device", "llvm.jl"))
 include(joinpath("device", "globals.jl"))
+
+const active_kernels = IdDict{HSAQueue,Vector{AMDGPU.HSAStatusSignal}}()
 
 include("compiler.jl")
 include("execution_utils.jl")

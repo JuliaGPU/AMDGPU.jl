@@ -6,7 +6,7 @@ const GPUARRAY_RNG = Ref{Union{Nothing,GPUArrays.RNG}}(nothing)
 
 function GPUArrays.default_rng(::Type{<:ROCArray})
     if GPUARRAY_RNG[] == nothing
-        agent = AMDGPU.default_device().device.agent
+        agent = AMDGPU.get_default_agent()
         p = Ref{UInt32}()
         GC.@preserve p begin
             AMDGPU.getinfo(agent, HSA.AGENT_INFO_WORKGROUP_MAX_SIZE, p) |> AMDGPU.check
