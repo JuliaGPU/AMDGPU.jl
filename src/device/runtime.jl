@@ -98,10 +98,10 @@ function load_device_libs(dev_isa, ctx)
         ispath(joinpath(device_libs_path, file)) || continue
         name, ext = splitext(file)
         file_path = joinpath(device_libs_path, file)
-        lib = parse(LLVM.Module, read(file_path), ctx)
+        lib = parse(LLVM.Module, read(file_path); ctx)
         for f in LLVM.functions(lib)
             attrs = function_attributes(f)
-            delete!(attrs, StringAttribute("target-features"))
+            delete!(attrs, StringAttribute("target-features"; ctx))
         end
         push!(device_libs, lib)
     end
@@ -130,7 +130,7 @@ end
 function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only=false,
                              unsafe_math=false, correctly_rounded_sqrt=true, daz=false)
     # link in some defaults for OCLC knobs, to prevent undefined variable errors
-    lib = LLVM.Module("OCLC", ctx)
+    lib = LLVM.Module("OCLC"; ctx)
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
 
@@ -141,9 +141,9 @@ function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only
             "__oclc_unsafe_math_opt"=>Int32(unsafe_math),
             "__oclc_correctly_rounded_sqrt32"=>Int32(correctly_rounded_sqrt),
             "__oclc_daz_opt"=>Int32(daz))
-        gvtype = convert(LLVMType, typeof(value), ctx)
+        gvtype = convert(LLVMType, typeof(value); ctx)
         gv = GlobalVariable(lib, gvtype, name, 4)
-        init = ConstantInt(Int32(0), ctx)
+        init = ConstantInt(Int32(0); ctx)
         initializer!(gv, init)
         unnamed_addr!(gv, true)
         constant!(gv, true)

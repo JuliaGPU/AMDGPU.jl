@@ -3,7 +3,7 @@ export workitemIdx, workgroupIdx, workgroupDim, gridDim, gridDimWG
 export threadIdx, blockIdx, blockDim
 
 @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
-    JuliaContext() do ctx
+    Context() do ctx
         T_int32 = LLVM.Int32Type(ctx)
 
         # create function
@@ -12,7 +12,7 @@ export threadIdx, blockIdx, blockDim
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             # call the indexing intrinsic
@@ -21,8 +21,8 @@ export threadIdx, blockIdx, blockDim
             idx = call!(builder, intr)
 
             # attach range metadata
-            range_metadata = MDNode([ConstantInt(UInt32(range.start), ctx),
-                                     ConstantInt(UInt32(range.stop), ctx)],
+            range_metadata = MDNode([ConstantInt(UInt32(range.start); ctx),
+                                     ConstantInt(UInt32(range.stop); ctx)];
                                     ctx)
             metadata(idx)[LLVM.MD_range] = range_metadata
             ret!(builder, idx)
@@ -33,13 +33,13 @@ export threadIdx, blockIdx, blockDim
 end
 
 @generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
-    JuliaContext() do ctx
+    Context() do ctx
         T_int8 = LLVM.Int8Type(ctx)
         T_int32 = LLVM.Int32Type(ctx)
         _as = convert(Int, AS.Constant)
         T_ptr_i8 = LLVM.PointerType(T_int8, _as)
         T_ptr_i32 = LLVM.PointerType(T_int32, _as)
-        T_ptr_T = LLVM.PointerType(convert(LLVMType, T, ctx), _as)
+        T_ptr_T = LLVM.PointerType(convert(LLVMType, T; ctx), _as)
 
         # create function
         llvm_f, _ = create_function(T_int32)
@@ -47,7 +47,7 @@ end
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             # get the kernel dispatch pointer
@@ -57,14 +57,14 @@ end
 
             # load the index
             offset = base+((off-1)*sizeof(T))
-            idx_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(offset,ctx)])
+            idx_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(offset; ctx)])
             idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
             idx_T = load!(builder, idx_ptr_T)
             idx = zext!(builder, idx_T, T_int32)
 
             # attach range metadata
-            range_metadata = MDNode([ConstantInt(T(range.start), ctx),
-                                     ConstantInt(T(range.stop), ctx)],
+            range_metadata = MDNode([ConstantInt(T(range.start); ctx),
+                                     ConstantInt(T(range.stop); ctx)];
                                     ctx)
             metadata(idx_T)[LLVM.MD_range] = range_metadata
             ret!(builder, idx)

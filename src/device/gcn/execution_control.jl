@@ -3,7 +3,7 @@
 const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signal,_packet_names)]
 
 @generated function _completion_signal()
-    JuliaContext() do ctx
+    Context() do ctx
         T_int8 = LLVM.Int8Type(ctx)
         T_int64 = LLVM.Int64Type(ctx)
         _as = convert(Int, AS.Constant)
@@ -16,7 +16,7 @@ const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signa
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             # get the kernel dispatch pointer
@@ -25,7 +25,7 @@ const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signa
             ptr = call!(builder, intr)
 
             # load the index
-            signal_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(completion_signal_base, ctx)])
+            signal_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(completion_signal_base; ctx)])
             signal_ptr = bitcast!(builder, signal_ptr_i8, T_ptr_i64)
             signal = load!(builder, signal_ptr)
             ret!(builder, signal)

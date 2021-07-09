@@ -142,11 +142,11 @@ end
 end
 
 @generated function extract_value(val, ::Type{sub}, ::Val{offset}) where {sub, offset}
-    JuliaContext() do ctx
-        T_val = convert(LLVMType, val, ctx)
-        T_sub = convert(LLVMType, sub, ctx)
+    Context() do ctx
+        T_val = convert(LLVMType, val; ctx)
+        T_sub = convert(LLVMType, sub; ctx)
         bytes = Core.sizeof(val)
-        T_int = LLVM.IntType(8*bytes, ctx)
+        T_int = LLVM.IntType(8*bytes; ctx)
 
         # create function
         llvm_f, _ = create_function(T_sub, [T_val])
@@ -154,7 +154,7 @@ end
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
             equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
             shifted = lshr!(builder, equiv, LLVM.ConstantInt(T_int, offset))
@@ -164,7 +164,7 @@ end
         end
     end
 
-    call_function(llvm_f, UInt32, Tuple{val}, :( (val,) ))
+    call_function(llvm_f, UInt32, Tuple{val}, :val)
 end
 
 # insert bits into a larger value
@@ -173,11 +173,11 @@ end
 end
 
 @generated function insert_value(val, sub, ::Val{offset}) where {offset}
-    JuliaContext() do ctx
-        T_val = convert(LLVMType, val, ctx)
-        T_sub = convert(LLVMType, sub, ctx)
+    Context() do ctx
+        T_val = convert(LLVMType, val; ctx)
+        T_sub = convert(LLVMType, sub; ctx)
         bytes = Core.sizeof(val)
-        T_out_int = LLVM.IntType(8*bytes, ctx)
+        T_out_int = LLVM.IntType(8*bytes; ctx)
 
         # create function
         llvm_f, _ = create_function(T_val, [T_val, T_sub])
@@ -185,7 +185,7 @@ end
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
             equiv = bitcast!(builder, parameters(llvm_f)[1], T_out_int)
             ext = zext!(builder, parameters(llvm_f)[2], T_out_int)
@@ -196,7 +196,7 @@ end
         end
     end
 
-    call_function(llvm_f, val, Tuple{val, sub}, :( (val, sub) ))
+    call_function(llvm_f, val, Tuple{val, sub}, :val, :sub)
 end
 
 # split the invocation of a function `op` on a value `val` with non-struct eltype
@@ -334,7 +334,9 @@ end
 llvmsize(::LLVM.LLVMHalf) = sizeof(Float16)
 llvmsize(::LLVM.LLVMFloat) = sizeof(Float32)
 llvmsize(::LLVM.LLVMDouble) = sizeof(Float64)
-llvmsize(::LLVM.IntegerType) = div(Int(intwidth(GenericValue(LLVM.Int128Type(), -1))), 8)
+llvmsize(::LLVM.IntegerType) = Context() do ctx
+    div(Int(intwidth(GenericValue(LLVM.Int128Type(ctx), -1))), 8)
+end
 llvmsize(ty::LLVM.ArrayType) = length(ty)*llvmsize(eltype(ty))
 llvmsize(ty::LLVM.StructType) = ispacked(ty) ? sum(llvmsize(elem) for elem in elements(ty)) : 8*length(elements(ty)) # FIXME: Properly determine non-packed sizing
 llvmsize(ty::LLVM.PointerType) = div(Sys.WORD_SIZE, 8)
@@ -342,20 +344,20 @@ llvmsize(ty::LLVM.VectorType) = size(ty)
 llvmsize(ty) = error("Unknown size for type: $ty, typeof: $(typeof(ty))")
 
 @generated function string_length(ex::Union{Ptr,LLVMPtr})
-    JuliaContext() do ctx
-        T_ex = convert(LLVMType, ex, ctx)
+    Context() do ctx
+        T_ex = convert(LLVMType, ex; ctx)
         T_ex_ptr = LLVM.PointerType(T_ex)
         T_i8_ptr = LLVM.PointerType(LLVM.Int8Type(ctx))
         T_i64 = LLVM.Int64Type(ctx)
         llvm_f, _ = create_function(T_i64, [T_ex])
         mod = LLVM.parent(llvm_f)
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
-            check = BasicBlock(llvm_f, "check", ctx)
-            done = BasicBlock(llvm_f, "done", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
+            check = BasicBlock(llvm_f, "check"; ctx)
+            done = BasicBlock(llvm_f, "done"; ctx)
 
             position!(builder, entry)
-            init_offset = ConstantInt(0, ctx)
+            init_offset = ConstantInt(0; ctx)
             input_ptr = if T_ex isa LLVM.PointerType
                 parameters(llvm_f)[1]
             else
@@ -369,16 +371,16 @@ llvmsize(ty) = error("Unknown size for type: $ty, typeof: $(typeof(ty))")
 
             position!(builder, check)
             offset = phi!(builder, T_i64)
-            next_offset = add!(builder, offset, ConstantInt(1, ctx))
+            next_offset = add!(builder, offset, ConstantInt(1; ctx))
             append!(LLVM.incoming(offset), [(init_offset, entry), (next_offset, check)])
             ptr = gep!(builder, input_ptr, [offset])
             value = load!(builder, ptr)
-            cond = icmp!(builder, LLVM.API.LLVMIntEQ, value, ConstantInt(0x0, ctx))
+            cond = icmp!(builder, LLVM.API.LLVMIntEQ, value, ConstantInt(0x0; ctx))
             br!(builder, cond, done, check)
 
             position!(builder, done)
             ret!(builder, offset)
         end
-        call_function(llvm_f, Csize_t, Tuple{ex}, :((ex,)))
+        call_function(llvm_f, Csize_t, Tuple{ex}, :ex)
     end
 end

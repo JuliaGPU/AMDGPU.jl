@@ -48,8 +48,8 @@ end
 @inline device_signal_store!(signal::HSA.Signal, value::Int64) =
     device_signal_store!(signal.handle, value)
 @inline @generated function device_signal_store!(signal::UInt64, value::Int64)
-    JuliaContext() do ctx
-        T_nothing = convert(LLVMType, Nothing, ctx)
+    Context() do ctx
+        T_nothing = convert(LLVMType, Nothing; ctx)
         T_i32 = LLVM.Int32Type(ctx)
         T_i64 = LLVM.Int64Type(ctx)
 
@@ -59,7 +59,7 @@ end
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             T_signal_store = LLVM.FunctionType(T_nothing, [T_i64, T_i64, T_i32])
@@ -67,19 +67,19 @@ end
             call!(builder, signal_store, [parameters(llvm_f)[1],
                                           parameters(llvm_f)[2],
                                           # __ATOMIC_RELEASE == 3
-                                          ConstantInt(Int32(3), ctx)])
+                                          ConstantInt(Int32(3); ctx)])
 
             ret!(builder)
         end
 
-        call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :((signal,value)))
+        call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :signal, :value)
     end
 end
 @inline device_signal_wait(signal::HSA.Signal, value::Int64) =
     device_signal_wait(signal.handle, value)
 @inline @generated function device_signal_wait(signal::UInt64, value::Int64)
-    JuliaContext() do ctx
-        T_nothing = convert(LLVMType, Nothing, ctx)
+    Context() do ctx
+        T_nothing = convert(LLVMType, Nothing; ctx)
         T_i32 = LLVM.Int32Type(ctx)
         T_i64 = LLVM.Int64Type(ctx)
 
@@ -89,9 +89,9 @@ end
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
-            signal_match = BasicBlock(llvm_f, "signal_match", ctx)
-            signal_miss = BasicBlock(llvm_f, "signal_miss", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
+            signal_match = BasicBlock(llvm_f, "signal_match"; ctx)
+            signal_miss = BasicBlock(llvm_f, "signal_miss"; ctx)
 
             position!(builder, entry)
             br!(builder, signal_miss)
@@ -99,12 +99,12 @@ end
             position!(builder, signal_miss)
             T_sleep = LLVM.FunctionType(T_nothing, [T_i32])
             sleep_f = LLVM.Function(mod, "llvm.amdgcn.s.sleep", T_sleep)
-            call!(builder, sleep_f, [ConstantInt(Int32(1), ctx)])
+            call!(builder, sleep_f, [ConstantInt(Int32(1); ctx)])
             T_signal_load = LLVM.FunctionType(T_i64, [T_i64, T_i32])
             signal_load = LLVM.Function(mod, "__ockl_hsa_signal_load", T_signal_load)
             loaded_value = call!(builder, signal_load, [parameters(llvm_f)[1],
                                                         # __ATOMIC_ACQUIRE == 2
-                                                        ConstantInt(Int32(2), ctx)])
+                                                        ConstantInt(Int32(2); ctx)])
             cond = icmp!(builder, LLVM.API.LLVMIntEQ, loaded_value, parameters(llvm_f)[2])
             br!(builder, cond, signal_match, signal_miss)
 
@@ -112,7 +112,7 @@ end
             ret!(builder)
         end
 
-        call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :((signal,value)))
+        call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :signal, :value)
     end
 end
 
