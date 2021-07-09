@@ -38,7 +38,7 @@ end
 assert_counter = 0
 
 @generated function rocassert_fail(::Val{msg}, ::Val{file}, ::Val{line}) where {msg, file, line}
-    JuliaContext() do ctx
+    Context() do ctx
         T_void = LLVM.VoidType(ctx)
         T_int32 = LLVM.Int32Type(ctx)
         T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
@@ -49,7 +49,7 @@ assert_counter = 0
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
             global assert_counter
             assert_counter += 1
@@ -57,7 +57,7 @@ assert_counter = 0
             file = globalstring_ptr!(builder, String(file), "assert_file_$(assert_counter)")
             line = ConstantInt(T_int32, line)
             func = globalstring_ptr!(builder, "unknown", "assert_function_$(assert_counter)")
-            charSize = ConstantInt(Csize_t(1), ctx)
+            charSize = ConstantInt(Csize_t(1); ctx)
 
             # invoke __assertfail and return
             # TODO: mark noreturn since we don't use ptxas?

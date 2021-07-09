@@ -4,9 +4,9 @@
 # does not exist yet, then it is declared in the global memory address
 # space.
 @generated function get_global_pointer(::Val{global_name}, ::Type{T})::AMDGPU.LLVMPtr{T} where {global_name, T}
-    JuliaContext() do ctx
-        T_global = convert(LLVMType, T, ctx)
-        T_result = convert(LLVMType, Ptr{T}, ctx)
+    Context() do ctx
+        T_global = convert(LLVMType, T; ctx)
+        T_result = convert(LLVMType, Ptr{T}; ctx)
 
         # Create a thunk that computes a pointer to the global.
         llvm_f, _ = create_function(T_result)
@@ -28,7 +28,7 @@
 
         # Generate IR that computes the global's address.
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             # Cast the global variable's type to the result type.
