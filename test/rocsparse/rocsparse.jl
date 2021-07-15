@@ -2,12 +2,12 @@ using Test
 
 @testset "rocSPARSE" begin
 
-using AMDGPU.rocSPARSE
+using AMDGPU.ROCSPARSE
 
-handle = rocSPARSE.handle()
+handle = ROCSPARSE.handle()
 
 @testset "Build Information" begin
-	ver = rocSPARSE.version()
+	ver = ROCSPARSE.version()
     @test ver isa VersionNumber
 end
 

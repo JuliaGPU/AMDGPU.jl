@@ -1,0 +1,8 @@
+[general]
+library_name = "librocsparse"
+output_file_path = "../src/sparse/librocsparse.jl"
+printer_blacklist = [
+	"ROCSPARSE_DEPRECATED_EXPORT",
+    "ROCSPARSE_DEPRECATED_NO_EXPORT",
+    "ROCSPARSE_VERSION_TWEAK"
+]
