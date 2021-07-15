@@ -102,7 +102,7 @@ if ext_libs_configured
     libhip !== nothing         && include(joinpath(@__DIR__, "hip", "HIP.jl"))
     librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
     librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-    #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
+    librocsparse !== nothing   && include(joinpath(@__DIR__, "sparse", "rocSPARSE.jl"))
     #librocalution !== nothing && include("solver/rocALUTION.jl")
     librocrand !== nothing && include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
     #libmiopen !== nothing     && include("dnn/MIOpen.jl")
