@@ -362,3 +362,12 @@ roc(xs) = adapt(Float32Adaptor(), xs)
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::ROCArray{T}) where T =
     Base.unsafe_convert(Ptr{T}, x.buf)
+
+## utilities
+
+zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), 0)
+ones(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), 1)
+zeros(dims...) = zeros(Float32, dims...)
+ones(dims...) = ones(Float32, dims...)
+fill(v, dims...) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
+fill(v, dims::Dims) = fill!(ROCArray{typeof(v)}(undef, dims...), v)

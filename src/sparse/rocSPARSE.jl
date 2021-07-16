@@ -1,13 +1,26 @@
+# Support for ROCSPARSE
+# Shameless copy/paste from CUDA.jl
+
 module ROCSPARSE
 
 using ..AMDGPU
 import AMDGPU: wait!, mark!
 
+using Adapt
 using LinearAlgebra
+using SparseArrays
 
 const librocsparse = "librocsparse"
+const SparseChar = Char
 
 include("librocsparse.jl")
+include("array.jl")
+
+include("helpers.jl")
+include("level1.jl")
+include("level2.jl")
+# include("level3.jl")
+include("conversions.jl")
 
 const _handle = Ref{rocsparse_handle}(C_NULL)
 
