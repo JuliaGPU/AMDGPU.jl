@@ -85,19 +85,24 @@ function load_device_libs(dev_isa, ctx)
     isa_short = replace(dev_isa, "gfx"=>"")
     device_libs = LLVM.Module[]
     bitcode_files = (
-        "hc.amdgcn.bc",
-        "hip.amdgcn.bc",
-        "irif.amdgcn.bc",
-        "ockl.amdgcn.bc",
-        "oclc_isa_version_$isa_short.amdgcn.bc",
-        "opencl.amdgcn.bc",
-        "ocml.amdgcn.bc",
+        "hc",
+        "hip",
+        "irif",
+        "ockl",
+        "oclc_isa_version_$isa_short",
+        "opencl",
+        "ocml",
     )
 
     for file in bitcode_files
-        ispath(joinpath(device_libs_path, file)) || continue
-        name, ext = splitext(file)
-        file_path = joinpath(device_libs_path, file)
+        file_path = joinpath(device_libs_path, file*".bc")
+        if !ispath(file_path)
+            file_path = joinpath(device_libs_path, file*".amdgcn.bc")
+            if !ispath(file_path)
+                # failed to find matching bitcode file
+                continue
+            end
+        end
         lib = parse(LLVM.Module, read(file_path); ctx)
         for f in LLVM.functions(lib)
             attrs = function_attributes(f)

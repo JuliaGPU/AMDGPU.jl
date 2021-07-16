@@ -2,7 +2,8 @@
 ## copied from CUDAdrv/src/CUDAdrv.jl
 if !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
     using hsa_rocr_jll
-    using hsakmt_roct_jll
+    using HIP_jll
+    using ROCmDeviceLibs_jll
 end
 
 try
@@ -11,7 +12,8 @@ catch err
     if !isfile(joinpath(@__DIR__, "ext.jl"))
         @warn "Didn't find $ext, please build AMDGPU.jl"
         @eval const hsa_configured = false
-        @eval const ext_libs_configured = false
+        @eval const hip_configured = false
+        @eval const device_libs_configured = false
     else
         rethrow(err)
     end
@@ -24,19 +26,20 @@ if !hsa_configured
     const libhsaruntime_vendor = "none"
     const libhsaruntime_path = nothing
 end
-if !ext_libs_configured
+if !hip_configured
+    const libhip_path = nothing
     const librocblas = nothing
     const librocsparse = nothing
     const librocalution = nothing
     const librocfft = nothing
     const librocrand = nothing
     const libmiopen = nothing
-    const libhip = nothing
 end
-
-# ROCm-Device-Libs
-device_libs_deps = joinpath(@__DIR__, "deps.jl")
-isfile(device_libs_deps) && include(device_libs_deps)
-const device_libs_path = joinpath(@__DIR__, "usr", "lib")
+if !device_libs_configured
+    # Fallback to download
+    device_libs_deps = joinpath(@__DIR__, "deps.jl")
+    isfile(device_libs_deps) && include(device_libs_deps)
+    const device_libs_path = joinpath(@__DIR__, "usr", "lib")
+end
 
 const configured = hsa_configured
