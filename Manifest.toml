@@ -89,9 +89,9 @@ uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization", "Statistics"]
-git-tree-sha1 = "df5b8569904c5c10e84c640984cfff054b18c086"
+git-tree-sha1 = "ececbf05f8904c92814bdbd0aafd5540b0bf2e9a"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "6.4.1"
+version = "7.0.1"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Logging", "TimerOutputs", "UUIDs"]
@@ -101,9 +101,9 @@ version = "0.12.5"
 
 [[HIP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "ROCmCompilerSupport_jll", "ROCmDeviceLibs_jll", "ROCmOpenCLRuntime_jll", "hsa_rocr_jll"]
-git-tree-sha1 = "0a7a9fb9cde9cd2225d9b6dc32c744785514e9b8"
+git-tree-sha1 = "5097d8f7b6842156ab0928371b3d03fefd8decab"
 uuid = "2696aab5-0948-5276-aa9a-2a86a37016b8"
-version = "4.0.0+0"
+version = "4.0.0+1"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
