@@ -77,21 +77,25 @@ include("broadcast.jl")
 include("mapreduce.jl")
 #include("gpuarray_interface.jl")
 
-allowscalar(x::Bool) = nothing
+allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
 ### Initialization and Shutdown ###
 
 const HSA_REFCOUNT = Threads.Atomic{UInt}(0)
 function hsaref!()
+    #=
     if Threads.atomic_add!(HSA_REFCOUNT, UInt(1)) > typemax(UInt)-10
         Core.println("HSA_REFCOUNT OVERFLOW!")
         exit(1)
     end
+    =#
 end
 function hsaunref!()
+    #=
     if Threads.atomic_sub!(HSA_REFCOUNT, UInt(1)) == 1
         HSA.shut_down()
     end
+    =#
 end
 
 # Load binary dependencies
