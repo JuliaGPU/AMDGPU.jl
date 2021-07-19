@@ -213,8 +213,11 @@ function main()
     if use_artifacts
         config[:device_libs_path] = ROCmDeviceLibs_jll.bitcode_path
         config[:device_libs_configured] = true
+        config[:device_libs_downloaded] = false
     else
         include("download_device_libs.jl")
+        config[:device_libs_configured] = true
+        config[:device_libs_downloaded] = true
     end
 
     ### Find external HIP-based libraries
