@@ -21,7 +21,7 @@ export get_agents, profile, get_first_isa_string, launch!
 export get_default_agent, get_default_queue
 
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
-export roc, roczeros, rocones, rocfill
+export roc
 
 ### HSA Runtime ###
 
