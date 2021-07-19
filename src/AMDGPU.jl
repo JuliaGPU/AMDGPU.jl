@@ -130,6 +130,9 @@ check_library("MIOpen", libmiopen)
 # we need to load it after rocRAND.jl
 include(joinpath(@__DIR__, "random.jl"))
 
+# Utilities
+include("utils.jl")
+
 function __init__()
     if hsa_configured
         # Make sure we load the library found by the last `] build`
