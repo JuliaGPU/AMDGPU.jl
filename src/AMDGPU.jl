@@ -21,7 +21,7 @@ export get_agents, profile, get_first_isa_string, launch!
 export get_default_agent, get_default_queue
 
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
-export roc, roczeros, rocones, rocfill
+export roc
 
 ### HSA Runtime ###
 
@@ -77,21 +77,25 @@ include("broadcast.jl")
 include("mapreduce.jl")
 #include("gpuarray_interface.jl")
 
-allowscalar(x::Bool) = nothing
+allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
 ### Initialization and Shutdown ###
 
 const HSA_REFCOUNT = Threads.Atomic{UInt}(0)
 function hsaref!()
+    #=
     if Threads.atomic_add!(HSA_REFCOUNT, UInt(1)) > typemax(UInt)-10
         Core.println("HSA_REFCOUNT OVERFLOW!")
         exit(1)
     end
+    =#
 end
 function hsaunref!()
+    #=
     if Threads.atomic_sub!(HSA_REFCOUNT, UInt(1)) == 1
         HSA.shut_down()
     end
+    =#
 end
 
 # Load binary dependencies
@@ -126,6 +130,9 @@ check_library("MIOpen", libmiopen)
 # we need to load it after rocRAND.jl
 include(joinpath(@__DIR__, "random.jl"))
 
+# Utilities
+include("utils.jl")
+
 function __init__()
     if hsa_configured
         # Make sure we load the library found by the last `] build`
@@ -137,6 +144,7 @@ function __init__()
         status = HSA.init()
         if status == HSA.STATUS_SUCCESS
             hsaref!()
+            HSA_REFCOUNT[] = 1
             # Register shutdown hook
             atexit() do
                 hsaunref!()

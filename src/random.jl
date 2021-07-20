@@ -76,9 +76,11 @@ randn(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
 
 # untyped out-of-place
 rand(dim1::Integer, dims::Integer...) =
-    Random.rand(rocrand_rng(), Dims((dim1, dims...)))
+    #Random.rand(rocrand_rng(), Dims((dim1, dims...)))
+    Random.rand!(ROCArray{Float32}(undef, dim1, dims...))
 randn(dim1::Integer, dims::Integer...; kwargs...) =
-    Random.randn(rocrand_rng(), Dims((dim1, dims...)); kwargs...)
+    #Random.randn(rocrand_rng(), Dims((dim1, dims...)); kwargs...)
+    Random.randn!(ROCArray{Float32}(undef, dim1, dims...))
 
 # rand_logn, rand_poisson
 const rand_logn = librocrand !== nothing ? rocRAND.rand_logn : (x...;kwargs...) -> error("Not supported without rocRAND.")

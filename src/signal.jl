@@ -27,7 +27,7 @@ the minimum latency for the software waiter; lower values can decrease latency
 at the cost of increased polling load. `timeout`, if not `nothing`, sets the
 timeout for the signal, after which the call will error.
 """
-function Base.wait(signal::HSASignal; soft=true, minlat=0.001, timeout=nothing)
+function Base.wait(signal::HSASignal; soft=true, minlat=0.000001, timeout=nothing)
     if soft
         start_time = time_ns()
         while true
@@ -35,14 +35,18 @@ function Base.wait(signal::HSASignal; soft=true, minlat=0.001, timeout=nothing)
             if value < 1
                 return
             end
-            if timeout !== nothing
-                now_time = time_ns()
-                diff_time = (now_time - start_time) / 10^9
-                if diff_time > timeout
-                    error("Timeout while waiting on signal")
-                end
+            now_time = time_ns()
+            diff_time = (now_time - start_time) / 10^9
+            if timeout !== nothing && diff_time > timeout
+                error("Timeout while waiting on signal")
             end
-            sleep(minlat)
+            if minlat < 0.001 && diff_time < 10^3
+                # Use Libc.systemsleep for higher precision in the microsecond range
+                Libc.systemsleep(minlat)
+                yield()
+            else
+                sleep(minlat)
+            end
         end
     else
         # Wait on the dispatch completion signal until the kernel is finished

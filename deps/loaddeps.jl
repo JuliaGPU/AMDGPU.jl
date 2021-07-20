@@ -35,11 +35,13 @@ if !hip_configured
     const librocrand = nothing
     const libmiopen = nothing
 end
-if !device_libs_configured
+if device_libs_configured && device_libs_downloaded
     # Fallback to download
     device_libs_deps = joinpath(@__DIR__, "deps.jl")
     isfile(device_libs_deps) && include(device_libs_deps)
     const device_libs_path = joinpath(@__DIR__, "usr", "lib")
+elseif !device_libs_configured
+    const device_libs_path = ""
 end
 
 const configured = hsa_configured
