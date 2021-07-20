@@ -144,6 +144,7 @@ function __init__()
         status = HSA.init()
         if status == HSA.STATUS_SUCCESS
             hsaref!()
+            HSA_REFCOUNT[] = 1
             # Register shutdown hook
             atexit() do
                 hsaunref!()
