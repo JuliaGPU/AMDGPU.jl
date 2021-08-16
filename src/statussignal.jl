@@ -3,8 +3,11 @@ mutable struct HSAStatusSignal
     signal::HSASignal
     exe::HSAExecutable
     queue::HSAQueue
-    function HSAStatusSignal(signal::HSASignal, exe::HSAExecutable, queue::HSAQueue)
-        signal = new(signal, exe, queue)
+    done::Base.Event
+    exception::Union{Exception,Nothing}
+    function HSAStatusSignal(signal::HSASignal, exe::HSAExecutable, queue::HSAQueue; kwargs...)
+        signal = new(signal, exe, queue, Base.Event(), nothing)
+        @async _wait(signal; kwargs...) # the real waiter
         finalizer(signal) do signal
             deleteat!(active_kernels[signal.queue], findall(x->x==signal, active_kernels[signal.queue]))
         end
@@ -12,7 +15,14 @@ mutable struct HSAStatusSignal
     end
 end
 
-function Base.wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true, kwargs...)
+function Base.wait(signal::HSAStatusSignal)
+    wait(signal.done)
+    ex = signal.exception
+    if ex !== nothing
+        throw(ex)
+    end
+end
+function _wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true, kwargs...)
     wait(signal.signal; kwargs...) # wait for completion signal
     unpreserve!(signal) # allow kernel-associated objects to be freed
     exe = signal.exe::HSAExecutable{Mem.Buffer}
@@ -56,7 +66,8 @@ function Base.wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true,
             end
         end
     end
-    ex !== nothing && throw(ex)
+    signal.exception = ex
+    notify(signal.done)
 end
 barrier_and!(queue, signals::Vector{HSAStatusSignal}) = barrier_and!(queue, map(x->x.signal,signals))
 barrier_or!(queue, signals::Vector{HSAStatusSignal}) = barrier_or!(queue, map(x->x.signal,signals))
