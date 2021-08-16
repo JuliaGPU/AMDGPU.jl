@@ -6,7 +6,8 @@ struct KernelException <: Exception
     dev::RuntimeDevice
     exstr::Union{String,Nothing}
 end
-KernelException(dev) = KernelException(dev, nothing)
+KernelException(dev::RuntimeDevice) = KernelException(dev::RuntimeDevice, nothing)
+KernelException(agent::HSAAgent, exstr=nothing) = KernelException(RuntimeDevice(agent), exstr)
 
 function Base.showerror(io::IO, err::KernelException)
     print(io, "KernelException: exception(s) thrown during kernel execution on device $(err.dev.device)")

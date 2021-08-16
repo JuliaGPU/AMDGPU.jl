@@ -192,7 +192,7 @@ macro roc(ex...)
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
                     foreach($wait!, ($(var_exprs...),))
                     if $launch
-                        local $signal = $create_event($kernel.mod.exe)
+                        local $signal = $create_event($kernel.mod.exe; $(call_kwargs...))
                         $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                         foreach(x->$mark!(x, $signal), ($(var_exprs...),))
                         $signal

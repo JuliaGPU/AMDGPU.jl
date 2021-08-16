@@ -31,6 +31,8 @@ import .HSA: Agent, Queue, Executable, Status, Signal
 
 struct Adaptor end
 
+const RT_LOCK = Threads.SpinLock()
+
 include("extras.jl")
 include("error.jl")
 include("agent.jl")
@@ -48,6 +50,7 @@ if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
 end
 =#
 include("runtime.jl")
+include("statussignal.jl")
 include("sync.jl")
 
 # Device sources must load _before_ the compiler infrastructure
@@ -60,6 +63,7 @@ include(joinpath("device", "runtime.jl"))
 include(joinpath("device", "llvm.jl"))
 include(joinpath("device", "globals.jl"))
 
+include("query.jl")
 include("compiler.jl")
 include("execution_utils.jl")
 include("execution.jl")

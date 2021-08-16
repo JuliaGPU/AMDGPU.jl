@@ -10,7 +10,7 @@ try
     include("ext.jl")
 catch err
     if !isfile(joinpath(@__DIR__, "ext.jl"))
-        @warn "Didn't find $ext, please build AMDGPU.jl"
+        @warn "Didn't find deps/ext.jl, please build AMDGPU.jl"
         @eval const hsa_configured = false
         @eval const hip_configured = false
         @eval const device_libs_configured = false
