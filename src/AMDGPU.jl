@@ -63,13 +63,7 @@ include(joinpath("device", "runtime.jl"))
 include(joinpath("device", "llvm.jl"))
 include(joinpath("device", "globals.jl"))
 
-const _active_kernels = IdDict{HSAQueue,Vector{AMDGPU.HSAStatusSignal}}()
-function active_kernels()
-    lock(RT_LOCK) do
-        copy(_active_kernels)
-    end
-end
-
+include("query.jl")
 include("compiler.jl")
 include("execution_utils.jl")
 include("execution.jl")
