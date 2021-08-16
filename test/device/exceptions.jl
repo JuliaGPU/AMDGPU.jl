@@ -12,7 +12,7 @@ catch err
     @test err isa AMDGPU.KernelException
     if err isa AMDGPU.KernelException
         @test err.exstr !== nothing
-        @test occursin("BoundsError", err.exstr)
+        @test occursin("julia_throw_boundserror", err.exstr)
     end
 end
 
