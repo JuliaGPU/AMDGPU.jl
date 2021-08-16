@@ -31,6 +31,8 @@ import .HSA: Agent, Queue, Executable, Status, Signal
 
 struct Adaptor end
 
+const RT_LOCK = Threads.SpinLock()
+
 include("extras.jl")
 include("error.jl")
 include("agent.jl")
@@ -61,7 +63,12 @@ include(joinpath("device", "runtime.jl"))
 include(joinpath("device", "llvm.jl"))
 include(joinpath("device", "globals.jl"))
 
-const active_kernels = IdDict{HSAQueue,Vector{AMDGPU.HSAStatusSignal}}()
+const _active_kernels = IdDict{HSAQueue,Vector{AMDGPU.HSAStatusSignal}}()
+function active_kernels()
+    lock(RT_LOCK) do
+        copy(_active_kernels)
+    end
+end
 
 include("compiler.jl")
 include("execution_utils.jl")

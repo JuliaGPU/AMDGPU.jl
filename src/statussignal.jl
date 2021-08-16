@@ -8,9 +8,6 @@ mutable struct HSAStatusSignal
     function HSAStatusSignal(signal::HSASignal, exe::HSAExecutable, queue::HSAQueue; kwargs...)
         signal = new(signal, exe, queue, Base.Event(), nothing)
         @async _wait(signal; kwargs...) # the real waiter
-        finalizer(signal) do signal
-            deleteat!(active_kernels[signal.queue], findall(x->x==signal, active_kernels[signal.queue]))
-        end
         signal
     end
 end
@@ -67,6 +64,9 @@ function _wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true, kwa
         end
     end
     signal.exception = ex
+    lock(RT_LOCK) do
+        deleteat!(_active_kernels[signal.queue], findall(x->x==signal, _active_kernels[signal.queue]))
+    end
     notify(signal.done)
 end
 barrier_and!(queue, signals::Vector{HSAStatusSignal}) = barrier_and!(queue, map(x->x.signal,signals))

@@ -204,7 +204,12 @@ unpreserve!(ev::RuntimeEvent) = unpreserve!(ev.event)
             kern = create_kernel(get_device(queue), f.mod.exe, f.entry, args)
 
             # launch kernel
-            push!($active_kernels[queue.queue], signal.event)
+            lock($RT_LOCK)
+            try
+                push!($_active_kernels[queue.queue], signal.event)
+            finally
+                unlock($RT_LOCK)
+            end
             launch_kernel(queue, kern, signal;
                           groupsize=groupsize, gridsize=gridsize)
 
