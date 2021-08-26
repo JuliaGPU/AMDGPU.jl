@@ -2,10 +2,11 @@
 
 ## Installation
 
-After making sure that your ROCm stack is installed and working, simply add the AMDGPU.jl package to your Julia environment:
+After making sure that your ROCm stack is installed and working, simply add the AMDGPU.jl package to your Julia environment and build it:
 
 ```julia
 ]add AMDGPU
+]build AMDGPU
 ```
 
 If everything ran successfully, you can try loading the `AMDGPU` package and running the unit tests:

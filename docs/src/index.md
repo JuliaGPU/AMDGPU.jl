@@ -18,8 +18,6 @@ Even though the only platforms officially supported by AMD are certain versions 
 
 [^1]: <https://github.com/RadeonOpenCompute/ROCm/wiki#supported-operating-systems>
 
-Even though you don't need HIP to use Julia on AMDGPU, it might be wise to make sure that you can build and run simple HIP programs to ensure that your ROCm installation works properly before trying to use it from Julia.
-
 ## The Julia AMDGPU stack
 
 Julia support for programming AMD GPUs is currently provided by the [AMDGPU.jl package](https://github.com/jpsamaroo/AMDGPU.jl). This package contains everything necessary to program for AMD GPUs in Julia, including:
@@ -28,32 +26,58 @@ Julia support for programming AMD GPUs is currently provided by the [AMDGPU.jl p
 * An interface for compiling and running kernels written in Julia through LLVM's AMDGPU backend.
 * An array type implementing the [GPUArrays.jl](https://github.com/JuliaGPU/GPUArrays.jl) interface, providing high-level array operations.
 
-## Requirements
-* [ROCR](https://github.com/RadeonOpenCompute/ROCR-Runtime)
-* [ROCT](https://github.com/RadeonOpenCompute/ROCT-Thunk-Interface)
-* Recent Linux kernel with AMDGPU and HSA enabled
+## Required Software
 
-### Setup Instructions
+* [ROCT](https://github.com/RadeonOpenCompute/ROCT-Thunk-Interface) (JLL available)
+* [ROCR](https://github.com/RadeonOpenCompute/ROCR-Runtime) (JLL available)
+* [ROCm-Device-Libs](https://github.com/RadeonOpenCompute/ROCm-Device-Libs) (JLL available)
+* [HIP](https://github.com/ROCm-Developer-Tools/HIP) (JLL available)
+* Recent Linux kernel with AMDGPU and HSA enabled (Cannot be provided as a JLL)
+* `ld.lld` binary provided by system LLVM (No JLL yet)
+
+### Optional Packages
+
+* [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for BLAS support (No JLL yet)
+* [rocFFT](https://github.com/ROCmSoftwarePlatform/rocFFT) for FFT support (No JLL yet)
+* [rocRAND](https://github.com/ROCmSoftwarePlatform/rocRAND) for RNG support (No JLL yet)
+
+Other ROCm packages are currently unused by AMDGPU.
+
+### JLL usage
+
+By default, AMDGPU provides JLL packages for core libraries, so as long as
+`ld.lld` is available, you should be all set for most basic functionality. If
+this does not work for you, or if you have a full ROCm installation available
+on your system (common for HPC/supercomputer users), you can set the
+`JULIA_AMDGPU_DISABLE_ARTIFACTS` environment variable to "1" to disable usage
+of JLL artifacts.
+
+Note that currently ROCm-Device-Libs are always provided by AMDGPU to ensure
+compatibility with Julia's version of LLVM; please file an issue if this is
+problematic on your system.
+
+### Extra Setup Details
+
 Currently, the requirements to get everything working properly is a bit poorly
 documented in the upstream docs for any distro other than Ubuntu.  So here is a
 list of requirements I've found through the process of making this work:
 
-Make sure /dev/kfd has a group other than root that you can add your user to.
-I recommend adding your user to the "video" group, and setting the
-ownership of /dev/kfd to root:video with 660 permissions.
+Make sure `/dev/kfd` has a group other than root that you can add your user to.
+I recommend adding your user to the `video` group, and setting the
+ownership of `/dev/kfd` to `root:video` with `660` permissions.
 
-The correct libraries in your LD_LIBRARY_PATH or standard library locations:
-* libhsa-runtime64.so.1
+These libraries should be in the standard library locations, or in your
+`LD_LIBRARY_PATH`:
 * libhsakmt.so
+* libhsa-runtime64.so.1
+* libamdhip64.so
+
+And `ld.lld` should be in your `PATH`.
 
 In terms of Linux kernel versions, just pick the newest one you can. If
 building your own kernel, make sure all the regular AMDGPU and HSA options are
 enabled.
 
-You will also need `ld.lld` installed on your system (provided by LLVM/Clang);
-if you built Julia from source, you should have a copy somewhere in
-`deps/scratch/llvm-*/*/bin/` that you can add to your PATH.
-
 Once all of this is setup properly, you should be able to `] build AMDGPU`
-successfully; after that, if you have a supported GPU attached and enabled, `]
-test AMDGPU` should work exactly as you might expect.
+successfully. See the Quickstart documentation for an introduction to using
+AMDGPU.jl.
