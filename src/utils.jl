@@ -27,3 +27,7 @@ function versioninfo(io::IO=stdout)
         end
     end
 end
+
+function has_rocm_gpu()
+    return length(AMDGPU.get_agents(:gpu)) > 0
+end
