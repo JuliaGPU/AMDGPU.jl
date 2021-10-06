@@ -36,6 +36,9 @@ using AMDGPU
     Libdl.dlopen("/opt/rocm/hsa/lib/libhsa-runtime64.so.1")
     ```
 
+!!! warning
+    If during the build process you get an error message along the lines of `hipErrorNoBinaryForGpu: Coudn't find binary for current devices!` and you already have ROCm installed locally then you should set the environment variable `JULIA_AMDGPU_DISABLE_ARTIFACTS=1` and re-build AMDGPU.jl.
+
 ## Running a simple kernel
 
 As a simple test, we will try to add two random vectors and make sure that the results from the CPU and the GPU are indeed the same.
