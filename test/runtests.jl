@@ -37,6 +37,7 @@ if AMDGPU.configured
             include("hsa/error.jl")
             include("hsa/agent.jl")
             include("hsa/memory.jl")
+            include("hsa/utils.jl")
         end
         @testset "Codegen" begin
             include("codegen/synchronization.jl")
