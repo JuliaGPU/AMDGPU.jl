@@ -27,3 +27,11 @@ function versioninfo(io::IO=stdout)
         end
     end
 end
+
+function has_rocm_gpu()
+    if !AMDGPU.hsa_configured 
+        return false
+    else
+        return length(AMDGPU.get_agents(:gpu)) > 0
+    end
+end
