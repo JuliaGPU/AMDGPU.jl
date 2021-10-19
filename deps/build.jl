@@ -1,8 +1,5 @@
 # copied from CUDAdrv/deps/build.jl
 
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
-
 using Libdl
 use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
 if use_artifacts
