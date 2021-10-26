@@ -27,13 +27,17 @@ function dim_kern(X)
     X[5] = gridDim().y
     X[6] = gridDim().z
 
+    X[7] = gridDimWG().x
+    X[8] = gridDimWG().y
+    X[9] = gridDimWG().z
+
     nothing
 end
 
-A = zeros(Int64, 6)
+A = zeros(Int64, 9)
 RA = ROCArray(A)
-wait(@roc groupsize=(1,2,3) gridsize=(4,5,6) dim_kern(RA))
+wait(@roc groupsize=(1,2,3) gridsize=(4,4,6) dim_kern(RA))
 A = Array(RA)
-@test A ≈ [1,2,3,4,5,6]
+@test A == [1,2,3,4,4,6,4,2,2]
 
 end
