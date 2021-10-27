@@ -108,6 +108,7 @@ function load_device_libs(dev_isa, ctx)
             attrs = function_attributes(f)
             delete!(attrs, StringAttribute("target-features"; ctx))
         end
+        @debug "Loading device library" file_path
         push!(device_libs, lib)
     end
 
@@ -146,13 +147,16 @@ function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only
             "__oclc_unsafe_math_opt"=>Int32(unsafe_math),
             "__oclc_correctly_rounded_sqrt32"=>Int32(correctly_rounded_sqrt),
             "__oclc_daz_opt"=>Int32(daz))
+
+        @debug "Setting OCLC global constant" name value
         gvtype = convert(LLVMType, typeof(value); ctx)
         gv = GlobalVariable(lib, gvtype, name, 4)
-        init = ConstantInt(Int32(0); ctx)
+        init = ConstantInt(Int32(value); ctx)
         initializer!(gv, init)
         unnamed_addr!(gv, true)
         constant!(gv, true)
-        linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
+        # change the linkage so that we can inline the value
+        linkage!(gv, LLVM.API.LLVMPrivateLinkage)
     end
 
     link!(mod, lib)
