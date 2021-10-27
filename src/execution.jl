@@ -36,11 +36,12 @@ rocconvert(arg) = adapt(Adaptor(), arg)
 # split keyword arguments to `@roc` into ones affecting the macro itself, the compiler and
 # the code it generates, or the execution
 function split_kwargs(kwargs)
+    alias_kws    = Dict(:agent=>:device, :stream=>:queue)
     macro_kws    = [:dynamic, :launch]
     compiler_kws = [:name, :device, :queue, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config, :queue]
-    alias_kws    = Dict(:agent=>:device, :stream=>:queue)
-                        # FIXME: These should be computed: :blocks=>:gridsize, :threads=>:groupsize,
+    computed_kws = [:threads, :blocks]
+
     macro_kwargs = []
     compiler_kwargs = []
     call_kwargs = []
@@ -59,6 +60,8 @@ function split_kwargs(kwargs)
                     push!(compiler_kwargs, kwarg)
                 elseif key in call_kws
                     push!(call_kwargs, kwarg)
+                elseif key in computed_kws
+                    push!(call_kwargs, kwarg)
                 else
                     throw(ArgumentError("unknown keyword argument '$oldkey'"))
                 end
@@ -71,6 +74,33 @@ function split_kwargs(kwargs)
     end
 
     return macro_kwargs, compiler_kwargs, call_kwargs
+end
+function simplify_call_kwargs!(call_kwargs)
+    call_kwargs_keys = map(x->x.args[1], call_kwargs)
+    has_threads = :threads in call_kwargs_keys
+    has_blocks = :blocks in call_kwargs_keys
+    has_threads || has_blocks || return
+    if :groupsize in call_kwargs_keys
+        throw(ArgumentError("cannot combine :threads/:blocks with :groupsize"))
+    elseif :gridsize in call_kwargs_keys
+        throw(ArgumentError("cannot combine :threads/:blocks with :gridsize"))
+    end
+    if has_threads
+        threads_idx = findfirst(x->x.args[1]==:threads, call_kwargs)
+        groupsize = call_kwargs[threads_idx].args[2]
+        deleteat!(call_kwargs, threads_idx)
+    else
+        groupsize = 1
+    end
+    if has_blocks
+        blocks_idx = findfirst(x->x.args[1]==:blocks, call_kwargs)
+        blocks = call_kwargs[blocks_idx].args[2]
+        deleteat!(call_kwargs, blocks_idx)
+    else
+        blocks = 1
+    end
+    push!(call_kwargs, :(groupsize=$groupsize))
+    push!(call_kwargs, :(gridsize=$groupsize .* $blocks))
 end
 
 # assign arguments to variables, handle splatting
@@ -149,6 +179,7 @@ macro roc(ex...)
 
     code = quote end
     macro_kwargs, compiler_kwargs, call_kwargs = split_kwargs(kwargs)
+    simplify_call_kwargs!(call_kwargs)
     vars, var_exprs = assign_args!(code, args)
 
     # handle keyword arguments that influence the macro's behavior

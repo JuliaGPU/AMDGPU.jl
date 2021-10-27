@@ -5,12 +5,30 @@
     queue = AMDGPU.default_queue(device)
 
     # Group/grid size selection and aliases
-    eval(:(@roc groupsize=2 $kernel()))
-    eval(:(@roc groupsize=2 gridsize=4 $kernel()))
-    eval(:(@roc gridsize=2 $kernel()))
-    #eval(:(@roc threads=2 $kernel(1)))
-    #eval(:(@roc blocks=4 $kernel(1)))
-    #eval(:(@roc threads=2 gridsize=4 $kernel(1)))
+    for (groupsize,gridsize) in (
+        (1,1),
+        (2,4),
+        (1024,1024),
+
+        ((1,1),(2,2)),
+        ((1024,1),(1024,2)),
+
+        ((1,1,1),(2,2,2)),
+        ((1024,1,1),(1024,2,2)),
+
+        ((1,1,1),2),
+        (1,(1024,1,1)),
+    )
+        eval(:(@roc groupsize=$groupsize $kernel()))
+        eval(:(@roc groupsize=$groupsize gridsize=$gridsize $kernel()))
+        eval(:(@roc gridsize=$gridsize $kernel()))
+
+        threads = groupsize
+        blocks = gridsize .÷ groupsize
+        eval(:(@roc threads=$threads $kernel()))
+        eval(:(@roc blocks=$blocks $kernel()))
+        eval(:(@roc threads=$threads blocks=$blocks $kernel()))
+    end
 
     # Device/queue selection and aliases
     # FIXME: Test that device/queue are used!
