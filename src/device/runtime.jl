@@ -140,9 +140,13 @@ function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
 
+    # https://github.com/RadeonOpenCompute/ROCm-Device-Libs/blob/9420f6380990b09851edc2a5f9cbfaa88742b449/doc/OCML.md#controls
+    # __oclc_ISA_version get set by "oclc_isa_version_$isa_short".bc
+    # Instead of using these we should link in the "correct" bitcode files.
+    # TODO: Check __oclc_wavefrontsize64
+
     isa_short = replace(dev_isa, "gfx"=>"")
     for (name,value) in (
-            "__oclc_ISA_version"=>parse(Int32, isa_short),
             "__oclc_finite_only_opt"=>Int32(finite_only),
             "__oclc_unsafe_math_opt"=>Int32(unsafe_math),
             "__oclc_correctly_rounded_sqrt32"=>Int32(correctly_rounded_sqrt),
