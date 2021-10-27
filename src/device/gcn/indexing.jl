@@ -111,8 +111,8 @@ for (dim,off) in ((:x,1), (:y,2), (:z,3))
     @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:_max_grid_size[dim])), UInt32))
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridDimWG_$dim")
-    fn_wi_idx = Symbol("workitemIdx_$dim")
-    @eval @inline $fn_wg() = div($fn(), $fn_wi_idx())
+    fn_wg_dim = Symbol("workgroupDim_$dim")
+    @eval @inline $fn_wg() = div($fn(), $fn_wg_dim())
 end
 
 """

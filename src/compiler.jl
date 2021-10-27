@@ -34,5 +34,5 @@ function GPUCompiler.link_libraries!(job::ROCCompilerJob, mod::LLVM.Module,
            Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
            job, mod, undefined_fns)
 
-    link_device_libs!(mod, job.target.dev_isa, undefined_fns)
+    link_device_libs!(job.target, mod)
 end

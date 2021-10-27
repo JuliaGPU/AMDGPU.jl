@@ -61,5 +61,5 @@ end
     end
     RX = ROCArray(zeros(UInt32, 1))
     wait(@roc kernel(RX))
-    @test RX[1] == 64
+    @allowscalar @test RX[1] == 64
 end
