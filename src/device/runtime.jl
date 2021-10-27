@@ -79,89 +79,78 @@ end
 
 ## ROCm device library
 
-function load_device_libs(dev_isa, ctx)
+function load_and_link!(mod, path)
+    @debug "Loading device library" path
+    ctx = LLVM.context(mod)
+    lib = parse(LLVM.Module, read(path); ctx)
+    
+    # for f in LLVM.functions(lib)
+    #     attrs = function_attributes(f)
+    #     delete!(attrs, StringAttribute("target-features"; ctx))
+    # end
+
+    # override triple and datalayout to avoid warnings
+    triple!(lib, triple(mod))
+    datalayout!(lib, datalayout(mod))
+
+    LLVM.link!(mod, lib)
+end
+
+function locate_lib(file)
+    file_path = joinpath(device_libs_path, file*".bc")
+    if !ispath(file_path)
+        file_path = joinpath(device_libs_path, file*".amdgcn.bc")
+        if !ispath(file_path)
+            # failed to find matching bitcode file
+            return nothing
+        end
+    end
+    return file_path
+end
+
+function link_device_libs!(target, mod::LLVM.Module)
+    # TODO: only link if used
+    # TODO: make these globally/locally configurable
+
     device_libs_path === nothing && return
 
-    isa_short = replace(dev_isa, "gfx"=>"")
-    device_libs = LLVM.Module[]
-    bitcode_files = (
+    # https://github.com/RadeonOpenCompute/ROCm-Device-Libs/blob/9420f6380990b09851edc2a5f9cbfaa88742b449/doc/OCML.md#controls
+    # Note: It seems we need to load in reverse order, to avoid LLVM deleting the globals from the module, before we use them.
+
+    # 1. Load other libraries
+    libs = (
         "hc",
         "hip",
         "irif",
         "ockl",
-        "oclc_isa_version_$isa_short",
         "opencl",
         "ocml",
     )
 
-    for file in bitcode_files
-        file_path = joinpath(device_libs_path, file*".bc")
-        if !ispath(file_path)
-            file_path = joinpath(device_libs_path, file*".amdgcn.bc")
-            if !ispath(file_path)
-                # failed to find matching bitcode file
-                continue
-            end
-        end
-        lib = parse(LLVM.Module, read(file_path); ctx)
-        for f in LLVM.functions(lib)
-            attrs = function_attributes(f)
-            delete!(attrs, StringAttribute("target-features"; ctx))
-        end
-        @debug "Loading device library" file_path
-        push!(device_libs, lib)
-    end
-
-    @assert !isempty(device_libs) "No device libs detected!"
-    return device_libs
-end
-
-function link_device_libs!(mod::LLVM.Module, dev_isa::String, undefined_fns)
-    ufns = undefined_fns
-    # TODO: only link if used
-    # TODO: make these globally/locally configurable
-    ctx = LLVM.context(mod)
-    libs = load_device_libs(dev_isa, ctx)::Vector{LLVM.Module}
-    link_oclc_defaults!(mod, dev_isa, ctx)
     for lib in libs
-        # override libdevice's triple and datalayout to avoid warnings
-        triple!(lib, triple(mod))
-        datalayout!(lib, datalayout(mod))
+        lib_path = locate_lib(lib)
+        lib_path === nothing && continue
+        load_and_link!(mod, lib_path)
     end
 
-    GPUCompiler.link_library!(mod, libs)
-    dispose.(libs)
-end
+    # 2. Load OCLC library
+    isa_short = replace(target.dev_isa, "gfx"=>"")
+    lib = locate_lib("oclc_isa_version_$isa_short")
+    @assert lib !== nothing
+    load_and_link!(mod, lib)
 
-function link_oclc_defaults!(mod::LLVM.Module, dev_isa::String, ctx; finite_only=false,
-                             unsafe_math=false, correctly_rounded_sqrt=true, daz=false)
-    # link in some defaults for OCLC knobs, to prevent undefined variable errors
-    lib = LLVM.Module("OCLC"; ctx)
-    triple!(lib, triple(mod))
-    datalayout!(lib, datalayout(mod))
-
-    # https://github.com/RadeonOpenCompute/ROCm-Device-Libs/blob/9420f6380990b09851edc2a5f9cbfaa88742b449/doc/OCML.md#controls
-    # __oclc_ISA_version get set by "oclc_isa_version_$isa_short".bc
-    # Instead of using these we should link in the "correct" bitcode files.
-    # TODO: Check __oclc_wavefrontsize64
-
-    isa_short = replace(dev_isa, "gfx"=>"")
-    for (name,value) in (
-            "__oclc_finite_only_opt"=>Int32(finite_only),
-            "__oclc_unsafe_math_opt"=>Int32(unsafe_math),
-            "__oclc_correctly_rounded_sqrt32"=>Int32(correctly_rounded_sqrt),
-            "__oclc_daz_opt"=>Int32(daz))
-
-        @debug "Setting OCLC global constant" name value
-        gvtype = convert(LLVMType, typeof(value); ctx)
-        gv = GlobalVariable(lib, gvtype, name, 4)
-        init = ConstantInt(Int32(value); ctx)
-        initializer!(gv, init)
-        unnamed_addr!(gv, true)
-        constant!(gv, true)
-        # change the linkage so that we can inline the value
-        linkage!(gv, LLVM.API.LLVMPrivateLinkage)
+    # 3. Load options libraries
+    options = Dict(
+        :finite_only => false,
+        :unsafe_math => false,
+        :correctly_rounded_sqrt => true,
+        :daz_opt => false,
+        :wavefrontsize64 => true
+    )
+    for (option, value) in options
+        toggle = value ? "on" : "off"
+        lib = locate_lib("oclc_$(option)_$(toggle)")
+        @assert lib !== nothing
+        load_and_link!(mod, lib)
     end
-
-    link!(mod, lib)
 end
