@@ -38,6 +38,8 @@ for jltype in (
     # TODO: :sincos, :frexp, :ldexp, :copysign,
     #push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,), out_arg=(jltype, Int32), isinverted=true))
 
+    push!(MATH_INTRINSICS, GCNIntrinsic(:hypot; inp_args=(jltype,jltype), out_arg=jltype))
+
     # Multi-output functions
     push!(MATH_INTRINSICS, GCNIntrinsic(:sincospi; inp_args=(jltype,), out_arg=jltype, isbroken=true))
 end
@@ -58,4 +60,6 @@ for intr in MATH_INTRINSICS
         return $(intr.isinverted ? :(1-y) : :y)
     end
 end
+
+abs(z::Complex) = hypot(real(z), imag(z))
 
