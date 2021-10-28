@@ -18,7 +18,6 @@ import GPUArrays
 gpuarrays = pathof(GPUArrays)
 gpuarrays_root = dirname(dirname(gpuarrays))
 include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
-testf(f, xs...; kwargs...) = TestSuite.compare(f, ROCArray, xs...; kwargs...)
 
 import AMDGPU: allowscalar, @allowscalar
 allowscalar(false)
@@ -60,8 +59,6 @@ if AMDGPU.configured
             include("device/queries.jl")
         end
         @testset "ROCArray" begin
-            include("rocarray/base.jl")
-            include("rocarray/broadcast.jl")
             @testset "GPUArrays test suite" begin
                 #TestSuite.test(ROCArray)
                 for name in keys(TestSuite.tests)
@@ -90,6 +87,7 @@ if AMDGPU.configured
                 isdefined(AMDGPU, :rocRAND) ? include("rocarray/random.jl") : @test_skip "rocRAND"
                 include("rocarray/nmf.jl")
             end
+            include("rocarray/base.jl")
         end
         @testset "External Packages" begin
             include("external/forwarddiff.jl")
