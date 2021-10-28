@@ -8,8 +8,10 @@
     @test b isa ROCVector{Int}
     @test collect(a)::Vector{Int} == 1:2
     @test collect(b)::Vector{Int} == 3:4
-    @test a[[1, 2]] == 1:2
-    @test b[[1, 2]] == 3:4
+    @allowscalar begin
+        @test a[[1, 2]] == 1:2
+        @test b[[1, 2]] == 3:4
+    end
 
     b_cpu = Vector{Int}(undef, 2)
     @test copyto!(b_cpu, 1, b, 1, 2) === b_cpu
