@@ -62,4 +62,4 @@ for intr in MATH_INTRINSICS
 end
 
 abs(z::Complex) = hypot(real(z), imag(z))
-
+abs(i::Integer) = Base.abs(i)
