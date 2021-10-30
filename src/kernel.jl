@@ -42,7 +42,7 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     if kernarg_segment_size[] == 0
         # FIXME: Hidden arguments!
         if length(args) > 0
-            kernarg_segment_size[] = sum(sizeof.(args))
+            kernarg_segment_size[] = sum(sizeof(typeof(arg)) for arg in args)
         else
             # Allocate some memory anyway, #10
             kernarg_segment_size[] = max(kernarg_segment_size[], 8)
@@ -76,12 +76,13 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
         if rem > 0
             ctr += align-rem
         end
-        #@info "Storing $(typeof(arg)) at offset $ctr"
+        sz = sizeof(typeof(arg))
         ccall(:memcpy, Cvoid,
             (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-            kernarg_address[]+ctr, rarg, sizeof(arg))
-        ctr += sizeof(arg)
+            kernarg_address[]+ctr, rarg, sz)
+        ctr += sz
     end
+
 
     kernel = HSAKernelInstance(agent, exe, symbol, args, kernel_object[],
                                kernarg_segment_size[], group_segment_size[],
