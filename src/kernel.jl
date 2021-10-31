@@ -158,12 +158,12 @@ end
 
 function _launch!(f, T, queue::HSAQueue, signal::HSASignal)
     # Obtain the current queue write index and queue size
-    _queue = unsafe_load(queue.queue[])
+    _queue = unsafe_load(queue.queue)
     queue_size = _queue.size
-    write_index = HSA.queue_add_write_index_scacq_screl(queue.queue[], UInt64(1))
+    write_index = HSA.queue_add_write_index_scacq_screl(queue.queue, UInt64(1))
 
     # Yield until queue has space
-    while write_index - HSA.queue_load_read_index_scacquire(queue.queue[]) >= queue_size
+    while write_index - HSA.queue_load_read_index_scacquire(queue.queue) >= queue_size
         yield()
     end
 

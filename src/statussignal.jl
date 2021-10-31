@@ -7,9 +7,19 @@ mutable struct HSAStatusSignal
     exception::Union{Exception,Nothing}
     function HSAStatusSignal(signal::HSASignal, exe::HSAExecutable, queue::HSAQueue; kwargs...)
         signal = new(signal, exe, queue, Base.Event(), nothing)
-        @async _wait(signal; kwargs...) # the real waiter
+        @async try
+            _wait(signal; kwargs...) # the real waiter
+        catch err
+            signal.exception = err
+            notify(signal.done)
+        end
         signal
     end
+end
+
+function Base.show(io::IO, signal::HSAStatusSignal)
+    ex = signal.exception
+    print(io, "HSAStatusSignal(signal=$(signal.signal), done=$(signal.done.set)$(ex !== nothing ? ", exception=$ex" : ""))")
 end
 
 function Base.wait(signal::HSAStatusSignal)
@@ -63,11 +73,16 @@ function _wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true, kwa
             end
         end
     end
-    signal.exception = ex
+    if ex !== nothing
+        signal.exception = ex
+    end
     lock(RT_LOCK) do
-        deleteat!(_active_kernels[signal.queue], findall(x->x==signal, _active_kernels[signal.queue]))
+        if haskey(_active_kernels, signal.queue) # The queue might be dead
+            deleteat!(_active_kernels[signal.queue], findall(x->x==signal, _active_kernels[signal.queue]))
+        end
     end
     notify(signal.done)
 end
+Base.notify(signal::HSAStatusSignal) = notify(signal.signal)
 barrier_and!(queue, signals::Vector{HSAStatusSignal}) = barrier_and!(queue, map(x->x.signal,signals))
 barrier_or!(queue, signals::Vector{HSAStatusSignal}) = barrier_or!(queue, map(x->x.signal,signals))
