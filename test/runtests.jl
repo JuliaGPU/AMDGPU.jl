@@ -63,21 +63,7 @@ if AMDGPU.configured
             include("rocarray/base.jl")
             include("rocarray/broadcast.jl")
             @testset "GPUArrays test suite" begin
-                #TestSuite.test(ROCArray)
-                for name in keys(TestSuite.tests)
-                    occursin("broadcast", name) && continue
-                    name == "indexing" && continue
-                    name == "linear algebra" && continue
-                    name == "iterator constructors" && continue
-                    name == "uniformscaling" && continue
-                    name == "fft" && continue
-                    name == "random" && continue
-                    name == "base" && continue
-                    name == "mapreduce derivatives" && continue
-                    @testset "$name" begin
-                        TestSuite.tests[name](ROCArray)
-                    end
-                end
+                TestSuite.test(ROCArray)
             end
             @testset "ROCm External Libraries" begin
                 if parse(Bool, get(ENV, "CI", "false"))
