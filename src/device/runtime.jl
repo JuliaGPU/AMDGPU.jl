@@ -150,7 +150,10 @@ function link_device_libs!(target, mod::LLVM.Module)
     for (option, value) in options
         toggle = value ? "on" : "off"
         lib = locate_lib("oclc_$(option)_$(toggle)")
-        @assert lib !== nothing
+        if lib === nothing
+            @warn "Could not find OCLC library for option $option=$value"
+            continue
+        end
         load_and_link!(mod, lib)
     end
 end

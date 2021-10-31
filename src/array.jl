@@ -24,7 +24,7 @@ for (f, froc) in (
         (:threadidx, :threadIdx),
         (:griddim, :gridDimWG)
     )
-    @eval GPUArrays.$f(::ROCKernelContext) = AMDGPU.$froc().x
+    @eval @inline GPUArrays.$f(::ROCKernelContext) = AMDGPU.$froc().x
 end
 
 # math

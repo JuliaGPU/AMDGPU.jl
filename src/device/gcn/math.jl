@@ -63,3 +63,45 @@ end
 
 abs(z::Complex) = hypot(real(z), imag(z))
 abs(i::Integer) = Base.abs(i)
+
+@inline function pow(x::Float32, y::Int64)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    pow(x, Float32(y))
+end
+@inline function pow(x::Float64, y::Int64)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    pow(x, Float64(y))
+end
+
+pow(x::Integer, p::Union{Float32, Float64}) = pow(convert(typeof(p), x), p)
+@inline function pow(x::Integer, p::Integer)
+    p < 0 && throw("Negative integer power not supported")
+    p == 0 && return one(x)
+    p == 1 && return x
+    p == 2 && return x*x
+    p == 3 && return x*x*x
+
+    t = trailing_zeros(p) + 1
+    p >>= t
+    while (t -= 1) > 0
+        x *= x
+    end
+    y = x
+    while p > 0
+        t = trailing_zeros(p) + 1
+        p >>= t
+        while (t -= 1) >= 0
+            x *= x
+        end
+        y *= x
+    end
+    return y
+end
