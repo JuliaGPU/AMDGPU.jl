@@ -91,7 +91,7 @@ end
     in_place(X)
 end
 
-@test_skip "Batch 1D" #=begin
+@testset "Batch 1D" begin
     dims = (N1,N2)
     X = rand(T, dims)
     batched(X,1)
@@ -103,7 +103,7 @@ end
     dims = (N1,N2)
     X = rand(T, dims)
     batched(X,(1,2))
-end=#
+end
 
 # Broken upstream rocFFT#270
 @testset "3D" begin
@@ -202,7 +202,7 @@ end
     out_of_place(X)
 end
 
-@test_skip "Batch 1D" #=begin
+@testset "Batch 1D" begin
     dims = (N1,N2)
     X = rand(T, dims)
     batched(X,1)
@@ -214,7 +214,7 @@ end
     dims = (N1,N2)
     X = rand(T, dims)
     batched(X,(1,2))
-end=#
+end
 
 @testset "3D" begin
     X = rand(T, N1, N2, N3)
