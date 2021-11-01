@@ -2,29 +2,32 @@ export OutputContext, @rocprint, @rocprintln, @rocprintf
 
 "Internal representation of a static string."
 struct DeviceStaticString{N} end
-Base.sizeof(dss::DeviceStaticString{N}) where N = N
 
 function Base.unsafe_load(ptr::LLVMPtr{DeviceStaticString{N},AS.Global}) where N
+    #=
     vec_ptr = reinterpret(Ptr{UInt8}, ptr)
     vec_raw = Base.unsafe_wrap(Vector{UInt8}, vec_ptr, (N,))
     idx = findfirst(x->x==0, vec_raw)
     idx = idx === nothing ? N : idx
     return vec_raw[1:idx-1]
+    =#
+    unsafe_string(reinterpret(Cstring, ptr))
 end
 Base.unsafe_store!(ptr::LLVMPtr{<:DeviceStaticString,1}, x) = nothing
 
 struct OutputContext{HC}
     hostcall::HC
 end
-function OutputContext(io::IO=stdout; agent=get_default_agent(), buf_len=2^16, kwargs...)
-    hc = HostCall(Int64, Tuple{DeviceStaticString{buf_len}}; agent=agent, continuous=true, kwargs...) do bytes
-        print(io, String(bytes))
-        Int64(length(bytes))
+function OutputContext(io::IO=stdout; agent=get_default_agent(), continuous=true, buf_len=2^16, kwargs...)
+    hc = HostCall(Int64, Tuple{LLVMPtr{DeviceStaticString{buf_len},AS.Global}}; agent, continuous, buf_len, kwargs...) do bytes
+        str = unsafe_load(reinterpret(LLVMPtr{DeviceStaticString{buf_len},AS.Global}, hc.buf_ptr))
+        print(io, str)
+        Int64(length(str))
     end
     OutputContext(hc)
 end
 
-const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{UInt64,Int64,Tuple{DeviceStaticString{2^16}}}}
+const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{UInt64,Int64,Tuple{LLVMPtr{DeviceStaticString{2^16},AS.Global}}}}
 
 ### macros
 
@@ -106,7 +109,7 @@ macro rocprintf(fmt, args...)
     @gensym device_ptr device_fmt_ptr printf_hc
     push!(ex.args, :($device_fmt_ptr = AMDGPU.alloc_string($(Val(Symbol(fmt))))))
     push!(ex.args, :($printf_hc = unsafe_load(AMDGPU.get_global_pointer(Val(:__global_printf_context),
-                                                                        HostCall{UInt64,Int64,LLVMPtr{ROCPrintfBuffer,AS.Global}}))))
+                                                                        HostCall{UInt64,Int64,Tuple{LLVMPtr{ROCPrintfBuffer,AS.Global}}}))))
     push!(ex.args, :($device_ptr = reinterpret($(LLVMPtr{UInt64,AS.Global}), $printf_hc.buf_ptr)))
 
     push!(ex.args, :($_hostcall_lock!($printf_hc)))
@@ -211,6 +214,7 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
     end
     return (fmt, args)
 end
+
 function _rocprintf_fmt(ptr, fmt_ptr, fmt_len)
     unsafe_store!(ptr, reinterpret(UInt64, fmt_ptr))
     ptr += sizeof(UInt64)
