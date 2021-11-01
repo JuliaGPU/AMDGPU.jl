@@ -266,14 +266,14 @@ end
             $device_signal_wait(hc.signal, $HOST_MSG_SENTINEL)
 
             # Get return buffer and load first value
-            $memfence!(Val(:seq_cst))
-            $ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global}, hc.buf_ptr)
-            $ptr = unsafe_load($ptr)
-            if UInt64($ptr) == 0
-                $device_signal_store!(hc.signal, $DEVICE_ERR_SENTINEL)
-                AMDGPU.signal_exception()
-            end
             if $RT !== Nothing
+                $memfence!(Val(:seq_cst))
+                $ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global}, hc.buf_ptr)
+                $ptr = unsafe_load($ptr)
+                if UInt64($ptr) == 0
+                    $device_signal_store!(hc.signal, $DEVICE_ERR_SENTINEL)
+                    AMDGPU.signal_exception()
+                end
                 unsafe_store!($shmem, unsafe_load($ptr)::$RT)
             end
             $device_signal_store!(hc.signal, $READY_SENTINEL)
