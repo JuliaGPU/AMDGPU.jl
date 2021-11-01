@@ -1,9 +1,7 @@
 const MATH_INTRINSICS = GCNIntrinsic[]
 
-for jltype in (
-        #= TODO: Float16 Broken due to being i16 in Julia=#
-        Float32, Float64)
-    append!(MATH_INTRINSICS, GCNIntrinsic.((
+for jltype in (Float16, Float32, Float64)
+    for intrinsic in (
         :sin, :cos, :tan, :asin, :acos, :atan, :atan2,
         :sinh, :cosh, :tanh, :asinh, :acosh, :atanh,
         :sinpi, :cospi, :tanpi,
@@ -14,8 +12,19 @@ for jltype in (
         :erf, :erfinv, :erfc, :erfcinv, :erfcx,
         # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
         :isnormal, :nearbyint, :nextafter,
-        :tgamma, :j0, :j1, :y0, :y1,
-    ); inp_args=(jltype,), out_arg=jltype))
+        :tgamma, :j0, :j1, :y0, :y1)
+
+        intrinsic == :expm1 && jltype == Float16 && continue
+        intrinsic == :erfinv && jltype == Float16 && continue
+        intrinsic == :erfcinv && jltype == Float16 && continue
+
+        if intrinsic == :sin && jltype == Float16
+            push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype, isbroken=true))
+            continue
+        end
+
+        push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype))
+    end
 
     push!(MATH_INTRINSICS, GCNIntrinsic(:sin_fast, :native_sin; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:cos_fast, :native_cos; inp_args=(jltype,), out_arg=jltype))
