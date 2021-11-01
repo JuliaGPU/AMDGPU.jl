@@ -388,9 +388,11 @@ function HostCall(func, rettype, argtypes; return_task=false,
                     end
                     ret_ref = Ref{rettype}(ret)
                     ret_ptr = Base.unsafe_convert(Ptr{Cvoid}, ret_buf[])
-                    GC.@preserve ret_ref begin
-                        src_ptr = reinterpret(Ptr{Cvoid}, Base.unsafe_convert(Ptr{rettype}, ret_ref))
-                        HSA.memory_copy(ret_ptr, src_ptr, sizeof(ret)) |> check
+                    if sizeof(ret) > 0
+                        GC.@preserve ret_ref begin
+                            src_ptr = reinterpret(Ptr{Cvoid}, Base.unsafe_convert(Ptr{rettype}, ret_ref))
+                            HSA.memory_copy(ret_ptr, src_ptr, sizeof(ret)) |> check
+                        end
                     end
                     args_buf_ptr = reinterpret(Ptr{Cvoid}, hc.buf_ptr)
                     ret_buf_ref = Ref{Ptr{Cvoid}}(ret_ptr)
