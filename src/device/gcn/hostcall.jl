@@ -142,8 +142,8 @@ end
     end
 end
 @noinline @generated function device_signal_wait_cas!(signal::UInt64, expected::Int64, value::Int64)
-    JuliaContext() do ctx
-        T_nothing = convert(LLVMType, Nothing, ctx)
+    Context() do ctx
+        T_nothing = convert(LLVMType, Nothing; ctx)
         T_i32 = LLVM.Int32Type(ctx)
         T_i64 = LLVM.Int64Type(ctx)
 
@@ -153,13 +153,13 @@ end
 
         # generate IR
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
-            signal_match = BasicBlock(llvm_f, "signal_match", ctx)
-            signal_miss = BasicBlock(llvm_f, "signal_miss", ctx)
-            signal_miss_1 = BasicBlock(llvm_f, "signal_miss_1", ctx)
-            signal_miss_2 = BasicBlock(llvm_f, "signal_miss_2", ctx)
-            signal_fail = BasicBlock(llvm_f, "signal_fail", ctx)
-            signal_test_and_set = BasicBlock(llvm_f, "signal_test_and_set", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
+            signal_match = BasicBlock(llvm_f, "signal_match"; ctx)
+            signal_miss = BasicBlock(llvm_f, "signal_miss"; ctx)
+            signal_miss_1 = BasicBlock(llvm_f, "signal_miss_1"; ctx)
+            signal_miss_2 = BasicBlock(llvm_f, "signal_miss_2"; ctx)
+            signal_fail = BasicBlock(llvm_f, "signal_fail"; ctx)
+            signal_test_and_set = BasicBlock(llvm_f, "signal_test_and_set"; ctx)
 
             position!(builder, entry)
             br!(builder, signal_miss)
@@ -169,14 +169,14 @@ end
             # Sleep
             T_sleep = LLVM.FunctionType(T_nothing, [T_i32])
             sleep_f = LLVM.Function(mod, "llvm.amdgcn.s.sleep", T_sleep)
-            call!(builder, sleep_f, [ConstantInt(Int32(1), ctx)])
+            call!(builder, sleep_f, [ConstantInt(Int32(1); ctx)])
 
             # Test
             T_signal_load = LLVM.FunctionType(T_i64, [T_i64, T_i32])
             signal_load = LLVM.Function(mod, "__ockl_hsa_signal_load", T_signal_load)
             test_loaded_value = call!(builder, signal_load, [parameters(llvm_f)[1],
                                                              # __ATOMIC_ACQUIRE == 2
-                                                             ConstantInt(Int32(2), ctx)])
+                                                             ConstantInt(Int32(2); ctx)])
             cond = icmp!(builder, LLVM.API.LLVMIntEQ, test_loaded_value, parameters(llvm_f)[2])
             br!(builder, cond, signal_test_and_set, signal_miss_1)
 
@@ -188,7 +188,7 @@ end
                                                            parameters(llvm_f)[2],
                                                            parameters(llvm_f)[3],
                                                            # __ATOMIC_ACQREL == 4
-                                                           ConstantInt(Int32(4), ctx)])
+                                                           ConstantInt(Int32(4); ctx)])
             cond = icmp!(builder, LLVM.API.LLVMIntEQ, set_loaded_value, parameters(llvm_f)[2])
             br!(builder, cond, signal_match, signal_miss_1)
 
@@ -197,12 +197,12 @@ end
             append!(LLVM.incoming(loaded_value), [(test_loaded_value, signal_miss), (set_loaded_value, signal_test_and_set)])
 
             # Device error
-            cond = icmp!(builder, LLVM.API.LLVMIntEQ, loaded_value, ConstantInt(Int64(DEVICE_ERR_SENTINEL), ctx))
+            cond = icmp!(builder, LLVM.API.LLVMIntEQ, loaded_value, ConstantInt(Int64(DEVICE_ERR_SENTINEL); ctx))
             br!(builder, cond, signal_fail, signal_miss_2)
 
             # Host error
             position!(builder, signal_miss_2)
-            cond = icmp!(builder, LLVM.API.LLVMIntEQ, loaded_value, ConstantInt(Int64(HOST_ERR_SENTINEL), ctx))
+            cond = icmp!(builder, LLVM.API.LLVMIntEQ, loaded_value, ConstantInt(Int64(HOST_ERR_SENTINEL); ctx))
             br!(builder, cond, signal_fail, signal_miss)
 
             position!(builder, signal_fail)

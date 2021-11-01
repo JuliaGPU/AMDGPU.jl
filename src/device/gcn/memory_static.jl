@@ -62,7 +62,6 @@ end
 
 # TODO: Support various types of len
 @inline @generated function memcpy!(dest_ptr::LLVMPtr{UInt8,DestAS}, src_ptr::LLVMPtr{UInt8,SrcAS}, len::LT, ::Val{volatile}) where {DestAS,SrcAS,LT<:Union{Int64,UInt64},volatile}
-    JuliaContext() do ctx
     Context() do ctx
         T_nothing = LLVM.VoidType(ctx)
         T_pint8_dest = convert(LLVMType, dest_ptr; ctx)

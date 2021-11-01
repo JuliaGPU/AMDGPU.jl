@@ -165,7 +165,7 @@ end
 # memory fence
 
 @inline @generated function memfence!(::Val{order}) where {order}
-    JuliaContext() do ctx
+    Context() do ctx
         _order = if order == :acq
             atomic_acquire
         elseif order == :rel
@@ -175,11 +175,11 @@ end
         elseif order == :seq_cst
             atomic_sequentially_consistent
         else
-            error("Invalid memory order $order")
+            throw(ArgumentError("Invalid memory order $order"))
         end
         llvm_f, _ = create_function(LLVM.VoidType(ctx))
         Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry", ctx)
+            entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
             fence!(builder, _order)
             ret!(builder)
