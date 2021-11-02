@@ -156,6 +156,26 @@ function wave_serialized(func::Function)
     return result
 end
 
+const SC_PAGESIZE = 30
+const MS_ASYNC = 1
+@static if Sys.islinux()
+const PAGESIZE = ccall(:sysconf, Clong, (Cint,), SC_PAGESIZE)
+end
+function semi_safe_load(ptr::Ptr{T}) where T
+    num_pages = ceil(Int, sizeof(T) / PAGESIZE)
+    base = Csize_t(ptr) ÷ PAGESIZE * PAGESIZE
+
+    # Check all pages for validity
+    valid = true
+    for _ in 1:num_pages
+        if ccall(:msync, Cint, (Csize_t, Csize_t, Cint), base, PAGESIZE, 1) != 0
+            valid = false
+        end
+        base += PAGESIZE
+    end
+    return valid, valid ? unsafe_load(ptr) : nothing
+end
+
 struct ROCPrintfBuffer end
 Base.sizeof(::ROCPrintfBuffer) = 0
 Base.unsafe_store!(::LLVMPtr{ROCPrintfBuffer,as} where as, x) = nothing
@@ -174,7 +194,10 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
         ptr += sizeof(UInt64)
         UInt64(T_ptr) == 0 && break
         T = unsafe_pointer_to_objref(T_ptr)
-        arg = unsafe_load(convert(Ptr{T}, ptr))
+        valid, arg = semi_safe_load(convert(Ptr{T}, ptr))
+        if !valid
+            @warn "@rocprintf: Memory read failed!\nFuture read failures will be ignored" maxlog=1
+        end
         push!(args, arg)
         ptr += sizeof(arg)
     end
