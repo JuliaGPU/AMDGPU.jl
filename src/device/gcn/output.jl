@@ -158,8 +158,8 @@ end
 
 const SC_PAGESIZE = 30
 const MS_ASYNC = 1
-@static if Sys.islinux()
-const PAGESIZE = ccall(:sysconf, Clong, (Cint,), SC_PAGESIZE)
+if Sys.islinux()
+    const PAGESIZE = ccall(:sysconf, Clong, (Cint,), SC_PAGESIZE)
 end
 function semi_safe_load(ptr::Ptr{T}) where T
     num_pages = ceil(Int, sizeof(T) / PAGESIZE)
@@ -173,7 +173,14 @@ function semi_safe_load(ptr::Ptr{T}) where T
         end
         base += PAGESIZE
     end
-    return valid, valid ? unsafe_load(ptr) : nothing
+    if valid
+        return true, unsafe_load(ptr)
+    else
+        objref = Ref{T}()
+        ccall(:memset, Cvoid, (Ptr{Cvoid}, Cint, Csize_t),
+                              Base.pointer_from_objref(objref), 0, sizeof(T))
+        return false, objref[]
+    end
 end
 
 struct ROCPrintfBuffer end
@@ -195,9 +202,10 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
         UInt64(T_ptr) == 0 && break
         T = unsafe_pointer_to_objref(T_ptr)
         valid, arg = semi_safe_load(convert(Ptr{T}, ptr))
-        if !valid
+        if valid
             @warn "@rocprintf: Memory read failed!\nFuture read failures will be ignored" maxlog=1
         end
+        arg = arg::T
         push!(args, arg)
         ptr += sizeof(arg)
     end
