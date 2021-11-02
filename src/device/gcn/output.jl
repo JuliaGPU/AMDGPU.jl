@@ -163,6 +163,9 @@ if Sys.islinux()
 end
 function semi_safe_load(ptr::Ptr{T}) where T
     num_pages = ceil(Int, sizeof(T) / PAGESIZE)
+    if sizeof(T) + rem(UInt64(ptr), PAGESIZE) > PAGESIZE
+        num_pages += 1
+    end
     base = Csize_t(ptr) ÷ PAGESIZE * PAGESIZE
 
     # Check all pages for validity
