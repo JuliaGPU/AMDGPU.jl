@@ -10,9 +10,9 @@
         T = intr.inp_args[1]
         intr_kern = Symbol("intr_$(jlintr)_$T")
         @eval begin
-            function $intr_kern(a)
+            function $intr_kern(out, a)
                 i = threadIdx().x
-                a[i] = AMDGPU.$jlintr(a[i])
+                out[i] = AMDGPU.$jlintr(a[i])
                 return nothing
             end
             dims = (8,)
@@ -21,11 +21,16 @@
                 a .+= one($T)
             end
             d_a = ROCArray(a)
+            if $intr.tobool
+                d_out = similar(d_a, Bool)
+            else
+                d_out = similar(d_a)
+            end
             len = prod(dims)
 
-            wait(@roc groupsize=len $intr_kern(d_a))
-            _a = Array(d_a)
-            @test $modname.$jlintr.(a) ≈ _a
+            wait(@roc groupsize=len $intr_kern(d_out, d_a))
+            out = Array(d_out)
+            @test $modname.$jlintr.(a) ≈ out
         end
     end
 end

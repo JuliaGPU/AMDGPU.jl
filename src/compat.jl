@@ -13,10 +13,9 @@ end
 @inline function ssqs(x::T, y::T) where T<:Real
     k::Int = 0
     ρ = x*x + y*y
-    # FIXME: isfinite, isinf returns i32 
-    if isfinite(ρ) == Int32(0) && (isinf(x) == Int32(1) || isinf(y) == Int32(1))
+    if isfinite(ρ) && (isinf(x) || isinf(y))
         ρ = convert(T, Inf)
-    elseif isinf(ρ) == Int32(1) || (ρ==0 && (x!=0 || y!=0)) || ρ<nextfloat(zero(T))/(2*eps(T)^2)
+    elseif isinf(ρ) || (ρ==0 && (x!=0 || y!=0)) || ρ<nextfloat(zero(T))/(2*eps(T)^2)
         m::T = max(abs(x), abs(y))
         k = m==0 ? m : exponent(m)
         xk, yk = ldexp(x,-k), ldexp(y,-k)
@@ -32,8 +31,7 @@ end
         return Complex(zero(x),y)
     end
     ρ, k::Int = ssqs(x, y)
-    # FIXME: isfinite returns i32
-    if isfinite(x) == Int32(1)
+    if isfinite(x)
          ρ=ldexp(abs(x),-k)+sqrt(ρ)
     end
     if isodd(k)
@@ -46,8 +44,7 @@ end
     ξ = ρ
     η = y
     if ρ != 0
-        # FIXME: isfinite returns i32
-        if isfinite(η) == Int32(1)
+        if isfinite(η)
             η=(η/ρ)/2
         end
         if x<0

@@ -54,9 +54,10 @@ struct GCNIntrinsic
     out_arg::Type
     roclib::Symbol
     suffix::Symbol
+    tobool::Bool
 end
 
 GCNIntrinsic(jlname, rocname=jlname; isbroken=false, isinverted=false,
-             inp_args=(), out_arg=(), roclib=:ocml, suffix=fntypes[first(inp_args)]) =
-    GCNIntrinsic(jlname, rocname, isbroken, isinverted, inp_args, out_arg, roclib, suffix)
+             inp_args=(), out_arg=(), roclib=:ocml, suffix=fntypes[first(inp_args)], tobool=false) =
+    GCNIntrinsic(jlname, rocname, isbroken, isinverted, inp_args, out_arg, roclib, suffix, tobool)
 

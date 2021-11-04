@@ -54,9 +54,9 @@ for jltype in (Float16, Float32, Float64)
 end
 
 for jltype in (Float32, Float64)
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isfinite; inp_args=(jltype,), out_arg=Int32))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isinf; inp_args=(jltype,), out_arg=Int32))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isnan; inp_args=(jltype,), out_arg=Int32))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:isfinite; inp_args=(jltype,), out_arg=Int32, tobool=true))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:isinf; inp_args=(jltype,), out_arg=Int32, tobool=true))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:isnan; inp_args=(jltype,), out_arg=Int32, tobool=true))
     push!(MATH_INTRINSICS, GCNIntrinsic(:signbit; inp_args=(jltype,), out_arg=Int32))
 end
 
@@ -66,7 +66,9 @@ for intr in MATH_INTRINSICS
     libname = Symbol("__$(intr.roclib)_$(intr.rocname)_$(intr.suffix)")
     @eval @inline function $(intr.jlname)($(inp_expr...))
         y = _intr($(Val(libname)), $(intr.out_arg), $(inp_expr...))
-        return $(intr.isinverted ? :(1-y) : :y)
+        y = $(intr.isinverted ? :(1-y) : :y)
+        y = $(intr.tobool ? :(y != zero(y)) : :y)
+        return y
     end
 end
 
