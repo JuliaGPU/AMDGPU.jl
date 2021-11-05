@@ -75,24 +75,16 @@ end
 abs(z::Complex) = hypot(real(z), imag(z))
 abs(i::Integer) = Base.abs(i)
 
-@inline function pow(x::Float32, y::Int64)
+@inline function pow(x::T, y::Int64) where T<:Union{Float16, Float32,Float64}
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    pow(x, Float32(y))
-end
-@inline function pow(x::Float64, y::Int64)
-    y == -1 && return inv(x)
-    y == 0 && return one(x)
-    y == 1 && return x
-    y == 2 && return x*x
-    y == 3 && return x*x*x
-    pow(x, Float64(y))
+    pow(x, T(y))
 end
 
-pow(x::Integer, p::Union{Float32, Float64}) = pow(convert(typeof(p), x), p)
+pow(x::Integer, p::Union{Float16, Float32, Float64}) = pow(convert(typeof(p), x), p)
 @inline function pow(x::Integer, p::Integer)
     p < 0 && throw("Negative integer power not supported")
     p == 0 && return one(x)
