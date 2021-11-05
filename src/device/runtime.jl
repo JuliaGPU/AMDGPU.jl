@@ -84,10 +84,14 @@ function load_and_link!(mod, path)
     ctx = LLVM.context(mod)
     lib = parse(LLVM.Module, read(path); ctx)
     
-    # for f in LLVM.functions(lib)
-    #     attrs = function_attributes(f)
-    #     delete!(attrs, StringAttribute("target-features"; ctx))
-    # end
+    for f in LLVM.functions(lib)
+        # FIXME: We should be able to inline this, that we can't means
+        #        we are inserting calls to it late.
+        LLVM.name(f) == "__ockl_hsa_signal_store" && continue
+        LLVM.name(f) == "__ockl_hsa_signal_load" && continue
+        attrs = function_attributes(f)
+        push!(attrs, EnumAttribute("alwaysinline"; ctx))
+    end
 
     # override triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
