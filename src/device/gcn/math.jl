@@ -72,6 +72,7 @@ for intr in MATH_INTRINSICS
     end
 end
 
+hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
 abs(z::Complex) = hypot(real(z), imag(z))
 abs(i::Integer) = Base.abs(i)
 
