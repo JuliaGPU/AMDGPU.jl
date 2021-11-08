@@ -61,3 +61,22 @@ function Statistics.corzm(x::ROCArray{<:Any, 2}, vardim::Int=1)
     c = Statistics.unscaled_covzm(x, vardim)
     return Statistics.cov2cor!(c, sqrt.(LinearAlgebra.diag(c)))
 end
+
+
+import Random
+function Random.randn!(rng::GPUArrays.RNG, A::ROCArray{T}) where T<:Union{Float16, Float32, Float64}
+    threads = (length(A) - 1) ÷ 2 + 1
+    length(A) == 0 && return
+    gpu_call(A, rng.state; elements = threads) do ctx, a, randstates
+        idx = 2*(GPUArrays.linear_index(ctx) - 1) + 1
+        U1 = GPUArrays.gpu_rand(T, ctx, randstates)
+        U2 = GPUArrays.gpu_rand(T, ctx, randstates)
+        Z0 = sqrt(T(-2.0)*log(U1))*cos(T(2pi)*U2)
+        Z1 = sqrt(T(-2.0)*log(U1))*sin(T(2pi)*U2)
+        @inbounds a[idx] = Z0
+        idx + 1 > length(a) && return
+        @inbounds a[idx + 1] = Z1
+        return
+    end
+    A
+end
