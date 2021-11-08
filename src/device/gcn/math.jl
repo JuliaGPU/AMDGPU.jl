@@ -19,8 +19,8 @@ for jltype in (Float16, Float32, Float64)
         intrinsic == :erfcinv && jltype == Float16 && continue
 
         if intrinsic == :sin && jltype == Float16
+            continue # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/177
             push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype, isbroken=true))
-            continue
         end
 
         push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype))
@@ -71,6 +71,9 @@ for intr in MATH_INTRINSICS
         return y
     end
 end
+
+# ocml_sin seems broken for F16 (see #177)
+sin(x::Float16) = sin(Float32(x))
 
 hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
 abs(z::Complex) = hypot(real(z), imag(z))
