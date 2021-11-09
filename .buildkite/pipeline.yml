@@ -13,7 +13,7 @@ steps:
       queue: "juliagpu"
       rocm: "*"
     if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 90
     env:
       JULIA_AMDGPU_HSA_MUST_LOAD: "1"
 
@@ -36,7 +36,7 @@ steps:
       queue: "juliagpu"
       rocm: "*"
     if: build.message !~ /\[skip docs\]/
-    timeout_in_minutes: 60
+    timeout_in_minutes: 90
 
 env:
   SECRET_CODECOV_TOKEN: "lVqFGgrywYmQrILXBcP8i6TosP+q/W2oTDVLIdkWFWscd/a61oSVb8Tycq3qvngsrdmKU9EevdQo+1x+w7cu4IuTq63ahQc0RFgi4Q29hC52OgN2wFql984Cqq3T96P3jyV0ZljaRT+a+9AY0oWmmCph55amvvQ4DOMq3tfGDbp7gdueQvJmSYQGVT3/9Sjn4/esYppcKBGltQqQX2E7WrHLpnqRmsmjcSeZ/S/+PgPRb4ZnpBecAUP2d/MlPgKfP0ZUGbDlcbGu+ZDZNksxKIYuAlNrWPhpNAro7hACfEk4T5RRpNiwmJyXJZ8LUD8zNYIUKSmHjUtmqhNXgujWXA==;U2FsdGVkX1/v/P2Y7KZsvC55Au6eET37uDE6M5I6J275maix+SMD0EoJQ19cFp/lae+G8V7dvpPGfrh4hj2nOg=="
