@@ -28,7 +28,7 @@ allowscalar(false)
 @testset "AMDGPU" begin
 
 @testset "Core" begin
-@test_skip include("pointer.jl")
+include("pointer.jl")
 end
 
 if AMDGPU.configured
