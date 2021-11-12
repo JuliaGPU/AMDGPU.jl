@@ -37,17 +37,10 @@ end
 # making it possible to load the package at all times.
 if !hsa_configured
     const libhsaruntime_version = v"0.0"
-    const libhsaruntime_vendor = "none"
     const libhsaruntime_path = nothing
 end
 if !hip_configured
     const libhip_path = nothing
-    const librocblas = nothing
-    const librocsparse = nothing
-    const librocalution = nothing
-    const librocfft = nothing
-    const librocrand = nothing
-    const libmiopen = nothing
 end
 if device_libs_configured && device_libs_downloaded
     # Fallback to download
