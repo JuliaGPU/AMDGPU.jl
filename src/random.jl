@@ -43,12 +43,6 @@ end
 Random.rand!(A::rocRANDUniformArray) = Random.rand!(rocrand_rng(), A)
 Random.randn!(A::rocRANDNormalArray; kwargs...) = Random.randn!(rocrand_rng(), A; kwargs...)
 
-# FIXME: GPUArrays rng does not support Float16
-Random.rand!(rng::GPUArrays.RNG, x::ROCArray{Float16}) = 
-    error("GPUArrays.jl does not support Float16, use rocRAND instead.")
-Random.randn!(rng::GPUArrays.RNG, x::ROCArray{Float16}) = 
-    error("GPUArrays.jl does not support Float16, use rocRAND instead.")
-
 # rocRAND out-of-place
 rand(T::rocRANDUniformType, dims::Dims) = Random.rand(rocrand_rng(), T, dims)
 randn(T::rocRANDNormalType, dims::Dims; kwargs...) = Random.randn(rocrand_rng(), T, dims; kwargs...)

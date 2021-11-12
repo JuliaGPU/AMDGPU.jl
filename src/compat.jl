@@ -13,10 +13,9 @@ end
 @inline function ssqs(x::T, y::T) where T<:Real
     k::Int = 0
     ρ = x*x + y*y
-    # FIXME: isfinite, isinf returns i32 
-    if isfinite(ρ) == Int32(0) && (isinf(x) == Int32(1) || isinf(y) == Int32(1))
+    if isfinite(ρ) && (isinf(x) || isinf(y))
         ρ = convert(T, Inf)
-    elseif isinf(ρ) == Int32(1) || (ρ==0 && (x!=0 || y!=0)) || ρ<nextfloat(zero(T))/(2*eps(T)^2)
+    elseif isinf(ρ) || (ρ==0 && (x!=0 || y!=0)) || ρ<nextfloat(zero(T))/(2*eps(T)^2)
         m::T = max(abs(x), abs(y))
         k = m==0 ? m : exponent(m)
         xk, yk = ldexp(x,-k), ldexp(y,-k)
@@ -32,8 +31,7 @@ end
         return Complex(zero(x),y)
     end
     ρ, k::Int = ssqs(x, y)
-    # FIXME: isfinite returns i32
-    if isfinite(x) == Int32(1)
+    if isfinite(x)
          ρ=ldexp(abs(x),-k)+sqrt(ρ)
     end
     if isodd(k)
@@ -46,8 +44,7 @@ end
     ξ = ρ
     η = y
     if ρ != 0
-        # FIXME: isfinite returns i32
-        if isfinite(η) == Int32(1)
+        if isfinite(η)
             η=(η/ρ)/2
         end
         if x<0
@@ -63,4 +60,23 @@ import Statistics
 function Statistics.corzm(x::ROCArray{<:Any, 2}, vardim::Int=1)
     c = Statistics.unscaled_covzm(x, vardim)
     return Statistics.cov2cor!(c, sqrt.(LinearAlgebra.diag(c)))
+end
+
+
+import Random
+function Random.randn!(rng::GPUArrays.RNG, A::ROCArray{T}) where T<:Union{Float16, Float32, Float64}
+    threads = (length(A) - 1) ÷ 2 + 1
+    length(A) == 0 && return
+    gpu_call(A, rng.state; elements = threads) do ctx, a, randstates
+        idx = 2*(GPUArrays.linear_index(ctx) - 1) + 1
+        U1 = GPUArrays.gpu_rand(T, ctx, randstates)
+        U2 = GPUArrays.gpu_rand(T, ctx, randstates)
+        Z0 = sqrt(T(-2.0)*log(U1))*cos(T(2pi)*U2)
+        Z1 = sqrt(T(-2.0)*log(U1))*sin(T(2pi)*U2)
+        @inbounds a[idx] = Z0
+        idx + 1 > length(a) && return
+        @inbounds a[idx + 1] = Z1
+        return
+    end
+    A
 end

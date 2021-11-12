@@ -1,9 +1,7 @@
 const MATH_INTRINSICS = GCNIntrinsic[]
 
-for jltype in (
-        #= TODO: Float16 Broken due to being i16 in Julia=#
-        Float32, Float64)
-    append!(MATH_INTRINSICS, GCNIntrinsic.((
+for jltype in (Float16, Float32, Float64)
+    for intrinsic in (
         :sin, :cos, :tan, :asin, :acos, :atan, :atan2,
         :sinh, :cosh, :tanh, :asinh, :acosh, :atanh,
         :sinpi, :cospi, :tanpi,
@@ -14,8 +12,19 @@ for jltype in (
         :erf, :erfinv, :erfc, :erfcinv, :erfcx,
         # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
         :isnormal, :nearbyint, :nextafter,
-        :tgamma, :j0, :j1, :y0, :y1,
-    ); inp_args=(jltype,), out_arg=jltype))
+        :tgamma, :j0, :j1, :y0, :y1)
+
+        intrinsic == :expm1 && jltype == Float16 && continue
+        intrinsic == :erfinv && jltype == Float16 && continue
+        intrinsic == :erfcinv && jltype == Float16 && continue
+
+        if intrinsic == :sin && jltype == Float16
+            continue # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/177
+            push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype, isbroken=true))
+        end
+
+        push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype))
+    end
 
     push!(MATH_INTRINSICS, GCNIntrinsic(:sin_fast, :native_sin; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:cos_fast, :native_cos; inp_args=(jltype,), out_arg=jltype))
@@ -45,9 +54,9 @@ for jltype in (
 end
 
 for jltype in (Float32, Float64)
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isfinite; inp_args=(jltype,), out_arg=Int32))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isinf; inp_args=(jltype,), out_arg=Int32))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isnan; inp_args=(jltype,), out_arg=Int32))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:isfinite; inp_args=(jltype,), out_arg=Int32, tobool=true))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:isinf; inp_args=(jltype,), out_arg=Int32, tobool=true))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:isnan; inp_args=(jltype,), out_arg=Int32, tobool=true))
     push!(MATH_INTRINSICS, GCNIntrinsic(:signbit; inp_args=(jltype,), out_arg=Int32))
 end
 
@@ -57,31 +66,29 @@ for intr in MATH_INTRINSICS
     libname = Symbol("__$(intr.roclib)_$(intr.rocname)_$(intr.suffix)")
     @eval @inline function $(intr.jlname)($(inp_expr...))
         y = _intr($(Val(libname)), $(intr.out_arg), $(inp_expr...))
-        return $(intr.isinverted ? :(1-y) : :y)
+        y = $(intr.isinverted ? :(1-y) : :y)
+        y = $(intr.tobool ? :(y != zero(y)) : :y)
+        return y
     end
 end
 
+# ocml_sin seems broken for F16 (see #177)
+sin(x::Float16) = sin(Float32(x))
+
+hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
 abs(z::Complex) = hypot(real(z), imag(z))
 abs(i::Integer) = Base.abs(i)
 
-@inline function pow(x::Float32, y::Int64)
+@inline function pow(x::T, y::Int64) where T<:Union{Float16, Float32,Float64}
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    pow(x, Float32(y))
-end
-@inline function pow(x::Float64, y::Int64)
-    y == -1 && return inv(x)
-    y == 0 && return one(x)
-    y == 1 && return x
-    y == 2 && return x*x
-    y == 3 && return x*x*x
-    pow(x, Float64(y))
+    pow(x, T(y))
 end
 
-pow(x::Integer, p::Union{Float32, Float64}) = pow(convert(typeof(p), x), p)
+pow(x::Integer, p::Union{Float16, Float32, Float64}) = pow(convert(typeof(p), x), p)
 @inline function pow(x::Integer, p::Integer)
     p < 0 && throw("Negative integer power not supported")
     p == 0 && return one(x)
