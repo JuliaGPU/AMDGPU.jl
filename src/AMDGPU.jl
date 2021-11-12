@@ -140,6 +140,22 @@ include(joinpath(@__DIR__, "random.jl"))
 include("utils.jl")
 
 function __init__()
+    if !configured && build_reason != "unknown"
+        if build_reason == "Build did not occur"
+            @warn """
+            AMDGPU.jl has not been built
+            Please run Pkg.build("AMDGPU") and restart Julia
+            """
+            return
+        end
+
+        # Some other reason
+        @warn """
+        Build failed to start!
+        Reason: $build_reason
+        """
+        return
+    end
     if hsa_configured
         # Make sure we load the library found by the last `] build`
         push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
@@ -168,6 +184,7 @@ function __init__()
         @warn """
         HSA runtime has not been built, runtime functionality will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $hsa_build_reason
         """
 
         if parse(Bool, get(ENV, "JULIA_AMDGPU_HSA_MUST_LOAD", "0"))
@@ -183,12 +200,22 @@ function __init__()
         end
     end
 
+    # Check whether ld.lld was found
+    if !lld_configured
+        @warn """
+        ld.lld was not found, compilation functionality will be unavailable.
+        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $lld_build_reason
+        """
+    end
+
     if hip_configured
         push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
     else
         @warn """
         HIP library has not been built, runtime functionality will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $hip_build_reason
         """
     end
 
@@ -197,6 +224,7 @@ function __init__()
         @warn """
         ROCm-Device-Libs were not found, device intrinsics will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $device_libs_build_reason
         """
     end
 

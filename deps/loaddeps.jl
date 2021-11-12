@@ -1,21 +1,35 @@
-# HSA runtime and ROCm External Libraries
-## copied from CUDAdrv/src/CUDAdrv.jl
-if !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
-    using hsa_rocr_jll
-    using HIP_jll
-    using ROCmDeviceLibs_jll
-end
-
+# Load configurations
 try
     include("ext.jl")
 catch err
     if !isfile(joinpath(@__DIR__, "ext.jl"))
         @warn "Didn't find deps/ext.jl, please build AMDGPU.jl"
+        @eval const configured = false
+        @eval const build_reason = "Build did not occur"
+        @eval const lld_configured = false
+        @eval const lld_build_reason = "Build did not occur"
         @eval const hsa_configured = false
+        @eval const hsa_build_reason = "Build did not occur"
         @eval const hip_configured = false
+        @eval const hip_build_reason = "Build did not occur"
         @eval const device_libs_configured = false
+        @eval const device_libs_build_reason = "Build did not occur"
     else
         rethrow(err)
+    end
+end
+
+# HSA runtime and ROCm External Libraries
+## copied from CUDAdrv/src/CUDAdrv.jl
+if !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
+    if hsa_configured
+        using hsa_rocr_jll
+    end
+    if hip_configured
+        using HIP_jll
+    end
+    if device_libs_configured
+        using ROCmDeviceLibs_jll
     end
 end
 
@@ -43,5 +57,3 @@ if device_libs_configured && device_libs_downloaded
 elseif !device_libs_configured
     const device_libs_path = ""
 end
-
-const configured = hsa_configured
