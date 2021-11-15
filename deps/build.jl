@@ -272,7 +272,8 @@ function main()
         device_libs_path = ROCmDeviceLibs_jll.bitcode_path
         device_libs_downloaded = false
     else
-        include("download_device_libs.jl")
+        #include("download_device_libs.jl")
+        device_libs_path = "/opt/rocm/amdgcn/bitcode"
         device_libs_downloaded = true
     end
     config[:device_libs_path] = device_libs_path
