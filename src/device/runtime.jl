@@ -134,14 +134,22 @@ function link_device_libs!(target, mod::LLVM.Module)
     for lib in libs
         lib_path = locate_lib(lib)
         lib_path === nothing && continue
-        load_and_link!(mod, lib_path)
+        try
+            load_and_link!(mod, lib_path)
+        catch err
+            @warn "Failed to load/link $lib" err=err
+        end
     end
 
     # 2. Load OCLC library
     isa_short = replace(target.dev_isa, "gfx"=>"")
     lib = locate_lib("oclc_isa_version_$isa_short")
     @assert lib !== nothing
-    load_and_link!(mod, lib)
+    try
+        load_and_link!(mod, lib)
+    catch err
+        @warn "Failed to load/link OCLC core library for ISA $(target.dev_isa)" err=err
+    end
 
     # 3. Load options libraries
     options = Dict(
@@ -158,6 +166,10 @@ function link_device_libs!(target, mod::LLVM.Module)
             @warn "Could not find OCLC library for option $option=$value"
             continue
         end
-        load_and_link!(mod, lib)
+        try
+            load_and_link!(mod, lib)
+        catch err
+            @warn "Failed to load/link OCLC library for option $option=$value" err=err
+        end
     end
 end
