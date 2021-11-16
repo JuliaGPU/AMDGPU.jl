@@ -4,6 +4,10 @@ function versioninfo(io::IO=stdout)
         println("- Version: $(libhsaruntime_version)")
         println("- Initialized: $(repr(HSA_REFCOUNT[] > 0))")
     end
+    println("ld.lld ($(lld_configured ? "ready" : "MISSING"))")
+    if lld_configured
+        println("- Path: $ld_lld_path")
+    end
     println("HIP Runtime ($(hip_configured ? "ready" : "MISSING"))")
     if hip_configured
         # TODO: println("- Version: $(libhip_version)")

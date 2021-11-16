@@ -2,11 +2,6 @@
 
 using Libdl
 use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
-if use_artifacts
-    using hsa_rocr_jll
-    using HIP_jll
-    using ROCmDeviceLibs_jll
-end
 
 function version_hsa(libpath)
     lib = Libdl.dlopen(libpath)
@@ -135,9 +130,22 @@ end
 function main()
     ispath(config_path) && mv(config_path, previous_config_path; force=true)
     config = Dict{Symbol,Any}(
+        :configured => false,
+        :build_reason => "unknown",
+        :lld_configured => false,
+        :lld_build_reason => "unknown",
         :hsa_configured => false,
+        :hsa_build_reason => "unknown",
         :hip_configured => false,
+        :hip_build_reason => "unknown",
         :device_libs_configured => false,
+        :device_libs_build_reason => "unknown",
+        :librocblas => nothing,
+        :librocsparse => nothing,
+        :librocalution => nothing,
+        :librocfft => nothing,
+        :librocrand => nothing,
+        :libmiopen => nothing,
     )
     write_ext(config, config_path)
 
@@ -151,6 +159,8 @@ function main()
     # check that we're running Linux
     if !Sys.islinux()
         build_warning("Not running Linux, which is the only platform currently supported by the ROCm Runtime.")
+        config[:build_reason] = "Unsupported OS: $(repr(Sys.KERNEL))"
+        write_ext(config, config_path)
         return
     end
 
@@ -158,64 +168,117 @@ function main()
     roc_dirs = find_roc_paths()
 
     ### Find HSA
+    libhsaruntime_path = nothing
     if use_artifacts
-        config[:libhsaruntime_path] = hsa_rocr_jll.libhsa_runtime64
+        try
+            @eval using hsa_rocr_jll
+        catch err
+            iob = IOBuffer()
+            println(iob, "`using hsa_rocr_jll` failed:")
+            Base.showerror(iob, err)
+            Base.show_backtrace(iob, catch_backtrace())
+            config[:hsa_build_reason] = String(take!(iob))
+            write_ext(config, config_path)
+            return
+        end
+        libhsaruntime_path = hsa_rocr_jll.libhsa_runtime64
     else
-        config[:libhsaruntime_path] = find_hsa_library("libhsa-runtime64.so.1", roc_dirs)
+        libhsaruntime_path = find_hsa_library("libhsa-runtime64.so.1", roc_dirs)
     end
-    if config[:libhsaruntime_path] === nothing
+    if libhsaruntime_path === nothing
         build_warning("Could not find HSA runtime library v1")
+        config[:hsa_build_reason] = "HSA runtime library v1 not found"
+        write_ext(config, config_path)
         return
     end
 
     # initializing the library isn't necessary, but flushes out errors that otherwise would
     # happen during `version` or, worse, at package load time.
-    status = init_hsa(config[:libhsaruntime_path])
+    status = init_hsa(libhsaruntime_path)
     if status != 0
         build_warning("Initializing HSA runtime failed with code $status.")
+        config[:hsa_build_reason] = "Failed to initialize HSA runtime, status code: $status"
+        write_ext(config, config_path)
         return
     end
 
-    config[:libhsaruntime_version] = version_hsa(config[:libhsaruntime_path])
+    libhsaruntime_version = version_hsa(libhsaruntime_path)
 
     # also shutdown just in case
-    status = shutdown_hsa(config[:libhsaruntime_path])
+    status = shutdown_hsa(libhsaruntime_path)
     if status != 0
         build_warning("Shutdown of HSA runtime failed with code $status.")
+        config[:hsa_build_reason] = "Failed to shutdown HSA runtime, status code: $status"
+        write_ext(config, config_path)
         return
     end
+    config[:libhsaruntime_path] = libhsaruntime_path
+    config[:libhsaruntime_version] = libhsaruntime_version
     config[:hsa_configured] = true
 
     ### Find HIP
+    libhip_path = nothing
     if use_artifacts
-        config[:libhip_path] = HIP_jll.libamdhip64
-    else
-        config[:libhip_path] = Libdl.find_library(["libamdhip64", "libhip_hcc"])
-        if config[:libhip_path] === nothing
-            build_warning("Could not find HIP")
+        try
+            @eval using HIP_jll
+        catch err
+            iob = IOBuffer()
+            println(iob, "`using HIP_jll` failed:")
+            Base.showerror(iob, err)
+            Base.show_backtrace(iob, catch_backtrace())
+            config[:hip_build_reason] = String(take!(iob))
+            write_ext(config, config_path)
             return
         end
+        libhip_path = HIP_jll.libamdhip64
+    else
+        libhip_path = Libdl.find_library(["libamdhip64", "libhip_hcc"])
     end
+    if libhip_path === nothing
+        build_warning("Could not find HIP runtime library")
+        config[:hip_build_reason] = "HIP runtime library not found"
+        write_ext(config, config_path)
+        return
+    end
+    config[:libhip_path] = libhip_path
     config[:hip_configured] = true
 
     ### Find ld.lld
     ld_path = find_ld_lld()
     if ld_path == ""
         build_warning("Could not find ld.lld, please install it with your package manager")
+        config[:lld_build_reason] = "ld.lld executable not found"
+        write_ext(config, config_path)
         return
     end
     config[:ld_lld_path] = ld_path
+    config[:lld_configured] = true
 
     ### Find/download device-libs
+    device_libs_path = nothing
+    device_libs_downloaded = nothing
     if use_artifacts
-        config[:device_libs_path] = ROCmDeviceLibs_jll.bitcode_path
-        config[:device_libs_configured] = true
-        config[:device_libs_downloaded] = false
+        try
+            @eval using ROCmDeviceLibs_jll
+        catch err
+            iob = IOBuffer()
+            println(iob, "`using ROCmDeviceLibs_jll` failed:")
+            Base.showerror(iob, err)
+            Base.show_backtrace(iob, catch_backtrace())
+            config[:device_libs_build_reason] = String(take!(iob))
+            write_ext(config, config_path)
+            return
+        end
+        device_libs_path = ROCmDeviceLibs_jll.bitcode_path
+        device_libs_downloaded = false
     else
-        include("download_device_libs.jl")
-        config[:device_libs_configured] = true
-        config[:device_libs_downloaded] = true
+        #include("download_device_libs.jl")
+        device_libs_path = "/opt/rocm/amdgcn/bitcode"
+        device_libs_downloaded = true
     end
+    config[:device_libs_path] = device_libs_path
+    config[:device_libs_downloaded] = device_libs_downloaded
+    config[:device_libs_configured] = true
 
     ### Find external HIP-based libraries
     for name in ("rocblas", "rocsparse", "rocalution", "rocfft", "rocrand", "MIOpen")
@@ -223,8 +286,11 @@ function main()
         config[lib] = find_roc_library("lib$name")
         if config[lib] === nothing
             build_warning("Could not find library '$name'")
+            # TODO: Save build reason?
         end
     end
+
+    config[:configured] = true
 
     ## (re)generate ext.jl
 

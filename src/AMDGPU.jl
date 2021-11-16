@@ -112,11 +112,15 @@ const libhip = "libamdhip64.so"
 include(joinpath(@__DIR__, "hip", "HIP.jl"))
 
 # Load ROCm external libraries
+if hip_configured
 librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
 librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
 #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
 #librocalution !== nothing && include("solver/rocALUTION.jl")
-librocrand !== nothing && include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
+if librocrand !== nothing
+include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
+include(joinpath(@__DIR__, "random.jl"))
+end
 #libmiopen !== nothing     && include("dnn/MIOpen.jl")
 
 # Ensure external libraries are up to date
@@ -132,14 +136,28 @@ check_library("rocALUTION", librocalution)
 check_library("rocFFT", librocfft)
 check_library("rocRAND", librocrand)
 check_library("MIOpen", libmiopen)
-
-# we need to load it after rocRAND.jl
-include(joinpath(@__DIR__, "random.jl"))
+end # hip_configured
 
 # Utilities
 include("utils.jl")
 
 function __init__()
+    if !configured && build_reason != "unknown"
+        if build_reason == "Build did not occur"
+            @warn """
+            AMDGPU.jl has not been built
+            Please run Pkg.build("AMDGPU") and restart Julia
+            """
+            return
+        end
+
+        # Some other reason
+        @warn """
+        Build failed to start!
+        Reason: $build_reason
+        """
+        return
+    end
     if hsa_configured
         # Make sure we load the library found by the last `] build`
         push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
@@ -168,6 +186,7 @@ function __init__()
         @warn """
         HSA runtime has not been built, runtime functionality will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $hsa_build_reason
         """
 
         if parse(Bool, get(ENV, "JULIA_AMDGPU_HSA_MUST_LOAD", "0"))
@@ -183,12 +202,22 @@ function __init__()
         end
     end
 
+    # Check whether ld.lld was found
+    if !lld_configured
+        @warn """
+        ld.lld was not found, compilation functionality will be unavailable.
+        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $lld_build_reason
+        """
+    end
+
     if hip_configured
         push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
     else
         @warn """
         HIP library has not been built, runtime functionality will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $hip_build_reason
         """
     end
 
@@ -197,6 +226,7 @@ function __init__()
         @warn """
         ROCm-Device-Libs were not found, device intrinsics will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $device_libs_build_reason
         """
     end
 
