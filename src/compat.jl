@@ -65,9 +65,9 @@ end
 
 import Random
 function Random.randn!(rng::GPUArrays.RNG, A::ROCArray{T}) where T<:Union{Float16, Float32, Float64}
-    threads = (length(A) - 1) ÷ 2 + 1
+    elements = (length(A) - 1) ÷ 2 + 1
     length(A) == 0 && return
-    gpu_call(A, rng.state; elements = threads) do ctx, a, randstates
+    function _randn!_kernel(ctx, a, randstates)
         idx = 2*(GPUArrays.linear_index(ctx) - 1) + 1
         U1 = GPUArrays.gpu_rand(T, ctx, randstates)
         U2 = GPUArrays.gpu_rand(T, ctx, randstates)
@@ -78,5 +78,6 @@ function Random.randn!(rng::GPUArrays.RNG, A::ROCArray{T}) where T<:Union{Float1
         @inbounds a[idx + 1] = Z1
         return
     end
+    gpu_call(ROCArrayBackend(), _randn!_kernel, (A, rng.state); elements)
     A
 end
