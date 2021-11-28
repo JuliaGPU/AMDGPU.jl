@@ -1,60 +1,40 @@
-@testset "pointer" begin
+@testset "semi_safe_load" begin
 
-# inner constructors
+@test AMDGPU.PAGESIZE == 0x1000
 
-voidptr_a = Ptr{Cvoid}(Int(0xDEADBEEF))
-generic_voidptr_a = AMDGPU.LLVMPtr{Cvoid,AS.Generic}(voidptr_a)
-global_voidptr_a = AMDGPU.LLVMPtr{Cvoid,AS.Global}(voidptr_a)
-local_voidptr_a = AMDGPU.LLVMPtr{Cvoid,AS.Local}(voidptr_a)
+struct MediumObject end
+Base.sizeof(::MediumObject) = 0x1000
+Base.sizeof(::Type{MediumObject}) = 0x1000
+struct BigObject end
+Base.sizeof(::BigObject) = 0x2000
+Base.sizeof(::Type{BigObject}) = 0x2000
 
-voidptr_b = Ptr{Cvoid}(Int(0xCAFEBABE))
-generic_voidptr_b = AMDGPU.LLVMPtr{Cvoid,AS.Generic}(voidptr_b)
-global_voidptr_b = AMDGPU.LLVMPtr{Cvoid,AS.Global}(voidptr_b)
-local_voidptr_b = AMDGPU.LLVMPtr{Cvoid,AS.Local}(voidptr_b)
+for (ptr, bases) in (
+    # Less-than-page object
+    (Ptr{Int}(UInt64(0x0)), UInt64[0x0]),
+    (Ptr{Int}(UInt64(0x1)), UInt64[0x0]),
+    (Ptr{Int}(UInt64(0xffc)), UInt64[0x0, 0x1000]),
+    (Ptr{Int}(UInt64(0x1000)), UInt64[0x1000]),
+    (Ptr{Int}(UInt64(0x1001)), UInt64[0x1000]),
 
-intptr_b = convert(Ptr{Int}, voidptr_b)
-generic_intptr_b = AMDGPU.LLVMPtr{Int,AS.Generic}(intptr_b)
-global_intptr_b = AMDGPU.LLVMPtr{Int,AS.Global}(intptr_b)
-local_intptr_b = AMDGPU.LLVMPtr{Int,AS.Local}(intptr_b)
+    # Full-page object
+    (Ptr{MediumObject}(UInt64(0x0)), UInt64[0x0]),
+    (Ptr{MediumObject}(UInt64(0x1)), UInt64[0x0, 0x1000]),
+    (Ptr{MediumObject}(UInt64(0xffc)), UInt64[0x0, 0x1000]),
+    (Ptr{MediumObject}(UInt64(0x1000)), UInt64[0x1000]),
+    (Ptr{MediumObject}(UInt64(0x1001)), UInt64[0x1000, 0x2000]),
 
-# outer constructors
-@test AMDGPU.LLVMPtr{Cvoid}(voidptr_a) == generic_voidptr_a
-@test AMDGPU.LLVMPtr(voidptr_a) == generic_voidptr_a
-
-# getters
-@test eltype(generic_voidptr_a) == Cvoid
-@test eltype(global_intptr_b) == Int
-@test AMDGPU.addrspace(generic_voidptr_a) == AS.Generic
-@test AMDGPU.addrspace(global_voidptr_a) == AS.Global
-@test AMDGPU.addrspace(local_voidptr_a) == AS.Local
-
-# comparisons
-@test generic_voidptr_a != global_voidptr_a
-@test generic_voidptr_a != generic_intptr_b
-
-
-@testset "conversions" begin
-
-# between regular and device pointers
-
-@test convert(Ptr{Cvoid}, generic_voidptr_a) == voidptr_a
-@test convert(AMDGPU.LLVMPtr{Cvoid}, voidptr_a) == generic_voidptr_a
-@test convert(AMDGPU.LLVMPtr{Cvoid,AS.Global}, voidptr_a) == global_voidptr_a
-
-
-# between device pointers
-
-@test_throws ArgumentError convert(typeof(local_voidptr_a), global_voidptr_a)
-@test convert(typeof(generic_voidptr_a), generic_voidptr_a) == generic_voidptr_a
-@test convert(typeof(global_voidptr_a), global_voidptr_a) == global_voidptr_a
-@test Base.unsafe_convert(typeof(local_voidptr_a), global_voidptr_a) == local_voidptr_a
-
-@test convert(typeof(global_voidptr_a), global_intptr_b) == global_voidptr_b
-@test convert(typeof(generic_voidptr_a), global_intptr_b) == generic_voidptr_b
-@test convert(typeof(global_voidptr_a), generic_intptr_b) == global_voidptr_b
-
-@test convert(AMDGPU.LLVMPtr{Cvoid}, global_intptr_b) == global_voidptr_b
-
+    # Multi-page object
+    (Ptr{BigObject}(UInt64(0x0)), UInt64[0x0, 0x1000]),
+    (Ptr{BigObject}(UInt64(0x1)), UInt64[0x0, 0x1000, 0x2000]),
+    (Ptr{BigObject}(UInt64(0xffc)), UInt64[0x0, 0x1000, 0x2000]),
+    (Ptr{BigObject}(UInt64(0x1000)), UInt64[0x1000, 0x2000]),
+    (Ptr{BigObject}(UInt64(0x1001)), UInt64[0x1000, 0x2000, 0x3000]),
+)
+    @test AMDGPU._pages_spanned(ptr) == length(bases)
+    AMDGPU._per_page((x,y)->nothing, ptr) do base
+        @test base in bases
+    end
 end
 
 end
