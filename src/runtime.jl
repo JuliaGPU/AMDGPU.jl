@@ -20,7 +20,7 @@ struct RuntimeEvent{E}
     event::E
 end
 create_event(exe; kwargs...) = RuntimeEvent(create_event(RUNTIME[], exe; kwargs...))
-Base.wait(event::RuntimeEvent) = wait(event.event)
+Base.wait(event::RuntimeEvent; kwargs...) = wait(event.event; kwargs...)
 
 struct RuntimeExecutable{E}
     exe::E

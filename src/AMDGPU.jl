@@ -32,7 +32,7 @@ import .HSA: Agent, Queue, Executable, Status, Signal
 
 struct Adaptor end
 
-const RT_LOCK = Threads.SpinLock()
+const RT_LOCK = Threads.ReentrantLock()
 
 include("extras.jl")
 include("error.jl")
