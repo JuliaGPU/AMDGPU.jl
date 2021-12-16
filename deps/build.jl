@@ -109,9 +109,18 @@ function find_ld_lld()
 end
 
 function find_device_libs()
+    # The canonical location
     if isdir("/opt/rocm/amdgcn/bitcode")
         return "/opt/rocm/amdgcn/bitcode"
     end
+
+    # Might be set by tools like Spack or the user
+    hip_devlibs_path = get(ENV, "HIP_DEVICE_LIB_PATH", "")
+    hip_devlibs_path !== "" && return hip_devlibs_path
+    devlibs_path = get(ENV, "DEVICE_LIB_PATH", "")
+    devlibs_path !== "" && return devlibs_path
+
+    # Search relative to LD_LIBRARY_PATH entries
     paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
     paths = filter(path->path != "", paths)
     paths = map(Base.Filesystem.abspath, paths)
