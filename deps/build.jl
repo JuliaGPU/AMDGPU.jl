@@ -108,6 +108,25 @@ function find_ld_lld()
     return ""
 end
 
+function find_device_libs()
+    if isdir("/opt/rocm/amdgcn/bitcode")
+        return "/opt/rocm/amdgcn/bitcode"
+    end
+    paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
+    paths = filter(path->path != "", paths)
+    paths = map(Base.Filesystem.abspath, paths)
+    for path in paths
+        bitcode_path = joinpath(path, "../amdgcn/bitcode/")
+        if ispath(bitcode_path)
+            if isfile(joinpath(bitcode_path, "ocml.bc")) ||
+               isfile(joinpath(bitcode_path, "ocml.amdgcn.bc"))
+               return bitcode_path
+            end
+        end
+    end
+    return nothing
+end
+
 function find_roc_library(name::String)
     lib = Libdl.find_library(Symbol(name))
     lib == "" && return nothing
@@ -276,12 +295,15 @@ function main()
         device_libs_downloaded = false
     else
         #include("download_device_libs.jl")
-        device_libs_path = "/opt/rocm/amdgcn/bitcode"
+        device_libs_path = find_device_libs()
         device_libs_downloaded = true
+        if device_libs_path === nothing
+            config[:device_libs_build_reason] = "Couldn't find bitcode files in /opt/rocm or relative to entries in LD_LIBRARY_PATH"
+        end
     end
     config[:device_libs_path] = device_libs_path
     config[:device_libs_downloaded] = device_libs_downloaded
-    config[:device_libs_configured] = true
+    config[:device_libs_configured] = device_libs_path !== nothing
 
     ### Find external HIP-based libraries
     for name in ("rocblas", "rocsparse", "rocalution", "rocfft", "MIOpen")
