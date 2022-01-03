@@ -39,7 +39,7 @@ function split_kwargs(kwargs)
     alias_kws    = Dict(:agent=>:device, :stream=>:queue)
     macro_kws    = [:dynamic, :launch]
     compiler_kws = [:name, :device, :queue, :global_hooks]
-    call_kws     = [:gridsize, :groupsize, :config, :queue]
+    call_kws     = [:gridsize, :groupsize, :config, :device, :queue]
     computed_kws = [:threads, :blocks]
 
     macro_kwargs = []
@@ -58,6 +58,10 @@ function split_kwargs(kwargs)
                     push!(macro_kwargs, kwarg)
                 elseif key in compiler_kws
                     push!(compiler_kwargs, kwarg)
+                    # Ensure we pass :device to call as well
+                    if key in call_kws
+                        push!(call_kwargs, kwarg)
+                    end
                 elseif key in call_kws
                     push!(call_kwargs, kwarg)
                 elseif key in computed_kws
@@ -309,8 +313,9 @@ end
 
 @doc (@doc AbstractKernel) HostKernel
 
-@inline function roccall(kernel::HostKernel, tt, args...; config=nothing, signal, kwargs...)
-    queue = get(kwargs, :queue, default_queue(default_device()))
+@inline function roccall(kernel::HostKernel, tt, args...; config=nothing, signal, device=nothing, kwargs...)
+    device = something(device, default_device())
+    queue = get(kwargs, :queue, default_queue(device))
     if config !== nothing
         roccall(kernel.fun, tt, args...; kwargs..., config(kernel)..., queue=queue, signal=signal)
     else
