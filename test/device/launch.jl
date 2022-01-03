@@ -77,3 +77,15 @@ end
     wait(sig.event.signal)
     wait(sig.event.signal.signal[])
 end
+
+if length(AMDGPU.get_agents(:gpu)) > 1
+    @testset "Multi-GPU" begin
+        # HSA will throw if the compiler and launch use different agents
+        a1, a2 = AMDGPU.get_agents(:gpu)
+        wait(@roc device=AMDGPU.RuntimeDevice(a1) identity(nothing))
+        wait(@roc device=AMDGPU.RuntimeDevice(a2) identity(nothing))
+    end
+else
+    @warn "Only 1 GPU detected; skipping multi-GPU tests"
+    @test_broken "Multi-GPU"
+end
