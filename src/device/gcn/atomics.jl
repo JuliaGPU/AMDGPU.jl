@@ -345,6 +345,7 @@ end
 Base.showerror(io::IO, err::AtomicError) =
     print(io, "AtomicError: ", err.msg)
 
+#=
 """
     @atomic a[I] = op(a[I], val)
     @atomic a[I] ...= val
@@ -388,6 +389,7 @@ macro atomic(ex)
         $atomic_arrayset($array, $indices, $op, $val)
     end)
 end
+=#
 
 # FIXME: make this respect the indexing style
 @inline atomic_arrayset(A::AbstractArray, Is::Tuple, op::Function, val) =
