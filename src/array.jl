@@ -235,8 +235,8 @@ ROCIndexStyle(i1::Colon, I...) = ROCIndexStyle(I...)
 
 rocviewlength() = ()
 @inline rocviewlength(::Real, I...) = rocviewlength(I...) # skip scalar
-@inline rocviewlength(i1::AbstractUnitRange, I...) = (Base.unsafe_length(i1), rocviewlength(I...)...)
-@inline rocviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (Base.unsafe_length(i1),)
+@inline rocviewlength(i1::AbstractUnitRange, I...) = (length(i1), rocviewlength(I...)...)
+@inline rocviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (length(i1),)
 
 @inline function Base.view(A::ROCArray, I::Vararg{Any,N}) where {N}
     J = to_indices(A, I)
