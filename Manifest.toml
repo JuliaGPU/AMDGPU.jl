@@ -1,5 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
+julia_version = "1.7.1"
 manifest_format = "2.0"
 
 [[deps.AbstractFFTs]]
@@ -425,3 +426,15 @@ version = "1.2.2+0"
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+
+[[deps.rocRAND_jll]]
+deps = ["Artifacts", "HIP_jll", "JLLWrappers", "Libdl", "Pkg", "ROCmCompilerSupport_jll", "ROCmOpenCLRuntime_jll", "hsa_rocr_jll", "rocminfo_jll"]
+git-tree-sha1 = "8bc31c5b67e1e81fdbdc11a2dc1acf4912ea8200"
+uuid = "a6151927-a32b-54c0-bc8c-bbd7b3f1a996"
+version = "4.2.0+0"
+
+[[deps.rocminfo_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "hsa_rocr_jll"]
+git-tree-sha1 = "a53235bdb4691d40584383f423e0adb47b18a79d"
+uuid = "5a766526-3cf8-5128-8c31-4f7b7ad60f0e"
+version = "4.0.0+0"

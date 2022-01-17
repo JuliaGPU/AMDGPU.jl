@@ -146,7 +146,8 @@ function main()
         :librocsparse => nothing,
         :librocalution => nothing,
         :librocfft => nothing,
-        :librocrand => nothing,
+        :rocrand_configured => false,
+        :rocrand_build_reason => false,
         :libmiopen => nothing,
     )
     write_ext(config, config_path)
@@ -283,12 +284,34 @@ function main()
     config[:device_libs_configured] = true
 
     ### Find external HIP-based libraries
-    for name in ("rocblas", "rocsparse", "rocalution", "rocfft", "rocrand", "MIOpen")
+    for name in ("rocblas", "rocsparse", "rocalution", "rocfft", "MIOpen")
         lib = Symbol("lib$(lowercase(name))")
         config[lib] = find_roc_library("lib$name")
         if config[lib] === nothing
             build_warning("Could not find library '$name'")
             # TODO: Save build reason?
+        end
+    end
+    if use_artifacts
+        try
+            @eval using rocRAND_jll
+            config[:rocrand_configured] = true
+        catch err
+            iob = IOBuffer()
+            println(iob, "`using rocRAND_jll` failed:")
+            Base.showerror(iob, err)
+            Base.show_backtrace(iob, catch_backtrace())
+            config[:rocrand_build_reason] = String(take!(iob))
+            write_ext(config, config_path)
+            return
+        end
+    else
+        lib = :librocrand
+        config[lib] = find_roc_library("librocrand")
+        if config[lib] === nothing
+            build_warning("Could not find library 'librocrand'")
+        else
+            config[:rocrand_configured] = true
         end
     end
 

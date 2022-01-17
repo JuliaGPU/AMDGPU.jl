@@ -230,6 +230,15 @@ function __init__()
         """
     end
 
+    # Check whether external libraries are available
+    if use_artifacts && !rocrand_configured
+        @warn """
+        rocRAND failed to load, RNG functionality will be unavailable.
+        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $rocrand_build_reason
+        """
+    end
+
     # Load optional OpenCL integrations
     @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
 
