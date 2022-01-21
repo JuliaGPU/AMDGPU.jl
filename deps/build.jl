@@ -79,12 +79,13 @@ function find_ld_lld()
     paths = split(get(ENV, "PATH", ""), ":")
     paths = filter(path->path != "", paths)
     paths = map(Base.Filesystem.abspath, paths)
-    ispath("/opt/rocm/llvm/bin/ld.lld") &&
-        push!(paths, "/opt/rocm/llvm/bin/")
-    ispath("/opt/rocm/hcc/bin/ld.lld") &&
-        push!(paths, "/opt/rocm/hcc/bin/")
-    ispath("/opt/rocm/opencl/bin/x86_64/ld.lld") &&
-        push!(paths, "/opt/rocm/opencl/bin/x86_64/")
+    basedir = get(ENV, "ROCM_PATH", "/opt/rocm")
+    ispath(joinpath(basedir, "llvm/bin/ld.lld")) &&
+        push!(paths, joinpath(basedir, "llvm/bin/"))
+    ispath(joinpath(basedir, "hcc/bin/ld.lld")) &&
+        push!(paths, joinpath(basedir, "/hcc/bin/"))
+    ispath(joinpath(basedir, "opencl/bin/x86_64/ld.lld")) &&
+        push!(paths, joinpath(basedir, "opencl/bin/x86_64/"))
     for path in paths
         exp_ld_path = joinpath(path, "ld.lld")
         if ispath(exp_ld_path)
@@ -93,6 +94,7 @@ function find_ld_lld()
                 run(pipeline(`$exp_ld_path -v`; stdout=tmpfile[1]))
                 vstr = read(tmpfile[1], String)
                 rm(tmpfile[1])
+                vstr = replace(vstr, "AMD " => "")
                 vstr_splits = split(vstr, ' ')
                 if VersionNumber(vstr_splits[2]) >= v"6.0.0"
                     @info "Found useable ld.lld at $exp_ld_path"
