@@ -46,6 +46,22 @@ steps:
     env:
       JULIA_AMDGPU_HSA_MUST_LOAD: "1"
 
+  - label: "Julia 1.7 - GPUArrays 8 - No artifacts"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.7-nightly
+      - JuliaCI/julia-test#v1.4:
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+    agents:
+      queue: "juliagpu"
+      rocm: "*"
+    if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 120
+    env:
+      JULIA_AMDGPU_HSA_MUST_LOAD: "1"
+      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+
   - label: "Documentation"
     plugins:
       - JuliaCI/julia#v1:
