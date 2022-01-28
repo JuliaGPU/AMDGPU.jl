@@ -16,7 +16,7 @@ function wait!(ss::SyncState)
     empty!(ss.signals)
     foreach(HIP.hipStreamSynchronize, ss.streams)
     empty!(ss.streams)
-    HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
+    #HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
     nothing
 end
 mark!(ss::SyncState, signal::HSAStatusSignal) = push!(ss.signals, signal)
