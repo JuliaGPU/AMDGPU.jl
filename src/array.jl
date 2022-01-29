@@ -287,12 +287,6 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     return b
 end
 
-# allow missing dimensions with Colon()
-if VERSION < v"1.6.0-DEV.1358"
-    Base.reshape(parent::ROCArray, dims::Tuple{Vararg{Union{Int,Colon}}}) =
-    Base.reshape(parent, Base._reshape_uncolon(parent, dims))
-end
-
 
 ## fft
 

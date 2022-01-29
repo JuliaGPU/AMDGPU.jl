@@ -1,37 +1,15 @@
 # Utilities for working with HSA queues
 
-@static if VERSION >= v"1.7-"
-    """
-    An HSA queue.
-    Each queue is uniquely associated with an agent.
-    """
-    mutable struct HSAQueue
-        agent::HSAAgent
-        queue::Ptr{HSA.Queue}
-        status::HSA.Status
-        cond::Base.AsyncCondition
-        @atomic active::Bool
-    end
-else
-    """
-    An HSA queue.
-    Each queue is uniquely associated with an agent.
-    """
-    mutable struct HSAQueue
-        agent::HSAAgent
-        queue::Ptr{HSA.Queue}
-        status::HSA.Status
-        cond::Base.AsyncCondition
-        active::Bool
-    end
-    @inline function replacefield!(value, name::Symbol, expected, desired)
-        y = getfield(value, name)
-        ok = y === expected
-        if ok
-            setfield!(value, name, desired)
-        end
-        return (; old=y, success=ok)
-    end
+"""
+An HSA queue.
+Each queue is uniquely associated with an agent.
+"""
+mutable struct HSAQueue
+    agent::HSAAgent
+    queue::Ptr{HSA.Queue}
+    status::HSA.Status
+    cond::Base.AsyncCondition
+    @atomic active::Bool
 end
 const QUEUES = Dict{Ptr{HSA.Queue},WeakRef}()
 const DEFAULT_QUEUES = IdDict{HSAAgent,HSAQueue}()
@@ -126,11 +104,7 @@ function kill_queue!(queue::HSAQueue; force=false)
     if !force && !replacefield!(queue, :active, true, false, :acquire_release).success
         return false # We didn't destroy the queue
     end
-    @static if VERSION >= v"1.7-"
-        @atomic queue.active = false
-    else
-        queue.active = false
-    end
+    @atomic queue.active = false
 
     lock(RT_LOCK) do
         delete!(QUEUES, queue.queue)
