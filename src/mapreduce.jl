@@ -90,9 +90,6 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::ROCArray{T},
     Base.check_reducedims(R, A)
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
 
-    f = rocfunc(f)
-    op = rocfunc(op)
-
     # add singleton dimensions to the output container, if needed
     if ndims(R) < ndims(A)
         dims = Base.fill_to_length(size(R), 1, Val(ndims(A)))

@@ -54,6 +54,9 @@ include("runtime.jl")
 include("statussignal.jl")
 include("sync.jl")
 
+const ci_cache = GPUCompiler.CodeCache()
+Base.Experimental.@MethodTable(method_table)
+
 # Device sources must load _before_ the compiler infrastructure
 # because of generated functions.
 include(joinpath("device", "tools.jl"))
@@ -242,9 +245,6 @@ function __init__()
 
     # Load optional OpenCL integrations
     @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
-
-    # Load optional @requires packages
-    @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 end
 
 end # module

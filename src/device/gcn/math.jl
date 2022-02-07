@@ -1,3 +1,7 @@
+import Base: FastMath
+
+import SpecialFunctions
+
 const MATH_INTRINSICS = GCNIntrinsic[]
 
 for jltype in (Float16, Float32, Float64)
@@ -41,9 +45,9 @@ for jltype in (Float16, Float32, Float64)
     # TODO: abs(::Union{Int32,Int64})
 
     # Multi-argument functions
-    push!(MATH_INTRINSICS, GCNIntrinsic(:pow; inp_args=(jltype,jltype), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:pow, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
-    # TODO: push!(MATH_INTRINSICS, GCNIntrinsic(:pow, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pow; inp_args=(jltype,jltype), out_arg=jltype))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
+    # TODO: push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
     # TODO: :sincos, :frexp, :ldexp, :copysign,
     #push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,), out_arg=(jltype, Int32), isinverted=true))
 
@@ -64,32 +68,51 @@ for intr in MATH_INTRINSICS
     inp_vars = [gensym() for _ in 1:length(intr.inp_args)]
     inp_expr = [:($(inp_vars[idx])::$arg) for (idx,arg) in enumerate(intr.inp_args)]
     libname = Symbol("__$(intr.roclib)_$(intr.rocname)_$(intr.suffix)")
-    @eval @inline function $(intr.jlname)($(inp_expr...))
+    mod = if isdefined(Base, intr.jlname)
+        Base
+    elseif isdefined(FastMath, intr.jlname)
+        FastMath
+    elseif isdefined(SpecialFunctions, intr.jlname)
+        SpecialFunctions
+    else
+        nothing
+    end
+    ex = quote
         y = _intr($(Val(libname)), $(intr.out_arg), $(inp_expr...))
         y = $(intr.isinverted ? :(1-y) : :y)
         y = $(intr.tobool ? :(y != zero(y)) : :y)
         return y
     end
+    if mod !== nothing
+        @eval @device_override function $mod.$(intr.jlname)($(inp_expr...))
+            $ex
+        end
+    else
+        @eval @device_function function $(intr.jlname)($(inp_expr...))
+            $ex
+        end
+    end
 end
 
 # ocml_sin seems broken for F16 (see #177)
-sin(x::Float16) = sin(Float32(x))
+@device_override Base.sin(x::Float16) = sin(Float32(x))
 
-hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
-abs(z::Complex) = hypot(real(z), imag(z))
+@device_override Base.hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
+@device_override Base.abs(z::Complex) = hypot(real(z), imag(z))
+# FIXME
 abs(i::Integer) = Base.abs(i)
 
-@inline function pow(x::T, y::Int64) where T<:Union{Float16, Float32,Float64}
+@device_override @inline function Base.:(^)(x::T, y::Int64) where T<:Union{Float16, Float32,Float64}
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    pow(x, T(y))
+    x ^ T(y)
 end
 
-pow(x::Integer, p::Union{Float16, Float32, Float64}) = pow(convert(typeof(p), x), p)
-@inline function pow(x::Integer, p::Integer)
+@device_override Base.:(^)(x::Integer, p::Union{Float16, Float32, Float64}) = convert(typeof(p), x) ^ p
+@device_override @inline function Base.:(^)(x::Integer, p::Integer)
     p < 0 && throw("Negative integer power not supported")
     p == 0 && return one(x)
     p == 1 && return x
