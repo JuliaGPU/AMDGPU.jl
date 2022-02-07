@@ -107,13 +107,12 @@ end
 # Load binary dependencies
 include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
 
-# Load HIP
+# Load HIP and ROCm external libraries
 const libhip = "libamdhip64.so"
-include(joinpath(@__DIR__, "hip", "HIP.jl"))
-
-# Load ROCm external libraries
 if hip_configured
+include(joinpath(@__DIR__, "hip", "HIP.jl"))
 librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
+#librocsolver !== nothing  && include("solver/rocSOLVER.jl")
 librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
 #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
 #librocalution !== nothing && include("solver/rocALUTION.jl")
@@ -131,6 +130,7 @@ function check_library(name, path)
     end
 end
 check_library("rocBLAS", librocblas)
+check_library("rocSOLVER", librocsolver)
 check_library("rocSPARSE", librocsparse)
 check_library("rocALUTION", librocalution)
 check_library("rocFFT", librocfft)
@@ -211,22 +211,23 @@ function __init__()
         """
     end
 
-    if hip_configured
-        push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
-    else
-        @warn """
-        HIP library has not been built, runtime functionality will be unavailable.
-        Please run Pkg.build("AMDGPU") and reload AMDGPU.
-        Reason: $hip_build_reason
-        """
-    end
-
     # Check whether device intrinsics are available
     if !device_libs_configured
         @warn """
         ROCm-Device-Libs were not found, device intrinsics will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         Reason: $device_libs_build_reason
+        """
+    end
+
+    # Check whether HIP is available
+    if hip_configured
+        push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
+    else
+        @warn """
+        HIP library has not been built, HIP integration will be unavailable.
+        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $hip_build_reason
         """
     end
 

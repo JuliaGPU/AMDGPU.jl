@@ -8,16 +8,17 @@ function versioninfo(io::IO=stdout)
     if lld_configured
         println("- Path: $ld_lld_path")
     end
-    println("HIP Runtime ($(hip_configured ? "ready" : "MISSING"))")
-    if hip_configured
-        # TODO: println("- Version: $(libhip_version)")
-    end
     println("ROCm-Device-Libs ($(device_libs_configured ? "ready" : "MISSING"))")
     if device_libs_configured
         # TODO: println("- Version: $(device_libs_version)")
         println("- Downloaded: $(repr(device_libs_downloaded))")
     end
+    println("HIP Runtime ($(hip_configured ? "ready" : "MISSING"))")
+    if hip_configured
+        # TODO: println("- Version: $(libhip_version)")
+    end
     println("rocBLAS ($(librocblas !== nothing ? "ready" : "MISSING"))")
+    println("rocSOLVER ($(librocsolver !== nothing ? "ready" : "MISSING"))")
     println("rocFFT ($(librocfft !== nothing ? "ready" : "MISSING"))")
     println("rocRAND ($(librocrand !== nothing ? "ready" : "MISSING"))")
     println("rocSPARSE ($(librocsparse !== nothing ? "ready" : "MISSING"))")

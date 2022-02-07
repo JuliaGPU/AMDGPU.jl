@@ -171,6 +171,7 @@ function main()
         :device_libs_configured => false,
         :device_libs_build_reason => "unknown",
         :librocblas => nothing,
+        :librocsolver => nothing,
         :librocsparse => nothing,
         :librocalution => nothing,
         :librocfft => nothing,
@@ -247,33 +248,6 @@ function main()
     config[:libhsaruntime_version] = libhsaruntime_version
     config[:hsa_configured] = true
 
-    ### Find HIP
-    libhip_path = nothing
-    if use_artifacts
-        try
-            @eval using HIP_jll
-        catch err
-            iob = IOBuffer()
-            println(iob, "`using HIP_jll` failed:")
-            Base.showerror(iob, err)
-            Base.show_backtrace(iob, catch_backtrace())
-            config[:hip_build_reason] = String(take!(iob))
-            write_ext(config, config_path)
-            return
-        end
-        libhip_path = HIP_jll.libamdhip64
-    else
-        libhip_path = Libdl.find_library(["libamdhip64", "libhip_hcc"])
-    end
-    if libhip_path === nothing
-        build_warning("Could not find HIP runtime library")
-        config[:hip_build_reason] = "HIP runtime library not found"
-        write_ext(config, config_path)
-        return
-    end
-    config[:libhip_path] = libhip_path
-    config[:hip_configured] = true
-
     ### Find ld.lld
     ld_path = find_ld_lld()
     if ld_path == ""
@@ -314,36 +288,60 @@ function main()
     config[:device_libs_downloaded] = device_libs_downloaded
     config[:device_libs_configured] = device_libs_path !== nothing
 
-    ### Find external HIP-based libraries
-    for name in ("rocblas", "rocsparse", "rocalution", "rocfft", "MIOpen")
-        lib = Symbol("lib$(lowercase(name))")
-        config[lib] = find_roc_library("lib$name")
-        if config[lib] === nothing
-            build_warning("Could not find library '$name'")
-            # TODO: Save build reason?
-        end
-    end
+    ### Find HIP
+    libhip_path = nothing
     if use_artifacts
         try
-            @eval using rocRAND_jll
-            config[:rocrand_configured] = true
+            @eval using HIP_jll
         catch err
             iob = IOBuffer()
-            println(iob, "`using rocRAND_jll` failed:")
+            println(iob, "`using HIP_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
-            config[:rocrand_build_reason] = String(take!(iob))
+            config[:hip_build_reason] = String(take!(iob))
             write_ext(config, config_path)
             return
         end
+        libhip_path = HIP_jll.libamdhip64
     else
-        lib = :librocrand
-        config[lib] = find_roc_library("librocrand")
-        if config[lib] === nothing
-            build_warning("Could not find library 'librocrand'")
-        else
-            config[:rocrand_configured] = true
+        libhip_path = Libdl.find_library(["libamdhip64", "libhip_hcc"])
+    end
+    if libhip_path !== nothing && !isempty(libhip_path)
+        config[:libhip_path] = libhip_path
+        config[:hip_configured] = true
+
+        ### Find external HIP-based libraries
+        for name in ("rocblas", "rocsolver", "rocsparse", "rocalution", "rocfft", "MIOpen")
+            lib = Symbol("lib$(lowercase(name))")
+            config[lib] = find_roc_library("lib$name")
+            if config[lib] === nothing
+                build_warning("Could not find library '$name'")
+                # TODO: Save build reason?
+            end
         end
+        if use_artifacts
+            try
+                @eval using rocRAND_jll
+                config[:rocrand_configured] = true
+            catch err
+                iob = IOBuffer()
+                println(iob, "`using rocRAND_jll` failed:")
+                Base.showerror(iob, err)
+                Base.show_backtrace(iob, catch_backtrace())
+                config[:rocrand_build_reason] = String(take!(iob))
+            end
+        else
+            lib = :librocrand
+            config[lib] = find_roc_library("librocrand")
+            if config[lib] === nothing
+                build_warning("Could not find library 'librocrand'")
+            else
+                config[:rocrand_configured] = true
+            end
+        end
+    else
+        build_warning("Could not find HIP runtime library")
+        config[:hip_build_reason] = "HIP runtime library not found"
     end
 
     config[:configured] = true

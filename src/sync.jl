@@ -14,9 +14,11 @@ function wait!(ss::SyncState)
     # FIXME: Use barrier_and on dedicated queue
     foreach(wait, ss.signals)
     empty!(ss.signals)
-    foreach(HIP.hipStreamSynchronize, ss.streams)
-    empty!(ss.streams)
-    HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
+    if hip_configured
+        foreach(HIP.hipStreamSynchronize, ss.streams)
+        empty!(ss.streams)
+        HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
+    end
     nothing
 end
 mark!(ss::SyncState, signal::HSAStatusSignal) = push!(ss.signals, signal)
