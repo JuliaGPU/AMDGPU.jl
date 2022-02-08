@@ -317,6 +317,9 @@ end
 @inline function roccall(kernel::HostKernel, tt, args...; config=nothing, signal, device=nothing, kwargs...)
     device = something(device, default_device())
     queue = get(kwargs, :queue, default_queue(device))
+    if queue isa HSAQueue
+        queue = RuntimeQueue(queue)
+    end
     if config !== nothing
         roccall(kernel.fun, tt, args...; kwargs..., config(kernel)..., queue=queue, signal=signal)
     else
