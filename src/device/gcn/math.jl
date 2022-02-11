@@ -99,9 +99,6 @@ end
 @device_override Base.sin(x::Float16) = sin(Float32(x))
 
 @device_override Base.hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
-@device_override Base.abs(z::Complex) = hypot(real(z), imag(z))
-# FIXME
-abs(i::Integer) = Base.abs(i)
 
 # Non-matching types
 @device_override @inline function Base.:(^)(x::T, y::S) where {T<:Union{Float16, Float32,Float64}, S<:Union{Int64,UInt64}}
