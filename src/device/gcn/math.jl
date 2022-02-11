@@ -47,7 +47,6 @@ for jltype in (Float16, Float32, Float64)
     # Multi-argument functions
     push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pow; inp_args=(jltype,jltype), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
-    # TODO: push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
     # TODO: :sincos, :frexp, :ldexp, :copysign,
     #push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,), out_arg=(jltype, Int32), isinverted=true))
 
@@ -102,16 +101,22 @@ end
 # FIXME
 abs(i::Integer) = Base.abs(i)
 
-@device_override @inline function Base.:(^)(x::T, y::Int64) where T<:Union{Float16, Float32,Float64}
+# Non-matching types
+@device_override @inline function Base.:(^)(x::T, y::S) where {T<:Union{Float16, Float32,Float64}, S<:Union{Int64,UInt64}}
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
+    if S === Int64 && typemin(Int32) <= y <= typemax(Int32)
+        return x ^ unsafe_trunc(Int32, y)
+    elseif S === UInt64 && typemin(UInt32) <= y <= typemax(UInt32)
+        return x ^ unsafe_trunc(UInt32, y)
+    end
     x ^ T(y)
 end
+@device_override Base.:(^)(x::Integer, p::T) where T<:Union{Float16, Float32, Float64} = T(x) ^ p
 
-@device_override Base.:(^)(x::Integer, p::Union{Float16, Float32, Float64}) = convert(typeof(p), x) ^ p
 @device_override @inline function Base.:(^)(x::Integer, p::Integer)
     p < 0 && throw("Negative integer power not supported")
     p == 0 && return one(x)
