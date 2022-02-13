@@ -84,7 +84,6 @@ include("broadcast.jl")
 #include("matmul.jl")
 include("mapreduce.jl")
 #include("gpuarray_interface.jl")
-include("compat.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
