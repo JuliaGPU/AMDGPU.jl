@@ -16,11 +16,7 @@ for jltype in (Float16, Float32, Float64)
         :erf, :erfinv, :erfc, :erfcinv, :erfcx,
         # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
         :isnormal, :nearbyint, :nextafter,
-        :tgamma, :j0, :j1, :y0, :y1)
-
-        intrinsic == :expm1 && jltype == Float16 && continue
-        intrinsic == :erfinv && jltype == Float16 && continue
-        intrinsic == :erfcinv && jltype == Float16 && continue
+        :tgamma, :lgamma, :lgamma_r)
 
         if intrinsic == :sin && jltype == Float16
             continue # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/177
@@ -29,6 +25,11 @@ for jltype in (Float16, Float32, Float64)
 
         push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype))
     end
+
+    push!(MATH_INTRINSICS, GCNIntrinsic(:besselj0, :j0; inp_args=(jltype,), out_arg=jltype))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:besselj1, :j1; inp_args=(jltype,), out_arg=jltype))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:bessely0, :y0; inp_args=(jltype,), out_arg=jltype))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:bessely1, :y1; inp_args=(jltype,), out_arg=jltype))
 
     push!(MATH_INTRINSICS, GCNIntrinsic(:sin_fast, :native_sin; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:cos_fast, :native_cos; inp_args=(jltype,), out_arg=jltype))
