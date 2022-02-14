@@ -53,7 +53,7 @@ function find_roc_paths()
     paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
     paths = filter(path->path != "", paths)
     paths = map(Base.Filesystem.abspath, paths)
-    push!(paths, "/opt/rocm/hsa/lib") # shim for Ubuntu rocm packages...
+    push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
     paths = filter(isdir, paths)
     println("ROCm library search paths:")
     for path in paths
