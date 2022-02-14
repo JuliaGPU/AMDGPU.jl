@@ -216,7 +216,7 @@ function main()
         end
         libhsaruntime_path = hsa_rocr_jll.libhsa_runtime64
     else
-        libhsaruntime_path = find_hsa_library("libhsa-runtime64.so.1", roc_dirs)
+        libhsaruntime_path = find_hsa_library("libhsa-runtime64", roc_dirs)
     end
     if libhsaruntime_path === nothing
         build_warning("Could not find HSA runtime library v1")
