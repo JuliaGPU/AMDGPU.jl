@@ -3,7 +3,11 @@ using Base.FastMath
 @testset "Math Intrinsics" begin
     for intr in AMDGPU.MATH_INTRINSICS
         jlintr = intr.jlname
-        if intr.isbroken || !(isdefined(Base, jlintr) || isdefined(SpecialFunctions, jlintr)) || length(intr.inp_args) != 1
+        if intr.isbroken ||
+           !isdefined(Base, jlintr) ||
+           !isdefined(Base.FastMath, jlintr) ||
+           !isdefined(SpecialFunctions, jlintr) ||
+           length(intr.inp_args) != 1
             @test_skip "$jlintr()"
             continue
         end

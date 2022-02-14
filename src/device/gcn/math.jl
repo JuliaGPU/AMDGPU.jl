@@ -16,7 +16,8 @@ for jltype in (Float16, Float32, Float64)
         :erf, :erfinv, :erfc, :erfcinv, :erfcx,
         # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
         :isnormal, :nearbyint, :nextafter,
-        :tgamma, :lgamma, :lgamma_r)
+        :tgamma, :lgamma)
+        # FIXME: :lgamma_r segfaults on GPU
 
         if intrinsic == :sin && jltype == Float16
             continue # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/177
