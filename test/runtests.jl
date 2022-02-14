@@ -69,15 +69,32 @@ if AMDGPU.configured
                 TestSuite.test(ROCArray)
             end
             @testset "ROCm External Libraries" begin
-                if parse(Bool, get(ENV, "CI", "false"))
+                CI = parse(Bool, get(ENV, "CI", "false"))
+                if CI
                     @test isdefined(AMDGPU, :rocBLAS)
                     @test isdefined(AMDGPU, :rocFFT)
                     @test isdefined(AMDGPU, :rocRAND)
                 end
-                isdefined(AMDGPU, :rocBLAS) ? include("rocarray/blas.jl") : @test_skip "rocBLAS"
-                isdefined(AMDGPU, :rocFFT) ? include("rocarray/fft.jl") : @test_skip "rocFFT"
-                isdefined(AMDGPU, :rocRAND) ? include("rocarray/random.jl") : @test_skip "rocRAND"
-                include("rocarray/nmf.jl")
+                if isdefined(AMDGPU, :rocBLAS)
+                    include("rocarray/blas.jl")
+                else
+                    @test_skip "rocBLAS"
+                end
+                if isdefined(AMDGPU, :rocFFT)
+                    include("rocarray/fft.jl")
+                else
+                    @test_skip "rocFFT"
+                end
+                if isdefined(AMDGPU, :rocRAND)
+                    include("rocarray/random.jl")
+                else
+                    @test_skip "rocRAND"
+                end
+                if isdefined(AMDGPU, :rocBLAS)
+                    include("rocarray/nmf.jl")
+                else
+                    @test_skip "NMF"
+                end
             end
         end
         @testset "External Packages" begin
