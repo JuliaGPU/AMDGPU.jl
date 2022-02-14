@@ -164,6 +164,7 @@ function main()
         :build_reason => "unknown",
         :lld_configured => false,
         :lld_build_reason => "unknown",
+        :lld_artifact => false,
         :hsa_configured => false,
         :hsa_build_reason => "unknown",
         :hip_configured => false,
@@ -249,15 +250,32 @@ function main()
     config[:hsa_configured] = true
 
     ### Find ld.lld
-    ld_path = find_ld_lld()
-    if ld_path == ""
-        build_warning("Could not find ld.lld, please install it with your package manager")
-        config[:lld_build_reason] = "ld.lld executable not found"
-        write_ext(config, config_path)
-        return
+    ld_path = nothing
+    if use_artifacts
+        try
+            @eval using LLVM_jll
+        catch err
+            iob = IOBuffer()
+            println(iob, "`using LLVM_jll` failed:")
+            Base.showerror(iob, err)
+            Base.show_backtrace(iob, catch_backtrace())
+            config[:ld_lld_build_reason] = String(take!(iob))
+        end
+        ld_path = LLVM_jll.lld_path
+        config[:lld_artifact] = true
+    else
+        ld_path = find_ld_lld()
+        if ld_path == ""
+            build_warning("Could not find ld.lld, please install it with your package manager")
+            config[:lld_build_reason] = "ld.lld executable not found"
+            write_ext(config, config_path)
+            return
+        end
     end
-    config[:ld_lld_path] = ld_path
-    config[:lld_configured] = true
+    if ld_path !== nothing
+        config[:ld_lld_path] = ld_path
+        config[:lld_configured] = true
+    end
 
     ### Find/download device-libs
     device_libs_path = nothing

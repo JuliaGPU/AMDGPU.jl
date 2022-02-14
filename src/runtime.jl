@@ -34,7 +34,11 @@ function create_executable(::typeof(HSA_rt), device, entry, obj; globals=())
         write(io_o, obj)
         flush(io_o)
         path_exe = path_o*".exe"
-        run(`$ld_lld_path -shared -o $path_exe $path_o`)
+        if lld_artifact
+            run(`$(LLVM_jll.lld()) -flavor gnu -shared -o $path_exe $path_o`)
+        else
+            run(`$ld_lld_path -shared -o $path_exe $path_o`)
+        end
         path_exe
     end
     data = read(path_exe)

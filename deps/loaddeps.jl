@@ -28,6 +28,9 @@ if use_artifacts
     if hsa_configured
         using hsa_rocr_jll
     end
+    if lld_configured
+        using LLVM_jll
+    end
     if hip_configured
         using HIP_jll
     end
@@ -44,6 +47,9 @@ end
 if !hsa_configured
     const libhsaruntime_version = v"0.0"
     const libhsaruntime_path = nothing
+end
+if !lld_configured
+    ld_lld_path = ""
 end
 if !hip_configured
     const libhip_path = nothing
