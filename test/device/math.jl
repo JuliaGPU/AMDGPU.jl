@@ -1,3 +1,5 @@
+using Base.FastMath
+
 @testset "Math Intrinsics" begin
     for intr in AMDGPU.MATH_INTRINSICS
         jlintr = intr.jlname
@@ -5,14 +7,18 @@
             @test_skip "$jlintr()"
             continue
         end
-        modname = (isdefined(Base, jlintr) ? Base : SpecialFunctions)
+        modname = (isdefined(Base, jlintr) ? Base :
+                   isdefined(Base.FastMath, jlintr) ? Base.FastMath :
+                   isdefined(SpecialFunctions, jlintr) ? SpecialFunctions :
+                   nothing)
+        modname !== nothing || continue
         # FIXME: Handle all input and output args
         T = intr.inp_args[1]
         intr_kern = Symbol("intr_$(jlintr)_$T")
         @eval begin
             function $intr_kern(out, a)
                 i = threadIdx().x
-                out[i] = AMDGPU.$jlintr(a[i])
+                out[i] = $jlintr(a[i])
                 return nothing
             end
             dims = (8,)
