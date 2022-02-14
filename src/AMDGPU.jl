@@ -30,6 +30,9 @@ const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath(@__DIR__, "hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
 
+# Load binary dependencies
+include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
+
 struct Adaptor end
 
 const RT_LOCK = Threads.ReentrantLock()
@@ -105,9 +108,6 @@ function hsaunref!()
     end
     =#
 end
-
-# Load binary dependencies
-include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
 
 # Load HIP and ROCm external libraries
 const libhip = "libamdhip64.so"
