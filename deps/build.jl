@@ -55,24 +55,39 @@ function find_roc_paths()
     paths = map(Base.Filesystem.abspath, paths)
     push!(paths, "/opt/rocm/hsa/lib") # shim for Ubuntu rocm packages...
     paths = filter(isdir, paths)
-    @show paths
+    println("ROCm library search paths:")
+    for path in paths
+        println("- "*path)
+    end
     return paths
 end
 
-function find_hsa_library(lib, dirs)
+function find_rocm_library(lib, dirs, ext="so")
+    println("Searching for $lib.$ext")
     path = Libdl.find_library(lib)
     if path != ""
+        println("- $path: true")
         return Libdl.dlpath(path)
     end
     for dir in dirs
         files = readdir(dir)
         for file in files
-            @info "$file: $(basename(file) == lib * ".so.1")"
-            if basename(file) == lib * ".so.1"
+            println("- $file: $(basename(file) == lib * ".$ext")")
+            if basename(file) == lib * ".$ext"
                 return joinpath(dir, file)
             end
         end
     end
+    return ""
+end
+function find_rocm_library(libs::Vector, dirs)
+    for lib in libs
+        path = find_rocm_library(lib, dirs)
+        if path != ""
+            return path
+        end
+    end
+    return ""
 end
 
 function find_ld_lld()
@@ -216,7 +231,7 @@ function main()
         end
         libhsaruntime_path = hsa_rocr_jll.libhsa_runtime64
     else
-        libhsaruntime_path = find_hsa_library("libhsa-runtime64", roc_dirs)
+        libhsaruntime_path = find_rocm_library("libhsa-runtime64", roc_dirs, "so.1")
     end
     if libhsaruntime_path === nothing
         build_warning("Could not find HSA runtime library v1")
@@ -322,7 +337,7 @@ function main()
         end
         libhip_path = HIP_jll.libamdhip64
     else
-        libhip_path = Libdl.find_library(["libamdhip64", "libhip_hcc"])
+        libhip_path = find_rocm_library(["libamdhip64", "libhip_hcc"], roc_dirs)
     end
     if libhip_path !== nothing && !isempty(libhip_path)
         config[:libhip_path] = libhip_path
