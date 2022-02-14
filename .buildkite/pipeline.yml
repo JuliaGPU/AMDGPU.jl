@@ -12,7 +12,8 @@ steps:
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
     env:
-      JULIA_AMDGPU_HSA_MUST_LOAD: "1"
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
 
   - label: "Julia 1.8 - GPUArrays 8 - No artifacts"
     plugins:
@@ -27,7 +28,8 @@ steps:
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
     env:
-      JULIA_AMDGPU_HSA_MUST_LOAD: "1"
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
   - label: "Julia 1.7 - GPUArrays 7"
@@ -44,7 +46,8 @@ steps:
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
     env:
-      JULIA_AMDGPU_HSA_MUST_LOAD: "1"
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
 
   - label: "Julia 1.7 - GPUArrays 6"
     plugins:
@@ -60,7 +63,8 @@ steps:
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 120
     env:
-      JULIA_AMDGPU_HSA_MUST_LOAD: "1"
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
 
   - label: "Documentation"
     plugins:

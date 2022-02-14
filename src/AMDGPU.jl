@@ -143,6 +143,17 @@ end # hip_configured
 # Utilities
 include("utils.jl")
 
+function print_build_diagnostics()
+    println("Diagnostics:")
+    println("-- deps/build.log")
+    println(String(read(joinpath(@__DIR__, "..", "deps", "build.log"))))
+    println("-- deps/ext.jl")
+    println(String(read(joinpath(@__DIR__, "..", "deps", "ext.jl"))))
+    println("-- permissions")
+    run(`ls -lah /dev/kfd`)
+    run(`ls -lah /dev/dri`)
+    run(`id`)
+end
 function __init__()
     if !configured && build_reason != "unknown"
         if build_reason == "Build did not occur"
@@ -191,16 +202,9 @@ function __init__()
         Reason: $hsa_build_reason
         """
 
-        if parse(Bool, get(ENV, "JULIA_AMDGPU_HSA_MUST_LOAD", "0"))
-            println("Diagnostics:")
-            println("-- deps/build.log")
-            println(String(read(joinpath(@__DIR__, "..", "deps", "build.log"))))
-            println("-- deps/ext.jl")
-            println(String(read(joinpath(@__DIR__, "..", "deps", "ext.jl"))))
-            println("-- permissions")
-            run(`ls -lah /dev/kfd`)
-            run(`ls -lah /dev/dri`)
-            run(`id`)
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+            print_build_diagnostics()
+            error("Failed to load HSA runtime, but HSA must load, bailing out")
         end
     end
 
@@ -211,6 +215,11 @@ function __init__()
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         Reason: $lld_build_reason
         """
+
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+            print_build_diagnostics()
+            error("Failed to find ld.lld, but ld.lld must exist, bailing out")
+        end
     end
 
     # Check whether device intrinsics are available
@@ -220,6 +229,11 @@ function __init__()
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         Reason: $device_libs_build_reason
         """
+
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+            print_build_diagnostics()
+            error("Failed to find Device Libs, but Device Libs must exist, bailing out")
+        end
     end
 
     # Check whether HIP is available
@@ -231,6 +245,11 @@ function __init__()
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         Reason: $hip_build_reason
         """
+
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
+            print_build_diagnostics()
+            error("Failed to load HIP runtime, but HIP must load, bailing out")
+        end
     end
 
     # Check whether external libraries are available
