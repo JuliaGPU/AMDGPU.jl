@@ -16,6 +16,13 @@ catch err
         @eval const device_libs_build_reason = "Build did not occur"
         @eval const rocrand_configured = false
         @eval const rocrand_build_reason = "Build did not occur"
+        @eval const librocblas = nothing
+        @eval const librocsolver = nothing
+        @eval const librocsparse = nothing
+        @eval const librocrand = nothing
+        @eval const librocfft = nothing
+        @eval const librocalution = nothing
+        @eval const libmiopen = nothing
     else
         rethrow(err)
     end
@@ -49,7 +56,7 @@ if !hsa_configured
     const libhsaruntime_path = nothing
 end
 if !lld_configured
-    ld_lld_path = ""
+    const ld_lld_path = ""
 end
 if !hip_configured
     const libhip_path = nothing

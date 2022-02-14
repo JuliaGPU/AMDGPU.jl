@@ -72,8 +72,9 @@ function find_rocm_library(lib, dirs, ext="so")
     for dir in dirs
         files = readdir(dir)
         for file in files
-            println("- $file: $(basename(file) == lib * ".$ext")")
-            if basename(file) == lib * ".$ext"
+            matched = startswith(basename(file), lib*".$ext")
+            println("- $file: $matched")
+            if matched
                 return joinpath(dir, file)
             end
         end
@@ -151,12 +152,6 @@ function find_device_libs()
     return nothing
 end
 
-function find_roc_library(name::String)
-    lib = Libdl.find_library(Symbol(name))
-    lib == "" && return nothing
-    return Libdl.dlpath(lib)
-end
-
 ## main
 
 const config_path = joinpath(@__DIR__, "ext.jl")
@@ -191,6 +186,7 @@ function main()
         :librocsparse => nothing,
         :librocalution => nothing,
         :librocfft => nothing,
+        :librocrand => nothing,
         :rocrand_configured => false,
         :rocrand_build_reason => false,
         :libmiopen => nothing,
@@ -233,7 +229,7 @@ function main()
     else
         libhsaruntime_path = find_rocm_library("libhsa-runtime64", roc_dirs, "so.1")
     end
-    if libhsaruntime_path === nothing
+    if isempty(something(libhsaruntime_path, ""))
         build_warning("Could not find HSA runtime library v1")
         config[:hsa_build_reason] = "HSA runtime library v1 not found"
         write_ext(config, config_path)
@@ -339,22 +335,26 @@ function main()
     else
         libhip_path = find_rocm_library(["libamdhip64", "libhip_hcc"], roc_dirs)
     end
-    if libhip_path !== nothing && !isempty(libhip_path)
+    if !isempty(something(libhip_path, ""))
         config[:libhip_path] = libhip_path
         config[:hip_configured] = true
 
         ### Find external HIP-based libraries
         for name in ("rocblas", "rocsolver", "rocsparse", "rocalution", "rocfft", "MIOpen")
             lib = Symbol("lib$(lowercase(name))")
-            config[lib] = find_roc_library("lib$name")
-            if config[lib] === nothing
+            path = find_rocm_library("lib$name", roc_dirs)
+            if !isempty(something(path, ""))
+                config[lib] = path
+            else
                 build_warning("Could not find library '$name'")
                 # TODO: Save build reason?
             end
         end
+        lib = :librocrand
         if use_artifacts
             try
                 @eval using rocRAND_jll
+                config[lib] = rocRAND_jll.librocrand
                 config[:rocrand_configured] = true
             catch err
                 iob = IOBuffer()
@@ -364,12 +364,12 @@ function main()
                 config[:rocrand_build_reason] = String(take!(iob))
             end
         else
-            lib = :librocrand
-            config[lib] = find_roc_library("librocrand")
-            if config[lib] === nothing
-                build_warning("Could not find library 'librocrand'")
-            else
+            path = find_rocm_library("librocrand", roc_dirs)
+            if !isempty(something(path, ""))
+                config[lib] = path
                 config[:rocrand_configured] = true
+            else
+                build_warning("Could not find library 'librocrand'")
             end
         end
     else
