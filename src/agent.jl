@@ -111,11 +111,19 @@ end
 get_agents(kind::Symbol) =
     filter(agent->device_type(agent)==kind, get_agents())
 
-get_default_agent() = DEFAULT_AGENT[]
+function get_default_agent()
+    if !isassigned(DEFAULT_AGENT)
+        error("No GPU agents detected!\nPlease consider rebuilding AMDGPU")
+    end
+    DEFAULT_AGENT[]
+end
 function set_default_agent!(kind::Symbol)
     DEFAULT_AGENT[] = first(get_agents(kind))
 end
 set_default_agent!() = set_default_agent!(:gpu)
+function set_default_agent!(agent::HSAAgent)
+    DEFAULT_AGENT[] = agent
+end
 
 function get_name(agent::HSAAgent)
     #len = Ref(0)
