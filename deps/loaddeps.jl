@@ -14,6 +14,15 @@ catch err
         @eval const hip_build_reason = "Build did not occur"
         @eval const device_libs_configured = false
         @eval const device_libs_build_reason = "Build did not occur"
+        @eval const rocrand_configured = false
+        @eval const rocrand_build_reason = "Build did not occur"
+        @eval const librocblas = nothing
+        @eval const librocsolver = nothing
+        @eval const librocsparse = nothing
+        @eval const librocrand = nothing
+        @eval const librocfft = nothing
+        @eval const librocalution = nothing
+        @eval const libmiopen = nothing
     else
         rethrow(err)
     end
@@ -21,15 +30,22 @@ end
 
 # HSA runtime and ROCm External Libraries
 ## copied from CUDAdrv/src/CUDAdrv.jl
-if !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
+const use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
+if use_artifacts
     if hsa_configured
         using hsa_rocr_jll
+    end
+    if lld_configured
+        using LLVM_jll
     end
     if hip_configured
         using HIP_jll
     end
     if device_libs_configured
         using ROCmDeviceLibs_jll
+    end
+    if rocrand_configured
+        using rocRAND_jll
     end
 end
 
@@ -38,6 +54,9 @@ end
 if !hsa_configured
     const libhsaruntime_version = v"0.0"
     const libhsaruntime_path = nothing
+end
+if !lld_configured
+    const ld_lld_path = ""
 end
 if !hip_configured
     const libhip_path = nothing
@@ -49,4 +68,7 @@ if device_libs_configured && device_libs_downloaded
     #const device_libs_path = joinpath(@__DIR__, "usr", "lib")
 elseif !device_libs_configured
     const device_libs_path = ""
+end
+if !rocrand_configured
+    const librocrand = nothing
 end

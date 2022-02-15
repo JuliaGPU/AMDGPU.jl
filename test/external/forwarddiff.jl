@@ -1,5 +1,6 @@
 using ForwardDiff
 using ForwardDiff: Dual
+using SpecialFunctions
 
 function test_derivative(f, x::T) where T
     buf = ROCArray(zeros(T))
@@ -15,14 +16,17 @@ end
 testf(rocf, f, x) = test_derivative(rocf, x) ≈ ForwardDiff.derivative(f, x)
 
 @testset "UNARY" begin
-    fs = filter(x->x[1] ==:AMDGPU && x[3] == 1, keys(ForwardDiff.DiffRules.DEFINED_DIFFRULES))
+    fs = filter(x->x[3] == 1, keys(ForwardDiff.DiffRules.DEFINED_DIFFRULES))
 
 
-    nonneg = [:log, :log1p, :log10, :log2, :sqrt, :acosh]
+    nonneg = [:log, :log1p, :log10, :log2, :sqrt, :asin, :acosh, :erfcinv]
 
     for (m, fn, _) ∈ fs
         fn == :abs && continue # FIXME
-        rocf = @eval $m.$fn
+        startswith(string(fn), "bessel") && continue # need besselj/bessely
+        startswith(string(fn), "lgamma") && continue # throws
+        any(intr->intr.jlname==fn, AMDGPU.MATH_INTRINSICS) || continue
+        rocf = @eval $fn
         f = @eval $fn
 
         x32 = rand(Float32)
@@ -52,18 +56,16 @@ end
     y64 = rand(Float64)
     y = Int32(7)
 
-    @test testf(x->AMDGPU.pow(x, Int32(7)), x->x^y, x32)
-    #= FIXME
-    @test testf(x->AMDGPU.pow(x, y), x->x^y, x64)
-    @test testf(x->AMDGPU.pow(x, y32), x->x^y32, x32)
-    @test testf(x->AMDGPU.pow(x, y64), x->x^y64, x64)
+    @test testf(x->x^y, x->x^y, x32)
+    @test testf(x->x^y, x->x^y, x64)
+    @test testf(x->x^y32, x->x^y32, x32)
+    @test testf(x->x^y64, x->x^y64, x64)
 
-    @test testf(y->AMDGPU.pow(x32, y), y->x32^y, y32)
-    @test testf(y->AMDGPU.pow(x64, y), y->x64^y, y64)
-    =#
+    @test testf(y->x32^y, y->x32^y, y32)
+    @test testf(y->x64^y, y->x64^y, y64)
 
-    @test testf(x->AMDGPU.pow(x, x), x->x^x, x32)
-    @test testf(x->AMDGPU.pow(x, x), x->x^x, x64)
+    @test testf(x->x^x, x->x^x, x32)
+    @test testf(x->x^x, x->x^x, x64)
 end
 
 @testset "LITERAL_POW" begin

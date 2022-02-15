@@ -36,3 +36,7 @@ function GPUCompiler.link_libraries!(job::ROCCompilerJob, mod::LLVM.Module,
 
     link_device_libs!(job.target, mod)
 end
+
+GPUCompiler.ci_cache(::ROCCompilerJob) = ci_cache
+
+GPUCompiler.method_table(::ROCCompilerJob) = method_table

@@ -30,6 +30,9 @@ const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath(@__DIR__, "hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
 
+# Load binary dependencies
+include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
+
 struct Adaptor end
 
 const RT_LOCK = Threads.ReentrantLock()
@@ -53,6 +56,9 @@ end
 include("runtime.jl")
 include("statussignal.jl")
 include("sync.jl")
+
+const ci_cache = GPUCompiler.CodeCache()
+Base.Experimental.@MethodTable(method_table)
 
 # Device sources must load _before_ the compiler infrastructure
 # because of generated functions.
@@ -81,7 +87,6 @@ include("broadcast.jl")
 #include("matmul.jl")
 include("mapreduce.jl")
 #include("gpuarray_interface.jl")
-include("compat.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
@@ -104,16 +109,12 @@ function hsaunref!()
     =#
 end
 
-# Load binary dependencies
-include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
-
-# Load HIP
+# Load HIP and ROCm external libraries
 const libhip = "libamdhip64.so"
-include(joinpath(@__DIR__, "hip", "HIP.jl"))
-
-# Load ROCm external libraries
 if hip_configured
+include(joinpath(@__DIR__, "hip", "HIP.jl"))
 librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
+#librocsolver !== nothing  && include("solver/rocSOLVER.jl")
 librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
 #librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
 #librocalution !== nothing && include("solver/rocALUTION.jl")
@@ -131,6 +132,7 @@ function check_library(name, path)
     end
 end
 check_library("rocBLAS", librocblas)
+check_library("rocSOLVER", librocsolver)
 check_library("rocSPARSE", librocsparse)
 check_library("rocALUTION", librocalution)
 check_library("rocFFT", librocfft)
@@ -141,6 +143,17 @@ end # hip_configured
 # Utilities
 include("utils.jl")
 
+function print_build_diagnostics()
+    println("Diagnostics:")
+    println("-- deps/build.log")
+    println(String(read(joinpath(@__DIR__, "..", "deps", "build.log"))))
+    println("-- deps/ext.jl")
+    println(String(read(joinpath(@__DIR__, "..", "deps", "ext.jl"))))
+    println("-- permissions")
+    run(`ls -lah /dev/kfd`)
+    run(`ls -lah /dev/dri`)
+    run(`id`)
+end
 function __init__()
     if !configured && build_reason != "unknown"
         if build_reason == "Build did not occur"
@@ -189,16 +202,9 @@ function __init__()
         Reason: $hsa_build_reason
         """
 
-        if parse(Bool, get(ENV, "JULIA_AMDGPU_HSA_MUST_LOAD", "0"))
-            println("Diagnostics:")
-            println("-- deps/build.log")
-            println(String(read(joinpath(@__DIR__, "..", "deps", "build.log"))))
-            println("-- deps/ext.jl")
-            println(String(read(joinpath(@__DIR__, "..", "deps", "ext.jl"))))
-            println("-- permissions")
-            run(`ls -lah /dev/kfd`)
-            run(`ls -lah /dev/dri`)
-            run(`id`)
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+            print_build_diagnostics()
+            error("Failed to load HSA runtime, but HSA must load, bailing out")
         end
     end
 
@@ -209,16 +215,11 @@ function __init__()
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         Reason: $lld_build_reason
         """
-    end
 
-    if hip_configured
-        push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
-    else
-        @warn """
-        HIP library has not been built, runtime functionality will be unavailable.
-        Please run Pkg.build("AMDGPU") and reload AMDGPU.
-        Reason: $hip_build_reason
-        """
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+            print_build_diagnostics()
+            error("Failed to find ld.lld, but ld.lld must exist, bailing out")
+        end
     end
 
     # Check whether device intrinsics are available
@@ -228,13 +229,40 @@ function __init__()
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         Reason: $device_libs_build_reason
         """
+
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+            print_build_diagnostics()
+            error("Failed to find Device Libs, but Device Libs must exist, bailing out")
+        end
+    end
+
+    # Check whether HIP is available
+    if hip_configured
+        push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
+    else
+        @warn """
+        HIP library has not been built, HIP integration will be unavailable.
+        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $hip_build_reason
+        """
+
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
+            print_build_diagnostics()
+            error("Failed to load HIP runtime, but HIP must load, bailing out")
+        end
+    end
+
+    # Check whether external libraries are available
+    if use_artifacts && !rocrand_configured
+        @warn """
+        rocRAND failed to load, RNG functionality will be unavailable.
+        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Reason: $rocrand_build_reason
+        """
     end
 
     # Load optional OpenCL integrations
     @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
-
-    # Load optional @requires packages
-    @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 end
 
 end # module

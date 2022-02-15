@@ -34,7 +34,11 @@ function create_executable(::typeof(HSA_rt), device, entry, obj; globals=())
         write(io_o, obj)
         flush(io_o)
         path_exe = path_o*".exe"
-        run(`$ld_lld_path -shared -o $path_exe $path_o`)
+        if lld_artifact
+            run(`$(LLVM_jll.lld()) -flavor gnu -shared -o $path_exe $path_o`)
+        else
+            run(`$ld_lld_path -shared -o $path_exe $path_o`)
+        end
         path_exe
     end
     data = read(path_exe)
@@ -46,7 +50,11 @@ get_global(exe::RuntimeExecutable, sym::Symbol) =
     get_global(exe.exe, sym)
 
 create_event(::typeof(HSA_rt), exe::RuntimeExecutable{<:HSAExecutable}; queue=default_queue(), kwargs...) =
+    create_event(HSA_rt, exe, queue; kwargs...)
+create_event(::typeof(HSA_rt), exe::RuntimeExecutable{<:HSAExecutable}, queue::RuntimeQueue; kwargs...) =
     HSAStatusSignal(HSASignal(), exe.exe, queue.queue)
+create_event(::typeof(HSA_rt), exe::RuntimeExecutable{<:HSAExecutable}, queue::HSAQueue; kwargs...) =
+    HSAStatusSignal(HSASignal(), exe.exe, queue)
 
 struct RuntimeKernel{K}
     kernel::K

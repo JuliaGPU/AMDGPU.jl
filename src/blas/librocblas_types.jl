@@ -3,7 +3,7 @@
 using CEnum
 
 # HACK: a shim
-const hipStream_t = Nothing
+const hipStream_t = Ptr{Cvoid}
 
 const rocblas_int = Int32
 const rocblas_long = Int64

@@ -53,7 +53,7 @@ for intr in WAVEFRONT_INTRINSICS
     inp_vars = [gensym() for _ in 1:length(intr.inp_args)]
     inp_expr = [:($(inp_vars[idx])::$arg) for (idx,arg) in enumerate(intr.inp_args)]
     libname = Symbol("__$(intr.roclib)_$(intr.rocname)_$(intr.suffix)")
-    @eval @inline function $(intr.jlname)($(inp_expr...))
+    @eval @device_function function $(intr.jlname)($(inp_expr...))
         y = _intr($(Val(libname)), $(intr.out_arg), $(inp_expr...))
         return $(intr.isinverted ? :(1-y) : :y)
     end
