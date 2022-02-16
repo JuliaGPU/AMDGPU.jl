@@ -16,7 +16,7 @@ for jltype in (Float16, Float32, Float64)
         :erf, :erfinv, :erfc, :erfcinv, :erfcx,
         # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
         :isnormal, :nearbyint, :nextafter,
-        :tgamma, :lgamma)
+        :lgamma)
         # FIXME: :lgamma_r segfaults on GPU
 
         if intrinsic == :sin && jltype == Float16
@@ -27,10 +27,12 @@ for jltype in (Float16, Float32, Float64)
         push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype))
     end
 
+    # SpecialFunctions renames
     push!(MATH_INTRINSICS, GCNIntrinsic(:besselj0, :j0; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:besselj1, :j1; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:bessely0, :y0; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:bessely1, :y1; inp_args=(jltype,), out_arg=jltype))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:gamma, :tgamma; inp_args=(jltype,), out_arg=jltype))
 
     push!(MATH_INTRINSICS, GCNIntrinsic(:sin_fast, :native_sin; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:cos_fast, :native_cos; inp_args=(jltype,), out_arg=jltype))
