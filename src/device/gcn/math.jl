@@ -16,7 +16,7 @@ for jltype in (Float16, Float32, Float64)
         :erf, :erfinv, :erfc, :erfcinv, :erfcx,
         # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
         :isnormal, :nearbyint, :nextafter,
-        :tgamma, :lgamma)
+        :lgamma)
         # FIXME: :lgamma_r segfaults on GPU
 
         if intrinsic == :sin && jltype == Float16
@@ -44,6 +44,7 @@ for jltype in (Float16, Float32, Float64)
     push!(MATH_INTRINSICS, GCNIntrinsic(:exp2_fast, :native_exp2; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:exp10_fast, :native_exp10; inp_args=(jltype,), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:abs, :fabs; inp_args=(jltype,), out_arg=jltype))
+    push!(MATH_INTRINSICS, GCNIntrinsic(:gamma, :tgamma; inp_args=(jltype,), out_arg=jltype))
     # TODO: abs(::Union{Int32,Int64})
 
     # Multi-argument functions
