@@ -81,7 +81,6 @@ include("reflection.jl")
 
 include("array.jl")
 #include("subarray.jl")
-#include("utils.jl")
 #include("indexing.jl")
 include("broadcast.jl")
 #include("matmul.jl")
@@ -109,20 +108,23 @@ function hsaunref!()
     =#
 end
 
+# Utilities
+include("utils.jl")
+
 # Load HIP and ROCm external libraries
 const libhip = "libamdhip64.so"
-if hip_configured
+if functional(:hip)
 include(joinpath(@__DIR__, "hip", "HIP.jl"))
-librocblas !== nothing     && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
-#librocsolver !== nothing  && include("solver/rocSOLVER.jl")
-librocfft !== nothing      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-#librocsparse !== nothing  && include("sparse/rocSPARSE.jl")
-#librocalution !== nothing && include("solver/rocALUTION.jl")
-if librocrand !== nothing
+functional(:rocblas)      && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
+#functional(:rocsparse)  && include("sparse/rocSPARSE.jl")
+#functional(:rocsolver)   && include("solver/rocSOLVER.jl")
+#functional(:rocalution) && include("solver/rocALUTION.jl")
+if functional(:rocrand)
 include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
 include(joinpath(@__DIR__, "random.jl"))
 end
-#libmiopen !== nothing     && include("dnn/MIOpen.jl")
+functional(:rocfft)      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
+#functional(:miopen)     && include("dnn/MIOpen.jl")
 
 # Ensure external libraries are up to date
 function check_library(name, path)
@@ -132,28 +134,14 @@ function check_library(name, path)
     end
 end
 check_library("rocBLAS", librocblas)
-check_library("rocSOLVER", librocsolver)
 check_library("rocSPARSE", librocsparse)
+check_library("rocSOLVER", librocsolver)
 check_library("rocALUTION", librocalution)
-check_library("rocFFT", librocfft)
 check_library("rocRAND", librocrand)
+check_library("rocFFT", librocfft)
 check_library("MIOpen", libmiopen)
-end # hip_configured
+end # functional(:hip)
 
-# Utilities
-include("utils.jl")
-
-function print_build_diagnostics()
-    println("Diagnostics:")
-    println("-- deps/build.log")
-    println(String(read(joinpath(@__DIR__, "..", "deps", "build.log"))))
-    println("-- deps/ext.jl")
-    println(String(read(joinpath(@__DIR__, "..", "deps", "ext.jl"))))
-    println("-- permissions")
-    run(`ls -lah /dev/kfd`)
-    run(`ls -lah /dev/dri`)
-    run(`id`)
-end
 function __init__()
     if !configured && build_reason != "unknown"
         if build_reason == "Build did not occur"
@@ -209,7 +197,7 @@ function __init__()
     end
 
     # Check whether ld.lld was found
-    if !lld_configured
+    if !functional(:lld)
         @warn """
         ld.lld was not found, compilation functionality will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
@@ -223,7 +211,7 @@ function __init__()
     end
 
     # Check whether device intrinsics are available
-    if !device_libs_configured
+    if !functional(:device_libs)
         @warn """
         ROCm-Device-Libs were not found, device intrinsics will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
@@ -237,7 +225,7 @@ function __init__()
     end
 
     # Check whether HIP is available
-    if hip_configured
+    if functional(:hip)
         push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
     else
         @warn """
@@ -253,9 +241,9 @@ function __init__()
     end
 
     # Check whether external libraries are available
-    if use_artifacts && !rocrand_configured
+    if use_artifacts && !functional(:rocrand)
         @warn """
-        rocRAND failed to load, RNG functionality will be unavailable.
+        rocRAND_jll failed to load, RNG functionality will be unavailable.
         Please run Pkg.build("AMDGPU") and reload AMDGPU.
         Reason: $rocrand_build_reason
         """
