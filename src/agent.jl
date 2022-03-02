@@ -20,6 +20,8 @@ mutable struct HSAAgent
     end
 end
 
+Base.:(==)(agent1::HSAAgent, agent2::HSAAgent) = agent1.agent == agent2.agent
+
 const DEFAULT_AGENT = Ref{HSAAgent}()
 const AGENTS = IdDict{UInt64, HSAAgent}() # Map from agent handles to HSAAgent structs
 
@@ -119,13 +121,12 @@ function get_default_agent()
     end
     DEFAULT_AGENT[]
 end
-function set_default_agent!(kind::Symbol)
-    DEFAULT_AGENT[] = first(get_agents(kind))
-end
-set_default_agent!() = set_default_agent!(:gpu)
 function set_default_agent!(agent::HSAAgent)
     DEFAULT_AGENT[] = agent
 end
+
+device(kind::Symbol=:gpu) = something(findfirst(a->a==get_default_agent(), get_agents(kind)))
+device!(idx::Integer, kind::Symbol=:gpu) = set_default_agent!(get_agents(kind)[idx])
 
 function get_name(agent::HSAAgent)
     #len = Ref(0)
