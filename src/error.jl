@@ -12,9 +12,9 @@ end
 Gets the string description of an error code.
 """
 function description(err::HSAError)
-    str_ref = Ref{Cstring}()
+    str_ref = Ref{Ptr{Int8}}()
     HSA.status_string(err.code, str_ref)
-    unsafe_string(str_ref[])
+    unsafe_string(reinterpret(Cstring, str_ref[]))
 end
 
 function Base.showerror(io::IO, err::HSAError)

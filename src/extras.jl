@@ -39,6 +39,8 @@ function getinfo(agent::Agent, attribute::HSA.AgentInfo,
     # based on value of AgentInfo
     HSA.agent_get_info(agent, attribute, value)
 end
+getinfo(agent::Agent, info::HSA.AMDAgentInfo, ret::Union{String, Base.RefValue, Vector}) =
+    getinfo(agent, reinterpret(HSA.AgentInfo, info), ret)
 
 function getinfo(isa::HSA.ISA, attribute::HSA.ISAInfo,
                  value::Union{Vector,Base.RefValue,String})

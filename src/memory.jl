@@ -107,10 +107,10 @@ used() = total()-free()
 Retrieve information about the allocation referenced by the given pointer.
 """
 function pointerinfo(ptr::Ptr)
-    ptrinfo = Ref{HSA.PointerInfo}()
+    ptrinfo = Ref{HSA.AMDPointerInfo}()
     ccall(:memset, Ptr{Cvoid},
-                   (Ptr{HSA.PointerInfo}, UInt8, Csize_t),
-                   Base.unsafe_convert(Ptr{HSA.PointerInfo}, ptrinfo), UInt8(0), sizeof(HSA.PointerInfo))
+                   (Ptr{HSA.AMDPointerInfo}, UInt8, Csize_t),
+                   Base.unsafe_convert(Ptr{HSA.AMDPointerInfo}, ptrinfo), UInt8(0), sizeof(HSA.AMDPointerInfo))
     HSA.amd_pointer_info(Ptr{Cvoid}(ptr), ptrinfo, C_NULL, Ptr{UInt32}(C_NULL), C_NULL) |> check
     return ptrinfo[]
 end
@@ -379,7 +379,7 @@ function download(::Type{T}, src::Buffer, count::Integer=1) where {T}
 end
 
 # Pretty-printing
-function Base.show(io::IO, ptrinfo::HSA.PointerInfo)
+function Base.show(io::IO, ptrinfo::HSA.AMDPointerInfo)
     println(io, "Pointer type: $(ptrinfo.type)")
     println(io, "Owner: $(AGENTS[ptrinfo.agentOwner.handle])")
     println(io, "Agent base address: $(ptrinfo.agentBaseAddress)")
