@@ -368,10 +368,10 @@ Base.unsafe_convert(::Type{Ptr{T}}, x::ROCArray{T}) where T =
 
 # some nice utilities
 
-ones(dims...) = ones(Float32, dims...)
-ones(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), one(T))
-zeros(dims...) = zeros(Float32, dims...)
-zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
+Base.ones(dims...) = ones(Float32, dims...)
+Base.ones(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), one(T))
+Base.zeros(dims...) = zeros(Float32, dims...)
+Base.zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
 
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
