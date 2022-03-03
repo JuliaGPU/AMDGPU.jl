@@ -7,16 +7,20 @@ mutable struct HSAAgent
     type::Symbol
     name::String
     productname::String
+    uuid::String
 
     function HSAAgent(handle::HSA.Agent)
         agent = new(handle)
         agent.type = device_type(agent)
         agent.name = get_name(agent)
         agent.productname = get_product_name(agent)
+        agent.uuid = get_uuid(agent)
 
         agent
     end
 end
+
+Base.:(==)(agent1::HSAAgent, agent2::HSAAgent) = agent1.agent == agent2.agent
 
 const DEFAULT_AGENT = Ref{HSAAgent}()
 const AGENTS = IdDict{UInt64, HSAAgent}() # Map from agent handles to HSAAgent structs
@@ -117,13 +121,12 @@ function get_default_agent()
     end
     DEFAULT_AGENT[]
 end
-function set_default_agent!(kind::Symbol)
-    DEFAULT_AGENT[] = first(get_agents(kind))
-end
-set_default_agent!() = set_default_agent!(:gpu)
 function set_default_agent!(agent::HSAAgent)
     DEFAULT_AGENT[] = agent
 end
+
+device(kind::Symbol=:gpu) = something(findfirst(a->a==get_default_agent(), get_agents(kind)))
+device!(idx::Integer, kind::Symbol=:gpu) = set_default_agent!(get_agents(kind)[idx])
 
 function get_name(agent::HSAAgent)
     #len = Ref(0)
@@ -141,23 +144,15 @@ agents() = collect(values(AGENTS))
 
 # Pretty-printing
 function Base.show(io::IO, agent::HSAAgent)
-    name = if agent.name == agent.productname
-        "$(agent.name)"
+    name = agent.uuid
+
+    name *= if agent.name == agent.productname
+        " [$(agent.name)]"
     else
-        "$(agent.productname) ($(agent.name))"
+        " [$(agent.productname) ($(agent.name))]"
     end
 
-    typename = if agent.type == :cpu
-        "CPU"
-    elseif agent.type == :gpu
-        "GPU"
-    elseif agent.type == :dsp
-        "DSP"
-    else
-        "(Unknown device type)"
-    end
-
-    print(io, "$typename: $name")
+    print(io, name)
 end
 
 ### Agent details
@@ -166,6 +161,12 @@ function get_product_name(agent::HSAAgent)
     name = Vector{UInt8}(undef, 64)
     getinfo(agent.agent, HSA.AMD_AGENT_INFO_PRODUCT_NAME, name) |> check
     rstrip(String(name), '\0')
+end
+
+function get_uuid(agent::HSAAgent)
+    uuid = zeros(UInt8, 64) # Doesn't appear to write zero-terminator
+    getinfo(agent.agent, HSA.AMD_AGENT_INFO_UUID, uuid) |> check
+    rstrip(String(uuid), '\0')
 end
 
 function profile(agent::HSAAgent)

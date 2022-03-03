@@ -1,0 +1,3 @@
+[deps]
+Clang = "40e3b903-d033-50b4-a0cc-940c62c95e31"
+hsa_rocr_jll = "dd59ff1a-a01a-568d-8b29-0669330f116a"
