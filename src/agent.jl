@@ -96,6 +96,11 @@ function iterate_regions_cb(region::HSA.Region, regions)
     return HSA.STATUS_SUCCESS
 end
 
+"""
+    get_agents() -> Vector{HSAAgent}
+
+Returns the list of HSA agents available on the system.
+"""
 function get_agents()
     agents = Ref(Vector{HSAAgent}())
     GC.@preserve agents begin
@@ -115,17 +120,45 @@ end
 get_agents(kind::Symbol) =
     filter(agent->device_type(agent)==kind, get_agents())
 
+"""
+    get_default_agent() -> HSAAgent
+
+Returns the default agent, which is used for all kernel and array operations
+when one is not explicitly specified. May be changed with
+[`set_default_agent!`](@ref).
+"""
 function get_default_agent()
     if !isassigned(DEFAULT_AGENT)
         error("No GPU agents detected!\nPlease consider rebuilding AMDGPU")
     end
     DEFAULT_AGENT[]
 end
+"""
+    set_default_agent!(agent::HSAAgent) -> HSAAgent
+
+Sets the default agent to `agent`. See [`get_default_agent`](@ref) for more
+details.
+"""
 function set_default_agent!(agent::HSAAgent)
     DEFAULT_AGENT[] = agent
 end
 
+"""
+    device(kind::Symbol=:gpu) -> Int
+
+Returns the numeric ID of the current default device, which is in the range of
+`1:length(AMDGPU.get_agents(kind))`. This number should be stable for all
+processes on the same node, so long as any device filtering is consistently
+applied (such as `ROCR_VISIBLE_DEVICES`). The [`device!`](@ref) function
+accepts the same numeric ID that is produced by this function.
+"""
 device(kind::Symbol=:gpu) = something(findfirst(a->a==get_default_agent(), get_agents(kind)))
+"""
+    device!(idx::Integer, kind::Symbol=:gpu)
+
+Sets the default device to `AMDGPU.get_agents(kind)[idx]`. See [`device`](@ref)
+for details on the numbering semantics.
+"""
 device!(idx::Integer, kind::Symbol=:gpu) = set_default_agent!(get_agents(kind)[idx])
 
 function get_name(agent::HSAAgent)
