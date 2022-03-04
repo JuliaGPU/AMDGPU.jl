@@ -197,7 +197,7 @@ function get_product_name(agent::HSAAgent)
 end
 
 function get_uuid(agent::HSAAgent)
-    uuid = zeros(UInt8, 64) # Doesn't appear to write zero-terminator
+    uuid = Base.zeros(UInt8, 64) # Doesn't appear to write zero-terminator
     getinfo(agent.agent, HSA.AMD_AGENT_INFO_UUID, uuid) |> check
     rstrip(String(uuid), '\0')
 end
