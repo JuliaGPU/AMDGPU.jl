@@ -1,5 +1,10 @@
 @testset "Base" begin
 
+@testset "ones/zeros" begin
+    @test AMDGPU.ones(4, 3) isa ROCArray
+    @test AMDGPU.zeros(3, 4) isa ROCArray
+end
+
 @testset "view" begin
     xs = copyto!(ROCVector{Int}(undef, 4), 1, collect(1:4), 1, 4)
     a = view(xs, 1:2)
