@@ -218,6 +218,16 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
+function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; agent=get_default_agent()) where {T,N}
+    @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
+    sz = prod(dims) * sizeof(T)
+    device_ptr = Mem.lock(ptr, sz, agent)
+    buf = Mem.Buffer(device_ptr, sz, agent, false)
+    ROCArray{T, N}(buf, dims; own=false)
+end
+Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims) where T =
+    unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims)
+
 ## views
 
 # optimize view to return a ROCArray when contiguous

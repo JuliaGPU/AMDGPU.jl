@@ -27,4 +27,15 @@ end
     @test collect(c) == 3:4
 end
 
+@testset "unsafe_wrap" begin
+    A = rand(4, 3)
+    A_orig = copy(A)
+    RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
+    @test RA.buf.agent == get_default_agent()
+    @test RA isa ROCArray{Float64,2}
+    RA .+= 1.0
+    @test A ≈ A_orig .+ 1.0
+    #@test_broken Array(RA) ≈ A_orig .+ 1.0
+end
+
 end
