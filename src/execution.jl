@@ -39,7 +39,7 @@ function split_kwargs(kwargs)
     alias_kws    = Dict(:agent=>:device, :stream=>:queue)
     macro_kws    = [:dynamic, :launch]
     compiler_kws = [:name, :device, :queue, :global_hooks]
-    call_kws     = [:gridsize, :groupsize, :config, :device, :queue]
+    call_kws     = [:gridsize, :groupsize, :config, :device, :queue, :signal]
     computed_kws = [:threads, :blocks]
 
     macro_kwargs = []
@@ -234,7 +234,7 @@ macro roc(ex...)
                     foreach($wait!, ($(var_exprs...),))
                     if $launch
                         local $signal = $create_event($kernel.mod.exe; $(call_kwargs...))
-                        $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
+                        $kernel($kernel_args...; signal=$signal, $(filter(x->x.args[1] != :signal, call_kwargs)...))
                         foreach(x->$mark!(x, $signal), ($(var_exprs...),))
                         $signal
                     else

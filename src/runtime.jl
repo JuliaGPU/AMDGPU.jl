@@ -51,10 +51,10 @@ get_global(exe::RuntimeExecutable, sym::Symbol) =
 
 create_event(::typeof(HSA_rt), exe::RuntimeExecutable{<:HSAExecutable}; queue=default_queue(), kwargs...) =
     create_event(HSA_rt, exe, queue; kwargs...)
-create_event(::typeof(HSA_rt), exe::RuntimeExecutable{<:HSAExecutable}, queue::RuntimeQueue; kwargs...) =
-    HSAStatusSignal(HSASignal(), exe.exe, queue.queue)
-create_event(::typeof(HSA_rt), exe::RuntimeExecutable{<:HSAExecutable}, queue::HSAQueue; kwargs...) =
-    HSAStatusSignal(HSASignal(), exe.exe, queue)
+create_event(::typeof(HSA_rt), exe::RuntimeExecutable{<:HSAExecutable}, queue::RuntimeQueue; signal=HSASignal(), kwargs...) =
+    HSAStatusSignal(signal, exe.exe, queue.queue)
+create_event(::typeof(HSA_rt), exe::RuntimeExecutable{<:HSAExecutable}, queue::HSAQueue; signal=HSASignal(), kwargs...) =
+    HSAStatusSignal(signal, exe.exe, queue)
 
 struct RuntimeKernel{K}
     kernel::K

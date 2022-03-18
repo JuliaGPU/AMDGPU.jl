@@ -69,13 +69,19 @@ end
 end
 
 @testset "Signal waiting" begin
-    kernel() = nothing
-
-    sig = @roc kernel()
+    sig = @roc identity(nothing)
     wait(sig)
     wait(sig.event)
     wait(sig.event.signal)
     wait(sig.event.signal.signal[])
+end
+
+@testset "Custom signal" begin
+    sig = HSASignal()
+    sig2 = @roc signal=sig identity(nothing)
+    @test sig2.event.signal == sig
+    wait(sig)
+    wait(sig2)
 end
 
 if length(AMDGPU.get_agents(:gpu)) > 1
