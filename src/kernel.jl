@@ -186,8 +186,8 @@ function _launch!(f, T, queue::HSAQueue, signal::HSASignal)
 
     # Create and atomically store the header
     header = Ref{UInt16}(0)
-    header[] |= UInt16(HSA.FENCE_SCOPE_SYSTEM) << UInt16(HSA.PACKET_HEADER_ACQUIRE_FENCE_SCOPE)
-    header[] |= UInt16(HSA.FENCE_SCOPE_SYSTEM) << UInt16(HSA.PACKET_HEADER_RELEASE_FENCE_SCOPE)
+    header[] |= UInt16(HSA.FENCE_SCOPE_SYSTEM) << UInt16(HSA.PACKET_HEADER_SCACQUIRE_FENCE_SCOPE)
+    header[] |= UInt16(HSA.FENCE_SCOPE_SYSTEM) << UInt16(HSA.PACKET_HEADER_SCRELEASE_FENCE_SCOPE)
     header[] |= UInt16(packetheadertype(T))    << UInt16(HSA.PACKET_HEADER_TYPE)
     atomic_store_n!(Base.unsafe_convert(Ptr{UInt16}, baseaddr_ptr), header[])
 
