@@ -58,7 +58,6 @@ end
     @test src == dst
 end
 
-#=
 @testset "Pointer information" begin
     default_agent = get_default_agent()
 
@@ -69,8 +68,8 @@ end
     ptrinfo_host = Mem.pointerinfo(a)
     ptrinfo_hsa = Mem.pointerinfo(b)
 
-    @test ptrinfo_host.type == HSA.POINTER_TYPE_UNKNOWN
-    @test ptrinfo_hsa.type == HSA.POINTER_TYPE_HSA
+    @test ptrinfo_host.type == HSA.EXT_POINTER_TYPE_UNKNOWN
+    @test ptrinfo_hsa.type == HSA.EXT_POINTER_TYPE_HSA
     @test_skip ptrinfo_hsa.agentOwner.handle == default_agent.agent.handle
 
     Mem.free(b)
@@ -81,15 +80,14 @@ end
     plocked = Mem.lock(a)
 
     # NOTE - For a single agent, it seems that plocked == pointer(a)
-    @test Mem.pointerinfo(pointer(a)).type == HSA.POINTER_TYPE_LOCKED
-    @test Mem.pointerinfo(plocked).type == HSA.POINTER_TYPE_LOCKED
+    @test Mem.pointerinfo(pointer(a)).type == HSA.EXT_POINTER_TYPE_LOCKED
+    @test Mem.pointerinfo(plocked).type == HSA.EXT_POINTER_TYPE_LOCKED
     @test Mem.pointerinfo(plocked).sizeInBytes == sizeof(a)
 
     Mem.unlock(a)
-    @test Mem.pointerinfo(pointer(a)).type == HSA.POINTER_TYPE_UNKNOWN
-    @test Mem.pointerinfo(plocked).type == HSA.POINTER_TYPE_UNKNOWN
+    @test Mem.pointerinfo(pointer(a)).type == HSA.EXT_POINTER_TYPE_UNKNOWN
+    @test Mem.pointerinfo(plocked).type == HSA.EXT_POINTER_TYPE_UNKNOWN
 end
-=#
 
 @testset "Exceptions" begin
     @test_throws ArgumentError Mem.alloc(Function, 1)   # abstract

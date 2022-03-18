@@ -108,9 +108,11 @@ Retrieve information about the allocation referenced by the given pointer.
 """
 function pointerinfo(ptr::Ptr)
     ptrinfo = Ref{HSA.AMDPointerInfo}()
+    ptrinfo_ptr = Base.unsafe_convert(Ptr{HSA.AMDPointerInfo}, ptrinfo)
     ccall(:memset, Ptr{Cvoid},
                    (Ptr{HSA.AMDPointerInfo}, UInt8, Csize_t),
-                   Base.unsafe_convert(Ptr{HSA.AMDPointerInfo}, ptrinfo), UInt8(0), sizeof(HSA.AMDPointerInfo))
+                   ptrinfo_ptr, UInt8(0), sizeof(HSA.AMDPointerInfo))
+    unsafe_store!(reinterpret(Ptr{Csize_t}, ptrinfo_ptr), sizeof(HSA.AMDPointerInfo))
     HSA.amd_pointer_info(Ptr{Cvoid}(ptr), ptrinfo, C_NULL, Ptr{UInt32}(C_NULL), C_NULL) |> check
     return ptrinfo[]
 end
