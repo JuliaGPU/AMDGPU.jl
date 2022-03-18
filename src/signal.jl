@@ -4,9 +4,17 @@ mutable struct HSASignal
     signal::Ref{Signal}
 end
 
-function HSASignal(init::Integer=1)
+function HSASignal(init::Integer=1; interrupt=true, ipc=true)
     signal = HSASignal(Ref{Signal}())
-    HSA.signal_create(Int64(init), 0, C_NULL, signal.signal)
+    if interrupt || ipc
+        attrs = UInt32(0)
+        if ipc
+            attrs |= HSA.AMD_SIGNAL_IPC
+        end
+        HSA.amd_signal_create(Int64(init), 0, C_NULL, attrs, signal.signal)
+    else
+        HSA.signal_create(Int64(init), 0, C_NULL, signal.signal)
+    end
     hsaref!()
     finalizer(signal) do signal
         HSA.signal_destroy(signal.signal[]) |> check

@@ -75,44 +75,20 @@ end
         call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :signal, :value)
     end
 end
+@inline device_sleep(duration::Int32) = ccall("llvm.amdgcn.s.sleep", llvmcall, Cvoid, (Int32,), duration)
+@inline device_sethalt(code::Int32=1) = ccall("llvm.amdgcn.s.sethalt", llvmcall, Cvoid, (Int32,), code)
+@inline device_signal_load(signal::UInt64, order::Int32) = ccall("extern __ockl_hsa_signal_load", llvmcall, Int64, (UInt64, Int32), signal, order)
 @inline device_signal_wait(signal::HSA.Signal, value::Int64) =
     device_signal_wait(signal.handle, value)
-@inline @generated function device_signal_wait(signal::UInt64, value::Int64)
-    Context() do ctx
-        T_nothing = convert(LLVMType, Nothing; ctx)
-        T_i32 = LLVM.Int32Type(ctx)
-        T_i64 = LLVM.Int64Type(ctx)
-
-        # create a function
-        llvm_f, _ = create_function(T_nothing, [T_i64, T_i64])
-        mod = LLVM.parent(llvm_f)
-
-        # generate IR
-        Builder(ctx) do builder
-            entry = BasicBlock(llvm_f, "entry"; ctx)
-            signal_match = BasicBlock(llvm_f, "signal_match"; ctx)
-            signal_miss = BasicBlock(llvm_f, "signal_miss"; ctx)
-
-            position!(builder, entry)
-            br!(builder, signal_miss)
-
-            position!(builder, signal_miss)
-            T_sleep = LLVM.FunctionType(T_nothing, [T_i32])
-            sleep_f = LLVM.Function(mod, "llvm.amdgcn.s.sleep", T_sleep)
-            call!(builder, sleep_f, [ConstantInt(Int32(1); ctx)])
-            T_signal_load = LLVM.FunctionType(T_i64, [T_i64, T_i32])
-            signal_load = LLVM.Function(mod, "__ockl_hsa_signal_load", T_signal_load)
-            loaded_value = call!(builder, signal_load, [parameters(llvm_f)[1],
-                                                        # __ATOMIC_ACQUIRE == 2
-                                                        ConstantInt(Int32(2); ctx)])
-            cond = icmp!(builder, LLVM.API.LLVMIntEQ, loaded_value, parameters(llvm_f)[2])
-            br!(builder, cond, signal_match, signal_miss)
-
-            position!(builder, signal_match)
-            ret!(builder)
+@inline function device_signal_wait(signal::UInt64, value::Int64)
+    while true
+        loaded = device_signal_load(signal, Int32(2)#=ATOMIC_ACQUIRE=#)
+        if loaded == value
+            return
         end
-
-        call_function(llvm_f, Nothing, Tuple{UInt64,Int64}, :signal, :value)
+        # FIXME: Make kernel actually sleep
+        # device_sethalt(Int32(1))
+        device_sleep(Int32(127))
     end
 end
 
