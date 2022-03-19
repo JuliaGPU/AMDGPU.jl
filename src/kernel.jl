@@ -57,7 +57,6 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE,
             private_segment_size) |> check
 
-    # finegrained_region = get_region(agent, :finegrained)
     kernarg_region = get_region(agent, :kernarg)
 
     # Allocate the kernel argument buffer from the correct region
