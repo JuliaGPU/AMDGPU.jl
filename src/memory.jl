@@ -226,7 +226,7 @@ function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
     check(HSA.memory_allocate(region[], bytesize, ptr_ref))
     ptr = ptr_ref[]
     if region_kind == :coarsegrained
-        check(HSA.memory_assign_agent(ptr, agent.agent, HSA.HSA_ACCESS_PERMISSION_RW))
+        check(HSA.memory_assign_agent(ptr, agent.agent, HSA.ACCESS_PERMISSION_RW))
     end
     return Buffer(ptr, bytesize, agent, coherent)
 end
