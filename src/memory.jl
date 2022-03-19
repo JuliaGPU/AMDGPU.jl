@@ -225,9 +225,10 @@ function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
     region = get_region(agent, region_kind)
     check(HSA.memory_allocate(region, bytesize, ptr_ref))
     ptr = ptr_ref[]
-    if region_kind == :coarsegrained
-        check(HSA.memory_assign_agent(ptr, agent.agent, HSA.ACCESS_PERMISSION_RW))
-    end
+    # On AMD this is a no-op and we need to make sure that we use the right region instead.
+    # if region_kind == :coarsegrained
+    #     check(HSA.memory_assign_agent(ptr, agent.agent, HSA.ACCESS_PERMISSION_RW))
+    # end
     return Buffer(ptr, bytesize, agent, coherent)
 end
 alloc(bytesize; kwargs...) = alloc(get_default_agent(), bytesize; kwargs...)
