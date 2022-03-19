@@ -37,59 +37,39 @@ function iterate_agents_cb(agent::HSA.Agent, agents)
     return HSA.STATUS_SUCCESS
 end
 
-"Determines if a memory region can be used for kernarg allocations."
-function get_kernarg_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
+@inline function get_memory_region(region::HSA.region, data::Ptr{HSA.Region}, kind)
     segment = Ref{HSA.RegionSegment}()
     HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
+    # Reject non-global regions
     if (segment[] != HSA.REGION_SEGMENT_GLOBAL)
         return HSA.STATUS_SUCCESS
     end
 
     flags = Ref{HSA.RegionGlobalFlag}()
     HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
-    if (flags[] & HSA.REGION_GLOBAL_FLAG_KERNARG > 0)
+    if (flags[] & kind > 0)
         unsafe_store!(data, region)
         return HSA.STATUS_INFO_BREAK
     end
 
     return HSA.STATUS_SUCCESS
+end
+
+"Determines if a memory region can be used for kernarg allocations."
+function get_kernarg_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
+    return get_memory_region(region, data, HSA.REGION_GLOBAL_FLAG_KERNARG)
 end
 
 "Determines if a memory region can be used for fine grained allocations."
 function get_fine_grained_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
-    segment = Ref{HSA.RegionSegment}()
-    HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
-    if (segment[] != HSA.REGION_SEGMENT_GLOBAL)
-        return HSA.STATUS_SUCCESS
-    end
-
-    flags = Ref{HSA.RegionGlobalFlag}()
-    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
-    if (flags[] & HSA.REGION_GLOBAL_FLAG_FINE_GRAINED > 0)
-        unsafe_store!(data, region)
-        return HSA.STATUS_INFO_BREAK
-    end
-
-    return HSA.STATUS_SUCCESS
+    return get_memory_region(region, data, HSA.REGION_GLOBAL_FLAG_FINE_GRAINED)
 end
 
 "Determines if a memory region can be used for coarse grained allocations."
 function get_coarse_grained_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
-    segment = Ref{HSA.RegionSegment}()
-    HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
-    if (segment[] != HSA.REGION_SEGMENT_GLOBAL)
-        return HSA.STATUS_SUCCESS
-    end
-
-    flags = Ref{HSA.RegionGlobalFlag}()
-    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
-    if (flags[] & HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED > 0)
-        unsafe_store!(data, region)
-        return HSA.STATUS_INFO_BREAK
-    end
-
-    return HSA.STATUS_SUCCESS
+    return get_memory_region(region, data, HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED)
 end
+
 
 function iterate_regions_cb(region::HSA.Region, regions)
     push!(regions, region)
