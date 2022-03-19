@@ -37,7 +37,7 @@ function iterate_agents_cb(agent::HSA.Agent, agents)
     return HSA.STATUS_SUCCESS
 end
 
-@inline function get_memory_region(region::HSA.region, data::Ptr{HSA.Region}, kind)
+@inline function get_memory_region(region::HSA.Region, data::Ptr{HSA.Region}, kind)
     segment = Ref{HSA.RegionSegment}()
     HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
     # Reject non-global regions
