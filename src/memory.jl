@@ -223,7 +223,7 @@ function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
     end
 
     region = get_region(agent, region_kind)
-    check(HSA.memory_allocate(region[], bytesize, ptr_ref))
+    check(HSA.memory_allocate(region, bytesize, ptr_ref))
     ptr = ptr_ref[]
     if region_kind == :coarsegrained
         check(HSA.memory_assign_agent(ptr, agent.agent, HSA.ACCESS_PERMISSION_RW))

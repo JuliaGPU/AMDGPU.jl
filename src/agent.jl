@@ -277,7 +277,7 @@ function max_size(region::HSA.Region)
 end
 
 function get_region(agent::HSAAgent, kind::Symbol)
-    region = newref!(Ref{HSA.Region}, typemax(UInt64))
+    r_region = newref!(Ref{HSA.Region}, typemax(UInt64))
     if kind == :finegrained
         func = @cfunction(get_fine_grained_memory_region_cb, HSA.Status,
                 (HSA.Region, Ptr{HSA.Region}))
@@ -290,7 +290,8 @@ function get_region(agent::HSAAgent, kind::Symbol)
     else
         error("Region kind $kind not supported")
     end
-    HSA.agent_iterate_regions(agent.agent, func, region)
-    check((region[].handle == typemax(UInt64)) ? HSA.STATUS_ERROR : HSA.STATUS_SUCCESS)
+    HSA.agent_iterate_regions(agent.agent, func, r_region)
+    region = r_region[]
+    check((region.handle == typemax(UInt64)) ? HSA.STATUS_ERROR : HSA.STATUS_SUCCESS)
     return region
 end
