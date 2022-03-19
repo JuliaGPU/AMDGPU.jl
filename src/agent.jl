@@ -37,7 +37,7 @@ function iterate_agents_cb(agent::HSA.Agent, agents)
     return HSA.STATUS_SUCCESS
 end
 
-@inline function get_memory_region(region::HSA.Region, data::Ptr{HSA.Region}, kind)
+@inline function get_memory_region(region::HSA.Region, data::Ptr{HSA.Region}, kind, prefer_device=true)
     segment = Ref{HSA.RegionSegment}()
     HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
     # Reject non-global regions
@@ -45,14 +45,23 @@ end
         return HSA.STATUS_SUCCESS
     end
 
-    flags = Ref{HSA.RegionGlobalFlag}()
-    host_accessible_region = Ref(false)
-    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
+    r_flags = Ref{HSA.RegionGlobalFlag}()
+    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, r_flags)
+    flags = r_flags[]
+    
+    r_host_accessible_region = Ref(false)
     HSA.region_get_info(region,
-        reinterpret(HSA.region_info_t, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE),
-        host_accessible_region)
-
-    if (flags[] & kind > 0)
+        reinterpret(HSA.LibHSARuntime.hsa_region_info_t, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE),
+        r_host_accessible_region)
+    host_accessible = r_host_accessible_region[]
+    if flags & kind > 0
+        # If we are looking for a coarse region and we are prefering device local, skip the host accessible region
+        # following https://cs.github.com/ROCm-Developer-Tools/LLVM-AMDGPU-Assembler-Extra/blob/844212f486868fe5c43cdf8a4151d11a879c74ba/examples/common/dispatch.cpp#L112
+        if kind == HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED
+            if host_accessible == prefer_device
+                return HSA.STATUS_SUCCESS
+            end
+        end
         unsafe_store!(data, region)
         return HSA.STATUS_INFO_BREAK
     end
@@ -73,6 +82,11 @@ end
 "Determines if a memory region can be used for coarse grained allocations."
 function get_coarse_grained_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
     return get_memory_region(region, data, HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED)
+end
+
+"Determines if a memory region can be used for coarse grained allocations."
+function get_coarse_grained_memory_region_host_cb(region::HSA.Region, data::Ptr{HSA.Region})
+    return get_memory_region(region, data, HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED, false)
 end
 
 
@@ -284,6 +298,9 @@ function get_region(agent::HSAAgent, kind::Symbol)
     elseif kind == :coarsegrained
         func = @cfunction(get_coarse_grained_memory_region_cb, HSA.Status,
                 (HSA.Region, Ptr{HSA.Region}))
+    elseif kind == :coarsegrained_host
+        func = @cfunction(get_coarse_grained_memory_region_host_cb, HSA.Status,
+        (HSA.Region, Ptr{HSA.Region}))
     elseif kind == :kernarg
         func = @cfunction(get_kernarg_memory_region_cb, HSA.Status,
                 (HSA.Region, Ptr{HSA.Region}))
