@@ -46,7 +46,12 @@ end
     end
 
     flags = Ref{HSA.RegionGlobalFlag}()
+    host_accessible_region = Ref(false)
     HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
+    HSA.region_get_info(region,
+        reinterpret(HSA.region_info_t, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE),
+        host_accessible_region)
+
     if (flags[] & kind > 0)
         unsafe_store!(data, region)
         return HSA.STATUS_INFO_BREAK
