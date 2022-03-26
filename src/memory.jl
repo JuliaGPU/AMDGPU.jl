@@ -232,8 +232,14 @@ end
 alloc(bytesize; kwargs...) = alloc(get_default_agent(), bytesize; kwargs...)
 
 function free(buf::Buffer)
-    if buf.ptr != C_NULL && buf.host_ptr == C_NULL
-        check(HSA.memory_free(buf.ptr))
+    if buf.ptr != C_NULL
+        if buf.host_ptr == C_NULL
+            # HSA-backed
+            check(HSA.memory_free(buf.ptr))
+        else
+            # Wrapped
+            unlock(buf.ptr)
+        end
     end
     return
 end

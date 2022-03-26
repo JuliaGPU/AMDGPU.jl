@@ -70,16 +70,18 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
         xs = new{T,N}(buf, own, dims, offset, SyncState())
         if own
             hsaref!()
-            Mem.retain(buf)
-            finalizer(unsafe_free!, xs)
         end
+        Mem.retain(buf)
+        finalizer(unsafe_free!, xs)
         return xs
     end
 end
 
 function unsafe_free!(xs::ROCArray)
     Mem.release(xs.buf) && Mem.free(xs.buf)
-    hsaunref!()
+    if xs.own
+        hsaunref!()
+    end
     return
 end
 
