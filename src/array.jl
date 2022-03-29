@@ -70,16 +70,18 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
         xs = new{T,N}(buf, own, dims, offset, SyncState())
         if own
             hsaref!()
-            Mem.retain(buf)
-            finalizer(unsafe_free!, xs)
         end
+        Mem.retain(buf)
+        finalizer(unsafe_free!, xs)
         return xs
     end
 end
 
 function unsafe_free!(xs::ROCArray)
     Mem.release(xs.buf) && Mem.free(xs.buf)
-    hsaunref!()
+    if xs.own
+        hsaunref!()
+    end
     return
 end
 
@@ -222,7 +224,7 @@ function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Inte
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
     device_ptr = Mem.lock(ptr, sz, agent)
-    buf = Mem.Buffer(device_ptr, sz, agent, false)
+    buf = Mem.Buffer(device_ptr, ptr, sz, agent, false)
     ROCArray{T, N}(buf, dims; own=false)
 end
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims) where T =

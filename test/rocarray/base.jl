@@ -33,9 +33,32 @@ end
     RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
     @test RA.buf.agent == get_default_agent()
     @test RA isa ROCArray{Float64,2}
+
+    # GPU pointer works
     RA .+= 1.0
+
+    # Host pointer is updated
     @test A ≈ A_orig .+ 1.0
-    #@test_broken Array(RA) ≈ A_orig .+ 1.0
+
+    # Base.show
+    @test (println(RA); true)
+
+    # Mem.download!
+    B = zeros(4, 3)
+    copyto!(B, RA)
+    @test B ≈ Array(RA)
+
+    # Mem.upload!
+    C = rand(4, 3)
+    copyto!(RA, C)
+    @test Array(RA) ≈ C
+
+    # Mem.transfer!
+    D = rand(4, 3)
+    D_orig = copy(D)
+    RD = Base.unsafe_wrap(ROCArray, pointer(D), size(D))
+    copyto!(RD, RA)
+    @test Array(RD) ≈ Array(RA) ≈ C
 end
 
 end

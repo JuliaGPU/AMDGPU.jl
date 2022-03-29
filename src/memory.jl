@@ -17,6 +17,7 @@ import AMDGPU: check, get_region, AGENTS
 
 struct Buffer
     ptr::Ptr{Cvoid}
+    host_ptr::Ptr{Cvoid}
     bytesize::Int
     agent::HSAAgent
     coherent::Bool
@@ -26,7 +27,9 @@ Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf
 
 function view(buf::Buffer, bytes::Int)
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
-    return Buffer(buf.ptr+bytes, buf.bytesize-bytes, buf.agent, buf.coherent)
+    return Buffer(buf.ptr+bytes,
+                  buf.host_ptr != C_NULL ? buf.host_ptr+bytes : C_NULL,
+                  buf.bytesize-bytes, buf.agent, buf.coherent)
 end
 
 ## refcounting
@@ -212,7 +215,7 @@ all HSA agents, including the host CPU.
 This, even though convenient, can sometimes be slower than explicit memory transfers.
 """
 function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
-    bytesize == 0 && return Buffer(C_NULL, 0, agent, coherent)
+    bytesize == 0 && return Buffer(C_NULL, C_NULL, 0, agent, coherent)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
 
@@ -224,13 +227,19 @@ function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
 
     region = get_region(agent, region_kind)
     check(HSA.memory_allocate(region[], bytesize, ptr_ref))
-    return Buffer(ptr_ref[], bytesize, agent, coherent)
+    return Buffer(ptr_ref[], C_NULL, bytesize, agent, coherent)
 end
 alloc(bytesize; kwargs...) = alloc(get_default_agent(), bytesize; kwargs...)
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
-        check(HSA.memory_free(buf.ptr))
+        if buf.host_ptr == C_NULL
+            # HSA-backed
+            check(HSA.memory_free(buf.ptr))
+        else
+            # Wrapped
+            unlock(buf.ptr)
+        end
     end
     return
 end
@@ -250,24 +259,14 @@ end
 Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
 function upload!(dst::Buffer, src::Ptr{T}, nbytes::Integer) where T
-    # Page-locking coherent memory results in a ReadOnlyMemoryError.
-    #= FIXME: HSA_STATUS_ERROR_INVALID_ARGUMENT
-    plocked = if dst.coherent
-        src
-    else
-        lock(src, nbytes, dst.agent)
-    end
-    =#
-    plocked = src
-
     nbytes > 0 || return
-    HSA.memory_copy(Ptr{T}(dst.ptr), Ptr{T}(plocked), nbytes) |> check
-
-    #=
-    if !dst.coherent
-        unlock(src)
+    if dst.host_ptr == C_NULL
+        HSA.memory_copy(Ptr{T}(dst.ptr), src, nbytes) |> check
+    else
+        Base.unsafe_copyto!(reinterpret(Ptr{UInt8}, dst.host_ptr),
+                            reinterpret(Ptr{UInt8}, src),
+                            nbytes)
     end
-    =#
 end
 
 """
@@ -276,23 +275,14 @@ end
 Download `nbytes` memory from `src` on the device to `dst` on the host.
 """
 function download!(dst::Ptr{T}, src::Buffer, nbytes::Integer) where T
-    #= FIXME: HSA_STATUS_ERROR_INVALID_ARGUMENT
-    plocked = if src.coherent
-        dst
-    else
-        lock(dst, nbytes, src.agent)
-    end
-    =#
-    plocked = dst
-
     nbytes > 0 || return
-    HSA.memory_copy(Ptr{T}(plocked), Ptr{T}(src.ptr), nbytes) |> check
-
-    #=
-    if !src.coherent
-        unlock(dst)
+    if src.host_ptr == C_NULL
+        HSA.memory_copy(dst, Ptr{T}(src.ptr), nbytes) |> check
+    else
+        Base.unsafe_copyto!(reinterpret(Ptr{UInt8}, dst),
+                            reinterpret(Ptr{UInt8}, src.host_ptr),
+                            nbytes)
     end
-    =#
 end
 
 """
@@ -302,7 +292,17 @@ Transfer `nbytes` of device memory from `src` to `dst`.
 """
 function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
     nbytes > 0 || return
-    HSA.memory_copy(dst.ptr, src.ptr, nbytes) |> check
+    if dst.host_ptr != C_NULL && src.host_ptr != C_NULL
+        Base.unsafe_copyto!(reinterpret(Ptr{UInt8}, dst.host_ptr),
+                            reinterpret(Ptr{UInt8}, src.host_ptr),
+                            nbytes)
+    elseif dst.host_ptr != C_NULL
+        download!(dst.host_ptr, src, nbytes)
+    elseif src.host_ptr != C_NULL
+        upload!(dst, src.host_ptr, nbytes)
+    else
+        HSA.memory_copy(dst.ptr, src.ptr, nbytes) |> check
+    end
 end
 
 ## array based
