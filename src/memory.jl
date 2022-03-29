@@ -305,6 +305,51 @@ function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
     end
 end
 
+#################################################################################
+
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
+    locked_ptr = AMDGPU.Mem.lock(pointer(sendbuf), sizeof(sendbuf), get_default_agent())
+    dstPitch   = sizeof(T)*length(sendranges[1])
+    dstWidth   = sizeof(T)*length(sendranges[1])*length(sendranges[2])
+    srcPitch   = sizeof(T)*size(A,1)
+    srcWidth   = sizeof(T)*size(A,1)*size(A,2)
+    srcOff     = (sizeof(T)*(sendranges[1][1]-1), sendranges[2][1]-1, sendranges[3][1]-1)
+    range      = (sizeof(T)*(length(sendranges[1])), length(sendranges[2]), length(sendranges[3]))
+    cpy_dir    = "d2h"
+    async_copy_rect!(locked_ptr, dstPitch, dstWidth, pointer(A), srcPitch, srcWidth, range, cpy_dir, signal; srcOff=srcOff)
+end
+
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
+    locked_ptr = AMDGPU.Mem.lock(pointer(recvbuf), sizeof(recvbuf), get_default_agent())
+    srcPitch   = sizeof(T)*length(recvranges[1])
+    srcWidth   = sizeof(T)*length(recvranges[1])*length(recvranges[2])
+    dstPitch   = sizeof(T)*size(A,1)
+    dstWidth   = sizeof(T)*size(A,1)*size(A,2)
+    dstOff     = (sizeof(T)*(recvranges[1][1]-1), recvranges[2][1]-1, recvranges[3][1]-1)
+    range      = (sizeof(T)*(length(recvranges[1])), length(recvranges[2]), length(recvranges[3]))
+    cpy_dir    = "h2d"
+    async_copy_rect!(pointer(A), dstPitch, dstWidth, locked_ptr, srcPitch, srcWidth, range, cpy_dir, signal; dstOff=dstOff)
+end
+
+function async_copy_rect!(dst, dstPitch, dstWidth, src, srcPitch, srcWidth, range, cpy_dir, signal; srcOff=(0,0,0), dstOff=(0,0,0), copy_agent=get_default_agent())
+    dst_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr}, Ref(AMDGPU.HSA.PitchedPtr(dst, dstPitch, dstWidth)))
+    dst_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(dstOff)))
+    src_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr}, Ref(AMDGPU.HSA.PitchedPtr(src, srcPitch, srcWidth)))
+    src_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(srcOff...)))
+    range_ptr   = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(range...)))
+
+    if cpy_dir=="d2h"
+        dir = AMDGPU.HSA.LibHSARuntime.hsaDeviceToHost
+    elseif cpy_dir == "h2d"
+        dir = AMDGPU.HSA.LibHSARuntime.hsaHostToDevice
+    else
+        error("Throw some error")
+    end
+    HSA.amd_memory_async_copy_rect(dst_ptr,dst_off_ptr,src_ptr,src_off_ptr,range_ptr,
+                                   copy_agent.agent,dir,UInt32(0),C_NULL,signal.signal[]) |> AMDGPU.check
+end
+#################################################################################
+
 ## array based
 
 """
