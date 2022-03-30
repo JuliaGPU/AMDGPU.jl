@@ -21,6 +21,7 @@ struct Buffer
     bytesize::Int
     agent::HSAAgent
     coherent::Bool
+    pool_alloc::Bool
 end
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf.ptr)
@@ -29,7 +30,7 @@ function view(buf::Buffer, bytes::Int)
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
     return Buffer(buf.ptr+bytes,
                   buf.host_ptr != C_NULL ? buf.host_ptr+bytes : C_NULL,
-                  buf.bytesize-bytes, buf.agent, buf.coherent)
+                  buf.bytesize-bytes, buf.agent, buf.coherent, buf.pool_alloc)
 end
 
 ## refcounting
@@ -203,21 +204,30 @@ function transfer end
 ## pointer-based
 
 """
-    alloc(bytes::Integer; coherent=false)
-    alloc(agent::HSAAgent, bytes::Integer; coherent=false)
+    alloc(bytesize::Integer; coherent=false) -> Buffer
 
-Allocate `bytesize` bytes of HSA-managed memory.
-Allocations are not coherent by default, meaning that the allocated buffer is
-only accessible from the given agent (the default agent if not specified).
+Allocate `bytesize` bytes of HSA-managed memory on the default agent.
+
+    alloc(agent::HSAAgent, bytesize::Integer; coherent=false) -> Buffer
+
+Allocate `bytesize` bytes of HSA-managed memory on `agent`.
+
+When using the above two methods, allocations are not coherent by default,
+meaning that the allocated buffer is only accessible from the given agent.
 
 If `coherent` is set to `true`, the allocated buffer will be accessible from
-all HSA agents, including the host CPU.
-This, even though convenient, can sometimes be slower than explicit memory transfers.
+all HSA agents, including the host CPU.  Even though this is convenient, it can
+sometimes be slower than explicit memory transfers if memory accesses are not
+carefully managed.
+
+    alloc(agent::HSAAgent, pool::HSAMemoryPool, bytesize::Integer) -> Buffer
+    alloc(agent::HSAAgent, region::HSARegion, bytesize::Integer) -> Buffer
+
+Allocate `bytesize` bytes of HSA-managed memory on the region `region` or
+memory pool `pool`.
 """
 function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
-    bytesize == 0 && return Buffer(C_NULL, C_NULL, 0, agent, coherent)
-
-    ptr_ref = Ref{Ptr{Cvoid}}()
+    bytesize == 0 && return Buffer(C_NULL, C_NULL, 0, agent, coherent, false)
 
     region_kind = if coherent
         :finegrained
@@ -227,17 +237,23 @@ function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
 
     if region_kind != :coarsegrained
         region = get_region(agent, region_kind)
-        check(HSA.memory_allocate(region.region, bytesize, ptr_ref))
+        return alloc(agent, region, bytesize)
     else
         pool = get_memory_pool(agent, region_kind)
-        check(HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref))
+        return alloc(agent, pool, bytesize)
+        # On AMD this is a no-op and we need to make sure that we use the right region instead.
+        # check(HSA.memory_assign_agent(buf.ptr, agent.agent, HSA.ACCESS_PERMISSION_RW))
     end
-    ptr = ptr_ref[]
-    # On AMD this is a no-op and we need to make sure that we use the right region instead.
-    # if region_kind == :coarsegrained
-    #     check(HSA.memory_assign_agent(ptr, agent.agent, HSA.ACCESS_PERMISSION_RW))
-    # end
-    return Buffer(ptr, C_NULL, bytesize, agent, coherent)
+end
+function alloc(agent::HSAAgent, pool::AMDGPU.HSAMemoryPool, bytesize::Integer)
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    check(HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref))
+    return Buffer(ptr_ref[], C_NULL, bytesize, agent, AMDGPU.pool_accessible_by_all(pool), true)
+end
+function alloc(agent::HSAAgent, region::AMDGPU.HSARegion, bytesize::Integer)
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    check(HSA.memory_allocate(region.region, bytesize, ptr_ref))
+    return Buffer(ptr_ref[], C_NULL, bytesize, agent, AMDGPU.region_host_accessible(region), false)
 end
 alloc(bytesize; kwargs...) = alloc(get_default_agent(), bytesize; kwargs...)
 
@@ -245,10 +261,10 @@ function free(buf::Buffer)
     if buf.ptr != C_NULL
         if buf.host_ptr == C_NULL
             # HSA-backed
-            if buf.coherent
-                check(HSA.memory_free(buf.ptr))
-            else
+            if buf.pool_alloc
                 check(HSA.amd_memory_pool_free(buf.ptr))
+            else
+                check(HSA.memory_free(buf.ptr))
             end
         else
             # Wrapped
