@@ -37,65 +37,6 @@ function iterate_agents_cb(agent::HSA.Agent, agents)
     return HSA.STATUS_SUCCESS
 end
 
-"Determines if a memory region can be used for kernarg allocations."
-function get_kernarg_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
-    segment = Ref{HSA.RegionSegment}()
-    HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
-    if (segment[] != HSA.REGION_SEGMENT_GLOBAL)
-        return HSA.STATUS_SUCCESS
-    end
-
-    flags = Ref{HSA.RegionGlobalFlag}()
-    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
-    if (flags[] & HSA.REGION_GLOBAL_FLAG_KERNARG > 0)
-        unsafe_store!(data, region)
-        return HSA.STATUS_INFO_BREAK
-    end
-
-    return HSA.STATUS_SUCCESS
-end
-
-"Determines if a memory region can be used for fine grained allocations."
-function get_fine_grained_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
-    segment = Ref{HSA.RegionSegment}()
-    HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
-    if (segment[] != HSA.REGION_SEGMENT_GLOBAL)
-        return HSA.STATUS_SUCCESS
-    end
-
-    flags = Ref{HSA.RegionGlobalFlag}()
-    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
-    if (flags[] & HSA.REGION_GLOBAL_FLAG_FINE_GRAINED > 0)
-        unsafe_store!(data, region)
-        return HSA.STATUS_INFO_BREAK
-    end
-
-    return HSA.STATUS_SUCCESS
-end
-
-"Determines if a memory region can be used for coarse grained allocations."
-function get_coarse_grained_memory_region_cb(region::HSA.Region, data::Ptr{HSA.Region})
-    segment = Ref{HSA.RegionSegment}()
-    HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment)
-    if (segment[] != HSA.REGION_SEGMENT_GLOBAL)
-        return HSA.STATUS_SUCCESS
-    end
-
-    flags = Ref{HSA.RegionGlobalFlag}()
-    HSA.region_get_info(region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
-    if (flags[] & HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED > 0)
-        unsafe_store!(data, region)
-        return HSA.STATUS_INFO_BREAK
-    end
-
-    return HSA.STATUS_SUCCESS
-end
-
-function iterate_regions_cb(region::HSA.Region, regions)
-    push!(regions, region)
-    return HSA.STATUS_SUCCESS
-end
-
 """
     get_agents() -> Vector{HSAAgent}
 
@@ -274,38 +215,251 @@ end
 
 ### Regions
 
+struct HSARegion
+    region::HSA.Region
+end
+
+function iterate_regions_cb(region::HSA.Region, regions)
+    push!(regions, region)
+    return HSA.STATUS_SUCCESS
+end
+
 function regions(agent::HSAAgent)
     regions = Ref(HSA.Region[])
     func = @cfunction(iterate_regions_cb, HSA.Status, (HSA.Region, Ref{Vector{HSA.Region}}))
     HSA.agent_iterate_regions(agent.agent, func, regions) |> check
-    regions[]
+    map(HSARegion, regions[])
 end
-function segment_type(region::HSA.Region)
+
+function getinfo(region::HSA.Region, attribute::HSA.RegionInfo,
+                 value::Union{Vector,Base.RefValue,String})
+    HSA.region_get_info(region, attribute, value) |> check
+end
+
+function region_segment(region::HSARegion)
     segment = Ref{HSA.RegionSegment}()
-    HSA.region_get_info(region, HSA.REGION_INFO_SEGMENT, segment) |> check
+    getinfo(region.region, HSA.REGION_INFO_SEGMENT, segment)
     segment[]
 end
-function max_size(region::HSA.Region)
+function region_global_flags(region::HSARegion)
+    flags = Ref{HSA.RegionGlobalFlag}()
+    getinfo(region.region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
+    flags[]
+end
+function region_size(region::HSARegion)
     size = Ref{Csize_t}(0)
-    HSA.region_get_info(region, HSA.REGION_INFO_SIZE, size) |> check
+    getinfo(region.region, HSA.REGION_INFO_SIZE, size)
     size[]
+end
+function region_alloc_max_size(region::HSARegion)
+    size = Ref{Csize_t}(0)
+    getinfo(region.region, HSA.REGION_INFO_ALLOC_MAX_SIZE, size)
+    size[]
+end
+function region_alloc_max_private_workgroup_size(region::HSARegion)
+    size = Ref{Csize_t}(0)
+    getinfo(region.region, HSA.REGION_INFO_ALLOC_MAX_PRIVATE_WORKGROUP_SIZE, size)
+    size[]
+end
+function region_runtime_alloc_allowed(region::HSARegion)
+    runtime_alloc = Ref{Bool}(false)
+    getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_ALLOWED, runtime_alloc)
+    runtime_alloc[]
+end
+function region_runtime_alloc_granule(region::HSARegion)
+    runtime_alloc_granule = Ref{Csize_t}(0)
+    getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_GRANULE, runtime_alloc_granule)
+    runtime_alloc_granule[]
+end
+function region_runtime_alloc_alignment(region::HSARegion)
+    runtime_alloc_align = Ref{Csize_t}(0)
+    getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_ALIGNMENT, runtime_alloc_align)
+    runtime_alloc_align[]
+end
+function region_host_accessible(region::HSARegion)
+    host_accessible = Ref(false)
+    getinfo(region.region,
+            reinterpret(HSA.RegionInfo, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE),
+            host_accessible)
+    host_accessible[]
 end
 
 function get_region(agent::HSAAgent, kind::Symbol)
-    region = newref!(Ref{HSA.Region}, typemax(UInt64))
-    if kind == :finegrained
-        func = @cfunction(get_fine_grained_memory_region_cb, HSA.Status,
-                (HSA.Region, Ptr{HSA.Region}))
-    elseif kind == :coarsegrained
-        func = @cfunction(get_coarse_grained_memory_region_cb, HSA.Status,
-                (HSA.Region, Ptr{HSA.Region}))
+    _regions = regions(agent)
+    flag = if kind == :finegrained
+        HSA.REGION_GLOBAL_FLAG_FINE_GRAINED
+    elseif kind == :coarsegrained || kind == :coarsegrained_host
+        HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED
     elseif kind == :kernarg
-        func = @cfunction(get_kernarg_memory_region_cb, HSA.Status,
-                (HSA.Region, Ptr{HSA.Region}))
+        HSA.REGION_GLOBAL_FLAG_KERNARG
     else
         error("Region kind $kind not supported")
     end
-    HSA.agent_iterate_regions(agent.agent, func, region)
-    check((region[].handle == typemax(UInt64)) ? HSA.STATUS_ERROR : HSA.STATUS_SUCCESS)
-    return region
+    _regions = filter(region->region_global_flags(region) & flag > 0, _regions)
+    if kind == :coarsegrained
+        _regions = filter(region->!region_host_accessible(region), _regions)
+    end
+    @assert !isempty(_regions) "No region of kind $kind in agent $agent"
+    return first(_regions)
+end
+
+function Base.show(io::IO, region::HSARegion)
+    segment_map = Dict(HSA.REGION_SEGMENT_GLOBAL   => :global,
+                       HSA.REGION_SEGMENT_READONLY => :readonly,
+                       HSA.REGION_SEGMENT_PRIVATE  => :private,
+                       HSA.REGION_SEGMENT_GROUP    => :group,
+                       HSA.REGION_SEGMENT_KERNARG  => :kernarg)
+    segment = segment_map[region_segment(region)]
+
+    _flags = region_global_flags(region)
+    flags = Symbol[]
+    flag_map = Dict(UInt32(HSA.REGION_GLOBAL_FLAG_KERNARG)        => :kernarg,
+                    UInt32(HSA.REGION_GLOBAL_FLAG_FINE_GRAINED)   => :finegrained,
+                    UInt32(HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED) => :coarsegrained)
+    for (flag, flag_name) in CEnum.namemap(HSA.RegionGlobalFlag)
+        if flag & _flags > 0
+            push!(flags, flag_map[flag])
+        end
+    end
+    flags = "($(join(flags, ", ")))"
+
+    size = Base.format_bytes(region_size(region))
+
+    private_workgroup_size = segment == :private ? Base.format_bytes(region_alloc_max_private_workgroup_size(region)) : nothing
+
+    runtime_alloc = region_runtime_alloc_allowed(region)
+
+    alloc_granule = Base.format_bytes(region_runtime_alloc_granule(region))
+
+    alloc_align = Base.format_bytes(region_runtime_alloc_alignment(region))
+
+    max_size = Base.format_bytes(region_alloc_max_size(region))
+
+    host_access = region_host_accessible(region)
+
+    print(io, "HSARegion @ $(repr(region.region.handle)): Segment $segment, Flags $flags, Size $size ($max_size max allocation), ")
+    if segment == :private
+        print(io, "Workgroup Max Alloc: $private_workgroup_size, ")
+    end
+    print(io, "Runtime Alloc: "); printstyled(io, "$runtime_alloc"; color=runtime_alloc ? :green : :red); print(io, " ($alloc_granule granularity, $alloc_align alignment), ")
+    print(io, "Host Accessible: "); printstyled(io, "$host_access"; color=host_access ? :green : :red)
+end
+
+### Memory Pools
+
+struct HSAMemoryPool
+    pool::HSA.AMDMemoryPool
+end
+
+function iterate_pools_cb(pool::HSA.AMDMemoryPool, pools)
+    push!(pools, pool)
+    return HSA.STATUS_SUCCESS
+end
+
+function memory_pools(agent::HSAAgent)
+    pools = Ref(HSA.AMDMemoryPool[])
+    func = @cfunction(iterate_pools_cb, HSA.Status, (HSA.AMDMemoryPool, Ref{Vector{HSA.AMDMemoryPool}}))
+    HSA.amd_agent_iterate_memory_pools(agent.agent, func, pools) |> check
+    map(HSAMemoryPool, pools[])
+end
+
+function getinfo(pool::HSA.AMDMemoryPool, attribute::HSA.AMDMemoryPoolInfo,
+                 value::Union{Vector,Base.RefValue,String})
+    HSA.amd_memory_pool_get_info(pool, attribute, value) |> check
+end
+
+function pool_segment(pool::HSAMemoryPool)
+    segment = Ref{HSA.AMDSegment}()
+    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_SEGMENT, segment)
+    segment[]
+end
+function pool_global_flags(pool::HSAMemoryPool)
+    flags = Ref{HSA.AMDMemoryPoolGlobalFlag}()
+    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS, flags)
+    flags[]
+end
+function pool_size(pool::HSAMemoryPool)
+    size = Ref{Csize_t}(0)
+    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_SIZE, size)
+    size[]
+end
+function pool_runtime_alloc_allowed(pool::HSAMemoryPool)
+    runtime_alloc = Ref{Bool}(false)
+    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALLOWED, runtime_alloc)
+    runtime_alloc[]
+end
+function pool_runtime_alloc_granule(pool::HSAMemoryPool)
+    runtime_alloc_granule = Ref{Csize_t}(0)
+    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_GRANULE, runtime_alloc_granule)
+    runtime_alloc_granule[]
+end
+function pool_runtime_alloc_alignment(pool::HSAMemoryPool)
+    runtime_alloc_align = Ref{Csize_t}(0)
+    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALIGNMENT, runtime_alloc_align)
+    runtime_alloc_align[]
+end
+function pool_accessible_by_all(pool::HSAMemoryPool)
+    accessible_all = Ref{Bool}(false)
+    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_ACCESSIBLE_BY_ALL, accessible_all)
+    accessible_all[]
+end
+function pool_alloc_max_size(pool::HSAMemoryPool)
+    size = Ref{Csize_t}(0)
+    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE, size)
+    size[]
+end
+
+function Base.show(io::IO, pool::HSAMemoryPool)
+    segment_map = Dict(HSA.AMD_SEGMENT_GLOBAL   => :global,
+                       HSA.AMD_SEGMENT_READONLY => :readonly,
+                       HSA.AMD_SEGMENT_PRIVATE  => :private,
+                       HSA.AMD_SEGMENT_GROUP    => :group)
+    segment = segment_map[pool_segment(pool)]
+
+    _flags = pool_global_flags(pool)
+    flags = Symbol[]
+    flag_map = Dict(UInt32(HSA.AMD_MEMORY_POOL_GLOBAL_FLAG_KERNARG_INIT)   => :kernarg,
+                    UInt32(HSA.AMD_MEMORY_POOL_GLOBAL_FLAG_FINE_GRAINED)   => :finegrained,
+                    UInt32(HSA.AMD_MEMORY_POOL_GLOBAL_FLAG_COARSE_GRAINED) => :coarsegrained)
+    for (flag, flag_name) in CEnum.namemap(HSA.AMDMemoryPoolGlobalFlag)
+        if flag & _flags > 0
+            push!(flags, flag_map[flag])
+        end
+    end
+    flags = "($(join(flags, ", ")))"
+
+    size = Base.format_bytes(pool_size(pool))
+
+    runtime_alloc = pool_runtime_alloc_allowed(pool)
+
+    alloc_granule = Base.format_bytes(pool_runtime_alloc_granule(pool))
+
+    alloc_align = Base.format_bytes(pool_runtime_alloc_alignment(pool))
+
+    accessible_all = pool_accessible_by_all(pool)
+
+    max_size = Base.format_bytes(pool_alloc_max_size(pool))
+
+    print(io, "HSAMemoryPool @ $(repr(pool.pool.handle)): Segment $segment, Flags $flags, Size $size ($max_size max allocation), ")
+    print(io, "Runtime Alloc: "); printstyled(io, "$runtime_alloc"; color=runtime_alloc ? :green : :red); print(io, " ($alloc_granule granularity, $alloc_align alignment), ")
+    print(io, "All Accessible: "); printstyled(io, "$accessible_all"; color=accessible_all ? :green : :red)
+end
+
+function get_memory_pool(agent::HSAAgent, kind::Symbol)
+    _pools = memory_pools(agent)
+    flag = if kind == :finegrained
+        HSA.AMD_MEMORY_POOL_GLOBAL_FLAG_FINE_GRAINED
+    elseif kind == :coarsegrained || kind == :coarsegrained_host
+        HSA.AMD_MEMORY_POOL_GLOBAL_FLAG_COARSE_GRAINED
+    elseif kind == :kernarg
+        HSA.AMD_MEMORY_POOL_GLOBAL_FLAG_KERNARG_INIT
+    else
+        error("Region kind $kind not supported")
+    end
+    _pools = filter(pool->pool_global_flags(pool) & flag > 0, _pools)
+    if kind == :coarsegrained
+        _pools = filter(pool->!pool_accessible_by_all(pool), _pools)
+    end
+    @assert !isempty(_pools) "No memory pool of kind $kind in agent $agent"
+    return first(_pools)
 end
