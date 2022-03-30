@@ -11,7 +11,7 @@ module Mem
 
 using ..AMDGPU
 using ..AMDGPU.HSA
-import AMDGPU: check, get_region, get_memory_pool, AGENTS
+import AMDGPU: check, get_region, get_memory_pool, AGENTS, ROCDim, ROCDim3
 
 ## buffer type
 
@@ -337,47 +337,110 @@ end
 
 #################################################################################
 
-function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
-    locked_ptr = AMDGPU.Mem.lock(pointer(sendbuf), sizeof(sendbuf), get_default_agent())
-    dstPitch   = sizeof(T)*length(sendranges[1])
-    dstWidth   = sizeof(T)*length(sendranges[1])*length(sendranges[2])
-    srcPitch   = sizeof(T)*size(A,1)
-    srcWidth   = sizeof(T)*size(A,1)*size(A,2)
-    srcOff     = (sizeof(T)*(sendranges[1][1]-1), sendranges[2][1]-1, sendranges[3][1]-1)
-    range      = (sizeof(T)*(length(sendranges[1])), length(sendranges[2]), length(sendranges[3]))
-    cpy_dir    = "d2h"
-    async_copy_rect!(locked_ptr, dstPitch, dstWidth, pointer(A), srcPitch, srcWidth, range, cpy_dir, signal; srcOff=srcOff)
-end
+# function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
+#     locked_ptr = AMDGPU.Mem.lock(pointer(sendbuf), sizeof(sendbuf), get_default_agent())
+#     dstPitch   = sizeof(T)*length(sendranges[1])
+#     dstWidth   = sizeof(T)*length(sendranges[1])*length(sendranges[2])
+#     srcPitch   = sizeof(T)*size(A,1)
+#     srcWidth   = sizeof(T)*size(A,1)*size(A,2)
+#     srcOff     = (sizeof(T)*(sendranges[1][1]-1), sendranges[2][1]-1, sendranges[3][1]-1)
+#     range      = (sizeof(T)*(length(sendranges[1])), length(sendranges[2]), length(sendranges[3]))
+#     cpy_dir    = "d2h"
+#     async_copy_rect!(locked_ptr, dstPitch, dstWidth, pointer(A), srcPitch, srcWidth, range, cpy_dir, signal; srcOff=srcOff)
+# end
 
-function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
-    locked_ptr = AMDGPU.Mem.lock(pointer(recvbuf), sizeof(recvbuf), get_default_agent())
-    srcPitch   = sizeof(T)*length(recvranges[1])
-    srcWidth   = sizeof(T)*length(recvranges[1])*length(recvranges[2])
-    dstPitch   = sizeof(T)*size(A,1)
-    dstWidth   = sizeof(T)*size(A,1)*size(A,2)
-    dstOff     = (sizeof(T)*(recvranges[1][1]-1), recvranges[2][1]-1, recvranges[3][1]-1)
-    range      = (sizeof(T)*(length(recvranges[1])), length(recvranges[2]), length(recvranges[3]))
-    cpy_dir    = "h2d"
-    async_copy_rect!(pointer(A), dstPitch, dstWidth, locked_ptr, srcPitch, srcWidth, range, cpy_dir, signal; dstOff=dstOff)
-end
+# function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
+#     locked_ptr = AMDGPU.Mem.lock(pointer(recvbuf), sizeof(recvbuf), get_default_agent())
+#     srcPitch   = sizeof(T)*length(recvranges[1])
+#     srcWidth   = sizeof(T)*length(recvranges[1])*length(recvranges[2])
+#     dstPitch   = sizeof(T)*size(A,1)
+#     dstWidth   = sizeof(T)*size(A,1)*size(A,2)
+#     dstOff     = (sizeof(T)*(recvranges[1][1]-1), recvranges[2][1]-1, recvranges[3][1]-1)
+#     range      = (sizeof(T)*(length(recvranges[1])), length(recvranges[2]), length(recvranges[3]))
+#     cpy_dir    = "h2d"
+#     async_copy_rect!(pointer(A), dstPitch, dstWidth, locked_ptr, srcPitch, srcWidth, range, cpy_dir, signal; dstOff=dstOff)
+# end
 
-function async_copy_rect!(dst, dstPitch, dstWidth, src, srcPitch, srcWidth, range, cpy_dir, signal; srcOff=(0,0,0), dstOff=(0,0,0), copy_agent=get_default_agent())
-    dst_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr}, Ref(AMDGPU.HSA.PitchedPtr(dst, dstPitch, dstWidth)))
-    dst_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(dstOff)))
-    src_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr}, Ref(AMDGPU.HSA.PitchedPtr(src, srcPitch, srcWidth)))
-    src_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(srcOff...)))
-    range_ptr   = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(range...)))
+# function async_copy_rect!(dst, dstPitch, dstWidth, src, srcPitch, srcWidth, range, cpy_dir, signal; srcOff=(0,0,0), dstOff=(0,0,0), copy_agent=get_default_agent())
+#     dst_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr}, Ref(AMDGPU.HSA.PitchedPtr(dst, dstPitch, dstWidth)))
+#     dst_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(dstOff)))
+#     src_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr}, Ref(AMDGPU.HSA.PitchedPtr(src, srcPitch, srcWidth)))
+#     src_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(srcOff...)))
+#     range_ptr   = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       Ref(AMDGPU.HSA.Dim3(range...)))
 
-    if cpy_dir=="d2h"
-        dir = AMDGPU.HSA.LibHSARuntime.hsaDeviceToHost
-    elseif cpy_dir == "h2d"
-        dir = AMDGPU.HSA.LibHSARuntime.hsaHostToDevice
+#     if cpy_dir=="d2h"
+#         dir = AMDGPU.HSA.LibHSARuntime.hsaDeviceToHost
+#     elseif cpy_dir == "h2d"
+#         dir = AMDGPU.HSA.LibHSARuntime.hsaHostToDevice
+#     else
+#         error("Throw some error")
+#     end
+#     HSA.amd_memory_async_copy_rect(dst_ptr,dst_off_ptr,src_ptr,src_off_ptr,range_ptr,
+#                                    copy_agent.agent,dir,UInt32(0),C_NULL,signal.signal[]) |> AMDGPU.check
+# end
+
+
+function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, copyDir, width, height=1, depth=1;
+                        dstPos::ROCDim=(1,1,1), dstPitch=0, dstSlice=0,
+                        srcPos::ROCDim=(1,1,1), srcPitch=0, srcSlice=0,
+                        async::Bool=false, signal::HSASignal=nothing) where T
+    srcPos    = ROCDim3(srcPos)
+    dstPos    = ROCDim3(dstPos)
+    srcPitch *= sizeof(T)
+    dstPitch *= sizeof(T)
+    srcSlice *= sizeof(T)
+    dstSlice *= sizeof(T)
+    width    *= sizeof(T)
+    srcOffset = ((srcPos.x-1)*sizeof(T), srcPos.y-1, srcPos.z-1)
+    dstOffset = ((dstPos.x-1)*sizeof(T), dstPos.y-1, dstPos.z-1)
+
+    @assert convert(Int,dst) % 4 == 0 "dst base % 4 != 0"
+    @assert convert(Int,src) % 4 == 0 "src base % 4 != 0"
+
+    @assert dstPitch % 4 == 0 "dst pitch % 4 != 0"
+    @assert srcPitch % 4 == 0 "src pitch % 4 != 0"
+
+    @assert dstSlice % 4 == 0 "dst slice % 4 != 0"
+    @assert srcSlice % 4 == 0 "src slice % 4 != 0"
+
+    @assert srcOffset[1] + width <= srcPitch "Src rect width out of range"
+    @assert dstOffset[1] + width <= dstPitch "Dst rect width out of range"
+    
+    @assert srcSlice == 0 || (srcOffset[2] + height) <= srcSlice ÷ srcPitch "Src rect height out of range"
+    @assert dstSlice == 0 || (dstOffset[2] + height) <= dstSlice ÷ dstPitch "Dst rect height out of range"
+
+    @assert depth <= 1 || (srcSlice != 0 && dstSlice != 0) "Copy rect slice needed."
+
+    hsaCopyDir = if copyDir == :device_to_device
+        HSA.LibHSARuntime.hsaDeviceToDevice
+    elseif copyDir == :device_to_host
+        HSA.LibHSARuntime.hsaDeviceToHost
+    elseif copyDir == :host_to_device
+        HSA.LibHSARuntime.hsaHostToDevice
     else
-        error("Throw some error")
+        error("Only device to device, host to device, and device to host memory transfer is supported")
     end
-    HSA.amd_memory_async_copy_rect(dst_ptr,dst_off_ptr,src_ptr,src_off_ptr,range_ptr,
-                                   copy_agent.agent,dir,UInt32(0),C_NULL,signal.signal[]) |> AMDGPU.check
+
+    srcRef       = Ref(AMDGPU.HSA.PitchedPtr(src, srcPitch, srcSlice))
+    dstRef       = Ref(AMDGPU.HSA.PitchedPtr(dst, dstPitch, dstSlice))
+    srcOffsetRef = Ref(AMDGPU.HSA.Dim3(srcOffset...))
+    dstOffsetRef = Ref(AMDGPU.HSA.Dim3(dstOffset...))
+    rangePtrRef  = Ref(AMDGPU.HSA.Dim3(width, height, depth))
+    
+    srcPtr       = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr}, srcRef)
+    dstPtr       = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr}, dstRef)
+    srcOffsetPtr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       srcOffsetRef)
+    dstOffsetPtr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       dstOffsetRef)
+    rangePtr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},       rangePtrRef)
+
+    signal = HSASignal(1)
+    HSA.amd_memory_async_copy_rect(dstPtr,dstOffsetPtr,srcPtr,srcOffsetPtr,rangePtr,
+                                   get_default_agent().agent,hsaCopyDir,UInt32(0),C_NULL,signal.signal[]) |> AMDGPU.check
+    # async || wait(signal)
+    wait(signal)
+    return
 end
+
 #################################################################################
 
 ## array based
