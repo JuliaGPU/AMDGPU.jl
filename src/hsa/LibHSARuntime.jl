@@ -1,8 +1,5 @@
 module LibHSARuntime
 
-using hsa_rocr_jll
-export hsa_rocr_jll
-
 using CEnum
 
 import ...AMDGPU: libhsaruntime
