@@ -41,7 +41,7 @@ end
     @test A ≈ A_orig .+ 1.0
 
     # Base.show
-    @test (println(RA); true)
+    @test (println(devnull, RA); true)
 
     # Mem.download!
     B = zeros(4, 3)
