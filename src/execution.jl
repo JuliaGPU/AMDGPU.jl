@@ -364,18 +364,20 @@ const rocfunction_cache = Dict{RuntimeDevice,Dict{UInt,Any}}()
 function rocfunction_compile(@nospecialize(job::CompilerJob))
     # compile
     method_instance, mi_meta = GPUCompiler.emit_julia(job)
-    ir, ir_meta = GPUCompiler.emit_llvm(job, method_instance)
-    kernel = ir_meta.entry
+    JuliaContext() do ctx
+        ir, ir_meta = GPUCompiler.emit_llvm(job, method_instance; ctx)
+        kernel = ir_meta.entry
 
-    obj, obj_meta = GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMObjectFile)
+        obj, obj_meta = GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMObjectFile)
 
-    # find undefined globals and calculate sizes
-    globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
-                  filter(x->isextinit(x), collect(LLVM.globals(ir))))
-    entry = LLVM.name(kernel)
-    dispose(ir)
+        # find undefined globals and calculate sizes
+        globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
+                      filter(x->isextinit(x), collect(LLVM.globals(ir))))
+        entry = LLVM.name(kernel)
+        dispose(ir)
 
-    return (;obj, entry, globals)
+        return (;obj, entry, globals)
+    end
 end
 function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
     device = job.params.device
