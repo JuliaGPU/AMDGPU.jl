@@ -80,7 +80,6 @@ end
 ## ROCm device library
 
 function load_and_link!(mod, path)
-    @debug "Loading device library" path
     ctx = LLVM.context(mod)
     lib = parse(LLVM.Module, read(path); ctx)
     
