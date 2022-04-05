@@ -26,6 +26,7 @@ steps:
       queue: "juliagpu"
       rocm: "*"
     if: build.message !~ /\[skip tests\]/
+    soft_fail: true
     timeout_in_minutes: 120
     env:
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
@@ -42,6 +43,7 @@ steps:
       queue: "juliagpu"
       rocm: "*"
     if: build.message !~ /\[skip tests\]/
+    soft_fail: true
     timeout_in_minutes: 120
     env:
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
