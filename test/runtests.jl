@@ -42,10 +42,14 @@ end
 @info "Testing using device $(get_default_agent())"
 
 @testset "HSA" begin
-    include("hsa/error.jl")
-    include("hsa/agent.jl")
-    include("hsa/memory.jl")
-    include("hsa/utils.jl")
+    println("testing hsa/error.jl")
+    @time include("hsa/error.jl")
+    println("testing hsa/agent.jl")
+    @time include("hsa/agent.jl")
+    println("testing hsa/memory.jl")
+    @time include("hsa/memory.jl")
+    println("testing hsa/utils.jl")
+    @time include("hsa/utils.jl")
 end
 @testset "Codegen" begin
     include("codegen/synchronization.jl")

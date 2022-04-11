@@ -8,7 +8,7 @@
         @test length(agent_name) > 0
         @test !occursin('\0', agent_name)
 
-        if length(AMDGPU.get_agents()) > 1
+        if length(AMDGPU.get_agents(:gpu)) > 1
             @testset "Multi-GPU" begin
                 init_agent = AMDGPU.get_default_agent()
                 init_dev = AMDGPU.device()
