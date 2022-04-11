@@ -36,16 +36,10 @@
         buf     = zeros(size(P))
         ranges  = [1:size(P,1), 1:size(P,2), 1:size(P,3)]
         # lock host pointer and convert it to eltype(buf)
-        print("Allocate buffer...")
         buf_Ptr = convert(Ptr{eltype(buf)}, AMDGPU.Mem.lock(pointer(buf), sizeof(buf), get_default_agent()))
-        println("done")
         # device to host
-        print("Convert pointer(P)...")
         P_Ptr   = convert(Ptr{eltype(buf)}, pointer(P))
-        println("done")
-        print("Init HSASignal()...")
         signal1 = HSASignal()
-        println("done")
         print("unsafe_copy3d! device to host...")
         Mem.unsafe_copy3d!(
             buf_Ptr, P_Ptr, length(ranges[1]), length(ranges[2]), length(ranges[3]);
