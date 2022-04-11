@@ -392,7 +392,7 @@ function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
     dstOffsetRef = Ref(HSA.Dim3(dstOffset...))
     srcOffsetRef = Ref(HSA.Dim3(srcOffset...))
     rangeRef     = Ref(HSA.Dim3(sizeof(T)*width, height, depth))
-
+    println("tag 0")
     dstPtr       = Base.unsafe_convert(Ptr{HSA.PitchedPtr}, dstRef)
     dstOffsetPtr = Base.unsafe_convert(Ptr{HSA.Dim3},       dstOffsetRef)
     srcPtr       = Base.unsafe_convert(Ptr{HSA.PitchedPtr}, srcRef)
