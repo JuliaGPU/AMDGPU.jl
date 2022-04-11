@@ -45,7 +45,7 @@
             buf_Ptr, P_Ptr, length(ranges[1]), length(ranges[2]), length(ranges[3]);
             dstPitch=sizeof(eltype(buf))*length(ranges[1]), dstSlice=sizeof(eltype(buf))*length(ranges[1])*length(ranges[2]),
             srcPos=(ranges[1][1], ranges[2][1], ranges[3][1]), srcPitch=sizeof(eltype(buf))*size(P,1), srcSlice=sizeof(eltype(buf))*size(P,1)*size(P,2),
-            async=false, signal=signal1
+            async=true, signal=signal1
         )
         wait(signal1)
         println("done")
