@@ -3,42 +3,47 @@
 @testset "Pointer-based" begin
     @testset "Mem transfers" begin
         src = 42
-        
+
         buf1 = Mem.alloc(sizeof(src); coherent=true)
-        
+
         Mem.set!(buf1, UInt32(57), 1)
         x = Mem.download(UInt32, buf1)
         @test x[1] == UInt32(57)
-        
+
         GC.@preserve Mem.upload!(buf1, pointer_from_objref(Ref(src)), sizeof(src))
-        
+
         dst1 = Ref(0)
         GC.@preserve Mem.download!(pointer_from_objref(dst1), buf1, sizeof(src))
         @test src == dst1[]
-        
+
         buf2 = Mem.alloc(sizeof(src))
-        
+
         Mem.transfer!(buf2, buf1, sizeof(src))
-        
+
         dst2 = Ref(0)
         GC.@preserve Mem.download!(pointer_from_objref(dst2), buf2, sizeof(src))
         @test src == dst2[]
-        
+
         Mem.free(buf2)
         Mem.free(buf1)
     end
+
     @testset "Unsafe copy h2d and d2h" begin
         nx,ny,nz = 7,6,5
-        P       = zeros(nx, ny, nz)
-        P      .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]
-        P       = ROCArray(P)
-        P2      = AMDGPU.zeros(eltype(P),size(P));
-        buf     = zeros(size(P))
-        ranges  = [1:size(P,1), 1:size(P,2), 1:size(P,3)]
+
+        P = zeros(nx, ny, nz)
+        P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]
+        P = ROCArray(P)
+        P2 = AMDGPU.zeros(eltype(P),size(P))
+
+        buf = zeros(size(P))
+        ranges = [1:size(P,1), 1:size(P,2), 1:size(P,3)]
+
         # lock host pointer and convert it to eltype(buf)
         buf_Ptr = convert(Ptr{eltype(buf)}, AMDGPU.Mem.lock(pointer(buf), sizeof(buf), get_default_agent()))
+
         # device to host
-        P_Ptr   = convert(Ptr{eltype(buf)}, pointer(P))
+        P_Ptr = convert(Ptr{eltype(buf)}, pointer(P))
         signal1 = HSASignal()
         Mem.unsafe_copy3d!(
             buf_Ptr, P_Ptr, length(ranges[1]), length(ranges[2]), length(ranges[3]);
@@ -48,6 +53,7 @@
         )
         wait(signal1)
         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+
         # host to device
         P2_Ptr  = convert(Ptr{eltype(buf)}, pointer(P2))
         signal2 = HSASignal()
@@ -59,6 +65,7 @@
         )
         wait(signal2)
         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+
         # unlock host pointer
         Mem.unlock(pointer(buf))
     end

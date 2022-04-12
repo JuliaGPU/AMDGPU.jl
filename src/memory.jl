@@ -373,7 +373,7 @@ function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
 
     if dstPtr_info.type == HSA.EXT_POINTER_TYPE_HSA && srcPtr_info.type == HSA.EXT_POINTER_TYPE_LOCKED
         device_type(dstPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU || error("dst should point to device memory")
-        hsaCopyDir  = HSA.LibHSARuntime.hsaHostToDevice
+        hsaCopyDir = HSA.LibHSARuntime.hsaHostToDevice
     elseif dstPtr_info.type == HSA.EXT_POINTER_TYPE_LOCKED && srcPtr_info.type == HSA.EXT_POINTER_TYPE_HSA
         device_type(srcPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU || error("src should point to device memory")
         hsaCopyDir = HSA.LibHSARuntime.hsaDeviceToHost
@@ -387,12 +387,12 @@ function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
     dstOffset = (sizeof(T)*(dstPos[1]-1), dstPos[2]-1, dstPos[3]-1)
     srcOffset = (sizeof(T)*(srcPos[1]-1), srcPos[2]-1, srcPos[3]-1)
 
-    dstRef       = Ref(HSA.PitchedPtr(dst, dstPitch, dstSlice))
-    srcRef       = Ref(HSA.PitchedPtr(src, srcPitch, srcSlice))
+    dstRef = Ref(HSA.PitchedPtr(dst, dstPitch, dstSlice))
+    srcRef = Ref(HSA.PitchedPtr(src, srcPitch, srcSlice))
     dstOffsetRef = Ref(HSA.Dim3(dstOffset...))
     srcOffsetRef = Ref(HSA.Dim3(srcOffset...))
-    rangeRef     = Ref(HSA.Dim3(sizeof(T)*width, height, depth))
-    sig          = signal.signal[]
+    rangeRef = Ref(HSA.Dim3(sizeof(T)*width, height, depth))
+    sig = signal.signal[]
 
     AMDGPU.HSA.amd_memory_async_copy_rect(Base.unsafe_convert(Ptr{HSA.PitchedPtr}, dstRef),
                                           Base.unsafe_convert(Ptr{HSA.Dim3},       dstOffsetRef),
