@@ -11,7 +11,7 @@ module Mem
 
 using ..AMDGPU
 using ..AMDGPU.HSA
-import AMDGPU: check, get_region, get_memory_pool, AGENTS
+import AMDGPU: check, get_region, get_memory_pool, AGENTS, ROCDim, ROCDim3
 
 ## buffer type
 
@@ -334,6 +334,77 @@ function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
         HSA.memory_copy(dst.ptr, src.ptr, nbytes) |> check
     end
 end
+
+
+"""
+    device_type(agent)
+
+Return the type of an HSA agent.
+"""
+function device_type(agent)
+    type = Ref{HSA.DeviceType}()
+    HSA.agent_get_info(agent,HSA.AGENT_INFO_DEVICE,type) |> check
+    return type[]
+end
+
+
+"""
+    unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
+                   dstPos::ROCDim=(1,1,1), dstPitch=0, dstSlice=0,
+                   srcPos::ROCDim=(1,1,1), srcPitch=0, srcSlice=0,
+                   async::Bool=false, signal::HSASignal=nothing) where T
+
+Perform a 3D memory copy between pointers `src` and `dst` at respectively position `srcPos` and `dstPos` 
+(1-indexed). Both pitch and slice can be specified for both the source and destination. This call is 
+executed asynchronously if `async` is set, otherwise `signal` is synchronized.
+"""
+function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
+                        dstPos::ROCDim=(1,1,1), dstPitch=0, dstSlice=0,
+                        srcPos::ROCDim=(1,1,1), srcPitch=0, srcSlice=0,
+                        async::Bool=false, signal::HSASignal=nothing) where T
+    (T == Nothing) && error("Type of Ptr is Nothing")
+
+    dstPtr_info = pointerinfo(dst)
+    srcPtr_info = pointerinfo(src)
+
+    if dstPtr_info.type == HSA.EXT_POINTER_TYPE_UNKNOWN || srcPtr_info.type == HSA.EXT_POINTER_TYPE_UNKNOWN
+        error("Only device pointers or locked host pointers are supported, see unsafe_wrap and Mem.lock")
+    end
+
+    if dstPtr_info.type == HSA.EXT_POINTER_TYPE_HSA && srcPtr_info.type == HSA.EXT_POINTER_TYPE_LOCKED
+        device_type(dstPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU || error("dst should point to device memory")
+        hsaCopyDir = HSA.LibHSARuntime.hsaHostToDevice
+    elseif dstPtr_info.type == HSA.EXT_POINTER_TYPE_LOCKED && srcPtr_info.type == HSA.EXT_POINTER_TYPE_HSA
+        device_type(srcPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU || error("src should point to device memory")
+        hsaCopyDir = HSA.LibHSARuntime.hsaDeviceToHost
+    elseif dstPtr_info.type == HSA.EXT_POINTER_TYPE_HSA && srcPtr_info.type == HSA.EXT_POINTER_TYPE_HSA
+        (device_type(dstPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU && device_type(srcPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU) || error("dst and src should point to device memory")
+        hsaCopyDir = HSA.LibHSARuntime.hsaDeviceToDevice
+    else
+        error("Only device to device, host to device, and device to host memory transfer is supported")
+    end
+
+    dstOffset = (sizeof(T)*(dstPos[1]-1), dstPos[2]-1, dstPos[3]-1)
+    srcOffset = (sizeof(T)*(srcPos[1]-1), srcPos[2]-1, srcPos[3]-1)
+
+    dstRef = Ref(HSA.PitchedPtr(dst, dstPitch, dstSlice))
+    srcRef = Ref(HSA.PitchedPtr(src, srcPitch, srcSlice))
+    dstOffsetRef = Ref(HSA.Dim3(dstOffset...))
+    srcOffsetRef = Ref(HSA.Dim3(srcOffset...))
+    rangeRef = Ref(HSA.Dim3(sizeof(T)*width, height, depth))
+    sig = signal.signal[]
+
+    AMDGPU.HSA.amd_memory_async_copy_rect(Base.unsafe_convert(Ptr{HSA.PitchedPtr}, dstRef),
+                                          Base.unsafe_convert(Ptr{HSA.Dim3},       dstOffsetRef),
+                                          Base.unsafe_convert(Ptr{HSA.PitchedPtr}, srcRef),
+                                          Base.unsafe_convert(Ptr{HSA.Dim3},       srcOffsetRef),
+                                          Base.unsafe_convert(Ptr{HSA.Dim3},       rangeRef),
+                                          get_default_agent().agent,hsaCopyDir,UInt32(0),C_NULL,sig) |> check
+
+    async || wait(signal)
+    return nothing
+end
+
 
 ## array based
 
