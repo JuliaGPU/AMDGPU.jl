@@ -2,7 +2,11 @@ coverage:
   ignore:
     - "src/device"
   status:
-    patch: false
-    project: false
+    patch:
+      default:
+        informational: true
+    project:
+      default:
+        informational: true
     changes: false
 comment: false
