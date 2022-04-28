@@ -23,6 +23,7 @@ end
 Base.:(==)(agent1::HSAAgent, agent2::HSAAgent) = agent1.agent == agent2.agent
 
 const DEFAULT_AGENT = Ref{HSAAgent}()
+const ALL_AGENTS = Vector{HSAAgent}()
 const AGENTS = IdDict{UInt64, HSAAgent}() # Map from agent handles to HSAAgent structs
 
 ### @cfunction callbacks ###
@@ -43,6 +44,10 @@ end
 Returns the list of HSA agents available on the system.
 """
 function get_agents()
+    if !isempty(ALL_AGENTS)
+        return copy(ALL_AGENTS)
+    end
+
     agents = Ref(Vector{HSAAgent}())
     GC.@preserve agents begin
         func = @cfunction(iterate_agents_cb, HSA.Status,
@@ -53,6 +58,7 @@ function get_agents()
 
     # Update the entries in the agent handle dictionary
     for agent in _agents
+        push!(ALL_AGENTS, agent)
         AGENTS[agent.agent.handle] = agent
     end
 
@@ -114,7 +120,7 @@ end
 """
 Return all agents available to the runtime.
 """
-agents() = collect(values(AGENTS))
+agents() = copy(ALL_AGENTS)
 
 # Pretty-printing
 function Base.show(io::IO, agent::HSAAgent)

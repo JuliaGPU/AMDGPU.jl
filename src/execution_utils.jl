@@ -20,8 +20,9 @@ mutable struct ROCModule{E}
     exceptions::Mem.Buffer
 end
 function ROCModule(exe)
+    agent = exe.exe.agent
     metadata = KernelMetadata[]
-    exceptions = Mem.alloc(sizeof(ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
+    exceptions = Mem.alloc(agent, sizeof(ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
     mod = ROCModule(exe, metadata, exceptions)
     _exe = exe.exe
     EXE_TO_MODULE_MAP[_exe] = WeakRef(mod)
