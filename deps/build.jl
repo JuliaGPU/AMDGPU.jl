@@ -2,6 +2,7 @@
 
 using Libdl
 use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
+import Base: @invokelatest
 
 function version_hsa(libpath)
     lib = Libdl.dlopen(libpath)
@@ -225,7 +226,7 @@ function main()
             write_ext(config, config_path)
             return
         end
-        if hsa_rocr_jll.is_available()
+        if @invokelatest hsa_rocr_jll.is_available()
             libhsaruntime_path = hsa_rocr_jll.libhsa_runtime64
         else
             reason = "hsa_rocr_jll not available on this platform"
@@ -280,7 +281,7 @@ function main()
             Base.show_backtrace(iob, catch_backtrace())
             config[:lld_build_reason] = String(take!(iob))
         end
-        if LLVM_jll.is_available()
+        if @invokelatest LLVM_jll.is_available()
             ld_path = LLVM_jll.lld_path
             config[:lld_artifact] = true
         else
@@ -311,7 +312,7 @@ function main()
             Base.show_backtrace(iob, catch_backtrace())
             config[:device_libs_build_reason] = String(take!(iob))
         end
-        if ROCmDeviceLibs_jll.is_available()
+        if @invokelatest ROCmDeviceLibs_jll.is_available()
             device_libs_path = ROCmDeviceLibs_jll.bitcode_path
             device_libs_downloaded = false
         else
@@ -340,7 +341,7 @@ function main()
             Base.show_backtrace(iob, catch_backtrace())
             config[:hip_build_reason] = String(take!(iob))
         end
-        if HIP_jll.is_available()
+        if @invokelatest HIP_jll.is_available()
             libhip_path = HIP_jll.libamdhip64
         else
             config[:hip_build_reason] = "HIP_jll is not available on this platform"
