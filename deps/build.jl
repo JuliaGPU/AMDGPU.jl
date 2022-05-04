@@ -225,7 +225,15 @@ function main()
             write_ext(config, config_path)
             return
         end
-        libhsaruntime_path = hsa_rocr_jll.libhsa_runtime64
+        if hsa_rocr_jll.is_available()
+            libhsaruntime_path = hsa_rocr_jll.libhsa_runtime64
+        else
+            reason = "hsa_rocr_jll not available on this platform"
+            build_warning(reason)
+            config[:hsa_build_reason] = reason
+            write_ext(config, config_path)
+            return
+        end
     else
         libhsaruntime_path = find_rocm_library("libhsa-runtime64", roc_dirs, "so.1")
     end
