@@ -338,10 +338,12 @@ function main()
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:hip_build_reason] = String(take!(iob))
-            write_ext(config, config_path)
-            return
         end
-        libhip_path = HIP_jll.libamdhip64
+        if HIP_jll.is_available()
+            libhip_path = HIP_jll.libamdhip64
+        else
+            config[:hip_build_reason] = "HIP_jll is not available on this platform"
+        end
     else
         libhip_path = find_rocm_library(["libamdhip64", "libhip_hcc"], roc_dirs)
     end
