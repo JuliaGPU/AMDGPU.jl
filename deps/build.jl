@@ -310,13 +310,14 @@ function main()
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:device_libs_build_reason] = String(take!(iob))
-            write_ext(config, config_path)
-            return
         end
-        device_libs_path = ROCmDeviceLibs_jll.bitcode_path
-        device_libs_downloaded = false
+        if ROCmDeviceLibs_jll.is_available()
+            device_libs_path = ROCmDeviceLibs_jll.bitcode_path
+            device_libs_downloaded = false
+        else
+            config[:device_libs_build_reason] = "ROCmDeviceLibs_jll is not available on this platform"
+        end
     else
-        #include("download_device_libs.jl")
         device_libs_path = find_device_libs()
         device_libs_downloaded = true
         if device_libs_path === nothing
