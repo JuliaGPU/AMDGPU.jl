@@ -278,17 +278,19 @@ function main()
             println(iob, "`using LLVM_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
-            config[:ld_lld_build_reason] = String(take!(iob))
+            config[:lld_build_reason] = String(take!(iob))
         end
-        ld_path = LLVM_jll.lld_path
-        config[:lld_artifact] = true
+        if LLVM_jll.is_available()
+            ld_path = LLVM_jll.lld_path
+            config[:lld_artifact] = true
+        else
+            config[:lld_build_reason] = "LLVM_jll is not available on this platform"
+        end
     else
         ld_path = find_ld_lld()
         if ld_path == ""
             build_warning("Could not find ld.lld, please install it with your package manager")
             config[:lld_build_reason] = "ld.lld executable not found"
-            write_ext(config, config_path)
-            return
         end
     end
     if ld_path !== nothing
