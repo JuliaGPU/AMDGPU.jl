@@ -2,6 +2,7 @@
 
 using Libdl
 use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
+import Base: @invokelatest
 
 function version_hsa(libpath)
     lib = Libdl.dlopen(libpath)
@@ -225,7 +226,15 @@ function main()
             write_ext(config, config_path)
             return
         end
-        libhsaruntime_path = hsa_rocr_jll.libhsa_runtime64
+        if @invokelatest hsa_rocr_jll.is_available()
+            libhsaruntime_path = hsa_rocr_jll.libhsa_runtime64
+        else
+            reason = "hsa_rocr_jll not available on this platform"
+            build_warning(reason)
+            config[:hsa_build_reason] = reason
+            write_ext(config, config_path)
+            return
+        end
     else
         libhsaruntime_path = find_rocm_library("libhsa-runtime64", roc_dirs, "so.1")
     end
@@ -270,17 +279,19 @@ function main()
             println(iob, "`using LLVM_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
-            config[:ld_lld_build_reason] = String(take!(iob))
+            config[:lld_build_reason] = String(take!(iob))
         end
-        ld_path = LLVM_jll.lld_path
-        config[:lld_artifact] = true
+        if @invokelatest LLVM_jll.is_available()
+            ld_path = LLVM_jll.lld_path
+            config[:lld_artifact] = true
+        else
+            config[:lld_build_reason] = "LLVM_jll is not available on this platform"
+        end
     else
         ld_path = find_ld_lld()
         if ld_path == ""
             build_warning("Could not find ld.lld, please install it with your package manager")
             config[:lld_build_reason] = "ld.lld executable not found"
-            write_ext(config, config_path)
-            return
         end
     end
     if ld_path !== nothing
@@ -300,13 +311,14 @@ function main()
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:device_libs_build_reason] = String(take!(iob))
-            write_ext(config, config_path)
-            return
         end
-        device_libs_path = ROCmDeviceLibs_jll.bitcode_path
-        device_libs_downloaded = false
+        if @invokelatest ROCmDeviceLibs_jll.is_available()
+            device_libs_path = ROCmDeviceLibs_jll.bitcode_path
+            device_libs_downloaded = false
+        else
+            config[:device_libs_build_reason] = "ROCmDeviceLibs_jll is not available on this platform"
+        end
     else
-        #include("download_device_libs.jl")
         device_libs_path = find_device_libs()
         device_libs_downloaded = true
         if device_libs_path === nothing
@@ -328,10 +340,12 @@ function main()
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:hip_build_reason] = String(take!(iob))
-            write_ext(config, config_path)
-            return
         end
-        libhip_path = HIP_jll.libamdhip64
+        if @invokelatest HIP_jll.is_available()
+            libhip_path = HIP_jll.libamdhip64
+        else
+            config[:hip_build_reason] = "HIP_jll is not available on this platform"
+        end
     else
         libhip_path = find_rocm_library(["libamdhip64", "libhip_hcc"], roc_dirs)
     end
