@@ -209,6 +209,12 @@ function main()
         return
     end
 
+    # Skip build if KFD is not available
+    if !ispath("/dev/kfd")
+        build_warning("/dev/kfd not available, cannot use ROCm Runtime.")
+        return
+    end
+
     # find some paths for library search
     roc_dirs = find_roc_paths()
 
