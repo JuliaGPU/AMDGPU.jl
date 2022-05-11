@@ -143,10 +143,26 @@ check_library("MIOpen", libmiopen)
 end # functional(:hip)
 
 function __init__()
+    # Quiet path first, in case this system doesn't have AMD GPUs
     if !ispath("/dev/kfd")
-        @debug "/dev/kfd not available, skipping initialization"
+        @debug "/dev/kfd not available, silently skipping initialization"
         return
     end
+    has_gpu = false
+    if isdir("/sys/class/kfd/kfd/topology/nodes/")
+        for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
+            # CPU nodes don't have names
+            if !isempty(readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name")))
+                has_gpu = true
+            end
+        end
+    end
+    if !has_gpu
+        @debug "No GPUs found, silently skipping initialization"
+        return
+    end
+
+    # Verbose path, something is misconfigured
     if !configured && build_reason != "unknown"
         if build_reason == "Build did not occur"
             @warn """
