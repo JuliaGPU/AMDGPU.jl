@@ -143,6 +143,10 @@ check_library("MIOpen", libmiopen)
 end # functional(:hip)
 
 function __init__()
+    if !ispath("/dev/kfd")
+        @debug "/dev/kfd not available, skipping initialization"
+        return
+    end
     if !configured && build_reason != "unknown"
         if build_reason == "Build did not occur"
             @warn """
