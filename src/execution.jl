@@ -355,7 +355,7 @@ function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=de
     target = GCNCompilerTarget(; dev_isa=arch, features=feat)
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
-    GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::HostKernel{f,tt}
+    GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::HostKernel{typeof(f),tt}
 end
 
 const rocfunction_cache = Dict{RuntimeDevice,Dict{UInt,Any}}()
