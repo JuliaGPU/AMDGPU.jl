@@ -1,6 +1,6 @@
 # Utilities for working with HSA agents
 
-mutable struct HSAAgent
+mutable struct HSAAgent <: AbstractGPUDevice
     agent::HSA.Agent
 
     # Cached information
@@ -25,6 +25,14 @@ Base.:(==)(agent1::HSAAgent, agent2::HSAAgent) = agent1.agent == agent2.agent
 const DEFAULT_AGENT = Ref{HSAAgent}()
 const ALL_AGENTS = Vector{HSAAgent}()
 const AGENTS = IdDict{UInt64, HSAAgent}() # Map from agent handles to HSAAgent structs
+
+
+# ToDo: This is not sufficient/general enough, doesn't handle multiple devices:
+Adapt.adapt_storage(device::HSAAgent, x) = adapt_storage(ROCArray, x)
+
+# ToDo: implement Sys.total_memory(dev::ROCDevice)
+# ToDo: implement Sys.free_memory(dev::ROCDevice)
+
 
 ### @cfunction callbacks ###
 
