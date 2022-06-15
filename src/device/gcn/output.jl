@@ -16,7 +16,7 @@ Base.unsafe_store!(ptr::LLVMPtr{<:DeviceStaticString,1}, x) = nothing
 struct OutputContext{HC}
     hostcall::HC
 end
-function OutputContext(io::IO=stdout; agent=get_default_agent(), buf_len=2^16, kwargs...)
+function OutputContext(io::IO=stdout; agent=default_device(), buf_len=2^16, kwargs...)
     hc = HostCall(Int64, Tuple{DeviceStaticString{buf_len}}; agent=agent, continuous=true, kwargs...) do bytes
         print(io, String(bytes))
         Int64(length(bytes))

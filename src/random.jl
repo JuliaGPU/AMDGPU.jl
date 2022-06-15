@@ -9,7 +9,7 @@ function GPUArrays.default_rng(::Type{<:ROCArray})
         agent = AMDGPU.default_device().device.agent
         p = Ref{UInt32}()
         GC.@preserve p begin
-            AMDGPU.getinfo(agent, HSA.AGENT_INFO_WORKGROUP_MAX_SIZE, p) |> AMDGPU.check
+            AMDGPU.getinfo(agent, HSA.AGENT_INFO_WORKGROUP_MAX_SIZE, p) |> Runtime.check
             N = Int(p[])
         end
         state = ROCArray{NTuple{4, UInt32}}(undef, N)

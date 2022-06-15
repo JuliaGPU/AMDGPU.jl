@@ -50,8 +50,8 @@ function versioninfo(io::IO=stdout)
     end
 
     if functional(:hsa)
-        println("HSA Agents ($(length(agents()))):")
-        for agent in agents()
+        println("HSA Agents ($(length(Runtime.agents()))):")
+        for agent in Runtime.agents()
             println("- ", repr(agent))
         end
     end
@@ -109,7 +109,7 @@ function functional(component::Symbol)
     if component == :hsa
         return hsa_configured &&
                HSA_REFCOUNT[] > 0 &&
-               length(get_agents()) > 0
+               length(devices()) > 0
     elseif component == :hip
         return hip_configured
     elseif component == :lld
@@ -145,7 +145,7 @@ function has_rocm_gpu()
     if !functional(:hsa)
         return false
     else
-        return length(get_agents(:gpu)) > 0
+        return length(devices(:gpu)) > 0
     end
 end
 

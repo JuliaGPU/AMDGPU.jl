@@ -14,7 +14,7 @@
 
                 ret1 = [@roc(kernel(sig, 3, RA, 1.0)) for _ in 1:i]
 
-                retb = barrier_and!(ret1)
+                retb = AMDGPU.barrier_and!(ret1)
                 ret2 = @roc kernel(sig, 0, RA, 2.0)
 
                 if i > 0
@@ -42,7 +42,7 @@
                 ret1 = [@roc(kernel(sig, 7, RA, 5.0)) for _ in 1:i]
                 pushfirst!(ret1, @roc(kernel(sig, 3, RA, 1.0)))
 
-                retb = barrier_or!(ret1)
+                retb = AMDGPU.barrier_or!(ret1)
                 ret2 = @roc kernel(sig, 0, RA, 2.0)
 
                 if i > 0

@@ -45,40 +45,37 @@ function HSAQueue(agent::HSAAgent)
     lock(RT_LOCK) do
         @assert !haskey(QUEUES, queue.queue)
         QUEUES[queue.queue] = WeakRef(queue)
-        _active_kernels[queue] = Vector{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal}}()
+        _active_kernels[queue] = Vector{AMDGPU.HSAStatusSignal}()
     end
 
     # Monitor queue for async errors
     # TODO: errormonitor
     queue_ptr = queue.queue
-    Threads.@spawn begin
+    errormonitor(Threads.@spawn begin
         try
-            try
-                wait(async_cond)
-            catch err
-                err isa EOFError || rethrow(err)
+            wait(async_cond)
+        catch err
+            err isa EOFError || rethrow(err)
+            return
+        end
+        lock(RT_LOCK) do
+            if !haskey(QUEUES, queue_ptr) || QUEUES[queue_ptr].value === nothing
+                # Queue was destroyed
                 return
             end
-            lock(RT_LOCK) do
-                if !haskey(QUEUES, queue_ptr) || QUEUES[queue_ptr].value === nothing
-                    # Queue was destroyed
-                    return
-                end
-                queue = QUEUES[queue_ptr].value
-                if queue.status != HSA.STATUS_SUCCESS
-                    # Queue encountered an async error, manually kill it
-                    kill_queue!(queue)
-                end
+            queue = QUEUES[queue_ptr].value
+            if queue.status != HSA.STATUS_SUCCESS
+                # Queue encountered an async error, manually kill it
+                @debug "Queue: Async error on $queue"
+                kill_queue!(queue)
             end
-        catch err
-            @error "Queue monitor error" exception=(err,catch_backtrace())
         end
-    end
+    end)
 
-    hsaref!()
+    AMDGPU.hsaref!()
     finalizer(queue) do queue
         kill_queue!(queue)
-        hsaunref!()
+        AMDGPU.hsaunref!()
     end
     return queue
 end

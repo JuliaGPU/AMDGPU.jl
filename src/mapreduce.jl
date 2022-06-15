@@ -130,13 +130,14 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
     # so that we can span the entire reduction dimension using a single item group.
 
     # group size is restricted by local memory
-    agent = get_default_agent()
-    pools = filter(pool->pool_segment(pool) == HSA.AMD_SEGMENT_GROUP, memory_pools(agent))
+    agent = R.buf.agent
+    pools = filter(pool->Runtime.pool_segment(pool) == HSA.AMD_SEGMENT_GROUP,
+                   Runtime.memory_pools(agent))
     max_items = if !isempty(pools)
         pool = first(pools)
-        max_lmem_elements = pool_size(pool) ÷ sizeof(T)
-        isa = first(isas(agent))
-        Base.min(max_group_size(isa), compute_items(max_lmem_elements ÷ 2))
+        max_lmem_elements = Runtime.pool_size(pool) ÷ sizeof(T)
+        isa = first(Runtime.isas(agent))
+        Base.min(Runtime.max_group_size(isa), compute_items(max_lmem_elements ÷ 2))
     else
         @warn "No group segment detected for agent $agent; assuming 64 elements\nThis message will not be shown again" maxlog=1
         64

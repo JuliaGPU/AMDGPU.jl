@@ -3,29 +3,24 @@ module AMDGPU
 ### Imports ###
 
 using CEnum
-using Setfield
 using Libdl
 using LLVM, LLVM.Interop
-using GPUArrays
 using GPUCompiler
+using GPUArrays
 using Adapt
 using Requires
 import LinearAlgebra
-using Printf
 import Core: LLVMPtr
 
 ### Exports ###
 
 export HSAAgent, HSAQueue, HSAExecutable, HSAKernelInstance, HSASignal
-export get_agents, profile, get_first_isa_string
-export get_default_agent, get_default_queue
 export has_rocm_gpu
 
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc
 
-### HSA Runtime ###
-
+# Load HSA Runtime
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath(@__DIR__, "hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
@@ -33,53 +28,86 @@ import .HSA: Agent, Queue, Executable, Status, Signal
 # Load binary dependencies
 include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
 
-struct Adaptor end
+# Utilities
+include("utils.jl")
 
-const RT_LOCK = Threads.ReentrantLock()
-
-include("extras.jl")
-include("error.jl")
-include("agent.jl")
-include("queue.jl")
-include("signal.jl")
-include("executable.jl")
-include("kernel.jl")
-include("memory.jl")
-
-@enum DeviceRuntime HSA_rt OCL_rt
-const RUNTIME = Ref{DeviceRuntime}(HSA_rt)
-#=
-if get(ENV, "AMDGPUNATIVE_OPENCL", "") != ""
-    RUNTIME[] = OCL_rt
+# Load HIP
+const libhip = "libamdhip64.so"
+if functional(:hip)
+include(joinpath(@__DIR__, "hip", "HIP.jl"))
 end
-=#
-include("runtime.jl")
-include("statussignal.jl")
-include("sync.jl")
+
+module Runtime
+    using Setfield
+    import ..HSA
+    import ..Adapt
+    using ..GPUCompiler
+
+    import ..AMDGPU
+
+    struct Adaptor end
+
+    const RT_LOCK = Threads.ReentrantLock()
+
+    include("error.jl")
+    include("agent.jl")
+    include("queue.jl")
+    include("signal.jl")
+    include("dims.jl")
+    module Mem
+        include("memory.jl")
+    end
+    include("executable.jl")
+    include("statussignal.jl")
+    include("kernel.jl")
+    include("launch.jl")
+    include("execution.jl")
+    include("sync.jl")
+end # module Runtime
+import .Runtime: Mem
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
 
 # Device sources must load _before_ the compiler infrastructure
 # because of generated functions.
-include(joinpath("device", "tools.jl"))
-include(joinpath("device", "pointer.jl"))
+include(joinpath("device", "addrspaces.jl"))
 include(joinpath("device", "array.jl"))
 include(joinpath("device", "gcn.jl"))
 include(joinpath("device", "runtime.jl"))
 include(joinpath("device", "llvm.jl"))
 include(joinpath("device", "globals.jl"))
+include(joinpath("device", "strings.jl"))
+include(joinpath("device", "exceptions.jl"))
 
-include("query.jl")
-include("compiler.jl")
-include("execution_utils.jl")
-include("execution.jl")
-include("exceptions.jl")
+module Compiler
+    using ..GPUCompiler
+    using ..LLVM
+    import ..Adapt
+    import Core: LLVMPtr
+    using Printf
+
+    import ..AMDGPU
+    import ..AMDGPU: AS
+    import ..Runtime
+    import .Runtime: HSAAgent, ROCModule, ROCFunction
+    import .Runtime: Adaptor
+    import .Runtime: Mem
+
+    include("devlibs.jl")
+    include("compiler_utils.jl")
+    include("compiler.jl")
+end # module Compiler
+
+include("highlevel.jl")
 include("reflection.jl")
 
 ### ROCArray ###
 
+import .Runtime: Mem
+
 include("array.jl")
+include("conversions.jl")
 #include("subarray.jl")
 #include("indexing.jl")
 include("broadcast.jl")
@@ -108,13 +136,8 @@ function hsaunref!()
     =#
 end
 
-# Utilities
-include("utils.jl")
-
-# Load HIP and ROCm external libraries
-const libhip = "libamdhip64.so"
+# Load ROCm external libraries
 if functional(:hip)
-include(joinpath(@__DIR__, "hip", "HIP.jl"))
 functional(:rocblas)      && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
 #functional(:rocsparse)  && include("sparse/rocSPARSE.jl")
 #functional(:rocsolver)   && include("solver/rocSOLVER.jl")
@@ -195,10 +218,12 @@ function __init__()
                 hsaunref!()
             end
 
-            # Populate the default agent
-            agents = get_agents(:gpu)
-            if length(agents) > 0
-                DEFAULT_AGENT[] = first(agents)
+            # Select the default agent
+            for agent in Runtime.fetch_agents()
+                if !isassigned(Runtime.DEFAULT_AGENT) && device_type(agent) == :gpu
+                    Runtime.DEFAULT_AGENT[] = agent
+                    break
+                end
             end
         else
             @warn "HSA initialization failed with code $status"

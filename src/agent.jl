@@ -4,7 +4,7 @@ mutable struct HSAAgent
     agent::HSA.Agent
 
     # Cached information
-    type::Symbol
+    type::HSA.DeviceType
     name::String
     productname::String
     uuid::String
@@ -12,9 +12,9 @@ mutable struct HSAAgent
     function HSAAgent(handle::HSA.Agent)
         agent = new(handle)
         agent.type = device_type(agent)
-        agent.name = get_name(agent)
-        agent.productname = get_product_name(agent)
-        agent.uuid = get_uuid(agent)
+        agent.name = name(agent)
+        agent.productname = product_name(agent)
+        agent.uuid = uuid(agent)
 
         agent
     end
@@ -39,11 +39,11 @@ function iterate_agents_cb(agent::HSA.Agent, agents)
 end
 
 """
-    get_agents() -> Vector{HSAAgent}
+    fetch_agents() -> Vector{HSAAgent}
 
 Returns the list of HSA agents available on the system.
 """
-function get_agents()
+function fetch_agents()
     if !isempty(ALL_AGENTS)
         return copy(ALL_AGENTS)
     end
@@ -64,8 +64,6 @@ function get_agents()
 
     return _agents
 end
-get_agents(kind::Symbol) =
-    filter(agent->device_type(agent)==kind, get_agents())
 
 """
     get_default_agent() -> HSAAgent
@@ -90,25 +88,7 @@ function set_default_agent!(agent::HSAAgent)
     DEFAULT_AGENT[] = agent
 end
 
-"""
-    device(kind::Symbol=:gpu) -> Int
-
-Returns the numeric ID of the current default device, which is in the range of
-`1:length(AMDGPU.get_agents(kind))`. This number should be stable for all
-processes on the same node, so long as any device filtering is consistently
-applied (such as `ROCR_VISIBLE_DEVICES`). The [`device!`](@ref) function
-accepts the same numeric ID that is produced by this function.
-"""
-device(kind::Symbol=:gpu) = something(findfirst(a->a==get_default_agent(), get_agents(kind)))
-"""
-    device!(idx::Integer, kind::Symbol=:gpu)
-
-Sets the default device to `AMDGPU.get_agents(kind)[idx]`. See [`device`](@ref)
-for details on the numbering semantics.
-"""
-device!(idx::Integer, kind::Symbol=:gpu) = set_default_agent!(get_agents(kind)[idx])
-
-function get_name(agent::HSAAgent)
+function name(agent::HSAAgent)
     #len = Ref(0)
     #hsa_agent_get_info(agent.agent, HSA.AGENT_INFO_NAME_LENGTH, len) |> check
     name = Vector{UInt8}(undef, 64)
@@ -125,7 +105,7 @@ agents() = copy(ALL_AGENTS)
 function Base.show(io::IO, agent::HSAAgent)
     name = agent.uuid
 
-    name *= if agent.name == agent.productname
+    name *= if agent.name == agent.productname || isempty(agent.productname)
         " [$(agent.name)]"
     else
         " [$(agent.productname) ($(agent.name))]"
@@ -136,45 +116,50 @@ end
 
 ### Agent details
 
-function get_product_name(agent::HSAAgent)
+product_name(agent::HSAAgent) = product_name(agent.agent)
+function product_name(agent::HSA.Agent)
     name = Vector{UInt8}(undef, 64)
-    getinfo(agent.agent, HSA.AMD_AGENT_INFO_PRODUCT_NAME, name) |> check
+    getinfo(agent, HSA.AMD_AGENT_INFO_PRODUCT_NAME, name) |> check
     rstrip(String(name), '\0')
 end
 
-function get_uuid(agent::HSAAgent)
+uuid(agent::HSAAgent) = uuid(agent.agent)
+function uuid(agent::HSA.Agent)
     uuid = Base.zeros(UInt8, 64) # Doesn't appear to write zero-terminator
-    getinfo(agent.agent, HSA.AMD_AGENT_INFO_UUID, uuid) |> check
+    getinfo(agent, HSA.AMD_AGENT_INFO_UUID, uuid) |> check
     rstrip(String(uuid), '\0')
 end
 
-function profile(agent::HSAAgent)
+profile(agent::HSAAgent) = profile(agent.agent)
+function profile(agent::HSA.Agent)
     profile = Ref{HSA.Profile}()
-    getinfo(agent.agent, HSA.AGENT_INFO_PROFILE, profile) |> check
+    getinfo(agent, HSA.AGENT_INFO_PROFILE, profile) |> check
     return profile[]
 end
 
-function device_type(agent::HSAAgent)
-    devtype = Ref{UInt32}()
-    getinfo(agent.agent, HSA.AGENT_INFO_DEVICE, devtype) |> check
-
-    if HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_CPU
-        return :cpu
-    elseif HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_GPU
-        return :gpu
-    elseif HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_DSP
-        return :dsp
-    else
-        return :unknown
-    end
+device_type(agent::HSAAgent) = device_type(agent.agent)
+function device_type(agent::HSA.Agent)
+    devtype = Ref{HSA.DeviceType}()
+    getinfo(agent, HSA.AGENT_INFO_DEVICE, devtype) |> check
+    return devtype[]
 end
+
+function getinfo(agent::HSA.Agent, attribute::HSA.AgentInfo,
+                 value::Union{Vector,Base.RefValue,String})
+    # TODO: allocation/create Refs here
+    # based on value of AgentInfo
+    HSA.agent_get_info(agent, attribute, value)
+end
+getinfo(agent::HSA.Agent, info::HSA.AMDAgentInfo, ret::Union{String, Base.RefValue, Vector}) =
+    getinfo(agent, reinterpret(HSA.AgentInfo, info), ret)
 
 ### ISAs
 
-function isas(agent::HSAAgent)
+isas(agent::HSAAgent) = isas(agent.agent)
+function isas(agent::HSA.Agent)
     isas = Ref(HSA.ISA[])
     func = @cfunction(agent_iterate_isas_cb, HSA.Status, (HSA.ISA, Ref{Vector{HSA.ISA}}))
-    HSA.agent_iterate_isas(agent.agent, func, isas) |> check
+    HSA.agent_iterate_isas(agent, func, isas) |> check
     isas[]
 end
 
@@ -209,13 +194,15 @@ end
 architecture(isa::HSA.ISA) = llvm_arch_features(isa)[1]
 features(isa::HSA.ISA) = llvm_arch_features(isa)[2]
 
-get_first_isa_string(agent::HSAAgent) = architecture(first(isas(agent)))
-get_first_feature_string(agent::HSAAgent) = features(first(isas(agent)))
-
 function max_group_size(isa::HSA.ISA)
     size = Ref{UInt32}(0)
     getinfo(isa, HSA.ISA_INFO_WORKGROUP_MAX_SIZE, size)
     size[]
+end
+
+function getinfo(isa::HSA.ISA, attribute::HSA.ISAInfo,
+                 value::Union{Vector,Base.RefValue,String})
+    HSA.isa_get_info_alt(isa, attribute, value)
 end
 
 ### Regions

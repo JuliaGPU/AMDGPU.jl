@@ -17,7 +17,7 @@ struct HostCall{S,RT,AT}
     buf_len::UInt
 end
 function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
-                  agent=get_default_agent(), buf_len=nothing) where {S<:UInt64}
+                  agent=default_device(), buf_len=nothing) where {S<:UInt64}
     # FIXME: atomic_add!
     host_sentinel, device_sentinel = lock(SENTINEL_LOCK) do
         host_sentinel = SENTINEL_COUNTER[]
@@ -179,7 +179,7 @@ hostcall will fail with undefined behavior.
 Note: This API is currently experimental and is subject to change at any time.
 """
 function HostCall(func, rettype, argtypes; return_task=false,
-                  agent=get_default_agent(), maxlat=DEFAULT_HOSTCALL_LATENCY,
+                  agent=default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY,
                   timeout=nothing, continuous=false, buf_len=nothing)
     signal = HSASignal()
     hc = HostCall(rettype, argtypes, signal.signal[].handle; agent=agent, buf_len=buf_len)
@@ -235,7 +235,7 @@ function HostCall(func, rettype, argtypes; return_task=false,
                 @error "Hostcall error" exception=(err,catch_backtrace())
                 # TODO: Gracefully terminate just the immediate waiters
                 # FIXME: Get the right queue
-                kill_queue!(get_default_queue(agent))
+                kill_queue!(default_queue(agent))
                 continuous || rethrow(err)
             end
         end
@@ -257,10 +257,10 @@ function HostCall(func, rettype, argtypes; return_task=false,
     end
 end
 
+const DEFAULT_HOSTCALL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
+
 # CPU functions
-get_value(hc::HostCall{UInt64,RT,AT} where {RT,AT}) =
-    HSA.signal_load_scacquire(HSA.Signal(hc.signal))
-function _hostwait(signal, sentinel; maxlat=DEFAULT_HOSTCALL_LATENCY, timeout=nothing)
+function _hostwait(signal, sentinel; maxlat=DEFAULT_HOSTCALL_LATENCY, timeout=DEFAULT_HOSTCALL_TIMEOUT[])
     @debug "Hostcall: Waiting on signal for sentinel: $sentinel"
     start_time = time_ns()
     while true

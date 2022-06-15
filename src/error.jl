@@ -3,7 +3,7 @@
 export HSAError
 
 struct HSAError <: Exception
-    code::Status
+    code::HSA.Status
 end
 
 """

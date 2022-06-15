@@ -1,17 +1,11 @@
 # Raw memory management
 # Copied from CUDAdrv.jl
 
-# NOTE: Mostly implemented for compatibility and ease-of-use, however we're
-# currently not nearly as featureful as the original, which should change
-# where possible.
-
-export Mem
-
-module Mem
-
-using ..AMDGPU
-using ..AMDGPU.HSA
-import AMDGPU: check, get_region, get_memory_pool, AGENTS, ROCDim, ROCDim3
+import AMDGPU
+import AMDGPU: HSA
+import AMDGPU: Runtime
+import .Runtime: HSAAgent, HSASignal, HSARegion, HSAMemoryPool, ROCDim, ROCDim3
+import .Runtime: AGENTS, check, get_region, get_memory_pool
 
 ## buffer type
 
@@ -144,9 +138,9 @@ function lock(ptr::Ptr, bytesize::Integer, agent::HSAAgent)
     HSA.amd_memory_lock(Ptr{Cvoid}(ptr), bytesize, Ref(agent.agent), 1, plocked) |> check
     return plocked[]
 end
-lock(ptr, bytesize) = lock(ptr, bytesize, get_default_agent())
+lock(ptr, bytesize) = lock(ptr, bytesize, Runtime.get_default_agent())
 lock(a::Array, agent::HSAAgent) = lock(pointer(a), sizeof(a), agent)
-lock(a::Array) = lock(pointer(a), sizeof(a), get_default_agent())
+lock(a::Array) = lock(pointer(a), sizeof(a), Runtime.get_default_agent())
 
 """
     unlock(ptr::Ptr)
@@ -245,17 +239,18 @@ function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
         # check(HSA.memory_assign_agent(buf.ptr, agent.agent, HSA.ACCESS_PERMISSION_RW))
     end
 end
-function alloc(agent::HSAAgent, pool::AMDGPU.HSAMemoryPool, bytesize::Integer)
+function alloc(agent::HSAAgent, pool::HSAMemoryPool, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     check(HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref))
-    return Buffer(ptr_ref[], C_NULL, bytesize, agent, AMDGPU.pool_accessible_by_all(pool), true)
+    return Buffer(ptr_ref[], C_NULL, bytesize, agent, Runtime.pool_accessible_by_all(pool), true)
 end
-function alloc(agent::HSAAgent, region::AMDGPU.HSARegion, bytesize::Integer)
+function alloc(agent::HSAAgent, region::HSARegion, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     check(HSA.memory_allocate(region.region, bytesize, ptr_ref))
-    return Buffer(ptr_ref[], C_NULL, bytesize, agent, AMDGPU.region_host_accessible(region), false)
+    return Buffer(ptr_ref[], C_NULL, bytesize, agent, Runtime.region_host_accessible(region), false)
 end
-alloc(bytesize; kwargs...) = alloc(get_default_agent(), bytesize; kwargs...)
+alloc(bytesize; kwargs...) =
+    alloc(Runtime.get_default_agent(), bytesize; kwargs...)
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
@@ -335,19 +330,6 @@ function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
     end
 end
 
-
-"""
-    device_type(agent)
-
-Return the type of an HSA agent.
-"""
-function device_type(agent)
-    type = Ref{HSA.DeviceType}()
-    HSA.agent_get_info(agent,HSA.AGENT_INFO_DEVICE,type) |> check
-    return type[]
-end
-
-
 """
     unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
                    dstPos::ROCDim=(1,1,1), dstPitch=0, dstSlice=0,
@@ -372,13 +354,13 @@ function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
     end
 
     if dstPtr_info.type == HSA.EXT_POINTER_TYPE_HSA && srcPtr_info.type == HSA.EXT_POINTER_TYPE_LOCKED
-        device_type(dstPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU || error("dst should point to device memory")
+        Runtime.device_type(dstPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU || error("dst should point to device memory")
         hsaCopyDir = HSA.LibHSARuntime.hsaHostToDevice
     elseif dstPtr_info.type == HSA.EXT_POINTER_TYPE_LOCKED && srcPtr_info.type == HSA.EXT_POINTER_TYPE_HSA
-        device_type(srcPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU || error("src should point to device memory")
+        Runtime.device_type(srcPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU || error("src should point to device memory")
         hsaCopyDir = HSA.LibHSARuntime.hsaDeviceToHost
     elseif dstPtr_info.type == HSA.EXT_POINTER_TYPE_HSA && srcPtr_info.type == HSA.EXT_POINTER_TYPE_HSA
-        (device_type(dstPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU && device_type(srcPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU) || error("dst and src should point to device memory")
+        (Runtime.device_type(dstPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU && Runtime.device_type(srcPtr_info.agentOwner) == HSA.DEVICE_TYPE_GPU) || error("dst and src should point to device memory")
         hsaCopyDir = HSA.LibHSARuntime.hsaDeviceToDevice
     else
         error("Only device to device, host to device, and device to host memory transfer is supported")
@@ -399,7 +381,7 @@ function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
                                           Base.unsafe_convert(Ptr{HSA.PitchedPtr}, srcRef),
                                           Base.unsafe_convert(Ptr{HSA.Dim3},       srcOffsetRef),
                                           Base.unsafe_convert(Ptr{HSA.Dim3},       rangeRef),
-                                          get_default_agent().agent,hsaCopyDir,UInt32(0),C_NULL,sig) |> check
+                                          Runtime.get_default_agent().agent,hsaCopyDir,UInt32(0),C_NULL,sig) |> check
 
     async || wait(signal)
     return nothing
@@ -489,5 +471,3 @@ function Base.show(io::IO, ptrinfo::HSA.AMDPointerInfo)
     println(io, "Host base address: $(ptrinfo.hostBaseAddress)")
     print(io, "Size (bytes): $(ptrinfo.sizeInBytes)")
 end
-
-end # module Mem

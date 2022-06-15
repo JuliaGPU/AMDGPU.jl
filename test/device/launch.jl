@@ -45,8 +45,8 @@
     @test_throws ArgumentError eval(:(@roc groupsize=1025 $kernel()))
 
     # No-launch
-    @test eval(:(@roc launch=true $kernel())) isa AMDGPU.RuntimeEvent
-    @test eval(:(@roc launch=false $kernel())) isa AMDGPU.HostKernel
+    @test eval(:(@roc launch=true $kernel())) isa AMDGPU.HSAStatusSignal
+    @test eval(:(@roc launch=false $kernel())) isa Runtime.HostKernel
     @test_throws Exception eval(:(@roc launch=1 $kernel())) # TODO: ArgumentError
 end
 
@@ -71,25 +71,24 @@ end
 @testset "Signal waiting" begin
     sig = @roc identity(nothing)
     wait(sig)
-    wait(sig.event)
-    wait(sig.event.signal)
-    wait(sig.event.signal.signal[])
+    wait(sig.signal)
+    wait(sig.signal.signal[])
 end
 
 @testset "Custom signal" begin
     sig = HSASignal()
     sig2 = @roc signal=sig identity(nothing)
-    @test sig2.event.signal == sig
+    @test sig2.signal == sig
     wait(sig)
     wait(sig2)
 end
 
-if length(AMDGPU.get_agents(:gpu)) > 1
+if length(AMDGPU.devices()) > 1
     @testset "Multi-GPU" begin
         # HSA will throw if the compiler and launch use different agents
-        a1, a2 = AMDGPU.get_agents(:gpu)
-        wait(@roc device=AMDGPU.RuntimeDevice(a1) identity(nothing))
-        wait(@roc device=AMDGPU.RuntimeDevice(a2) identity(nothing))
+        a1, a2 = AMDGPU.devices()[1:2]
+        wait(@roc device=a1 identity(nothing))
+        wait(@roc device=a2 identity(nothing))
     end
 else
     @warn "Only 1 GPU detected; skipping multi-GPU tests"
