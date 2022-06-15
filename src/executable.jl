@@ -21,7 +21,6 @@ function iterate_exec_agent_syms_cb(exe::HSA.Executable, agent::HSA.Agent,
         getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, len) |> check
         name = Vector{UInt8}(undef, len[])
         getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
-        @debug "    Symbol Name: $(String(name))"
         Base.unsafe_store!(sym_ref, sym)
     end
 
@@ -30,17 +29,12 @@ end
 
 # TODO Docstring
 function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String; globals=())
-    #= NOTE: Everything I can see indicates that profile is always FULL
-    profile = Ref{HSA.Profile}()
-    HSA.agent_get_info(agent.agent, HSA.AGENT_INFO_PROFILE, profile) |> check
-    =#
-
     code_object_reader = Ref{HSA.CodeObjectReader}(HSA.CodeObjectReader(0))
     HSA.code_object_reader_create_from_memory(data, sizeof(data),
                                               code_object_reader) |> check
 
     executable = Ref{HSA.Executable}()
-    HSA.executable_create_alt(HSA.PROFILE_BASE,
+    HSA.executable_create_alt(profile(agent),
                               HSA.DEFAULT_FLOAT_ROUNDING_MODE_NEAR,
                               C_NULL, executable) |> check
 
@@ -61,14 +55,14 @@ function HSAExecutable(agent::HSAAgent, data::Vector{UInt8}, symbol::String; glo
     exe = HSAExecutable(agent, executable, data, _globals)
 
     # TODO: Ensure no derived kernels are in flight during finalization
-    hsaref!()
+    AMDGPU.hsaref!()
     finalizer(exe) do exe
         HSA.executable_destroy(exe.executable[]) |> check
         for buf in values(exe.globals)
             Mem.free(buf)
         end
         HSA.code_object_reader_destroy(code_object_reader[]) |> check
-        hsaunref!()
+        AMDGPU.hsaunref!()
     end
 
     return exe
@@ -77,4 +71,9 @@ end
 function get_global(exe::HSAExecutable, symbol::Symbol)
     @assert symbol in keys(exe.globals) "No such global in executable: $symbol"
     return exe.globals[symbol]::Mem.Buffer
+end
+
+function getinfo(exsym::HSA.ExecutableSymbol, attribute::HSA.ExecutableSymbolInfo,
+                 value::Union{Vector,Base.RefValue,String})
+    HSA.executable_symbol_get_info(exsym, attribute, value)
 end

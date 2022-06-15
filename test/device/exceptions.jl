@@ -9,8 +9,8 @@ RA = ROCArray(ones(Float32, 4))
 try
     wait(@roc oob_kernel(RA))
 catch err
-    @test err isa AMDGPU.KernelException
-    if err isa AMDGPU.KernelException
+    @test err isa Runtime.KernelException
+    if err isa Runtime.KernelException
         @test err.exstr !== nothing
         @test occursin("julia_throw_boundserror", err.exstr)
     end

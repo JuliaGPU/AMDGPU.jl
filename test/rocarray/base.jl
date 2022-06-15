@@ -31,7 +31,7 @@ end
     A = rand(4, 3)
     A_orig = copy(A)
     RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
-    @test RA.buf.agent == get_default_agent()
+    @test RA.buf.agent == AMDGPU.default_device()
     @test RA isa ROCArray{Float64,2}
 
     # GPU pointer works

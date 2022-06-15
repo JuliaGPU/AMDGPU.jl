@@ -40,7 +40,7 @@
         ranges = [1:size(P,1), 1:size(P,2), 1:size(P,3)]
 
         # lock host pointer and convert it to eltype(buf)
-        buf_Ptr = convert(Ptr{eltype(buf)}, AMDGPU.Mem.lock(pointer(buf), sizeof(buf), get_default_agent()))
+        buf_Ptr = convert(Ptr{eltype(buf)}, AMDGPU.Mem.lock(pointer(buf), sizeof(buf), AMDGPU.default_device()))
 
         # device to host
         P_Ptr = convert(Ptr{eltype(buf)}, pointer(P))
@@ -103,7 +103,7 @@ end
 end
 
 @testset "Pointer information" begin
-    default_agent = get_default_agent()
+    default_agent = AMDGPU.default_device()
 
     N = 1024
     a = rand(N)
@@ -135,14 +135,14 @@ end
 
 @testset "Memory Region Queries" begin
     @testset "Region API Queries" begin
-        for (idx, agent) in enumerate(AMDGPU.get_agents(:gpu))
-            regions = AMDGPU.regions(agent)
-            regions_global = filter(r->AMDGPU.region_segment(r) == AMDGPU.HSA.REGION_SEGMENT_GLOBAL, regions)
-            regions_global_coarse_nohost = filter(r->(AMDGPU.region_global_flags(r) & AMDGPU.HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED > 0) &&
-                                                     !AMDGPU.region_host_accessible(r), regions)
-            regions_group = filter(r->AMDGPU.region_segment(r) == AMDGPU.HSA.REGION_SEGMENT_GROUP, regions)
-            regions_finegrained = filter(r->AMDGPU.region_global_flags(r) & AMDGPU.HSA.REGION_GLOBAL_FLAG_FINE_GRAINED > 0, regions)
-            regions_kernarg = filter(r->AMDGPU.region_global_flags(r) & AMDGPU.HSA.REGION_GLOBAL_FLAG_KERNARG > 0, regions)
+        for (idx, agent) in enumerate(AMDGPU.devices())
+            regions = Runtime.regions(agent)
+            regions_global = filter(r->Runtime.region_segment(r) == HSA.REGION_SEGMENT_GLOBAL, regions)
+            regions_global_coarse_nohost = filter(r->(Runtime.region_global_flags(r) & HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED > 0) &&
+                                                     !Runtime.region_host_accessible(r), regions)
+            regions_group = filter(r->Runtime.region_segment(r) == HSA.REGION_SEGMENT_GROUP, regions)
+            regions_finegrained = filter(r->Runtime.region_global_flags(r) & HSA.REGION_GLOBAL_FLAG_FINE_GRAINED > 0, regions)
+            regions_kernarg = filter(r->Runtime.region_global_flags(r) & HSA.REGION_GLOBAL_FLAG_KERNARG > 0, regions)
 
             @test length(regions_global) > 0
             if idx == 1
@@ -156,23 +156,23 @@ end
             @test length(regions_finegrained) > 0
             @test length(regions_kernarg) > 0
 
-            @test all(r->AMDGPU.region_size(r) > 0, regions)
+            @test all(r->Runtime.region_size(r) > 0, regions)
 
-            @test all(AMDGPU.region_runtime_alloc_allowed, regions_global)
-            @test all(r->AMDGPU.region_runtime_alloc_granule(r) > 0, regions_global)
-            @test all(r->AMDGPU.region_runtime_alloc_alignment(r) > 0, regions_global)
-            @test all(r->AMDGPU.region_alloc_max_size(r) > 0, regions_global)
+            @test all(Runtime.region_runtime_alloc_allowed, regions_global)
+            @test all(r->Runtime.region_runtime_alloc_granule(r) > 0, regions_global)
+            @test all(r->Runtime.region_runtime_alloc_alignment(r) > 0, regions_global)
+            @test all(r->Runtime.region_alloc_max_size(r) > 0, regions_global)
 
-            @test !any(AMDGPU.region_runtime_alloc_allowed, regions_group)
-            @test !any(AMDGPU.region_host_accessible, regions_group)
+            @test !any(Runtime.region_runtime_alloc_allowed, regions_group)
+            @test !any(Runtime.region_host_accessible, regions_group)
 
-            @test all(AMDGPU.region_runtime_alloc_allowed, regions_finegrained)
-            @test all(AMDGPU.region_host_accessible, regions_finegrained)
+            @test all(Runtime.region_runtime_alloc_allowed, regions_finegrained)
+            @test all(Runtime.region_host_accessible, regions_finegrained)
 
-            @test all(AMDGPU.region_runtime_alloc_allowed, regions_kernarg)
-            @test all(AMDGPU.region_host_accessible, regions_kernarg)
+            @test all(Runtime.region_runtime_alloc_allowed, regions_kernarg)
+            @test all(Runtime.region_host_accessible, regions_kernarg)
 
-            for region in filter(AMDGPU.region_runtime_alloc_allowed, regions)
+            for region in filter(Runtime.region_runtime_alloc_allowed, regions)
                 buf = Mem.alloc(agent, region, 8)
                 @test buf.ptr != C_NULL
                 @test !buf.pool_alloc
@@ -181,25 +181,25 @@ end
         end
     end
     @testset "Memory Pool API Queries" begin
-        for agent in AMDGPU.get_agents(:gpu)
-            pools = AMDGPU.memory_pools(agent)
-            pools_global = filter(r->AMDGPU.pool_segment(r) == AMDGPU.HSA.AMD_SEGMENT_GLOBAL, pools)
-            pools_group = filter(r->AMDGPU.pool_segment(r) == AMDGPU.HSA.AMD_SEGMENT_GROUP, pools)
+        for agent in AMDGPU.devices()
+            pools = Runtime.memory_pools(agent)
+            pools_global = filter(r->Runtime.pool_segment(r) == HSA.AMD_SEGMENT_GLOBAL, pools)
+            pools_group = filter(r->Runtime.pool_segment(r) == HSA.AMD_SEGMENT_GROUP, pools)
 
             @test length(pools_global) >= 1
             @test length(pools_group) == 1
 
-            @test all(r->AMDGPU.pool_size(r) > 0, pools)
-            @test !any(AMDGPU.pool_accessible_by_all, pools)
+            @test all(r->Runtime.pool_size(r) > 0, pools)
+            @test !any(Runtime.pool_accessible_by_all, pools)
 
-            @test all(AMDGPU.pool_runtime_alloc_allowed, pools_global)
-            @test all(r->AMDGPU.pool_runtime_alloc_granule(r) > 0, pools_global)
-            @test all(r->AMDGPU.pool_runtime_alloc_alignment(r) > 0, pools_global)
-            @test all(r->AMDGPU.pool_alloc_max_size(r) > 0, pools_global)
+            @test all(Runtime.pool_runtime_alloc_allowed, pools_global)
+            @test all(r->Runtime.pool_runtime_alloc_granule(r) > 0, pools_global)
+            @test all(r->Runtime.pool_runtime_alloc_alignment(r) > 0, pools_global)
+            @test all(r->Runtime.pool_alloc_max_size(r) > 0, pools_global)
 
-            @test !any(AMDGPU.pool_runtime_alloc_allowed, pools_group)
+            @test !any(Runtime.pool_runtime_alloc_allowed, pools_group)
 
-            for pool in filter(AMDGPU.pool_runtime_alloc_allowed, pools)
+            for pool in filter(Runtime.pool_runtime_alloc_allowed, pools)
                 buf = Mem.alloc(agent, pool, 8)
                 @test buf.ptr != C_NULL
                 @test buf.pool_alloc

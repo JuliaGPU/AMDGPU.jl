@@ -63,11 +63,11 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     dims::Dims{N}
     offset::Int
 
-    syncstate::SyncState
+    syncstate::Runtime.SyncState
 
     function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        xs = new{T,N}(buf, own, dims, offset, SyncState())
+        xs = new{T,N}(buf, own, dims, offset, Runtime.SyncState())
         if own
             hsaref!()
         end
@@ -91,12 +91,12 @@ wait!(xs::Vector{<:ROCArray}) = foreach(wait!, xs)
 mark!(xs::Vector{<:ROCArray}, s) = foreach(x->mark!(x,s), xs)
 wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(wait!, xs)
 mark!(xs::NTuple{N,<:ROCArray} where N, s) = foreach(x->mark!(x,s), xs)
-function Adapt.adapt_storage(::WaitAdaptor, x::ROCArray)
-    wait!(x.syncstate)
+function Adapt.adapt_storage(::Runtime.WaitAdaptor, x::ROCArray)
+    Runtime.wait!(x.syncstate)
     x
 end
-function Adapt.adapt_storage(ma::MarkAdaptor, x::ROCArray)
-    mark!(x.syncstate, ma.s)
+function Adapt.adapt_storage(ma::Runtime.MarkAdaptor, x::ROCArray)
+    Runtime.mark!(x.syncstate, ma.s)
     x
 end
 
@@ -220,7 +220,7 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
-function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; agent=get_default_agent()) where {T,N}
+function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; agent=default_device()) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
     device_ptr = Mem.lock(ptr, sz, agent)
@@ -336,7 +336,7 @@ function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) w
     ptr = Base.unsafe_convert(Ptr{T}, a.buf)
     ROCDeviceArray{T,N,AS.Global}(a.dims, AMDGPU.LLVMPtr{T,AS.Global}(ptr+a.offset))
 end
-Adapt.adapt_storage(::AMDGPU.Adaptor, x::ROCArray{T,N}) where {T,N} =
+Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
 
 

@@ -9,7 +9,7 @@ RA = ROCArray(rand(UInt64, 1))
 
 ev = @roc completion_signal_kernel(RA)
 wait(ev)
-@test collect(RA)[1] == ev.event.signal.signal[].handle
+@test collect(RA)[1] == ev.signal.signal[].handle
 
 function exec_ctl_kernel(X)
     AMDGPU.sendmsg(5)

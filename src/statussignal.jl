@@ -1,12 +1,12 @@
 "Tracks the completion and status of a kernel's execution."
 mutable struct HSAStatusSignal
     signal::HSASignal
-    exe::HSAExecutable
     queue::HSAQueue
+    exe::HSAExecutable
     done::Base.Event
     exception::Union{Exception,Nothing}
-    function HSAStatusSignal(signal::HSASignal, exe::HSAExecutable, queue::HSAQueue; kwargs...)
-        signal = new(signal, exe, queue, Base.Event(), nothing)
+    function HSAStatusSignal(signal::HSASignal, queue::HSAQueue, exe::HSAExecutable; kwargs...)
+        signal = new(signal, queue, exe, Base.Event(), nothing)
         @async try
             _wait(signal; kwargs...) # the real waiter
         catch err
@@ -22,6 +22,25 @@ function Base.show(io::IO, signal::HSAStatusSignal)
     print(io, "HSAStatusSignal(signal=$(signal.signal), done=$(signal.done.set)$(ex !== nothing ? ", exception=$ex" : ""))")
 end
 
+## exception type
+
+struct KernelException <: Exception
+    agent::HSAAgent
+    exstr::Union{String,Nothing}
+end
+KernelException(agent::HSAAgent, exstr=nothing) = KernelException(RuntimeDevice(agent), exstr)
+
+function Base.showerror(io::IO, err::KernelException)
+    print(io, "KernelException: exception(s) thrown during kernel execution on device $(err.agent)")
+    if err.exstr !== nothing
+        println(io, ":")
+        print(io, err.exstr)
+    end
+end
+
+"The set of active kernels signals for each queue"
+const _active_kernels = IdDict{HSAQueue,Vector{HSAStatusSignal}}()
+
 function Base.wait(signal::HSAStatusSignal)
     wait(signal.done)
     ex = signal.exception
@@ -30,7 +49,14 @@ function Base.wait(signal::HSAStatusSignal)
     end
 end
 function _wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true, kwargs...)
-    wait(signal.signal; kwargs...) # wait for completion signal
+    try
+        wait(signal.signal; kwargs...) # wait for completion signal
+    catch err
+        if err isa SignalTimeoutException && SIGNAL_TIMEOUT_KILL_QUEUE[]
+            kill_queue!(signal.queue)
+        end
+        rethrow(err)
+    end
     unpreserve!(signal) # allow kernel-associated objects to be freed
     exe = signal.exe::HSAExecutable{Mem.Buffer}
     mod = EXE_TO_MODULE_MAP[exe].value
@@ -47,15 +73,15 @@ function _wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true, kwa
             if check_exceptions && haskey(exe.globals, :__global_exception_ring)
                 # Check for and collect any exceptions, and clear their slots
                 ex_ring = get_global(exe, :__global_exception_ring)
-                ex_ring_ptr_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, ex_ring)
+                ex_ring_ptr_ptr = Base.unsafe_convert(Ptr{Ptr{AMDGPU.ExceptionEntry}}, ex_ring)
                 ex_ring_ptr = unsafe_load(ex_ring_ptr_ptr)
                 while (ex_ring_value = unsafe_load(ex_ring_ptr)).kern != 1
                     if ex_ring_value.kern == signal_handle
                         push!(ex_strings, unsafe_string(reinterpret(Ptr{UInt8}, ex_ring_value.ptr)))
                         # FIXME: Write rest of entry first, then CAS 0 to kern field
-                        unsafe_store!(ex_ring_ptr, ExceptionEntry(UInt64(0), LLVMPtr{UInt8,1}(0)))
+                        unsafe_store!(ex_ring_ptr, AMDGPU.ExceptionEntry(UInt64(0), Core.LLVMPtr{UInt8,1}(0)))
                     end
-                    ex_ring_ptr += sizeof(ExceptionEntry)
+                    ex_ring_ptr += sizeof(AMDGPU.ExceptionEntry)
                 end
             end
             unique!(ex_strings)
@@ -84,5 +110,3 @@ function _wait(signal::HSAStatusSignal; check_exceptions=true, cleanup=true, kwa
     notify(signal.done)
 end
 Base.notify(signal::HSAStatusSignal) = notify(signal.signal)
-barrier_and!(queue, signals::Vector{HSAStatusSignal}) = barrier_and!(queue, map(x->x.signal,signals))
-barrier_or!(queue, signals::Vector{HSAStatusSignal}) = barrier_or!(queue, map(x->x.signal,signals))
