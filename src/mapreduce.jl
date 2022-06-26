@@ -84,7 +84,7 @@ end
 
 ## COV_EXCL_STOP
 
-function GPUArrays.mapreducedim!(f::F, op::OP, R::ROCArray{T},
+function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
                                  A::Union{AbstractArray,Broadcast.Broadcasted};
                                  init=nothing) where {F, OP, T}
     Base.check_reducedims(R, A)
@@ -130,7 +130,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::ROCArray{T},
     # so that we can span the entire reduction dimension using a single item group.
 
     # group size is restricted by local memory
-    agent = R.buf.agent
+    agent = get_default_agent()
     pools = filter(pool->pool_segment(pool) == HSA.AMD_SEGMENT_GROUP, memory_pools(agent))
     max_items = if !isempty(pools)
         pool = first(pools)
