@@ -363,15 +363,17 @@ function main()
         config[:libhip_path] = libhip_path
         config[:hip_configured] = true
 
-        ### Find external HIP-based libraries
-        for name in ("rocblas", "rocsolver", "rocsparse", "rocalution", "rocfft", "MIOpen")
-            lib = Symbol("lib$(lowercase(name))")
-            path = find_rocm_library("lib$name", roc_dirs)
-            if !isempty(something(path, ""))
-                config[lib] = path
-            else
-                build_warning("Could not find library '$name'")
-                # TODO: Save build reason?
+        if !use_artifacts
+            ### Find external HIP-based libraries
+            for name in ("rocblas", "rocsolver", "rocsparse", "rocalution", "rocfft", "MIOpen")
+                lib = Symbol("lib$(lowercase(name))")
+                path = find_rocm_library("lib$name", roc_dirs)
+                if !isempty(something(path, ""))
+                    config[lib] = path
+                else
+                    build_warning("Could not find library '$name'")
+                    # TODO: Save build reason?
+                end
             end
         end
         lib = :librocrand
