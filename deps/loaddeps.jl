@@ -36,7 +36,7 @@ if use_artifacts
         using hsa_rocr_jll
     end
     if lld_configured
-        using LLVM_jll
+        using LLD_jll
     end
     if hip_configured
         using HIP_jll
