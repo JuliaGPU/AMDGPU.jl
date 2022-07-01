@@ -279,23 +279,23 @@ function main()
     ld_path = nothing
     if use_artifacts
         try
-            @eval using LLVM_jll
+            @eval using LLD_jll
         catch err
             iob = IOBuffer()
-            println(iob, "`using LLVM_jll` failed:")
+            println(iob, "`using LLD_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:lld_build_reason] = String(take!(iob))
         end
-        if @invokelatest(LLVM_jll.is_available())
-            if isdefined(LLVM_jll, :lld_path)
-                ld_path = LLVM_jll.lld_path
+        if (Base.libllvm_version < v"14" && @invokelatest(LLD_jll.LLVM_jll.is_available())) || @invokelatest(LLD_jll.is_available())
+            if isdefined(LLD_jll, :lld_path)
+                ld_path = LLD_jll.lld_path
                 config[:lld_artifact] = true
             else
-                config[:lld_build_reason] = "LLVM_jll does not export lld_path"
+                config[:lld_build_reason] = "LLD_jll does not export lld_path"
             end
         else
-            config[:lld_build_reason] = "LLVM_jll is not available on this platform"
+            config[:lld_build_reason] = "LLD_jll is not available on this platform"
         end
     else
         ld_path = find_ld_lld()
