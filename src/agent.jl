@@ -111,10 +111,9 @@ device!(idx::Integer, kind::Symbol=:gpu) = set_default_agent!(get_agents(kind)[i
 function get_name(agent::HSAAgent)
     #len = Ref(0)
     #hsa_agent_get_info(agent.agent, HSA.AGENT_INFO_NAME_LENGTH, len) |> check
-    #FIXME: this could be better? 
     name = Vector{UInt8}(undef, 64)
     getinfo(agent.agent, HSA.AGENT_INFO_NAME, name) |> check
-    return rstrip(String(name), '\0')
+    return GC.@preserve name unsafe_string(pointer(name))
 end
 
 """
