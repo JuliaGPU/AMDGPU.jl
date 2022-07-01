@@ -36,7 +36,11 @@ if use_artifacts
         using hsa_rocr_jll
     end
     if lld_configured
-        using LLVM_jll
+        if Base.libllvm_version >= v"14"
+            using LLD_jll
+        else
+            using LLVM_jll
+        end
     end
     if hip_configured
         using HIP_jll

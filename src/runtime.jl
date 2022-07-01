@@ -35,7 +35,11 @@ function create_executable(::typeof(HSA_rt), device, entry, obj; globals=())
         flush(io_o)
         path_exe = path_o*".exe"
         if lld_artifact
-            run(`$(LLVM_jll.lld()) -flavor gnu -shared -o $path_exe $path_o`)
+            if Base.libllvm_version >= v"14"
+                run(`$(LLD_jll.lld()) -flavor gnu -shared -o $path_exe $path_o`)
+            else
+                run(`$(LLVM_jll.lld()) -flavor gnu -shared -o $path_exe $path_o`)
+            end
         else
             run(`$ld_lld_path -shared -o $path_exe $path_o`)
         end
