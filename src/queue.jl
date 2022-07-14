@@ -104,7 +104,7 @@ end
 
 "Kills all kernels executing on the given queue, and destroys the queue."
 function kill_queue!(queue::HSAQueue; force=false)
-    if !force && !replacefield!(queue, :active, true, false, :acquire_release).success
+    if !force && !replacefield!(queue, :active, true, false, :acquire_release, :acquire).success
         return false # We didn't destroy the queue
     end
     @atomic queue.active = false
