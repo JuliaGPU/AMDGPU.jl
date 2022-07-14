@@ -51,6 +51,9 @@ end
 
         @roc kernel(RA, RB, hc)
         sleep(1)
+        # Don't automatically sync on signal
+        empty!(RA.syncstate.signals)
+        empty!(RB.syncstate.signals)
 
         @test Array(RB)[1] == 0f0
         @test dref[] == false
