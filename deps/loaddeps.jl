@@ -30,7 +30,6 @@ end
 
 # HSA runtime and ROCm External Libraries
 ## copied from CUDAdrv/src/CUDAdrv.jl
-const use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
 if use_artifacts
     if hsa_configured
         using hsa_rocr_jll

@@ -171,6 +171,7 @@ end
 function main()
     ispath(config_path) && mv(config_path, previous_config_path; force=true)
     config = Dict{Symbol,Any}(
+        :use_artifacts => use_artifacts,
         :configured => false,
         :build_reason => "unknown",
         :lld_configured => false,
