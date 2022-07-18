@@ -261,7 +261,7 @@ Adapt.adapt_storage(::BackToCPU, xs::ROCArray) = convert(Array, xs)
     @boundscheck begin
         # Base's boundscheck accesses the indices, so make sure they reside on the CPU.
         # this is expensive, but it's a bounds check after all.
-        J_cpu = map(j->adapt(BackToCPU, j), J)
+        J_cpu = map(j->adapt(BackToCPU(), j), J)
         checkbounds(A, J_cpu...)
     end
     J_gpu = map(j->adapt(ROCArray, j), J)
