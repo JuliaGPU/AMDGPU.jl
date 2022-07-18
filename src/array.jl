@@ -257,12 +257,18 @@ rocviewlength() = ()
 @inline rocviewlength(i1::AbstractUnitRange, I...) = (length(i1), rocviewlength(I...)...)
 @inline rocviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (length(i1),)
 
+# We don't really want an array, so don't call `adapt(Array, ...)`,
+# but just want ROCArray indices to get downloaded back to the CPU.
+# this makes sure we preserve array-like containers, like Base.Slice.
+struct BackToCPU end
+Adapt.adapt_storage(::BackToCPU, xs::ROCArray) = convert(Array, xs)
+
 @inline function Base.view(A::ROCArray, I::Vararg{Any,N}) where {N}
     J = to_indices(A, I)
     @boundscheck begin
         # Base's boundscheck accesses the indices, so make sure they reside on the CPU.
         # this is expensive, but it's a bounds check after all.
-        J_cpu = map(j->adapt(Array, j), J)
+        J_cpu = map(j->adapt(BackToCPU, j), J)
         checkbounds(A, J_cpu...)
     end
     J_gpu = map(j->adapt(ROCArray, j), J)
