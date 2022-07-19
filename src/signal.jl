@@ -11,9 +11,9 @@ function HSASignal(init::Integer=1; interrupt=true, ipc=true)
         if ipc
             attrs |= HSA.AMD_SIGNAL_IPC
         end
-        HSA.amd_signal_create(Int64(init), 0, C_NULL, attrs, signal.signal)
+        HSA.amd_signal_create(Int64(init), 0, C_NULL, attrs, signal.signal) |> check
     else
-        HSA.signal_create(Int64(init), 0, C_NULL, signal.signal)
+        HSA.signal_create(Int64(init), 0, C_NULL, signal.signal) |> check
     end
     AMDGPU.hsaref!()
     finalizer(signal) do signal
@@ -23,6 +23,9 @@ function HSASignal(init::Integer=1; interrupt=true, ipc=true)
     return signal
 end
 HSASignal(signal::HSA.Signal) = HSASignal(Ref(signal))
+
+Base.show(io::IO, signal::HSASignal) =
+    print(io, "HSASignal($(signal.signal[]))")
 
 Adapt.adapt_structure(::Adaptor, sig::HSASignal) = sig.signal[]
 
