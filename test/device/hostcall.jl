@@ -41,20 +41,18 @@ end
 
     dref = Ref{Bool}(false)
 
-    # This should throw an exception and the error message should be logged.
-    @test_logs (:error, "Hostcall error") begin
+    # This should throw an exception and the error message should be logged
+    @test_logs (:error, "HostCall error") begin
         hc, hc_task = HostCall(Nothing, Tuple{}; return_task=true) do
             error("Some error")
             dref[] = true
             nothing
         end
 
-        @roc kernel(RA, RB, hc)
+        @test_throws Runtime.KernelException wait(@roc kernel(RA, RB, hc))
         sleep(1)
-        # Don't automatically sync on signal
-        empty!(RA.syncstate.signals)
-        empty!(RB.syncstate.signals)
 
+        empty!(RB.syncstate.signals)
         @test Array(RB)[1] == 0f0
         @test dref[] == false
         @test Base.istaskfailed(hc_task)
@@ -243,9 +241,8 @@ end
         arg1 + 1f0
     end
 
-    # FIXME: wait() hangs here, probably race condition?
-    @roc kernel(RA, RB, hc)
-    @roc kernel(RA, RB, hc)
+    wait(@roc kernel(RA, RB, hc))
+    wait(@roc kernel(RA, RB, hc))
 
     sleep(1)
     @test Array(RB)[1] == 5f0

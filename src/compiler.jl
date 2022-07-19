@@ -7,29 +7,34 @@ function emit_exception_user!(mod::LLVM.Module)
     # add a fake user for __ockl_hsa_signal_store and __ockl_hsa_signal_load
     if !haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
         ctx = LLVM.context(mod)
-        #Context() do ctx
-            ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-            fn = LLVM.Function(mod, "__fake_global_exception_flag_user", ft)
-            Builder(ctx) do builder
-                entry = BasicBlock(fn, "entry"; ctx)
-                position!(builder, entry)
-                T_nothing = LLVM.VoidType(ctx)
-                T_i32 = LLVM.Int32Type(ctx)
-                T_i64 = LLVM.Int64Type(ctx)
-                T_signal_store = LLVM.FunctionType(T_nothing, [T_i64, T_i64, T_i32])
-                signal_store = LLVM.Function(mod, "__ockl_hsa_signal_store", T_signal_store)
-                call!(builder, signal_store, [ConstantInt(0; ctx),
-                                              ConstantInt(0; ctx),
-                                              # __ATOMIC_RELEASE == 3
-                                              ConstantInt(Int32(3); ctx)])
-                T_signal_load = LLVM.FunctionType(T_i64, [T_i64, T_i32])
-                signal_load = LLVM.Function(mod, "__ockl_hsa_signal_load", T_signal_load)
-                loaded_value = call!(builder, signal_load, [ConstantInt(0; ctx),
-                                                            # __ATOMIC_ACQUIRE == 2
-                                                            ConstantInt(Int32(2); ctx)])
-                ret!(builder)
-            end
-        #end
+        ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+        fn = LLVM.Function(mod, "__fake_global_exception_flag_user", ft)
+        Builder(ctx) do builder
+            entry = BasicBlock(fn, "entry"; ctx)
+            position!(builder, entry)
+            T_nothing = LLVM.VoidType(ctx)
+            T_i32 = LLVM.Int32Type(ctx)
+            T_i64 = LLVM.Int64Type(ctx)
+            T_signal_store = LLVM.FunctionType(T_nothing, [T_i64, T_i64, T_i32])
+            signal_store = LLVM.Function(mod, "__ockl_hsa_signal_store", T_signal_store)
+            call!(builder, signal_store, [ConstantInt(0; ctx),
+                                          ConstantInt(0; ctx),
+                                          # __ATOMIC_RELEASE == 3
+                                          ConstantInt(Int32(3); ctx)])
+            T_signal_load = LLVM.FunctionType(T_i64, [T_i64, T_i32])
+            signal_load = LLVM.Function(mod, "__ockl_hsa_signal_load", T_signal_load)
+            loaded_value = call!(builder, signal_load, [ConstantInt(0; ctx),
+                                                        # __ATOMIC_ACQUIRE == 2
+                                                        ConstantInt(Int32(2); ctx)])
+            T_signal_cas = LLVM.FunctionType(T_i64, [T_i64, T_i64, T_i64, T_i32])
+            signal_cas = LLVM.Function(mod, "__ockl_hsa_signal_cas", T_signal_cas)
+            loaded_value = call!(builder, signal_cas, [ConstantInt(0; ctx),
+                                                       ConstantInt(0; ctx),
+                                                       ConstantInt(0; ctx),
+                                                       # __ATOMIC_ACQ_REL == 4
+                                                       ConstantInt(Int32(4); ctx)])
+            ret!(builder)
+        end
     end
     @assert haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
 end
@@ -113,6 +118,12 @@ function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=AM
     target = GCNCompilerTarget(; dev_isa=arch, features=feat)
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
+    @debug begin
+        iob = IOBuffer()
+        Base.show_backtrace(iob, backtrace())
+        seek(iob, 0)
+        "Compiling $f ($tt)\n$(String(take!(iob)))"
+    end
     GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::Runtime.HostKernel{typeof(f),tt}
 end
 
@@ -183,7 +194,7 @@ default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     # Return type of Int to force synchronizing behavior
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
     hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; agent=device, continuous=true, buf_len=2^16) do _
-        fmt, args = unsafe_load(reinterpret(LLVMPtr{ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
+        fmt, args = unsafe_load(reinterpret(LLVMPtr{AMDGPU.ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
         args = map(x->x isa Cstring ? unsafe_string(x) : x, args)
         @debug "@rocprintf with $fmt and $(args)"
         @eval @printf($fmt, $(args...))

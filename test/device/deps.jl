@@ -1,7 +1,7 @@
 @testset "Kernel Dependencies" begin
     function kernel(sig, waitval, A, val)
         i = workitemIdx().x
-        AMDGPU.device_signal_wait(sig, waitval)
+        AMDGPU.hostcall_device_signal_wait(sig, waitval)
         A[i] = val
         return nothing
     end
@@ -20,11 +20,11 @@
                 if i > 0
                     sleep(0.5)
                     @test Array(RA)[1] == 0.0
-                    HSA.signal_store_release(sig.signal[], 3)
+                    HSA.signal_store_screlease(sig.signal[], 3)
                     wait.(ret1)
                     @test Array(RA)[1] == 1.0
                 end
-                HSA.signal_store_release(sig.signal[], 0)
+                HSA.signal_store_screlease(sig.signal[], 0)
                 # FIXME: wait(retb)
                 wait(ret2)
                 @test Array(RA)[1] == 2.0
@@ -53,13 +53,13 @@
                     wait(ret1[1])
                     @test Array(RA)[1] == 1.0
                 end
-                HSA.signal_store_release(sig.signal[], 0)
+                HSA.signal_store_screlease(sig.signal[], 0)
                 sleep(0.5)
                 @test Array(RA)[1] == 2.0
                 wait(ret2)
                 # FIXME: wait(retb)
                 # clear waiting kernels
-                HSA.signal_store_release(sig.signal[], 7)
+                HSA.signal_store_screlease(sig.signal[], 7)
             end
         end
     end
