@@ -127,6 +127,7 @@ steps:
         println("--- :julia: Instantiating project")
         using Pkg
         Pkg.instantiate()
+        Pkg.build()
         Pkg.activate("docs")
         Pkg.instantiate()
         push!(LOAD_PATH, @__DIR__)
