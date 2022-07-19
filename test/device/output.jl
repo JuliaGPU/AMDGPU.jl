@@ -102,6 +102,18 @@ end
     @test msg == "Value: 42 | 0.1234\n"
 end
 
+@testset "Multiple workgroups" begin
+    function kernel(x)
+        gidx = workgroupIdx().x
+        @rocprintf "[%d] " gidx
+    end
+
+    _, msg = @grab_output wait(@roc groupsize=8 gridsize=64 kernel(1))
+    @test all(occursin("[$i] ", msg) for i in 1:8)
+end
+
+@test_skip "Wave serialized"
+#=
 @testset "Wave serialized" begin
     function kernel(x)
         for i in 1:workgroupDim().x
@@ -109,6 +121,7 @@ end
             if idx == i
                 @rocprintf "[%d] " idx
             end
+            sync_workgroup()
         end
         nothing
     end
@@ -116,5 +129,6 @@ end
     _, msg = @grab_output wait(@roc groupsize=8 kernel(1))
     @test msg == "[1] [2] [3] [4] [5] [6] [7] [8] "
 end
+=#
 
 end
