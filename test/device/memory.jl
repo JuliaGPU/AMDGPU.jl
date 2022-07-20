@@ -2,7 +2,7 @@
 
 function memory_static_kernel(a,b)
     # Local
-    ptr_local = alloc_local(:local, Float32, 1)
+    ptr_local = AMDGPU.Device.alloc_local(:local, Float32, 1)
     unsafe_store!(ptr_local, a[1])
     b[1] = unsafe_load(ptr_local)
 
@@ -38,9 +38,9 @@ end
 @testset "Memory: Dynamic" begin
 
 function malloc_kernel(X)
-    ptr = AMDGPU.malloc(Csize_t(4))
+    ptr = AMDGPU.Device.malloc(Csize_t(4))
     X[1] = reinterpret(UInt64, ptr)
-    AMDGPU.free(ptr)
+    AMDGPU.Device.free(ptr)
     nothing
 end
 
@@ -55,7 +55,7 @@ end
 @testset "Memcpy/Memset" begin
 
 function memcpy_kernel(X,Y)
-    AMDGPU.memcpy!(Y.ptr, X.ptr, sizeof(Float32)*length(X))
+    AMDGPU.Device.memcpy!(Y.ptr, X.ptr, sizeof(Float32)*length(X))
     nothing
 end
 
@@ -68,7 +68,7 @@ wait(@roc memcpy_kernel(RA,RB))
 @test A == collect(RA) == collect(RB)
 
 function memset_kernel(X,y)
-    AMDGPU.memset!(X.ptr, y, div(length(X),2))
+    AMDGPU.Device.memset!(X.ptr, y, div(length(X),2))
     nothing
 end
 

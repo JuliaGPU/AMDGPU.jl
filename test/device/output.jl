@@ -1,3 +1,5 @@
+import .Device: OutputContext
+
 @testset "@rocprintln" begin
 
 @testset "Plain, no newline" begin
@@ -121,7 +123,7 @@ end
             if idx == i
                 @rocprintf "[%d] " idx
             end
-            sync_workgroup()
+            Device.sync_workgroup()
         end
         nothing
     end

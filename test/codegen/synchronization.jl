@@ -1,7 +1,7 @@
 @testset "Synchronization" begin
     # TODO: Remove dummy argument
     function synckern(x)
-        sync_workgroup()
+        Device.sync_workgroup()
         nothing
     end
 

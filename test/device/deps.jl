@@ -1,7 +1,7 @@
 @testset "Kernel Dependencies" begin
     function kernel(sig, waitval, A, val)
         i = workitemIdx().x
-        AMDGPU.hostcall_device_signal_wait(sig, waitval)
+        Device.hostcall_device_signal_wait(sig, waitval)
         A[i] = val
         return nothing
     end
@@ -10,7 +10,7 @@
         for i in (0, 1, 5, 7)
             @testset "$i inputs" begin
                 RA = ROCArray(zeros(Float64, 1))
-                sig = AMDGPU.HSASignal(0)
+                sig = AMDGPU.ROCSignal(0)
 
                 ret1 = [@roc(kernel(sig, 3, RA, 1.0)) for _ in 1:i]
 
@@ -37,7 +37,7 @@
         for i in (0, 1, 5, 7)
             @testset "$i inputs" begin
                 RA = ROCArray(zeros(Float64, 1))
-                sig = AMDGPU.HSASignal(0)
+                sig = AMDGPU.ROCSignal(0)
 
                 ret1 = [@roc(kernel(sig, 7, RA, 5.0)) for _ in 1:i]
                 pushfirst!(ret1, @roc(kernel(sig, 3, RA, 1.0)))

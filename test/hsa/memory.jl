@@ -44,7 +44,7 @@
 
         # device to host
         P_Ptr = convert(Ptr{eltype(buf)}, pointer(P))
-        signal1 = HSASignal()
+        signal1 = ROCSignal()
         Mem.unsafe_copy3d!(
             buf_Ptr, P_Ptr, length(ranges[1]), length(ranges[2]), length(ranges[3]);
             dstPitch=sizeof(eltype(buf))*length(ranges[1]), dstSlice=sizeof(eltype(buf))*length(ranges[1])*length(ranges[2]),
@@ -56,7 +56,7 @@
 
         # host to device
         P2_Ptr  = convert(Ptr{eltype(buf)}, pointer(P2))
-        signal2 = HSASignal()
+        signal2 = ROCSignal()
         Mem.unsafe_copy3d!(
             P2_Ptr, buf_Ptr, length(ranges[1]), length(ranges[2]), length(ranges[3]);
             dstPos=(ranges[1][1], ranges[2][1], ranges[3][1]), dstPitch=sizeof(eltype(buf))*size(P,1), dstSlice=sizeof(eltype(buf))*size(P,1)*size(P,2),
@@ -103,18 +103,18 @@ end
 end
 
 @testset "Pointer information" begin
-    default_agent = AMDGPU.default_device()
+    default_device = AMDGPU.default_device()
 
     N = 1024
     a = rand(N)
-    b = Mem.alloc(default_agent, N)
+    b = Mem.alloc(default_device, N)
 
     ptrinfo_host = Mem.pointerinfo(a)
     ptrinfo_hsa = Mem.pointerinfo(b)
 
     @test ptrinfo_host.type == HSA.EXT_POINTER_TYPE_UNKNOWN
     @test ptrinfo_hsa.type == HSA.EXT_POINTER_TYPE_HSA
-    @test_skip ptrinfo_hsa.agentOwner.handle == default_agent.agent.handle
+    @test_skip ptrinfo_hsa.agentOwner.handle == default_device.agent.handle
 
     Mem.free(b)
 end
@@ -123,7 +123,7 @@ end
     a = rand(1024)
     plocked = Mem.lock(a)
 
-    # NOTE - For a single agent, it seems that plocked == pointer(a)
+    # NOTE - For a single device, it seems that plocked == pointer(a)
     @test Mem.pointerinfo(pointer(a)).type == HSA.EXT_POINTER_TYPE_LOCKED
     @test Mem.pointerinfo(plocked).type == HSA.EXT_POINTER_TYPE_LOCKED
     @test Mem.pointerinfo(plocked).sizeInBytes == sizeof(a)
@@ -135,8 +135,8 @@ end
 
 @testset "Memory Region Queries" begin
     @testset "Region API Queries" begin
-        for (idx, agent) in enumerate(AMDGPU.devices())
-            regions = Runtime.regions(agent)
+        for (idx, device) in enumerate(AMDGPU.devices())
+            regions = Runtime.regions(device)
             regions_global = filter(r->Runtime.region_segment(r) == HSA.REGION_SEGMENT_GLOBAL, regions)
             regions_global_coarse_nohost = filter(r->(Runtime.region_global_flags(r) & HSA.REGION_GLOBAL_FLAG_COARSE_GRAINED > 0) &&
                                                      !Runtime.region_host_accessible(r), regions)
@@ -173,7 +173,7 @@ end
             @test all(Runtime.region_host_accessible, regions_kernarg)
 
             for region in filter(Runtime.region_runtime_alloc_allowed, regions)
-                buf = Mem.alloc(agent, region, 8)
+                buf = Mem.alloc(device, region, 8)
                 @test buf.ptr != C_NULL
                 @test !buf.pool_alloc
                 Mem.free(buf)
@@ -181,8 +181,8 @@ end
         end
     end
     @testset "Memory Pool API Queries" begin
-        for agent in AMDGPU.devices()
-            pools = Runtime.memory_pools(agent)
+        for device in AMDGPU.devices()
+            pools = Runtime.memory_pools(device)
             pools_global = filter(r->Runtime.pool_segment(r) == HSA.AMD_SEGMENT_GLOBAL, pools)
             pools_group = filter(r->Runtime.pool_segment(r) == HSA.AMD_SEGMENT_GROUP, pools)
 
@@ -200,7 +200,7 @@ end
             @test !any(Runtime.pool_runtime_alloc_allowed, pools_group)
 
             for pool in filter(Runtime.pool_runtime_alloc_allowed, pools)
-                buf = Mem.alloc(agent, pool, 8)
+                buf = Mem.alloc(device, pool, 8)
                 @test buf.ptr != C_NULL
                 @test buf.pool_alloc
                 Mem.free(buf)

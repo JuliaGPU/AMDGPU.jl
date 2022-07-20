@@ -1,7 +1,7 @@
 @testset "Globals" begin
 
 function kernel(X)
-    ptr = AMDGPU.get_global_pointer(Val(:myglobal), Float32)
+    ptr = Device.get_global_pointer(Val(:myglobal), Float32)
     Base.unsafe_store!(ptr, 3f0)
     nothing
 end

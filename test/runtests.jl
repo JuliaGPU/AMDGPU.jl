@@ -1,5 +1,5 @@
 using AMDGPU
-using AMDGPU: Runtime, Mem, HSA, AS
+using AMDGPU: Runtime, Mem, Device, HSA, AS
 if AMDGPU.functional(:hip)
     using AMDGPU: HIP
 end
@@ -28,8 +28,8 @@ allowscalar(false)
 
 CI = parse(Bool, get(ENV, "CI", "false"))
 
-AMDGPU.Runtime.DEFAULT_SIGNAL_TIMEOUT[] = 15.0
-AMDGPU.DEFAULT_HOSTCALL_TIMEOUT[] = 15.0
+Runtime.DEFAULT_SIGNAL_TIMEOUT[] = 15.0
+Device.DEFAULT_HOSTCALL_TIMEOUT[] = 15.0
 
 @testset "AMDGPU" begin
 
@@ -44,7 +44,7 @@ end
     @test length(AMDGPU.devices()) > 0
     @info "Testing using device $(AMDGPU.default_device())"
 
-    include("hsa/agent.jl")
+    include("hsa/device.jl")
     include("hsa/memory.jl")
 end
 @testset "Codegen" begin

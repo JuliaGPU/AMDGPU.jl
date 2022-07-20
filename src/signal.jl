@@ -1,11 +1,11 @@
 # Utilities for working with HSA signals
 
-mutable struct HSASignal
+mutable struct ROCSignal
     signal::Ref{HSA.Signal}
 end
 
-function HSASignal(init::Integer=1; interrupt=true, ipc=true)
-    signal = HSASignal(Ref{HSA.Signal}())
+function ROCSignal(init::Integer=1; interrupt=true, ipc=true)
+    signal = ROCSignal(Ref{HSA.Signal}())
     if interrupt || ipc
         attrs = UInt32(0)
         if ipc
@@ -22,31 +22,31 @@ function HSASignal(init::Integer=1; interrupt=true, ipc=true)
     end
     return signal
 end
-HSASignal(signal::HSA.Signal) = HSASignal(Ref(signal))
+ROCSignal(signal::HSA.Signal) = ROCSignal(Ref(signal))
 
-Base.show(io::IO, signal::HSASignal) =
-    print(io, "HSASignal($(signal.signal[]))")
+Base.show(io::IO, signal::ROCSignal) =
+    print(io, "ROCSignal($(signal.signal[]))")
 
-Adapt.adapt_structure(::Adaptor, sig::HSASignal) = sig.signal[]
+Adapt.adapt_structure(::Adaptor, sig::ROCSignal) = sig.signal[]
 
 const DEFAULT_SIGNAL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
 const SIGNAL_TIMEOUT_KILL_QUEUE = Ref{Bool}(true)
 
 struct SignalTimeoutException <: Exception
-    signal::HSASignal
+    signal::ROCSignal
 end
 
 """
-    Base.wait(signal::HSASignal; soft=true, minlat=0.000001, timeout=DEFAULT_SIGNAL_TIMEOUT[])
+    Base.wait(signal::ROCSignal; soft=true, minlat=0.000001, timeout=DEFAULT_SIGNAL_TIMEOUT[])
 
-Waits on an `HSASignal` to decrease below 1. If `soft=true` (default), uses
+Waits on an `ROCSignal` to decrease below 1. If `soft=true` (default), uses
 sleep polling; otherwise uses HSA's signal waiter. `minlat` sets the minimum
 latency for the software waiter; lower values can decrease latency at the cost
 of increased polling load. `timeout`, if not `nothing`, sets the timeout for
 software waiting, after which the call will error with a
 `SignalTimeoutException`.
 """
-function Base.wait(signal::HSASignal; soft=true, minlat=0.000001, timeout=DEFAULT_SIGNAL_TIMEOUT[])
+function Base.wait(signal::ROCSignal; soft=true, minlat=0.000001, timeout=DEFAULT_SIGNAL_TIMEOUT[])
     if soft
         start_time = time_ns()
         while true
@@ -74,6 +74,6 @@ function Base.wait(signal::HSASignal; soft=true, minlat=0.000001, timeout=DEFAUL
                                 HSA.WAIT_STATE_BLOCKED)
     end
 end
-Base.wait(signal::HSA.Signal; kwargs...) = wait(HSASignal(signal); kwargs...)
+Base.wait(signal::HSA.Signal; kwargs...) = wait(ROCSignal(signal); kwargs...)
 
-Base.notify(signal::HSASignal) = HSA.signal_store_screlease(signal.signal[], 0)
+Base.notify(signal::ROCSignal) = HSA.signal_store_screlease(signal.signal[], 0)

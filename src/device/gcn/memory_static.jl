@@ -1,5 +1,3 @@
-export alloc_special, alloc_local
-
 "Allocates on-device memory statically from the specified address space."
 @generated function alloc_special(::Val{id}, ::Type{T}, ::Val{as}, ::Val{len}) where {id,T,as,len}
     Context() do ctx

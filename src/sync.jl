@@ -2,10 +2,10 @@ import ..AMDGPU: hip_configured
 
 "Tracks HSA signals and HIP streams to sync against."
 struct SyncState
-    signals::Vector{HSAStatusSignal}
+    signals::Vector{ROCKernelSignal}
     streams::Vector{Ptr{Cvoid}}
 end
-SyncState() = SyncState(HSAStatusSignal[], Ptr{Cvoid}[])
+SyncState() = SyncState(ROCKernelSignal[], Ptr{Cvoid}[])
 
 struct WaitAdaptor end
 struct MarkAdaptor{S}
@@ -23,7 +23,7 @@ function wait!(ss::SyncState)
     end
     nothing
 end
-mark!(ss::SyncState, signal::HSAStatusSignal) = push!(ss.signals, signal)
+mark!(ss::SyncState, signal::ROCKernelSignal) = push!(ss.signals, signal)
 mark!(ss::SyncState, stream::Ptr{Cvoid}) = push!(ss.streams, stream)
 
 wait!(x) = Adapt.adapt(WaitAdaptor(), x)

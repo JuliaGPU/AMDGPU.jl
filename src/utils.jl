@@ -50,9 +50,9 @@ function versioninfo(io::IO=stdout)
     end
 
     if functional(:hsa)
-        println("HSA Agents ($(length(Runtime.agents()))):")
-        for agent in Runtime.agents()
-            println("- ", repr(agent))
+        println("HSA Agents ($(length(Runtime.devices()))):")
+        for device in Runtime.devices()
+            println("- ", repr(device))
         end
     end
 end

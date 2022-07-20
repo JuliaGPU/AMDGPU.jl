@@ -2,23 +2,23 @@
 
 """
 An HSA queue.
-Each queue is uniquely associated with an agent.
+Each queue is uniquely associated with an device.
 """
-mutable struct HSAQueue
-    agent::HSAAgent
+mutable struct ROCQueue
+    device::ROCDevice
     queue::Ptr{HSA.Queue}
     status::HSA.Status
     cond::Base.AsyncCondition
     @atomic active::Bool
 end
 const QUEUES = Dict{Ptr{HSA.Queue},WeakRef}()
-const DEFAULT_QUEUES = IdDict{HSAAgent,HSAQueue}()
+const DEFAULT_QUEUES = IdDict{ROCDevice,ROCQueue}()
 
 async_send(data::Ptr{Cvoid}) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), data)
 
 function queue_error_handler(status::HSA.Status, _queue::Ptr{HSA.Queue}, queue_obj_ptr::Ptr{Cvoid})::Nothing
     if status != HSA.STATUS_SUCCESS
-        queue = unsafe_pointer_to_objref(queue_obj_ptr)::HSAQueue
+        queue = unsafe_pointer_to_objref(queue_obj_ptr)::ROCQueue
         queue.status = status
         async_send(queue.cond.handle)
     end
@@ -26,18 +26,18 @@ function queue_error_handler(status::HSA.Status, _queue::Ptr{HSA.Queue}, queue_o
     return nothing
 end
 
-function HSAQueue(agent::HSAAgent)
+function ROCQueue(device::ROCDevice)
     queue_size = Ref{UInt32}(0)
-    getinfo(agent.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
+    getinfo(device.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
     @assert queue_size[] > 0
     queue_type = Ref{HSA.QueueType}()
-    getinfo(agent.agent, HSA.AGENT_INFO_QUEUE_TYPE, queue_type) |> check
+    getinfo(device.agent, HSA.AGENT_INFO_QUEUE_TYPE, queue_type) |> check
     @assert queue_type[] == HSA.QUEUE_TYPE_MULTI
 
     r_queue = Ref{Ptr{HSA.Queue}}()
     async_cond = Base.AsyncCondition()
-    queue = HSAQueue(agent, Ptr{HSA.Queue}(0), HSA.STATUS_SUCCESS, async_cond, true)
-    HSA.queue_create(agent.agent, queue_size[], HSA.QUEUE_TYPE_MULTI,
+    queue = ROCQueue(device, Ptr{HSA.Queue}(0), HSA.STATUS_SUCCESS, async_cond, true)
+    HSA.queue_create(device.agent, queue_size[], HSA.QUEUE_TYPE_MULTI,
                      @cfunction(queue_error_handler, Cvoid, (HSA.Status, Ptr{HSA.Queue}, Ptr{Cvoid})), pointer_from_objref(queue),
                      typemax(UInt32), typemax(UInt32), r_queue) |> check
     queue.queue = r_queue[]
@@ -45,7 +45,7 @@ function HSAQueue(agent::HSAAgent)
     lock(RT_LOCK) do
         @assert !haskey(QUEUES, queue.queue)
         QUEUES[queue.queue] = WeakRef(queue)
-        _active_kernels[queue] = Vector{AMDGPU.HSAStatusSignal}()
+        _active_kernels[queue] = Vector{AMDGPU.ROCKernelSignal}()
     end
 
     # Monitor queue for async errors
@@ -79,7 +79,7 @@ function HSAQueue(agent::HSAAgent)
     end
     return queue
 end
-HSAQueue() = HSAQueue(get_default_agent())
+ROCQueue() = ROCQueue(get_default_device())
 
 struct QueueError <: Exception
     queue::Ptr{HSA.Queue}
@@ -88,19 +88,19 @@ end
 Base.showerror(io::IO, err::QueueError) =
     (println(io, "QueueError(Queue at $(err.queue)) due to:"); Base.showerror(io, err.err))
 
-get_default_queue() = get_default_queue(get_default_agent())
+get_default_queue() = get_default_queue(get_default_device())
 
-"Gets the default queue for an agent, creating it if necessary"
-function get_default_queue(agent::HSAAgent)
+"Gets the default queue for an device, creating it if necessary"
+function get_default_queue(device::ROCDevice)
     lock(RT_LOCK) do
-        get!(DEFAULT_QUEUES, agent) do
-            HSAQueue(agent)
+        get!(DEFAULT_QUEUES, device) do
+            ROCQueue(device)
         end
     end
 end
 
 "Kills all kernels executing on the given queue, and destroys the queue."
-function kill_queue!(queue::HSAQueue; force=false)
+function kill_queue!(queue::ROCQueue; force=false)
     if !force && !replacefield!(queue, :active, true, false, :acquire_release, :acquire).success
         return false # We didn't destroy the queue
     end
@@ -108,8 +108,8 @@ function kill_queue!(queue::HSAQueue; force=false)
 
     lock(RT_LOCK) do
         delete!(QUEUES, queue.queue)
-        if get(DEFAULT_QUEUES, queue.agent, nothing) == queue
-            delete!(DEFAULT_QUEUES, queue.agent)
+        if get(DEFAULT_QUEUES, queue.device, nothing) == queue
+            delete!(DEFAULT_QUEUES, queue.device)
         end
         close(queue.cond)
 
