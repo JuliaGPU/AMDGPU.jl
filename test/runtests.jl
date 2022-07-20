@@ -37,16 +37,13 @@ AMDGPU.DEFAULT_HOSTCALL_TIMEOUT[] = 15.0
 include("pointer.jl")
 end
 
-@test AMDGPU.functional()
-@assert AMDGPU.functional()
-
-@test length(AMDGPU.devices()) > 0
-
-@info "Testing using device $(AMDGPU.default_device())"
-
 @testset "HSA" begin
     include("hsa/error.jl")
     include("hsa/utils.jl")
+
+    @test length(AMDGPU.devices()) > 0
+    @info "Testing using device $(AMDGPU.default_device())"
+
     include("hsa/agent.jl")
     include("hsa/memory.jl")
 end
