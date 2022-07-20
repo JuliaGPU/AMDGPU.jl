@@ -7,4 +7,9 @@
     @testset "has_rocm_gpu" begin
         @test AMDGPU.has_rocm_gpu()
     end
+
+    @testset "functional" begin
+        @test AMDGPU.functional()
+        # TODO: Test each sub-query
+    end
 end
