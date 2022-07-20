@@ -4,6 +4,6 @@
 end
 
 @testset "HSA Async Queue Error" begin
-    kernel() = (AMDGPU.trap(); nothing)
+    kernel() = (Device.trap(); nothing)
     @test_throws Runtime.QueueError wait(@roc kernel())
 end

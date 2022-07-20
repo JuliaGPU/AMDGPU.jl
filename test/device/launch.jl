@@ -35,9 +35,7 @@
     eval(:(@roc device=$device $kernel()))
     eval(:(@roc device=$device queue=$queue $kernel()))
     eval(:(@roc queue=$queue $kernel()))
-    eval(:(@roc agent=$device $kernel()))
     eval(:(@roc stream=$queue $kernel()))
-    eval(:(@roc agent=$device queue=$queue $kernel()))
 
     # Group size validity
     @test_throws ArgumentError eval(:(@roc groupsize=0 $kernel()))
@@ -45,7 +43,7 @@
     @test_throws ArgumentError eval(:(@roc groupsize=1025 $kernel()))
 
     # No-launch
-    @test eval(:(@roc launch=true $kernel())) isa AMDGPU.HSAStatusSignal
+    @test eval(:(@roc launch=true $kernel())) isa AMDGPU.ROCKernelSignal
     @test eval(:(@roc launch=false $kernel())) isa Runtime.HostKernel
     @test_throws Exception eval(:(@roc launch=1 $kernel())) # TODO: ArgumentError
 end
@@ -76,7 +74,7 @@ end
 end
 
 @testset "Custom signal" begin
-    sig = HSASignal()
+    sig = ROCSignal()
     sig2 = @roc signal=sig identity(nothing)
     @test sig2.signal == sig
     wait(sig)
@@ -85,7 +83,7 @@ end
 
 if length(AMDGPU.devices()) > 1
     @testset "Multi-GPU" begin
-        # HSA will throw if the compiler and launch use different agents
+        # HSA will throw if the compiler and launch use different devices
         a1, a2 = AMDGPU.devices()[1:2]
         wait(@roc device=a1 identity(nothing))
         wait(@roc device=a2 identity(nothing))

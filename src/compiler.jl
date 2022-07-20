@@ -1,6 +1,6 @@
 ## exception codegen
 
-import AMDGPU: ExceptionEntry, HostCall
+import .Device: ExceptionEntry, HostCall
 
 # emit a global variable for storing the current exception status
 function emit_exception_user!(mod::LLVM.Module)
@@ -49,7 +49,7 @@ end
 ## GPUCompiler interface
 
 struct ROCCompilerParams <: AbstractCompilerParams
-    device::HSAAgent
+    device::ROCDevice
     global_hooks::NamedTuple
 end
 
@@ -127,7 +127,7 @@ function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=AM
     GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::Runtime.HostKernel{typeof(f),tt}
 end
 
-const rocfunction_cache = Dict{HSAAgent,Dict{UInt,Any}}()
+const rocfunction_cache = Dict{ROCDevice,Dict{UInt,Any}}()
 
 # compile to GCN
 function rocfunction_compile(@nospecialize(job::CompilerJob))
@@ -185,16 +185,16 @@ const default_global_hooks = Dict{Symbol,Function}()
 
 default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
     # initialize global output context
-    gbl_ptr = Base.unsafe_convert(Ptr{AMDGPU.GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
-    oc = AMDGPU.OutputContext(stdout)
+    gbl_ptr = Base.unsafe_convert(Ptr{AMDGPU.Device.GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
+    oc = Device.OutputContext(stdout)
     Base.unsafe_store!(gbl_ptr, oc)
 end
 default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     # initialize global printf context
     # Return type of Int to force synchronizing behavior
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
-    hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; agent=device, continuous=true, buf_len=2^16) do _
-        fmt, args = unsafe_load(reinterpret(LLVMPtr{AMDGPU.ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
+    hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; device=device, continuous=true, buf_len=2^16) do _
+        fmt, args = unsafe_load(reinterpret(LLVMPtr{AMDGPU.Device.ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
         args = map(x->x isa Cstring ? unsafe_string(x) : x, args)
         @debug "@rocprintf with $fmt and $(args)"
         @eval @printf($fmt, $(args...))
@@ -223,7 +223,7 @@ end
 default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
     # initialize malloc hostcall
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Ptr{Cvoid},Tuple{UInt64,Csize_t}}}, gbl)
-    hc = HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; agent=device, continuous=true) do kern, sz
+    hc = HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; device=device, continuous=true) do kern, sz
         buf = Mem.alloc(device, sz; coherent=true)
         ptr = buf.ptr
         push!(mod.metadata, Runtime.KernelMetadata(kern, buf))
@@ -235,7 +235,7 @@ end
 default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
     # initialize free hostcall
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,Ptr{Cvoid}}}}, gbl)
-    hc = HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; agent=device, continuous=true) do kern, ptr
+    hc = HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; device=device, continuous=true) do kern, ptr
         for idx in length(mod.metadata):-1:1
             if mod.metadata[idx].kern == kern && mod.metadata[idx].buf.ptr == ptr
                 sz = mod.metadata[idx].buf.bytesize

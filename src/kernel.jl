@@ -1,8 +1,8 @@
 export barrier_and!, barrier_or!
 
-mutable struct HSAKernelInstance{T<:Tuple}
-    agent::HSAAgent
-    exe::HSAExecutable
+mutable struct ROCKernel{T<:Tuple}
+    device::ROCDevice
+    exe::ROCExecutable
     sym::String
     args::T
     kernel_object::UInt64
@@ -12,18 +12,18 @@ mutable struct HSAKernelInstance{T<:Tuple}
     kernarg_address::Ptr{Nothing}
 end
 
-# TODO agent can be inferred from the executable
-function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, args::Tuple)
+# TODO device can be inferred from the executable
+function ROCKernel(device::ROCDevice, exe::ROCExecutable, symbol::String, args::Tuple)
     agent_func = @cfunction(iterate_exec_agent_syms_cb, HSA.Status,
                            (HSA.Executable, HSA.Agent, HSA.ExecutableSymbol, Ptr{Cvoid}))
     exec_symbol = Ref{HSA.ExecutableSymbol}()
     exec_ptr = Base.unsafe_convert(Ref{Cvoid}, exec_symbol)
-    HSA.executable_iterate_agent_symbols(exe.executable[], agent.agent,
+    HSA.executable_iterate_agent_symbols(exe.executable[], device.agent,
                                          agent_func, exec_ptr) |> check
 
     # TODO: Conditionally disable once ROCR is fixed
     if !isassigned(exec_symbol)
-        agent_ref = Ref(agent.agent)
+        agent_ref = Ref(device.agent)
         GC.@preserve agent_ref begin
             HSA.executable_get_symbol_by_name(exe.executable[], symbol,
                                               agent_ref, exec_symbol) |> check
@@ -58,7 +58,7 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
 
     # N.B. We use the region API because kernarg allocations don't
     # show up in the memory pools API
-    kernarg_region = get_region(agent, :kernarg)
+    kernarg_region = get_region(device, :kernarg)
 
     # Allocate the kernel argument buffer from the correct region
     kernarg_address = Ref{Ptr{Nothing}}()
@@ -84,7 +84,7 @@ function HSAKernelInstance(agent::HSAAgent, exe::HSAExecutable, symbol::String, 
     end
 
 
-    kernel = HSAKernelInstance(agent, exe, symbol, args, kernel_object[],
+    kernel = ROCKernel(device, exe, symbol, args, kernel_object[],
                                kernarg_segment_size[], group_segment_size[],
                                private_segment_size[], kernarg_address[])
     AMDGPU.hsaref!()
@@ -109,14 +109,14 @@ export ROCModule, ROCFunction
 const MAX_EXCEPTIONS = 256
 const EXE_TO_MODULE_MAP = IdDict{Any,WeakRef}()
 mutable struct ROCModule{E}
-    exe::HSAExecutable{E}
+    exe::ROCExecutable{E}
     metadata::Vector{KernelMetadata}
     exceptions::Mem.Buffer
 end
 function ROCModule(exe)
-    agent = exe.agent
+    device = exe.device
     metadata = KernelMetadata[]
-    exceptions = Mem.alloc(agent, sizeof(AMDGPU.ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
+    exceptions = Mem.alloc(device, sizeof(AMDGPU.Device.ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
     mod = ROCModule(exe, metadata, exceptions)
     EXE_TO_MODULE_MAP[exe] = WeakRef(mod)
     AMDGPU.hsaref!()

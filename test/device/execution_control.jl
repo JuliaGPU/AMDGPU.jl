@@ -1,7 +1,7 @@
 @testset "Execution Control Intrinsics" begin
 
 function completion_signal_kernel(X)
-    X[1] = AMDGPU._completion_signal()
+    X[1] = Device._completion_signal()
     nothing
 end
 
@@ -12,9 +12,9 @@ wait(ev)
 @test collect(RA)[1] == ev.signal.signal[].handle
 
 function exec_ctl_kernel(X)
-    AMDGPU.sendmsg(5)
-    AMDGPU.sendmsghalt(6)
-    AMDGPU.endpgm()
+    Device.sendmsg(5)
+    Device.sendmsghalt(6)
+    Device.endpgm()
 end
 
 iob = IOBuffer()

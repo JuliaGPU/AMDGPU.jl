@@ -3,20 +3,20 @@
 
 ## HSA object preservation while a kernel is active
 
-const SIGNAL_PRESERVED = IdDict{HSASignal, Vector{Any}}()
+const SIGNAL_PRESERVED = IdDict{ROCSignal, Vector{Any}}()
 
-function preserve!(sig::HSASignal, @nospecialize(x))
+function preserve!(sig::ROCSignal, @nospecialize(x))
     set = get!(()->Any[], SIGNAL_PRESERVED, sig)
     push!(set, x)
 end
-preserve!(sig::HSAStatusSignal, @nospecialize(x)) = preserve!(sig.signal, x)
+preserve!(sig::ROCKernelSignal, @nospecialize(x)) = preserve!(sig.signal, x)
 
-unpreserve!(sig::HSASignal) = delete!(SIGNAL_PRESERVED, sig)
-unpreserve!(sig::HSAStatusSignal) = unpreserve!(sig.signal)
+unpreserve!(sig::ROCSignal) = delete!(SIGNAL_PRESERVED, sig)
+unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
 
 # we need a generated function to get an args array,
 # without having to inspect the types at runtime
-@generated function launch_kernel!(queue::HSAQueue, signal::HSAStatusSignal, f::ROCFunction,
+@generated function launch_kernel!(queue::ROCQueue, signal::ROCKernelSignal, f::ROCFunction,
                                    groupsize::ROCDim, gridsize::ROCDim,
                                    args::NTuple{N,Any}) where N
 
@@ -61,12 +61,12 @@ unpreserve!(sig::HSAStatusSignal) = unpreserve!(sig.signal)
     return ex
 end
 
-struct HSASignalSet{T}
-    signals::Vector{HSASignal}
+struct ROCSignalSet{T}
+    signals::Vector{ROCSignal}
 end
-HSASignalSet{T}() where T = HSASignalSet{T}(HSASignal[])
-Base.wait(ss::HSASignalSet{HSA.BarrierAndPacket}) = wait.(ss.signals)
-function Base.wait(ss::HSASignalSet{HSA.BarrierOrPacket})
+ROCSignalSet{T}() where T = ROCSignalSet{T}(ROCSignal[])
+Base.wait(ss::ROCSignalSet{HSA.BarrierAndPacket}) = wait.(ss.signals)
+function Base.wait(ss::ROCSignalSet{HSA.BarrierOrPacket})
     #= FIXME
     # We need to hack around the fact that barrier OR packets don't handle more
     # than 5 dependencies. We could implement the waiting in software, and emit
@@ -86,16 +86,16 @@ function normalize_launch_dimensions(groupsize, gridsize)
         throw(ArgumentError("Group dimensions must be non-zero"))
     (gridsize.x > 0 && gridsize.y > 0 && gridsize.z > 0) ||
         throw(ArgumentError("Grid dimensions must be non-zero"))
-    (groupsize.x <= AMDGPU._max_group_size.x + 1 &&
-     groupsize.y <= AMDGPU._max_group_size.y + 1 &&
-     groupsize.z <= AMDGPU._max_group_size.z + 1) ||
+    (groupsize.x <= AMDGPU.Device._max_group_size.x + 1 &&
+     groupsize.y <= AMDGPU.Device._max_group_size.y + 1 &&
+     groupsize.z <= AMDGPU.Device._max_group_size.z + 1) ||
         throw(ArgumentError("Group dimensions too large"))
 
     return groupsize, gridsize
 end
 
 """
-    launch_kernel!(queue::HSAQueue, kern::HSAKernelInstance, signal::HSASignal,
+    launch_kernel!(queue::ROCQueue, kern::ROCKernel, signal::ROCSignal,
                    groupsize::ROCDim, gridsize::ROCDim)
 
 Low-level call to launch a function (encoded in `kern`) on the GPU, using
@@ -107,7 +107,7 @@ copied to the internal kernel parameter buffer, or a pointer to device memory.
 
 This is a low-level call, preferably use [`roccall`](@ref) instead.
 """
-function launch_kernel!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSASignal,
+function launch_kernel!(queue::ROCQueue, kernel::ROCKernel, signal::ROCSignal,
                         groupsize::ROCDim3, gridsize::ROCDim3)
     enqueue_packet!(HSA.KernelDispatchPacket, queue, signal) do _packet
         @set! _packet.setup = 3 << Int(HSA.KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
@@ -126,11 +126,11 @@ function launch_kernel!(queue::HSAQueue, kernel::HSAKernelInstance, signal::HSAS
     end
 end
 
-function launch_barrier!(T, queue::HSAQueue, signals::Vector{HSASignal})
-    outset = HSASignalSet{T}()
+function launch_barrier!(T, queue::ROCQueue, signals::Vector{ROCSignal})
+    outset = ROCSignalSet{T}()
     if !isempty(signals)
         for signal_set in Iterators.partition(signals, 5)
-            comp_signal = HSASignal()
+            comp_signal = ROCSignal()
             enqueue_packet!(T, queue, comp_signal) do _packet
                 @set! _packet.dep_signal = ntuple(i->length(signal_set)>=i ? signal_set[i].signal[] : HSA.Signal(0), 5)
                 _packet
@@ -152,7 +152,7 @@ end
     """, Cvoid, Tuple{Ptr{UInt16}, UInt16},
     Base.unsafe_convert(Ptr{UInt16}, x), v)
 
-function enqueue_packet!(f::Base.Callable, T, queue::HSAQueue, signal::HSASignal)
+function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue, signal::ROCSignal)
     # Obtain the current queue write index and queue size
     _queue = unsafe_load(queue.queue)
     queue_size = _queue.size

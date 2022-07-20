@@ -8,12 +8,12 @@ associated, which is accessible with `get_default_queue(agent)` (or
 which queue to launch a kernel on with the `queue` argument to `@roc`:
 
 ```julia
-q = AMDGPU.HSAQueue(agent)
+q = AMDGPU.ROCQueue(agent)
 @roc queue=q kernel(...)
 ```
 
 If you want to query which kernels are currently executing on a given queue,
-calling `AMDGPU.active_kernels(queue)` will return a `Vector{HSAStatusSignal}`,
+calling `AMDGPU.active_kernels(queue)` will return a `Vector{ROCKernelSignal}`,
 which can be inspected to determine how many (and which) kernels are executing
 by comparing the signals returned from `@roc`. You can also omit the `queue`
 argument, which will then check the default queue.
@@ -45,7 +45,7 @@ function multi_wait(sigs)
 end
 
 # Create a set of signals
-sigs = [HSASignal() for i in 1:10]
+sigs = [ROCSignal() for i in 1:10]
 # Get the device-safe signal handles
 _sigs = ROCArray(map(sig->sig.signal[], sigs))
 

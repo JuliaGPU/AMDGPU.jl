@@ -4,8 +4,8 @@
 import AMDGPU
 import AMDGPU: HSA
 import AMDGPU: Runtime
-import .Runtime: HSAAgent, HSASignal, HSARegion, HSAMemoryPool, ROCDim, ROCDim3
-import .Runtime: AGENTS, check, get_region, get_memory_pool
+import .Runtime: ROCDevice, ROCSignal, ROCMemoryRegion, ROCMemoryPool, ROCDim, ROCDim3
+import .Runtime: DEVICES, check, get_region, get_memory_pool
 
 ## buffer type
 
@@ -13,7 +13,7 @@ struct Buffer
     ptr::Ptr{Cvoid}
     host_ptr::Ptr{Cvoid}
     bytesize::Int
-    agent::HSAAgent
+    device::ROCDevice
     coherent::Bool
     pool_alloc::Bool
 end
@@ -24,7 +24,7 @@ function view(buf::Buffer, bytes::Int)
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
     return Buffer(buf.ptr+bytes,
                   buf.host_ptr != C_NULL ? buf.host_ptr+bytes : C_NULL,
-                  buf.bytesize-bytes, buf.agent, buf.coherent, buf.pool_alloc)
+                  buf.bytesize-bytes, buf.device, buf.coherent, buf.pool_alloc)
 end
 
 ## refcounting
@@ -67,7 +67,7 @@ end
     info()
 
 Returns a tuple of two integers, indicating respectively the free and total amount of memory
-(in bytes) available for allocation on the agent.
+(in bytes) available for allocation on the device.
 """
 function info()
     free_ref = Ref{Csize_t}()
@@ -79,21 +79,21 @@ end
 """
     free()
 
-Returns the free amount of memory (in bytes), available for allocation on the agent.
+Returns the free amount of memory (in bytes), available for allocation on the device.
 """
 free() = info()[1]
 
 """
     total()
 
-Returns the total amount of memory (in bytes), available for allocation on the agent.
+Returns the total amount of memory (in bytes), available for allocation on the device.
 """
 total() = info()[2]
 
 """
     used()
 
-Returns the used amount of memory (in bytes), allocated on the agent.
+Returns the used amount of memory (in bytes), allocated on the device.
 """
 used() = total()-free()
 
@@ -120,27 +120,27 @@ pointerinfo(a::Array) = pointerinfo(pointer(a))
 ## Page-locking
 
 """
-    lock(ptr::Ptr, bytesize::Integer, agent::HSAAgent)
+    lock(ptr::Ptr, bytesize::Integer, device::ROCDevice)
     lock(ptr, bytesize)
-    lock(a::Array, agent)
+    lock(a::Array, device)
     lock(a)
 
 Page-lock a host pointer allocated by the OS allocator and return a new pointer from
-the given `agent`. For more information, see `hsa_amd_memory_lock()`.
+the given `device`. For more information, see `hsa_amd_memory_lock()`.
 
 See also: [`unlock`](@ref)
 """
-function lock(ptr::Ptr, bytesize::Integer, agent::HSAAgent)
+function lock(ptr::Ptr, bytesize::Integer, device::ROCDevice)
     plocked = Ref{Ptr{Cvoid}}()
     ccall(:memset, Ptr{Cvoid},
                    (Ptr{Ptr{Cvoid}}, UInt8, Csize_t),
                    Base.unsafe_convert(Ptr{Ptr{Cvoid}}, plocked), UInt8(0), sizeof(Ptr{Cvoid}))
-    HSA.amd_memory_lock(Ptr{Cvoid}(ptr), bytesize, Ref(agent.agent), 1, plocked) |> check
+    HSA.amd_memory_lock(Ptr{Cvoid}(ptr), bytesize, Ref(device.agent), 1, plocked) |> check
     return plocked[]
 end
-lock(ptr, bytesize) = lock(ptr, bytesize, Runtime.get_default_agent())
-lock(a::Array, agent::HSAAgent) = lock(pointer(a), sizeof(a), agent)
-lock(a::Array) = lock(pointer(a), sizeof(a), Runtime.get_default_agent())
+lock(ptr, bytesize) = lock(ptr, bytesize, Runtime.get_default_device())
+lock(a::Array, device::ROCDevice) = lock(pointer(a), sizeof(a), device)
+lock(a::Array) = lock(pointer(a), sizeof(a), Runtime.get_default_device())
 
 """
     unlock(ptr::Ptr)
@@ -200,28 +200,28 @@ function transfer end
 """
     alloc(bytesize::Integer; coherent=false) -> Buffer
 
-Allocate `bytesize` bytes of HSA-managed memory on the default agent.
+Allocate `bytesize` bytes of HSA-managed memory on the default device.
 
-    alloc(agent::HSAAgent, bytesize::Integer; coherent=false) -> Buffer
+    alloc(device::ROCDevice, bytesize::Integer; coherent=false) -> Buffer
 
-Allocate `bytesize` bytes of HSA-managed memory on `agent`.
+Allocate `bytesize` bytes of HSA-managed memory on `device`.
 
 When using the above two methods, allocations are not coherent by default,
-meaning that the allocated buffer is only accessible from the given agent.
+meaning that the allocated buffer is only accessible from the given device.
 
 If `coherent` is set to `true`, the allocated buffer will be accessible from
-all HSA agents, including the host CPU.  Even though this is convenient, it can
+all HSA devices, including the host CPU.  Even though this is convenient, it can
 sometimes be slower than explicit memory transfers if memory accesses are not
 carefully managed.
 
-    alloc(agent::HSAAgent, pool::HSAMemoryPool, bytesize::Integer) -> Buffer
-    alloc(agent::HSAAgent, region::HSARegion, bytesize::Integer) -> Buffer
+    alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer) -> Buffer
+    alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer) -> Buffer
 
 Allocate `bytesize` bytes of HSA-managed memory on the region `region` or
 memory pool `pool`.
 """
-function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
-    bytesize == 0 && return Buffer(C_NULL, C_NULL, 0, agent, coherent, false)
+function alloc(device::ROCDevice, bytesize::Integer; coherent=false)
+    bytesize == 0 && return Buffer(C_NULL, C_NULL, 0, device, coherent, false)
 
     region_kind = if coherent
         :finegrained
@@ -230,27 +230,27 @@ function alloc(agent::HSAAgent, bytesize::Integer; coherent=false)
     end
 
     if region_kind != :coarsegrained
-        region = get_region(agent, region_kind)
-        return alloc(agent, region, bytesize)
+        region = get_region(device, region_kind)
+        return alloc(device, region, bytesize)
     else
-        pool = get_memory_pool(agent, region_kind)
-        return alloc(agent, pool, bytesize)
+        pool = get_memory_pool(device, region_kind)
+        return alloc(device, pool, bytesize)
         # On AMD this is a no-op and we need to make sure that we use the right region instead.
-        # check(HSA.memory_assign_agent(buf.ptr, agent.agent, HSA.ACCESS_PERMISSION_RW))
+        # check(HSA.memory_assign_agent(buf.ptr, device.agent, HSA.ACCESS_PERMISSION_RW))
     end
 end
-function alloc(agent::HSAAgent, pool::HSAMemoryPool, bytesize::Integer)
+function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     check(HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref))
-    return Buffer(ptr_ref[], C_NULL, bytesize, agent, Runtime.pool_accessible_by_all(pool), true)
+    return Buffer(ptr_ref[], C_NULL, bytesize, device, Runtime.pool_accessible_by_all(pool), true)
 end
-function alloc(agent::HSAAgent, region::HSARegion, bytesize::Integer)
+function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     check(HSA.memory_allocate(region.region, bytesize, ptr_ref))
-    return Buffer(ptr_ref[], C_NULL, bytesize, agent, Runtime.region_host_accessible(region), false)
+    return Buffer(ptr_ref[], C_NULL, bytesize, device, Runtime.region_host_accessible(region), false)
 end
 alloc(bytesize; kwargs...) =
-    alloc(Runtime.get_default_agent(), bytesize; kwargs...)
+    alloc(Runtime.get_default_device(), bytesize; kwargs...)
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
@@ -334,7 +334,7 @@ end
     unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
                    dstPos::ROCDim=(1,1,1), dstPitch=0, dstSlice=0,
                    srcPos::ROCDim=(1,1,1), srcPitch=0, srcSlice=0,
-                   async::Bool=false, signal::HSASignal=nothing) where T
+                   async::Bool=false, signal::ROCSignal=nothing) where T
 
 Perform a 3D memory copy between pointers `src` and `dst` at respectively position `srcPos` and `dstPos` 
 (1-indexed). Both pitch and slice can be specified for both the source and destination. This call is 
@@ -343,7 +343,7 @@ executed asynchronously if `async` is set, otherwise `signal` is synchronized.
 function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
                         dstPos::ROCDim=(1,1,1), dstPitch=0, dstSlice=0,
                         srcPos::ROCDim=(1,1,1), srcPitch=0, srcSlice=0,
-                        async::Bool=false, signal::HSASignal=nothing) where T
+                        async::Bool=false, signal::ROCSignal=nothing) where T
     (T == Nothing) && error("Type of Ptr is Nothing")
 
     dstPtr_info = pointerinfo(dst)
@@ -381,7 +381,7 @@ function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
                                           Base.unsafe_convert(Ptr{HSA.PitchedPtr}, srcRef),
                                           Base.unsafe_convert(Ptr{HSA.Dim3},       srcOffsetRef),
                                           Base.unsafe_convert(Ptr{HSA.Dim3},       rangeRef),
-                                          Runtime.get_default_agent().agent,hsaCopyDir,UInt32(0),C_NULL,sig) |> check
+                                          Runtime.get_default_device().agent,hsaCopyDir,UInt32(0),C_NULL,sig) |> check
 
     async || wait(signal)
     return nothing
@@ -466,7 +466,7 @@ end
 # Pretty-printing
 function Base.show(io::IO, ptrinfo::HSA.AMDPointerInfo)
     println(io, "Pointer type: $(ptrinfo.type)")
-    println(io, "Owner: $(AGENTS[ptrinfo.agentOwner.handle])")
+    println(io, "Owner: $(DEVICES[ptrinfo.agentOwner.handle])")
     println(io, "Agent base address: $(ptrinfo.agentBaseAddress)")
     println(io, "Host base address: $(ptrinfo.hostBaseAddress)")
     print(io, "Size (bytes): $(ptrinfo.sizeInBytes)")

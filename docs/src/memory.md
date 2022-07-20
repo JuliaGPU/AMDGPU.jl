@@ -19,7 +19,7 @@ agent:
 
 ```julia
 for agent in AMDGPU.get_agents()
-    foreach(println, AMDGPU.regions(agent)::Vector{AMDGPU.HSA.HSARegion})
+    foreach(println, AMDGPU.regions(agent)::Vector{AMDGPU.ROCMemoryRegion})
 end
 ```
 
@@ -29,7 +29,7 @@ AMD):
 
 ```julia
 for agent in AMDGPU.get_agents()
-    foreach(println, AMDGPU.memory_pools(agent)::Vector{AMDGPU.HSA.HSAMemoryPool})
+    foreach(println, AMDGPU.memory_pools(agent)::Vector{AMDGPU.ROCMemoryPool})
 end
 ```
 

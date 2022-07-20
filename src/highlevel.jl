@@ -1,7 +1,7 @@
 # High-level APIs
 
 import AMDGPU: Runtime, Compiler
-import .Runtime: HSAAgent, HSAQueue, HSAExecutable, HSAKernelInstance, HSASignal, HSAStatusSignal, HSAError
+import .Runtime: ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal, ROCKernelSignal, HSAError
 import .Runtime: ROCDim, ROCDim3
 import .Runtime: getinfo, wait!, mark!
 import .Compiler: rocfunction
@@ -10,11 +10,11 @@ export @roc, rocconvert, rocfunction
 
 ## Devices
 
-default_device() = Runtime.get_default_agent()
-default_device!(agent::HSAAgent) = Runtime.set_default_agent!(agent)
+default_device() = Runtime.get_default_device()
+default_device!(device::ROCDevice) = Runtime.set_default_device!(device)
 
-devices(kind::Symbol=:gpu) = filter(agent->device_type(agent)==kind,
-                                    copy(Runtime.ALL_AGENTS))
+devices(kind::Symbol=:gpu) = filter(device->device_type(device)==kind,
+                                    copy(Runtime.ALL_DEVICES))
 
 """
     default_device_id(kind::Symbol=:gpu) -> Int
@@ -38,14 +38,14 @@ default_device_id!(idx::Integer, kind::Symbol=:gpu) =
     default_device!(devices(kind)[idx])
 
 """
-    device_type(device::HSAAgent) -> Symbol
+    device_type(device::ROCDevice) -> Symbol
 
-Return the type of an HSA agent as a `Symbol`. CPU devices return `:cpu`, GPU
+Return the kind of `device` as a `Symbol`. CPU devices return `:cpu`, GPU
 devices return `:gpu`, DSP devices return `:dsp`, and all others return
 `:unknown`.
 """
-function device_type(agent::HSAAgent)
-    devtype = Runtime.device_type(agent)
+function device_type(device::ROCDevice)
+    devtype = Runtime.device_type(device)
     if devtype == HSA.DEVICE_TYPE_CPU
         return :cpu
     elseif devtype == HSA.DEVICE_TYPE_GPU
@@ -60,14 +60,14 @@ end
 # Queues
 
 default_queue() = default_queue(default_device())
-default_queue(device::HSAAgent) = Runtime.get_default_queue(device)
-device(queue::HSAQueue) = queue.agent
+default_queue(device::ROCDevice) = Runtime.get_default_queue(device)
+device(queue::ROCQueue) = queue.device
 
-default_isa(agent::HSAAgent) = first(Runtime.isas(agent))
-default_isa_architecture(agent::HSAAgent) =
-    Runtime.architecture(first(Runtime.isas(agent)))
-default_isa_features(agent::HSAAgent) =
-    Runtime.features(first(Runtime.isas(agent)))
+default_isa(device::ROCDevice) = first(Runtime.isas(device))
+default_isa_architecture(device::ROCDevice) =
+    Runtime.architecture(first(Runtime.isas(device)))
+default_isa_features(device::ROCDevice) =
+    Runtime.features(first(Runtime.isas(device)))
 
 ## Executable creation
 
@@ -90,42 +90,42 @@ function create_executable(device, entry, obj; globals=())
     data = read(path_exe)
     rm(path_exe)
 
-    return HSAExecutable(device, data, entry; globals=globals)
+    return ROCExecutable(device, data, entry; globals=globals)
 end
 
 ## Event creation
-function create_event(exe::HSAExecutable; queue::HSAQueue=default_queue(), signal::Union{HSAStatusSignal,HSASignal}=HSASignal(), kwargs...)
-    if signal isa HSAStatusSignal
+function create_event(exe::ROCExecutable; queue::ROCQueue=default_queue(), signal::Union{ROCKernelSignal,ROCSignal}=ROCSignal(), kwargs...)
+    if signal isa ROCKernelSignal
         return signal
     end
-    return HSAStatusSignal(signal, queue, exe; kwargs...)
+    return ROCKernelSignal(signal, queue, exe; kwargs...)
 end
 
 ## Kernel creation
-create_kernel(device::HSAAgent, exe::HSAExecutable, entry, args) =
-    HSAKernelInstance(device, exe, entry, args)
+create_kernel(device::ROCDevice, exe::ROCExecutable, entry, args) =
+    ROCKernel(device, exe, entry, args)
 
 ## Kernel launch and barriers
 
 barrier_and!(signals::Vector) = barrier_and!(default_queue(), signals)
 barrier_or!(signals::Vector) = barrier_or!(default_queue(), signals)
-barrier_and!(queue::HSAQueue, signals::Vector{HSAStatusSignal}) =
+barrier_and!(queue::ROCQueue, signals::Vector{ROCKernelSignal}) =
     barrier_and!(queue, map(x->x.signal,signals))
-barrier_or!(queue::HSAQueue, signals::Vector{HSAStatusSignal}) =
+barrier_or!(queue::ROCQueue, signals::Vector{ROCKernelSignal}) =
     barrier_or!(queue, map(x->x.signal,signals))
-barrier_and!(queue::HSAQueue, signals::Vector{HSA.Signal}) = barrier_and!(queue, map(HSASignal, signals))
-barrier_or!(queue::HSAQueue, signals::Vector{HSA.Signal}) = barrier_or!(queue, map(HSASignal, signals))
-barrier_and!(queue::HSAQueue, signals::Vector{HSASignal}) =
+barrier_and!(queue::ROCQueue, signals::Vector{HSA.Signal}) = barrier_and!(queue, map(ROCSignal, signals))
+barrier_or!(queue::ROCQueue, signals::Vector{HSA.Signal}) = barrier_or!(queue, map(ROCSignal, signals))
+barrier_and!(queue::ROCQueue, signals::Vector{ROCSignal}) =
     Runtime.launch_barrier!(HSA.BarrierAndPacket, queue, signals)
-barrier_or!(queue::HSAQueue, signals::Vector{HSASignal}) =
+barrier_or!(queue::ROCQueue, signals::Vector{ROCSignal}) =
     Runtime.launch_barrier!(HSA.BarrierOrPacket, queue, signals)
 
 """
-    active_kernels(queue) -> Vector{HSAStatusSignal}
+    active_kernels(queue) -> Vector{ROCKernelSignal}
 
 Returns the set of actively-executing kernels on `queue`.
 """
-function active_kernels(queue::HSAQueue=default_queue())
+function active_kernels(queue::ROCQueue=default_queue())
     lock(Runtime.RT_LOCK) do
         copy(Runtime._active_kernels[queue])
     end
@@ -150,7 +150,7 @@ rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 # split keyword arguments to `@roc` into ones affecting the macro itself, the compiler and
 # the code it generates, or the execution
 function split_kwargs(kwargs)
-    alias_kws    = Dict(:agent=>:device, :stream=>:queue)
+    alias_kws    = Dict(:stream=>:queue)
     macro_kws    = [:dynamic, :launch]
     compiler_kws = [:name, :device, :queue, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config, :device, :queue]

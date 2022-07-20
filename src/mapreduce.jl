@@ -10,13 +10,13 @@
     item = workitemIdx().x
 
     # shared mem for a complete reduction
-    shared = ROCDeviceArray((2*maxitems,), alloc_special(Val(:reduce_block), T, Val(AS.Local), Val(2*maxitems)))
+    shared = ROCDeviceArray((2*maxitems,), Device.alloc_special(Val(:reduce_block), T, Val(AS.Local), Val(2*maxitems)))
     @inbounds shared[item] = val
 
     # perform a reduction
     d = items>>1
     while d > 0
-        sync_workgroup()
+        Device.sync_workgroup()
         if item <= d
             shared[item] = op(shared[item], shared[item+d])
         end
@@ -130,16 +130,16 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::ROCArray{T},
     # so that we can span the entire reduction dimension using a single item group.
 
     # group size is restricted by local memory
-    agent = R.buf.agent
+    device = AMDGPU.device(R)
     pools = filter(pool->Runtime.pool_segment(pool) == HSA.AMD_SEGMENT_GROUP,
-                   Runtime.memory_pools(agent))
+                   Runtime.memory_pools(device))
     max_items = if !isempty(pools)
         pool = first(pools)
         max_lmem_elements = Runtime.pool_size(pool) ÷ sizeof(T)
-        isa = first(Runtime.isas(agent))
+        isa = first(Runtime.isas(device))
         Base.min(Runtime.max_group_size(isa), compute_items(max_lmem_elements ÷ 2))
     else
-        @warn "No group segment detected for agent $agent; assuming 64 elements\nThis message will not be shown again" maxlog=1
+        @warn "No group segment detected for device $device; assuming 64 elements\nThis message will not be shown again" maxlog=1
         64
     end
     # TODO: dynamic local memory to avoid two compilations

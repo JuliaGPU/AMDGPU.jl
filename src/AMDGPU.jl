@@ -14,7 +14,7 @@ import Core: LLVMPtr
 
 ### Exports ###
 
-export HSAAgent, HSAQueue, HSAExecutable, HSAKernelInstance, HSASignal
+export ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal
 export has_rocm_gpu
 
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
@@ -50,7 +50,7 @@ module Runtime
     const RT_LOCK = Threads.ReentrantLock()
 
     include("error.jl")
-    include("agent.jl")
+    include("device.jl")
     include("queue.jl")
     include("signal.jl")
     include("dims.jl")
@@ -58,27 +58,48 @@ module Runtime
         include("memory.jl")
     end
     include("executable.jl")
-    include("statussignal.jl")
+    include("kernel-signal.jl")
     include("kernel.jl")
     include("launch.jl")
     include("execution.jl")
     include("sync.jl")
+    include("safe-load.jl")
 end # module Runtime
 import .Runtime: Mem
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
 
-# Device sources must load _before_ the compiler infrastructure
-# because of generated functions.
-include(joinpath("device", "addrspaces.jl"))
-include(joinpath("device", "array.jl"))
-include(joinpath("device", "gcn.jl"))
-include(joinpath("device", "runtime.jl"))
-include(joinpath("device", "llvm.jl"))
-include(joinpath("device", "globals.jl"))
-include(joinpath("device", "strings.jl"))
-include(joinpath("device", "exceptions.jl"))
+module Device
+    import ..HSA
+    import ..Runtime
+    import ..Mem
+    import Core: LLVMPtr
+    using ..GPUCompiler
+    using ..LLVM
+    using ..LLVM.Interop
+    import ..AMDGPU
+    import .AMDGPU: method_table
+
+    # Device sources must load _before_ the compiler infrastructure
+    # because of generated functions.
+    include(joinpath("device", "addrspaces.jl"))
+    include(joinpath("device", "array.jl"))
+    include(joinpath("device", "gcn.jl"))
+    include(joinpath("device", "runtime.jl"))
+    include(joinpath("device", "llvm.jl"))
+    include(joinpath("device", "globals.jl"))
+    include(joinpath("device", "strings.jl"))
+    include(joinpath("device", "exceptions.jl"))
+end
+import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame
+import .Device: ROCDeviceArray, AS, HostCall, hostcall!
+import .Device: workitemIdx, workgroupIdx, workgroupDim, gridDim, gridDimWG
+import .Device: threadIdx, blockIdx, blockDim
+import .Device: @rocprint, @rocprintln, @rocprintf
+
+export ROCDeviceArray
+export @rocprint, @rocprintln, @rocprintf
 
 module Compiler
     using ..GPUCompiler
@@ -90,7 +111,8 @@ module Compiler
     import ..AMDGPU
     import ..AMDGPU: AS
     import ..Runtime
-    import .Runtime: HSAAgent, ROCModule, ROCFunction
+    import ..Device
+    import .Runtime: ROCDevice, ROCModule, ROCFunction
     import .Runtime: Adaptor
     import .Runtime: Mem
 
@@ -116,6 +138,8 @@ include("mapreduce.jl")
 #include("gpuarray_interface.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
+
+include("deprecations.jl")
 
 ### Initialization and Shutdown ###
 
@@ -218,10 +242,10 @@ function __init__()
                 hsaunref!()
             end
 
-            # Select the default agent
-            for agent in Runtime.fetch_agents()
-                if !isassigned(Runtime.DEFAULT_AGENT) && device_type(agent) == :gpu
-                    Runtime.DEFAULT_AGENT[] = agent
+            # Select the default device
+            for device in Runtime.fetch_devices()
+                if !isassigned(Runtime.DEFAULT_DEVICE) && device_type(device) == :gpu
+                    Runtime.DEFAULT_DEVICE[] = device
                     break
                 end
             end

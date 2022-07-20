@@ -1,11 +1,11 @@
 @testset "Trapping" begin
     # TODO: Remove dummy argument
     function trapkern(x)
-        AMDGPU.trap()
+        Device.trap()
         nothing
     end
     function debugtrapkern(x)
-        AMDGPU.debugtrap()
+        Device.debugtrap()
         nothing
     end
 

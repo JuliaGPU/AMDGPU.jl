@@ -85,7 +85,7 @@ export roccall
 
 """
     roccall(f::ROCFunction, types, values...;
-            queue::HSAQueue, signal::HSAStatusSignal,
+            queue::ROCQueue, signal::ROCKernelSignal,
             groupsize::ROCDim, gridsize::ROCDim)
 
 `ccall`-like interface for launching a ROC function `f` on a GPU.
@@ -113,8 +113,8 @@ roccall
 
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function roccall(f::ROCFunction, tt::Type, args::Vararg{Any,N}; queue::HSAQueue,
-                            signal::HSAStatusSignal, groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
+@generated function roccall(f::ROCFunction, tt::Type, args::Vararg{Any,N}; queue::ROCQueue,
+                            signal::ROCKernelSignal, groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
 
     # the type of `tt` is Type{Tuple{<:DataType...}}
     types = tt.parameters[1].parameters

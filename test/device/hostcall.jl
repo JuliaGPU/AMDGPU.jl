@@ -1,3 +1,5 @@
+import AMDGPU: HostCall, hostcall!
+
 @testset "Hostcall" begin
 
 @testset "Call: No return or arguments" begin

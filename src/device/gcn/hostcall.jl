@@ -1,5 +1,3 @@
-export HostCall, hostcall!
-
 ## Sentinels in order of execution
 
 ### Ready/lock/message sentinels
@@ -40,7 +38,7 @@ struct HostCall{S,RT,AT}
     buf_len::UInt
 end
 function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
-                  agent=default_device(), buf_len=nothing) where {S<:UInt64}
+                  device=AMDGPU.default_device(), buf_len=nothing) where {S<:UInt64}
     if buf_len === nothing
         buf_len = 0
         for T in AT.parameters
@@ -49,7 +47,7 @@ function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
         end
     end
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
-    buf = Mem.alloc(agent, buf_len; coherent=true)
+    buf = Mem.alloc(device, buf_len; coherent=true)
     buf_ptr = LLVMPtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
     HSA.signal_store_release(HSA.Signal(signal), READY_SENTINEL)
     HostCall{S,RT,AT}(signal, buf_ptr, buf_len)
@@ -90,15 +88,15 @@ const ATOMIC_SEQ_CST = Int32(5)
         end
         if loaded == DEVICE_ERR_SENTINEL
             signal_exception()
-            trap()
+            #trap()
         end
         if loaded == HOST_ERR_SENTINEL
             signal_exception()
-            trap()
+            #trap()
         end
         # FIXME: Make kernel actually sleep
         # device_sethalt(Int32(1))
-        device_sleep(Int32(127))
+        device_sleep(Int32(5))
     end
 end
 @inline hostcall_device_signal_wait(signal::HSA.Signal, value::Int64, order::Int32=ATOMIC_ACQUIRE) =
@@ -160,13 +158,14 @@ end
         end
     end
 end
-@generated function hostcall_device_trigger_and_return!(hc::HostCall{UInt64,RT,AT}) where {RT,AT}
+@inline @generated function hostcall_device_trigger_and_return!(hc::HostCall{UInt64,RT,AT}) where {RT,AT}
     ex = Expr(:block)
     @gensym shmem ptr
 
     push!(ex.args, quote
         if $RT !== Nothing
-            $shmem = reinterpret(Ptr{$RT}, $alloc_local(:hostcall_return, $RT, 1))
+            # FIXME: This is not valid without the @inline
+            $shmem = $alloc_local(:hostcall_return, $RT, 1)
         end
         if $workitemIdx().x == 1
             # Ensure arguments are written
@@ -182,7 +181,7 @@ end
                 if UInt64($ptr) == 0
                     $device_signal_store!(hc.signal, $DEVICE_ERR_SENTINEL)
                     AMDGPU.signal_exception()
-                    AMDGPU.trap()
+                    AMDGPU.Device.trap()
                 end
                 unsafe_store!($shmem, unsafe_load($ptr)::$RT)
             end
@@ -250,10 +249,10 @@ hostcall will fail with undefined behavior.
 Note: This API is currently experimental and is subject to change at any time.
 """
 function HostCall(func, rettype, argtypes; return_task=false,
-                  agent=default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
+                  device=AMDGPU.default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
                   timeout=nothing, continuous=false, buf_len=nothing)
-    signal = HSASignal()
-    hc = HostCall(rettype, argtypes, signal.signal[].handle; agent=agent, buf_len=buf_len)
+    signal = Runtime.ROCSignal()
+    hc = HostCall(rettype, argtypes, signal.signal[].handle; device=device, buf_len=buf_len)
 
     tsk = Threads.@spawn begin
         ret_buf = Ref{Mem.Buffer}()
@@ -289,10 +288,10 @@ function HostCall(func, rettype, argtypes; return_task=false,
                     if isassigned(ret_buf) && (ret_len < sizeof(ret))
                         Mem.free(ret_buf[])
                         ret_len = sizeof(ret)
-                        ret_buf[] = Mem.alloc(agent, ret_len; coherent=true)
+                        ret_buf[] = Mem.alloc(device, ret_len; coherent=true)
                     elseif !isassigned(ret_buf)
                         ret_len = sizeof(ret)
-                        ret_buf[] = Mem.alloc(agent, ret_len; coherent=true)
+                        ret_buf[] = Mem.alloc(device, ret_len; coherent=true)
                     end
                     ret_ref = Ref{rettype}(ret)
                     GC.@preserve ret_ref begin
@@ -304,7 +303,7 @@ function HostCall(func, rettype, argtypes; return_task=false,
                         args_buf_ptr = reinterpret(Ptr{Ptr{Cvoid}}, hc.buf_ptr)
                         unsafe_store!(args_buf_ptr, ret_ptr)
                     end
-                    HSA.signal_store_release(signal.signal[], HOST_MSG_SENTINEL)
+                    HSA.signal_store_screlease(signal.signal[], HOST_MSG_SENTINEL)
                 catch err
                     throw(HostCallException("Error returning hostcall result", err))
                 end
@@ -325,7 +324,7 @@ function HostCall(func, rettype, argtypes; return_task=false,
             if isassigned(ret_buf)
                 Mem.free(ret_buf[])
             end
-            Mem.free(Mem.Buffer(reinterpret(Ptr{Cvoid}, hc.buf_ptr), C_NULL, 0, agent, true, false))
+            Mem.free(Mem.Buffer(reinterpret(Ptr{Cvoid}, hc.buf_ptr), C_NULL, 0, device, true, false))
         end
     end
 
@@ -363,7 +362,6 @@ function hostcall_host_wait(signal; maxlat=DEFAULT_HOSTCALL_LATENCY[], timeout=D
                 return false
             end
         end
-        #@debug "Hostcall: Value of $prev on signal $signal"
         sleep(maxlat)
     end
 end
