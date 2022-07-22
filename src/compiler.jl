@@ -186,19 +186,25 @@ const default_global_hooks = Dict{Symbol,Function}()
 default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
     # initialize global output context
     gbl_ptr = Base.unsafe_convert(Ptr{AMDGPU.Device.GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
-    oc = Device.OutputContext(stdout)
+    oc = Device.OutputContext(stdout; device, name=:__global_output)
     Base.unsafe_store!(gbl_ptr, oc)
 end
 default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     # initialize global printf context
     # Return type of Int to force synchronizing behavior
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
-    hc = HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; device=device, continuous=true, buf_len=2^16) do _
-        fmt, args = unsafe_load(reinterpret(LLVMPtr{AMDGPU.Device.ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
-        args = map(x->x isa Cstring ? unsafe_string(x) : x, args)
-        @debug "@rocprintf with $fmt and $(args)"
-        @eval @printf($fmt, $(args...))
-        return 0
+    hc = Device.named_perdevice_hostcall(device, :__global_printf) do
+        HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; device, continuous=true, buf_len=2^16, timeout=nothing) do _
+            fmt, args = unsafe_load(reinterpret(LLVMPtr{AMDGPU.Device.ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
+            args = map(x->x isa Cstring ? unsafe_string(x) : x, args)
+            @debug "@rocprintf with $fmt and $(args)"
+            try
+                @eval @printf($fmt, $(args...))
+            catch err
+                @error "@rocprintf error" exception=(err,catch_backtrace())
+            end
+            return 0
+        end
     end
     Base.unsafe_store!(gbl_ptr, hc)
 end
@@ -223,29 +229,35 @@ end
 default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
     # initialize malloc hostcall
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Ptr{Cvoid},Tuple{UInt64,Csize_t}}}, gbl)
-    hc = HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; device=device, continuous=true) do kern, sz
-        buf = Mem.alloc(device, sz; coherent=true)
-        ptr = buf.ptr
-        push!(mod.metadata, Runtime.KernelMetadata(kern, buf))
-        @debug "Allocated $ptr ($sz bytes) for kernel $kern on device $device"
-        return ptr
+    hc = Device.named_perdevice_hostcall(device, :__global_malloc) do
+        HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; device, continuous=true, timeout=nothing) do kern, sz
+            buf = Mem.alloc(device, sz; coherent=true)
+            ptr = buf.ptr
+            # FIXME: Lock
+            push!(mod.metadata, Runtime.KernelMetadata(kern, buf))
+            @debug "Allocated $ptr ($sz bytes) for kernel $kern on device $device"
+            return ptr
+        end
     end
     Base.unsafe_store!(gbl_ptr, hc)
 end
 default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
     # initialize free hostcall
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,Ptr{Cvoid}}}}, gbl)
-    hc = HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; device=device, continuous=true) do kern, ptr
-        for idx in length(mod.metadata):-1:1
-            if mod.metadata[idx].kern == kern && mod.metadata[idx].buf.ptr == ptr
-                sz = mod.metadata[idx].buf.bytesize
-                Mem.free(mod.metadata[idx].buf)
-                deleteat!(mod.metadata, idx)
-                @debug "Freed $ptr ($sz bytes) for kernel $kern on device $device"
-                break
+    hc = Device.named_perdevice_hostcall(device, :__global_free) do
+        HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; device, continuous=true, timeout=nothing) do kern, ptr
+            # FIXME: Lock
+            for idx in length(mod.metadata):-1:1
+                if mod.metadata[idx].kern == kern && mod.metadata[idx].buf.ptr == ptr
+                    sz = mod.metadata[idx].buf.bytesize
+                    Mem.free(mod.metadata[idx].buf)
+                    deleteat!(mod.metadata, idx)
+                    @debug "Freed $ptr ($sz bytes) for kernel $kern on device $device"
+                    break
+                end
             end
+            return nothing
         end
-        return nothing
     end
     Base.unsafe_store!(gbl_ptr, hc)
 end
