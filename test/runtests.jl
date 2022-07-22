@@ -28,6 +28,17 @@ allowscalar(false)
 
 CI = parse(Bool, get(ENV, "CI", "false"))
 
+if CI
+    # Disable fault handler (signal timeout will catch hangs)
+    # FIXME: Instead kill all associated queues
+    fault_handler(ev, data) = HSA.STATUS_SUCCESS
+    function setup_fault_handler()
+        fault_handler_cb = @cfunction(fault_handler, HSA.Status, (Ptr{HSA.AMDEvent}, Ptr{Cvoid}))
+        @assert AMDGPU.HSA.amd_register_system_event_handler(fault_handler_cb, C_NULL) == HSA.STATUS_SUCCESS
+    end
+    setup_fault_handler()
+end
+
 Runtime.DEFAULT_SIGNAL_TIMEOUT[] = 15.0
 Device.DEFAULT_HOSTCALL_TIMEOUT[] = 15.0
 
