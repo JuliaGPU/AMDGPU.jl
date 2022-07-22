@@ -151,7 +151,7 @@ rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 # the code it generates, or the execution
 function split_kwargs(kwargs)
     alias_kws    = Dict(:stream=>:queue)
-    macro_kws    = [:dynamic, :launch]
+    macro_kws    = [:dynamic, :launch, :wait, :mark]
     compiler_kws = [:name, :device, :queue, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config, :device, :queue]
     signal_kws   = [:signal, :soft, :minlat, :timeout]
@@ -262,6 +262,8 @@ performed, scheduling a kernel launch on the specified (or default) HSA queue.
 Several keyword arguments are supported that influence the behavior of `@roc`.
 - `dynamic`: use dynamic parallelism to launch device-side kernels
 - `launch`: whether to launch the kernel
+- `wait`: whether to wait on all arguments' dependencies
+- `mark`: whether to mark this kernel as a dependency for all arguments
 - arguments that influence kernel compilation: see [`rocfunction`](@ref) and
   [`dynamic_rocfunction`](@ref)
 - arguments that influence kernel launch: see [`AMDGPU.HostKernel`](@ref) and
@@ -306,6 +308,8 @@ macro roc(ex...)
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
     launch = true
+    wait = true
+    mark = true
     for kwarg in macro_kwargs
         key,val = kwarg.args
         if key == :dynamic
@@ -314,6 +318,12 @@ macro roc(ex...)
         elseif key == :launch
             isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @roc should be a constant Bool"))
             launch = val::Bool
+        elseif key == :wait
+            isa(val, Bool) || throw(ArgumentError("`wait` keyword argument to @roc should be a constant Bool"))
+            wait = val::Bool
+        elseif key == :mark
+            isa(val, Bool) || throw(ArgumentError("`mark` keyword argument to @roc should be a constant Bool"))
+            mark = val::Bool
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
@@ -348,11 +358,15 @@ macro roc(ex...)
                     local $kernel_args = map($rocconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
-                    foreach($wait!, ($(var_exprs...),))
+                    if $wait
+                        foreach($wait!, ($(var_exprs...),))
+                    end
                     if $launch
                         local $signal = $create_event($kernel.mod.exe; $(signal_kwargs...))
                         $kernel($kernel_args...; signal=$signal, $(filter(x->x.args[1] != :signal, call_kwargs)...))
-                        foreach(x->$mark!(x, $signal), ($(var_exprs...),))
+                        if $mark
+                            foreach(x->$mark!(x, $signal), ($(var_exprs...),))
+                        end
                         $signal
                     else
                         $kernel

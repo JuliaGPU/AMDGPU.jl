@@ -12,10 +12,16 @@
                 RA = ROCArray(zeros(Float64, 1))
                 sig = AMDGPU.ROCSignal(0)
 
-                ret1 = [@roc(kernel(sig, 3, RA, 1.0)) for _ in 1:i]
+                # Disable wait and mark because:
+                # - We need the kernels (ret1 vs ret2) to race
+                # - We're accessing RA before the kernels are complete
+                ret1 = map(1:i) do _
+                    @roc wait=false mark=false kernel(sig, 3, RA, 1.0)
+                end
 
                 retb = AMDGPU.barrier_and!(ret1)
-                ret2 = @roc kernel(sig, 0, RA, 2.0)
+
+                ret2 = @roc wait=false mark=false kernel(sig, 0, RA, 2.0)
 
                 if i > 0
                     sleep(0.5)
