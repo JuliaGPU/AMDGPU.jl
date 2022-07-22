@@ -8,13 +8,23 @@ Base.unsafe_store!(ptr::LLVMPtr{<:DeviceStaticString,AS.Global}, x) = nothing
 struct OutputContext{HC}
     hostcall::HC
 end
-function OutputContext(io::IO=stdout; device=AMDGPU.default_device(), continuous=true, buf_len=2^16, kwargs...)
-    hc = HostCall(Int64, Tuple{LLVMPtr{DeviceStaticString{buf_len},AS.Global}}; device, continuous, buf_len, kwargs...) do bytes
+function OutputContext(io::IO=stdout; device=AMDGPU.default_device(), continuous=true, buf_len=2^16, name=nothing, kwargs...)
+    hc = if name !== nothing
+        named_perdevice_hostcall(device, name) do
+            create_output_context_hostcall(io; device, continuous, buf_len, kwargs...)
+        end
+    else
+        create_output_context_hostcall(io; device, continuous, buf_len, kwargs...)
+    end
+    return OutputContext(hc)
+end
+function create_output_context_hostcall(io; buf_len, kwargs...)
+    hc = HostCall(Int64, Tuple{LLVMPtr{DeviceStaticString{buf_len},AS.Global}}; buf_len, kwargs...) do bytes
         str = unsafe_load(reinterpret(LLVMPtr{DeviceStaticString{buf_len},AS.Global}, hc.buf_ptr))
         print(io, str)
-        Int64(length(str))
+        return Int64(length(str))
     end
-    OutputContext(hc)
+    return hc
 end
 
 const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{UInt64,Int64,Tuple{LLVMPtr{DeviceStaticString{2^16},AS.Global}}}}
