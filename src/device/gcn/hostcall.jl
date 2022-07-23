@@ -351,7 +351,7 @@ const DEFAULT_HOSTCALL_LATENCY = Ref{Float64}(0.01)
 function hostcall_host_wait(signal; maxlat=DEFAULT_HOSTCALL_LATENCY[], timeout=DEFAULT_HOSTCALL_TIMEOUT[])
     @debug "Hostcall: Waiting on signal $signal"
     start_time = time_ns()
-    while true
+    while !Runtime.RT_EXITING[]
         prev = HSA.signal_load_scacquire(signal.signal[])
         if prev == DEVICE_MSG_SENTINEL
             prev = HSA.signal_cas_scacq_screl(signal.signal[], DEVICE_MSG_SENTINEL, HOST_LOCK_SENTINEL)

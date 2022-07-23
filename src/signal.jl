@@ -49,7 +49,7 @@ software waiting, after which the call will error with a
 function Base.wait(signal::ROCSignal; soft=true, minlat=0.000001, timeout=DEFAULT_SIGNAL_TIMEOUT[])
     if soft
         start_time = time_ns()
-        while true
+        while !RT_EXITING[]
             value = HSA.signal_load_scacquire(signal.signal[])
             if value < 1
                 return

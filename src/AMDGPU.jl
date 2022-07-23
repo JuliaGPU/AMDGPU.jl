@@ -48,6 +48,7 @@ module Runtime
     struct Adaptor end
 
     const RT_LOCK = Threads.ReentrantLock()
+    const RT_EXITING = Ref{Bool}(false)
 
     include("error.jl")
     include("device.jl")
@@ -190,6 +191,10 @@ check_library("MIOpen", libmiopen)
 end # functional(:hip)
 
 function __init__()
+    atexit() do
+        Runtime.RT_EXITING[] = true
+    end
+
     # Quiet path first, in case this system doesn't have AMD GPUs
     if !ispath("/dev/kfd")
         @debug "/dev/kfd not available, silently skipping initialization"
