@@ -275,9 +275,10 @@ kernel to determine the launch configuration. A host-side kernel launch is done 
 
     args = ...
     GC.@preserve args begin
+        kernel_f = rocconvert(f)
         kernel_args = rocconvert.(args)
         kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-        kernel = rocfunction(f, kernel_tt; compilation_kwargs)
+        kernel = rocfunction(kernel_f, kernel_tt; compilation_kwargs)
         kernel(kernel_args...; launch_kwargs)
     end
 
@@ -331,7 +332,7 @@ macro roc(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym kernel_args kernel_tt device kernel queue signal
+    @gensym kernel_f kernel_args kernel_tt device kernel queue signal
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -349,15 +350,16 @@ macro roc(ex...)
     else
         # regular, host-side kernel launch
         #
-        # convert the arguments, call the compiler and launch the kernel
+        # convert the function, its arguments, call the compiler and launch the kernel
         # while keeping the original arguments alive
 
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
+                    local $kernel_f = $rocconvert($f)
                     local $kernel_args = map($rocconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    local $kernel = $rocfunction($f, $kernel_tt; $(compiler_kwargs...))
+                    local $kernel = $rocfunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
                     if $wait
                         foreach($wait!, ($(var_exprs...),))
                     end

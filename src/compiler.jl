@@ -109,8 +109,8 @@ The output of this function is automatically cached, i.e. you can simply call
 generated automatically, when function definitions change, or when different
 types or keyword arguments are provided.
 """
-function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default_device(), global_hooks=NamedTuple(), kwargs...)
-    source = FunctionSpec(f, tt, true, name)
+function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default_device(), global_hooks=NamedTuple(), kwargs...) where {F <: Core.Function}
+    source = FunctionSpec(F, tt, true, name)
     cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
     isa = AMDGPU.default_isa(device)
     arch = Runtime.architecture(isa)
@@ -124,7 +124,12 @@ function rocfunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, device=AM
         seek(iob, 0)
         "Compiling $f ($tt)\n$(String(take!(iob)))"
     end
-    GPUCompiler.cached_compilation(cache, job, rocfunction_compile, rocfunction_link)::Runtime.HostKernel{typeof(f),tt}
+    fun = GPUCompiler.cached_compilation(cache, job,
+                                         rocfunction_compile,
+                                         rocfunction_link)::ROCFunction
+    kernel = Runtime.HostKernel{F,tt}(f, fun.mod, fun)
+    # FIXME: Add caching level
+    return kernel
 end
 
 const rocfunction_cache = Dict{ROCDevice,Dict{UInt,Any}}()
@@ -158,7 +163,6 @@ function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
     exe = AMDGPU.create_executable(device, entry, obj; globals=globals)
     mod = ROCModule(exe)
     fun = ROCFunction(mod, entry)
-    kernel = Runtime.HostKernel{job.source.f,job.source.tt}(mod, fun)
 
     # initialize globals from hooks
     for gname in first.(globals)
@@ -178,7 +182,7 @@ function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
         end
     end
 
-    return kernel
+    return fun
 end
 
 const default_global_hooks = Dict{Symbol,Function}()

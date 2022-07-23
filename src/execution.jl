@@ -26,8 +26,8 @@ The following keyword arguments are supported:
 AbstractKernel
 
 @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
-    sig = Base.signature_type(F, TT)
-    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
+    sig = Tuple{F, TT.parameters...} # Base.signature_type with a function type
+    args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
 
     # filter out ghost arguments that shouldn't be passed
     predicate = dt -> GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)
@@ -58,6 +58,7 @@ end
 ## host-side kernels
 
 struct HostKernel{F,TT} <: AbstractKernel{F,TT}
+    f::F
     mod::ROCModule
     fun::ROCFunction
 end
