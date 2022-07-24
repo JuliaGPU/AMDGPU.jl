@@ -60,4 +60,4 @@ for intr in WAVEFRONT_INTRINSICS
 end
 
 "Returns the wavefront size of the currently-executing kernel."
-wavefrontsize() = ccall("extern llvm.amdgcn.wavefrontsize", llvmcall, UInt32, ())
+@inline wavefrontsize() = ccall("llvm.amdgcn.wavefrontsize", llvmcall, UInt32, ())

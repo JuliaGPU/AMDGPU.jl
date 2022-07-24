@@ -74,7 +74,7 @@ end
     end
 end
 
-# TODO: look these up for the current agent/queue
+# TODO: look these up for the current device/queue
 # TODO: grids can be up to typemax(UInt64)
 const _max_group_size = (x=1023, y=1023, z=1023)
 const _max_groups     = (x=typemax(UInt32)-1, y=typemax(UInt32)-1, z=typemax(UInt32)-1)

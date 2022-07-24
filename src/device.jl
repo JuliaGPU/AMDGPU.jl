@@ -1,30 +1,31 @@
-# Utilities for working with HSA agents
+# Utilities for working with HSA devices
 
-mutable struct HSAAgent
+mutable struct ROCDevice
     agent::HSA.Agent
 
     # Cached information
-    type::Symbol
+    type::HSA.DeviceType
     name::String
     productname::String
     uuid::String
 
-    function HSAAgent(handle::HSA.Agent)
-        agent = new(handle)
-        agent.type = device_type(agent)
-        agent.name = get_name(agent)
-        agent.productname = get_product_name(agent)
-        agent.uuid = get_uuid(agent)
+    function ROCDevice(handle::HSA.Agent)
+        device = new(handle)
+        device.type = device_type(device)
+        device.name = name(device)
+        device.productname = product_name(device)
+        device.uuid = uuid(device)
 
-        agent
+        device
     end
 end
 
-Base.:(==)(agent1::HSAAgent, agent2::HSAAgent) = agent1.agent == agent2.agent
+Base.:(==)(device1::ROCDevice, device2::ROCDevice) =
+    device1.agent == device2.agent
 
-const DEFAULT_AGENT = Ref{HSAAgent}()
-const ALL_AGENTS = Vector{HSAAgent}()
-const AGENTS = IdDict{UInt64, HSAAgent}() # Map from agent handles to HSAAgent structs
+const DEFAULT_DEVICE = Ref{ROCDevice}()
+const ALL_DEVICES = Vector{ROCDevice}()
+const DEVICES = IdDict{UInt64, ROCDevice}() # Map from device handles to ROCDevice structs
 
 ### @cfunction callbacks ###
 
@@ -33,103 +34,82 @@ function agent_iterate_isas_cb(isa::HSA.ISA, isas)
     return HSA.STATUS_SUCCESS
 end
 
-function iterate_agents_cb(agent::HSA.Agent, agents)
-    push!(agents, HSAAgent(agent))
+function iterate_agents_cb(agent::HSA.Agent, devices)
+    push!(devices, ROCDevice(agent))
     return HSA.STATUS_SUCCESS
 end
 
 """
-    get_agents() -> Vector{HSAAgent}
+    fetch_devices() -> Vector{ROCDevice}
 
-Returns the list of HSA agents available on the system.
+Returns the list of HSA devices available on the system.
 """
-function get_agents()
-    if !isempty(ALL_AGENTS)
-        return copy(ALL_AGENTS)
+function fetch_devices()
+    if !isempty(ALL_DEVICES)
+        return copy(ALL_DEVICES)
     end
 
-    agents = Ref(Vector{HSAAgent}())
-    GC.@preserve agents begin
+    devices = Ref(Vector{ROCDevice}())
+    GC.@preserve devices begin
         func = @cfunction(iterate_agents_cb, HSA.Status,
-                (HSA.Agent, Ref{Vector{HSAAgent}}))
-        HSA.iterate_agents(func, agents) |> check
-        _agents = agents[]
+                (HSA.Agent, Ref{Vector{ROCDevice}}))
+        HSA.iterate_agents(func, devices) |> check
+        _devices = devices[]
     end
 
-    # Update the entries in the agent handle dictionary
-    for agent in _agents
-        push!(ALL_AGENTS, agent)
-        AGENTS[agent.agent.handle] = agent
+    # Update the entries in the device handle dictionary
+    for device in _devices
+        push!(ALL_DEVICES, device)
+        DEVICES[device.agent.handle] = device
     end
 
-    return _agents
+    return _devices
 end
-get_agents(kind::Symbol) =
-    filter(agent->device_type(agent)==kind, get_agents())
 
 """
-    get_default_agent() -> HSAAgent
+    get_default_device() -> ROCDevice
 
-Returns the default agent, which is used for all kernel and array operations
+Returns the default device, which is used for all kernel and array operations
 when one is not explicitly specified. May be changed with
-[`set_default_agent!`](@ref).
+[`set_default_device!`](@ref).
 """
-function get_default_agent()
-    if !isassigned(DEFAULT_AGENT)
-        error("No GPU agents detected!\nPlease consider rebuilding AMDGPU")
+function get_default_device()
+    if !isassigned(DEFAULT_DEVICE)
+        error("No GPU devices detected!\nPlease consider rebuilding AMDGPU")
     end
-    DEFAULT_AGENT[]
+    DEFAULT_DEVICE[]
 end
 """
-    set_default_agent!(agent::HSAAgent) -> HSAAgent
+    set_default_device!(device::ROCDevice) -> ROCDevice
 
-Sets the default agent to `agent`. See [`get_default_agent`](@ref) for more
+Sets the default device to `device`. See [`get_default_device`](@ref) for more
 details.
 """
-function set_default_agent!(agent::HSAAgent)
-    DEFAULT_AGENT[] = agent
+function set_default_device!(device::ROCDevice)
+    DEFAULT_DEVICE[] = device
 end
 
-"""
-    device(kind::Symbol=:gpu) -> Int
-
-Returns the numeric ID of the current default device, which is in the range of
-`1:length(AMDGPU.get_agents(kind))`. This number should be stable for all
-processes on the same node, so long as any device filtering is consistently
-applied (such as `ROCR_VISIBLE_DEVICES`). The [`device!`](@ref) function
-accepts the same numeric ID that is produced by this function.
-"""
-device(kind::Symbol=:gpu) = something(findfirst(a->a==get_default_agent(), get_agents(kind)))
-"""
-    device!(idx::Integer, kind::Symbol=:gpu)
-
-Sets the default device to `AMDGPU.get_agents(kind)[idx]`. See [`device`](@ref)
-for details on the numbering semantics.
-"""
-device!(idx::Integer, kind::Symbol=:gpu) = set_default_agent!(get_agents(kind)[idx])
-
-function get_name(agent::HSAAgent)
+function name(device::ROCDevice)
     #len = Ref(0)
     #hsa_agent_get_info(agent.agent, HSA.AGENT_INFO_NAME_LENGTH, len) |> check
-    #FIXME: this could be better? 
     name = Vector{UInt8}(undef, 64)
-    getinfo(agent.agent, HSA.AGENT_INFO_NAME, name) |> check
-    return rstrip(String(name), '\0')
+    getinfo(device.agent, HSA.AGENT_INFO_NAME, name) |> check
+    return GC.@preserve name unsafe_string(pointer(name))
 end
 
 """
-Return all agents available to the runtime.
+Return all devices available to the runtime.
 """
-agents() = copy(ALL_AGENTS)
+devices() = copy(ALL_DEVICES)
 
 # Pretty-printing
-function Base.show(io::IO, agent::HSAAgent)
-    name = agent.uuid
+function Base.show(io::IO, device::ROCDevice)
+    name = device.uuid
 
-    name *= if agent.name == agent.productname
-        " [$(agent.name)]"
+    name *= if device.name == device.productname || isempty(device.productname)
+        " [$(device.name)]"
     else
-        " [$(agent.productname) ($(agent.name))]"
+        " [$(device.productname) ($(device.name))]"
     end
 
     print(io, name)
@@ -137,45 +117,50 @@ end
 
 ### Agent details
 
-function get_product_name(agent::HSAAgent)
+product_name(device::ROCDevice) = product_name(device.agent)
+function product_name(agent::HSA.Agent)
     name = Vector{UInt8}(undef, 64)
-    getinfo(agent.agent, HSA.AMD_AGENT_INFO_PRODUCT_NAME, name) |> check
+    getinfo(agent, HSA.AMD_AGENT_INFO_PRODUCT_NAME, name) |> check
     rstrip(String(name), '\0')
 end
 
-function get_uuid(agent::HSAAgent)
+uuid(device::ROCDevice) = uuid(device.agent)
+function uuid(agent::HSA.Agent)
     uuid = Base.zeros(UInt8, 64) # Doesn't appear to write zero-terminator
-    getinfo(agent.agent, HSA.AMD_AGENT_INFO_UUID, uuid) |> check
+    getinfo(agent, HSA.AMD_AGENT_INFO_UUID, uuid) |> check
     rstrip(String(uuid), '\0')
 end
 
-function profile(agent::HSAAgent)
+profile(device::ROCDevice) = profile(device.agent)
+function profile(agent::HSA.Agent)
     profile = Ref{HSA.Profile}()
-    getinfo(agent.agent, HSA.AGENT_INFO_PROFILE, profile) |> check
+    getinfo(agent, HSA.AGENT_INFO_PROFILE, profile) |> check
     return profile[]
 end
 
-function device_type(agent::HSAAgent)
-    devtype = Ref{UInt32}()
-    getinfo(agent.agent, HSA.AGENT_INFO_DEVICE, devtype) |> check
-
-    if HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_CPU
-        return :cpu
-    elseif HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_GPU
-        return :gpu
-    elseif HSA.DeviceType(devtype[]) == HSA.DEVICE_TYPE_DSP
-        return :dsp
-    else
-        return :unknown
-    end
+device_type(device::ROCDevice) = device_type(device.agent)
+function device_type(agent::HSA.Agent)
+    devtype = Ref{HSA.DeviceType}()
+    getinfo(agent, HSA.AGENT_INFO_DEVICE, devtype) |> check
+    return devtype[]
 end
+
+function getinfo(agent::HSA.Agent, attribute::HSA.AgentInfo,
+                 value::Union{Vector,Base.RefValue,String})
+    # TODO: allocation/create Refs here
+    # based on value of AgentInfo
+    HSA.agent_get_info(agent, attribute, value)
+end
+getinfo(agent::HSA.Agent, info::HSA.AMDAgentInfo, ret::Union{String, Base.RefValue, Vector}) =
+    getinfo(agent, reinterpret(HSA.AgentInfo, info), ret)
 
 ### ISAs
 
-function isas(agent::HSAAgent)
+isas(device::ROCDevice) = isas(device.agent)
+function isas(agent::HSA.Agent)
     isas = Ref(HSA.ISA[])
     func = @cfunction(agent_iterate_isas_cb, HSA.Status, (HSA.ISA, Ref{Vector{HSA.ISA}}))
-    HSA.agent_iterate_isas(agent.agent, func, isas) |> check
+    HSA.agent_iterate_isas(agent, func, isas) |> check
     isas[]
 end
 
@@ -210,18 +195,20 @@ end
 architecture(isa::HSA.ISA) = llvm_arch_features(isa)[1]
 features(isa::HSA.ISA) = llvm_arch_features(isa)[2]
 
-get_first_isa_string(agent::HSAAgent) = architecture(first(isas(agent)))
-get_first_feature_string(agent::HSAAgent) = features(first(isas(agent)))
-
 function max_group_size(isa::HSA.ISA)
     size = Ref{UInt32}(0)
     getinfo(isa, HSA.ISA_INFO_WORKGROUP_MAX_SIZE, size)
     size[]
 end
 
+function getinfo(isa::HSA.ISA, attribute::HSA.ISAInfo,
+                 value::Union{Vector,Base.RefValue,String})
+    HSA.isa_get_info_alt(isa, attribute, value)
+end
+
 ### Regions
 
-struct HSARegion
+struct ROCMemoryRegion
     region::HSA.Region
 end
 
@@ -230,11 +217,11 @@ function iterate_regions_cb(region::HSA.Region, regions)
     return HSA.STATUS_SUCCESS
 end
 
-function regions(agent::HSAAgent)
+function regions(device::ROCDevice)
     regions = Ref(HSA.Region[])
     func = @cfunction(iterate_regions_cb, HSA.Status, (HSA.Region, Ref{Vector{HSA.Region}}))
-    HSA.agent_iterate_regions(agent.agent, func, regions) |> check
-    map(HSARegion, regions[])
+    HSA.agent_iterate_regions(device.agent, func, regions) |> check
+    map(ROCMemoryRegion, regions[])
 end
 
 function getinfo(region::HSA.Region, attribute::HSA.RegionInfo,
@@ -242,47 +229,47 @@ function getinfo(region::HSA.Region, attribute::HSA.RegionInfo,
     HSA.region_get_info(region, attribute, value) |> check
 end
 
-function region_segment(region::HSARegion)
+function region_segment(region::ROCMemoryRegion)
     segment = Ref{HSA.RegionSegment}()
     getinfo(region.region, HSA.REGION_INFO_SEGMENT, segment)
     segment[]
 end
-function region_global_flags(region::HSARegion)
+function region_global_flags(region::ROCMemoryRegion)
     flags = Ref{HSA.RegionGlobalFlag}()
     getinfo(region.region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
     flags[]
 end
-function region_size(region::HSARegion)
+function region_size(region::ROCMemoryRegion)
     size = Ref{Csize_t}(0)
     getinfo(region.region, HSA.REGION_INFO_SIZE, size)
     size[]
 end
-function region_alloc_max_size(region::HSARegion)
+function region_alloc_max_size(region::ROCMemoryRegion)
     size = Ref{Csize_t}(0)
     getinfo(region.region, HSA.REGION_INFO_ALLOC_MAX_SIZE, size)
     size[]
 end
-function region_alloc_max_private_workgroup_size(region::HSARegion)
+function region_alloc_max_private_workgroup_size(region::ROCMemoryRegion)
     size = Ref{Csize_t}(0)
     getinfo(region.region, HSA.REGION_INFO_ALLOC_MAX_PRIVATE_WORKGROUP_SIZE, size)
     size[]
 end
-function region_runtime_alloc_allowed(region::HSARegion)
+function region_runtime_alloc_allowed(region::ROCMemoryRegion)
     runtime_alloc = Ref{Bool}(false)
     getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_ALLOWED, runtime_alloc)
     runtime_alloc[]
 end
-function region_runtime_alloc_granule(region::HSARegion)
+function region_runtime_alloc_granule(region::ROCMemoryRegion)
     runtime_alloc_granule = Ref{Csize_t}(0)
     getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_GRANULE, runtime_alloc_granule)
     runtime_alloc_granule[]
 end
-function region_runtime_alloc_alignment(region::HSARegion)
+function region_runtime_alloc_alignment(region::ROCMemoryRegion)
     runtime_alloc_align = Ref{Csize_t}(0)
     getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_ALIGNMENT, runtime_alloc_align)
     runtime_alloc_align[]
 end
-function region_host_accessible(region::HSARegion)
+function region_host_accessible(region::ROCMemoryRegion)
     host_accessible = Ref(false)
     getinfo(region.region,
             reinterpret(HSA.RegionInfo, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE),
@@ -290,8 +277,8 @@ function region_host_accessible(region::HSARegion)
     host_accessible[]
 end
 
-function get_region(agent::HSAAgent, kind::Symbol)
-    _regions = regions(agent)
+function get_region(device::ROCDevice, kind::Symbol)
+    _regions = regions(device)
     flag = if kind == :finegrained
         HSA.REGION_GLOBAL_FLAG_FINE_GRAINED
     elseif kind == :coarsegrained || kind == :coarsegrained_host
@@ -305,11 +292,11 @@ function get_region(agent::HSAAgent, kind::Symbol)
     if kind == :coarsegrained
         _regions = filter(region->!region_host_accessible(region), _regions)
     end
-    @assert !isempty(_regions) "No region of kind $kind in agent $agent"
+    @assert !isempty(_regions) "No region of kind $kind in device $device"
     return first(_regions)
 end
 
-function Base.show(io::IO, region::HSARegion)
+function Base.show(io::IO, region::ROCMemoryRegion)
     segment_map = Dict(HSA.REGION_SEGMENT_GLOBAL   => :global,
                        HSA.REGION_SEGMENT_READONLY => :readonly,
                        HSA.REGION_SEGMENT_PRIVATE  => :private,
@@ -343,7 +330,7 @@ function Base.show(io::IO, region::HSARegion)
 
     host_access = region_host_accessible(region)
 
-    print(io, "HSARegion @ $(repr(region.region.handle)): Segment $segment, Flags $flags, Size $size ($max_size max allocation), ")
+    print(io, "ROCMemoryRegion @ $(repr(region.region.handle)): Segment $segment, Flags $flags, Size $size ($max_size max allocation), ")
     if segment == :private
         print(io, "Workgroup Max Alloc: $private_workgroup_size, ")
     end
@@ -353,7 +340,7 @@ end
 
 ### Memory Pools
 
-struct HSAMemoryPool
+struct ROCMemoryPool
     pool::HSA.AMDMemoryPool
 end
 
@@ -362,11 +349,11 @@ function iterate_pools_cb(pool::HSA.AMDMemoryPool, pools)
     return HSA.STATUS_SUCCESS
 end
 
-function memory_pools(agent::HSAAgent)
+function memory_pools(device::ROCDevice)
     pools = Ref(HSA.AMDMemoryPool[])
     func = @cfunction(iterate_pools_cb, HSA.Status, (HSA.AMDMemoryPool, Ref{Vector{HSA.AMDMemoryPool}}))
-    HSA.amd_agent_iterate_memory_pools(agent.agent, func, pools) |> check
-    map(HSAMemoryPool, pools[])
+    HSA.amd_agent_iterate_memory_pools(device.agent, func, pools) |> check
+    map(ROCMemoryPool, pools[])
 end
 
 function getinfo(pool::HSA.AMDMemoryPool, attribute::HSA.AMDMemoryPoolInfo,
@@ -374,48 +361,48 @@ function getinfo(pool::HSA.AMDMemoryPool, attribute::HSA.AMDMemoryPoolInfo,
     HSA.amd_memory_pool_get_info(pool, attribute, value) |> check
 end
 
-function pool_segment(pool::HSAMemoryPool)
+function pool_segment(pool::ROCMemoryPool)
     segment = Ref{HSA.AMDSegment}()
     getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_SEGMENT, segment)
     segment[]
 end
-function pool_global_flags(pool::HSAMemoryPool)
+function pool_global_flags(pool::ROCMemoryPool)
     flags = Ref{HSA.AMDMemoryPoolGlobalFlag}()
     getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS, flags)
     flags[]
 end
-function pool_size(pool::HSAMemoryPool)
+function pool_size(pool::ROCMemoryPool)
     size = Ref{Csize_t}(0)
     getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_SIZE, size)
     size[]
 end
-function pool_runtime_alloc_allowed(pool::HSAMemoryPool)
+function pool_runtime_alloc_allowed(pool::ROCMemoryPool)
     runtime_alloc = Ref{Bool}(false)
     getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALLOWED, runtime_alloc)
     runtime_alloc[]
 end
-function pool_runtime_alloc_granule(pool::HSAMemoryPool)
+function pool_runtime_alloc_granule(pool::ROCMemoryPool)
     runtime_alloc_granule = Ref{Csize_t}(0)
     getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_GRANULE, runtime_alloc_granule)
     runtime_alloc_granule[]
 end
-function pool_runtime_alloc_alignment(pool::HSAMemoryPool)
+function pool_runtime_alloc_alignment(pool::ROCMemoryPool)
     runtime_alloc_align = Ref{Csize_t}(0)
     getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALIGNMENT, runtime_alloc_align)
     runtime_alloc_align[]
 end
-function pool_accessible_by_all(pool::HSAMemoryPool)
+function pool_accessible_by_all(pool::ROCMemoryPool)
     accessible_all = Ref{Bool}(false)
     getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_ACCESSIBLE_BY_ALL, accessible_all)
     accessible_all[]
 end
-function pool_alloc_max_size(pool::HSAMemoryPool)
+function pool_alloc_max_size(pool::ROCMemoryPool)
     size = Ref{Csize_t}(0)
     getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE, size)
     size[]
 end
 
-function Base.show(io::IO, pool::HSAMemoryPool)
+function Base.show(io::IO, pool::ROCMemoryPool)
     segment_map = Dict(HSA.AMD_SEGMENT_GLOBAL   => :global,
                        HSA.AMD_SEGMENT_READONLY => :readonly,
                        HSA.AMD_SEGMENT_PRIVATE  => :private,
@@ -446,13 +433,13 @@ function Base.show(io::IO, pool::HSAMemoryPool)
 
     max_size = Base.format_bytes(pool_alloc_max_size(pool))
 
-    print(io, "HSAMemoryPool @ $(repr(pool.pool.handle)): Segment $segment, Flags $flags, Size $size ($max_size max allocation), ")
+    print(io, "ROCMemoryPool @ $(repr(pool.pool.handle)): Segment $segment, Flags $flags, Size $size ($max_size max allocation), ")
     print(io, "Runtime Alloc: "); printstyled(io, "$runtime_alloc"; color=runtime_alloc ? :green : :red); print(io, " ($alloc_granule granularity, $alloc_align alignment), ")
     print(io, "All Accessible: "); printstyled(io, "$accessible_all"; color=accessible_all ? :green : :red)
 end
 
-function get_memory_pool(agent::HSAAgent, kind::Symbol)
-    _pools = memory_pools(agent)
+function get_memory_pool(device::ROCDevice, kind::Symbol)
+    _pools = memory_pools(device)
     flag = if kind == :finegrained
         HSA.AMD_MEMORY_POOL_GLOBAL_FLAG_FINE_GRAINED
     elseif kind == :coarsegrained || kind == :coarsegrained_host
@@ -466,6 +453,6 @@ function get_memory_pool(agent::HSAAgent, kind::Symbol)
     if kind == :coarsegrained
         _pools = filter(pool->!pool_accessible_by_all(pool), _pools)
     end
-    @assert !isempty(_pools) "No memory pool of kind $kind in agent $agent"
+    @assert !isempty(_pools) "No memory pool of kind $kind in device $device"
     return first(_pools)
 end

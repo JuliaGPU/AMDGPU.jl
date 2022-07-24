@@ -35,9 +35,7 @@
     eval(:(@roc device=$device $kernel()))
     eval(:(@roc device=$device queue=$queue $kernel()))
     eval(:(@roc queue=$queue $kernel()))
-    eval(:(@roc agent=$device $kernel()))
     eval(:(@roc stream=$queue $kernel()))
-    eval(:(@roc agent=$device queue=$queue $kernel()))
 
     # Group size validity
     @test_throws ArgumentError eval(:(@roc groupsize=0 $kernel()))
@@ -45,8 +43,8 @@
     @test_throws ArgumentError eval(:(@roc groupsize=1025 $kernel()))
 
     # No-launch
-    @test eval(:(@roc launch=true $kernel())) isa AMDGPU.RuntimeEvent
-    @test eval(:(@roc launch=false $kernel())) isa AMDGPU.HostKernel
+    @test eval(:(@roc launch=true $kernel())) isa AMDGPU.ROCKernelSignal
+    @test eval(:(@roc launch=false $kernel())) isa Runtime.HostKernel
     @test_throws Exception eval(:(@roc launch=1 $kernel())) # TODO: ArgumentError
 end
 
@@ -68,28 +66,47 @@ end
     wait(@roc kernel(x, y))
 end
 
+@testset "Function/Argument Conversion" begin
+    @testset "Closure as Argument" begin
+        function kernel(closure)
+            closure()
+            nothing
+        end
+        function outer(a_dev, val)
+            f() = a_dev[] = val
+            @roc kernel(f)
+        end
+
+        a = [1.]
+        a_dev = ROCArray(a)
+
+        outer(a_dev, 2.)
+
+        @test Array(a_dev) == [2.]
+    end
+end
+
 @testset "Signal waiting" begin
     sig = @roc identity(nothing)
     wait(sig)
-    wait(sig.event)
-    wait(sig.event.signal)
-    wait(sig.event.signal.signal[])
+    wait(sig.signal)
+    wait(sig.signal.signal[])
 end
 
 @testset "Custom signal" begin
-    sig = HSASignal()
+    sig = ROCSignal()
     sig2 = @roc signal=sig identity(nothing)
-    @test sig2.event.signal == sig
+    @test sig2.signal == sig
     wait(sig)
     wait(sig2)
 end
 
-if length(AMDGPU.get_agents(:gpu)) > 1
+if length(AMDGPU.devices()) > 1
     @testset "Multi-GPU" begin
-        # HSA will throw if the compiler and launch use different agents
-        a1, a2 = AMDGPU.get_agents(:gpu)
-        wait(@roc device=AMDGPU.RuntimeDevice(a1) identity(nothing))
-        wait(@roc device=AMDGPU.RuntimeDevice(a2) identity(nothing))
+        # HSA will throw if the compiler and launch use different devices
+        a1, a2 = AMDGPU.devices()[1:2]
+        wait(@roc device=a1 identity(nothing))
+        wait(@roc device=a2 identity(nothing))
     end
 else
     @warn "Only 1 GPU detected; skipping multi-GPU tests"

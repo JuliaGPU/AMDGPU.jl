@@ -1,8 +1,4 @@
-# Pointers with address space information
-
 # Address spaces
-
-export AS
 
 module AS
 

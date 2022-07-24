@@ -1,44 +1,55 @@
 # Utilities for working with HSA signals
 
-mutable struct HSASignal
-    signal::Ref{Signal}
+mutable struct ROCSignal
+    signal::Ref{HSA.Signal}
 end
 
-function HSASignal(init::Integer=1; interrupt=true, ipc=true)
-    signal = HSASignal(Ref{Signal}())
+function ROCSignal(init::Integer=1; interrupt=true, ipc=true)
+    signal = ROCSignal(Ref{HSA.Signal}())
     if interrupt || ipc
         attrs = UInt32(0)
         if ipc
             attrs |= HSA.AMD_SIGNAL_IPC
         end
-        HSA.amd_signal_create(Int64(init), 0, C_NULL, attrs, signal.signal)
+        HSA.amd_signal_create(Int64(init), 0, C_NULL, attrs, signal.signal) |> check
     else
-        HSA.signal_create(Int64(init), 0, C_NULL, signal.signal)
+        HSA.signal_create(Int64(init), 0, C_NULL, signal.signal) |> check
     end
-    hsaref!()
+    AMDGPU.hsaref!()
     finalizer(signal) do signal
         HSA.signal_destroy(signal.signal[]) |> check
-        hsaunref!()
+        AMDGPU.hsaunref!()
     end
     return signal
 end
-HSASignal(signal::HSA.Signal) = HSASignal(Ref(signal))
+ROCSignal(signal::HSA.Signal) = ROCSignal(Ref(signal))
 
-Adapt.adapt_structure(::Adaptor, sig::HSASignal) = sig.signal[]
+Base.show(io::IO, signal::ROCSignal) =
+    print(io, "ROCSignal($(signal.signal[]))")
+
+Adapt.adapt_structure(::Adaptor, sig::ROCSignal) = sig.signal[]
+
+const DEFAULT_SIGNAL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
+const SIGNAL_TIMEOUT_KILL_QUEUE = Ref{Bool}(true)
+
+struct SignalTimeoutException <: Exception
+    signal::ROCSignal
+end
 
 """
-    Base.wait(signal::HSASignal; soft=true, minlat=0.000001)
+    Base.wait(signal::ROCSignal; soft=true, minlat=0.000001, timeout=DEFAULT_SIGNAL_TIMEOUT[])
 
-Waits on an `HSASignal` to decrease below 1. If `soft=true` (default), uses
+Waits on an `ROCSignal` to decrease below 1. If `soft=true` (default), uses
 sleep polling; otherwise uses HSA's signal waiter. `minlat` sets the minimum
 latency for the software waiter; lower values can decrease latency at the cost
 of increased polling load. `timeout`, if not `nothing`, sets the timeout for
-software waiting, after which the call will error.
+software waiting, after which the call will error with a
+`SignalTimeoutException`.
 """
-function Base.wait(signal::HSASignal; soft=true, minlat=0.000001, timeout=nothing)
+function Base.wait(signal::ROCSignal; soft=true, minlat=0.000001, timeout=DEFAULT_SIGNAL_TIMEOUT[])
     if soft
         start_time = time_ns()
-        while true
+        while !RT_EXITING[]
             value = HSA.signal_load_scacquire(signal.signal[])
             if value < 1
                 return
@@ -46,7 +57,7 @@ function Base.wait(signal::HSASignal; soft=true, minlat=0.000001, timeout=nothin
             now_time = time_ns()
             diff_time = (now_time - start_time) / 10^9
             if timeout !== nothing && diff_time > timeout
-                error("Timeout while waiting on signal")
+                throw(SignalTimeoutException(signal))
             end
             if minlat < 0.001 && diff_time < 10^3
                 # Use Libc.systemsleep for higher precision in the microsecond range
@@ -63,6 +74,6 @@ function Base.wait(signal::HSASignal; soft=true, minlat=0.000001, timeout=nothin
                                 HSA.WAIT_STATE_BLOCKED)
     end
 end
-Base.wait(signal::HSA.Signal; kwargs...) = wait(HSASignal(signal); kwargs...)
+Base.wait(signal::HSA.Signal; kwargs...) = wait(ROCSignal(signal); kwargs...)
 
-Base.notify(signal::HSASignal) = HSA.signal_store_screlease(signal.signal[], 0)
+Base.notify(signal::ROCSignal) = HSA.signal_store_screlease(signal.signal[], 0)

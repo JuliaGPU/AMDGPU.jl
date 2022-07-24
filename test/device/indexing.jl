@@ -1,3 +1,5 @@
+import .Device: workitemIdx, workgroupIdx, workgroupDim, gridDim, gridDimWG
+
 @testset "Kernel Indexing" begin
 
 function idx_kern(X)

@@ -25,7 +25,7 @@ testf(rocf, f, x) = test_derivative(rocf, x) ≈ ForwardDiff.derivative(f, x)
         fn == :abs && continue # FIXME
         startswith(string(fn), "bessel") && continue # need besselj/bessely
         startswith(string(fn), "lgamma") && continue # throws
-        any(intr->intr.jlname==fn, AMDGPU.MATH_INTRINSICS) || continue
+        any(intr->intr.jlname==fn, AMDGPU.Device.MATH_INTRINSICS) || continue
         rocf = @eval $fn
         f = @eval $fn
 

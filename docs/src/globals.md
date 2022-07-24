@@ -17,7 +17,7 @@ b::Float64)`), the CPU host, and other devices and kernels when accessed by
 pointer.
 
 Global variables can be created within kernels with the
-[`AMDGPU.get_global_pointer`](@ref) function, which both declares the
+[`AMDGPU.Device.get_global_pointer`](@ref) function, which both declares the
 global variable, and returns a pointer to it (specifically a
 `Core.LLVMPtr`). Once a kernel which declares a global is
 compiled for GPU execution (either by [`@roc`](@ref) or [`rocfunction`](@ref)),
@@ -33,8 +33,8 @@ creates a global and uses its value to increment the indices of an array:
 
 ```julia
 function my_kernel(A)
-    idx = workitemIdx().x
-    ptr = AMDGPU.get_global_pointer(Val(:myglobal), Float32)
+    idx = AMDGPU.Device.workitemIdx().x
+    ptr = AMDGPU.Device.get_global_pointer(Val(:myglobal), Float32)
     A[idx] += Base.unsafe_load(ptr)
     nothing
 end

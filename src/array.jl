@@ -40,7 +40,7 @@ end
 # memory
 
 @inline function GPUArrays.LocalMemory(ctx::ROCKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}) where {T,dims,id}
-    ptr = AMDGPU.alloc_special(Val(id), T, AMDGPU.AS.Local, Val(prod(dims)))
+    ptr = AMDGPU.Device.alloc_special(Val(id), T, AMDGPU.AS.Local, Val(prod(dims)))
     ROCDeviceArray(dims, ptr)
 end
 
@@ -63,11 +63,11 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     dims::Dims{N}
     offset::Int
 
-    syncstate::SyncState
+    syncstate::Runtime.SyncState
 
     function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        xs = new{T,N}(buf, own, dims, offset, SyncState())
+        xs = new{T,N}(buf, own, dims, offset, Runtime.SyncState())
         if own
             hsaref!()
         end
@@ -91,14 +91,21 @@ wait!(xs::Vector{<:ROCArray}) = foreach(wait!, xs)
 mark!(xs::Vector{<:ROCArray}, s) = foreach(x->mark!(x,s), xs)
 wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(wait!, xs)
 mark!(xs::NTuple{N,<:ROCArray} where N, s) = foreach(x->mark!(x,s), xs)
-function Adapt.adapt_storage(::WaitAdaptor, x::ROCArray)
-    wait!(x.syncstate)
+function Adapt.adapt_storage(::Runtime.WaitAdaptor, x::ROCArray)
+    Runtime.wait!(x.syncstate)
     x
 end
-function Adapt.adapt_storage(ma::MarkAdaptor, x::ROCArray)
-    mark!(x.syncstate, ma.s)
+function Adapt.adapt_storage(ma::Runtime.MarkAdaptor, x::ROCArray)
+    Runtime.mark!(x.syncstate, ma.s)
     x
 end
+
+"""
+    device(A::ROCArray) -> ROCDevice
+
+Return the device associated with the array `A`.
+"""
+device(A::ROCArray) = A.buf.device
 
 ## aliases
 
@@ -220,11 +227,11 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
-function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; agent=get_default_agent()) where {T,N}
+function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; device=default_device()) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
-    device_ptr = Mem.lock(ptr, sz, agent)
-    buf = Mem.Buffer(device_ptr, ptr, sz, agent, false, false)
+    device_ptr = Mem.lock(ptr, sz, device)
+    buf = Mem.Buffer(device_ptr, ptr, sz, device, false, false)
     ROCArray{T, N}(buf, dims; own=false)
 end
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims) where T =
@@ -328,7 +335,7 @@ end
 
 ## GPUArrays interfaces
 
-GPUArrays.device(x::ROCArray) = x.buf.agent
+GPUArrays.device(x::ROCArray) = x.buf.device
 
 GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
 
@@ -336,7 +343,7 @@ function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) w
     ptr = Base.unsafe_convert(Ptr{T}, a.buf)
     ROCDeviceArray{T,N,AS.Global}(a.dims, AMDGPU.LLVMPtr{T,AS.Global}(ptr+a.offset))
 end
-Adapt.adapt_storage(::AMDGPU.Adaptor, x::ROCArray{T,N}) where {T,N} =
+Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
 
 

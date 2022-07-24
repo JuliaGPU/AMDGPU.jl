@@ -1,5 +1,5 @@
 using AMDGPU
-using AMDGPU: HSA, AS
+using AMDGPU: Runtime, Mem, Device, HSA, AS
 if AMDGPU.functional(:hip)
     using AMDGPU: HIP
 end
@@ -28,24 +28,35 @@ allowscalar(false)
 
 CI = parse(Bool, get(ENV, "CI", "false"))
 
+if CI
+    # Disable fault handler (signal timeout will catch hangs)
+    # FIXME: Instead kill all associated queues
+    fault_handler(ev, data) = HSA.STATUS_SUCCESS
+    function setup_fault_handler()
+        fault_handler_cb = @cfunction(fault_handler, HSA.Status, (Ptr{HSA.AMDEvent}, Ptr{Cvoid}))
+        @assert AMDGPU.HSA.amd_register_system_event_handler(fault_handler_cb, C_NULL) == HSA.STATUS_SUCCESS
+    end
+    setup_fault_handler()
+end
+
+Runtime.DEFAULT_SIGNAL_TIMEOUT[] = 15.0
+Device.DEFAULT_HOSTCALL_TIMEOUT[] = 15.0
+
 @testset "AMDGPU" begin
 
 @testset "Core" begin
 include("pointer.jl")
 end
 
-@test AMDGPU.functional()
-@assert AMDGPU.functional()
-
-@test length(get_agents()) > 0
-
-@info "Testing using device $(get_default_agent())"
-
 @testset "HSA" begin
     include("hsa/error.jl")
-    include("hsa/agent.jl")
-    include("hsa/memory.jl")
     include("hsa/utils.jl")
+
+    @test length(AMDGPU.devices()) > 0
+    @info "Testing using device $(AMDGPU.default_device())"
+
+    include("hsa/device.jl")
+    include("hsa/memory.jl")
 end
 @testset "Codegen" begin
     include("codegen/synchronization.jl")
@@ -74,9 +85,12 @@ end
     end
     @testset "ROCm External Libraries" begin
         if CI
-            @test AMDGPU.functional(:rocblas)
+            if !AMDGPU.use_artifacts
+                # We don't have artifacts for these
+                @test AMDGPU.functional(:rocblas)
+                @test AMDGPU.functional(:rocfft)
+            end
             @test AMDGPU.functional(:rocrand)
-            @test AMDGPU.functional(:rocfft)
         end
         if AMDGPU.functional(:rocblas)
             include("rocarray/blas.jl")

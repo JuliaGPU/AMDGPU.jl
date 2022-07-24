@@ -1,7 +1,7 @@
 using Base.FastMath
 
 @testset "Math Intrinsics" begin
-    for intr in AMDGPU.MATH_INTRINSICS
+    for intr in AMDGPU.Device.MATH_INTRINSICS
         jlintr = intr.jlname
         if intr.isbroken ||
            !isdefined(Base, jlintr) ||
@@ -21,7 +21,7 @@ using Base.FastMath
         intr_kern = Symbol("intr_$(jlintr)_$T")
         @eval begin
             function $intr_kern(out, a)
-                i = threadIdx().x
+                i = Device.workitemIdx().x
                 out[i] = $jlintr(a[i])
                 return nothing
             end

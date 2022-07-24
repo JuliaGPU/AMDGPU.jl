@@ -1,6 +1,6 @@
 @testset "semi_safe_load" begin
 
-@test AMDGPU.PAGESIZE == 0x1000
+@test Runtime.PAGESIZE == 0x1000
 
 struct MediumObject end
 Base.sizeof(::MediumObject) = 0x1000
@@ -31,8 +31,8 @@ for (ptr, bases) in (
     (Ptr{BigObject}(UInt64(0x1000)), UInt64[0x1000, 0x2000]),
     (Ptr{BigObject}(UInt64(0x1001)), UInt64[0x1000, 0x2000, 0x3000]),
 )
-    @test AMDGPU._pages_spanned(ptr) == length(bases)
-    AMDGPU._per_page((x,y)->nothing, ptr) do base
+    @test Runtime._pages_spanned(ptr) == length(bases)
+    Runtime._per_page((x,y)->nothing, ptr) do base
         @test base in bases
     end
 end

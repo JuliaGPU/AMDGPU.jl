@@ -13,9 +13,9 @@ equivalent interface, then the default device is used for those operations,
 which affects compilation and kernel launch.
 
 The default device is accessible via `AMDGPU.get_default_agent()`. This
-function returns an `HSAAgent`, which is a handle that references the device.
+function returns an `ROCDevice`, which is a handle that references the device.
 The list of available devices can be queried with `AMDGPU.get_agents()` to get
-a list of all known and potentially usable devices. If you have an `HSAAgent`
+a list of all known and potentially usable devices. If you have an `ROCDevice`
 object, you can also switch the default device via
 `AMDGPU.set_default_agent!(agent)`.
 
