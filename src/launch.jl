@@ -38,8 +38,8 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             # validate launch parameters
             groupsize, gridsize = normalize_launch_dimensions(groupsize, gridsize)
 
-            # create kernel instance
-            kern = $AMDGPU.create_kernel($AMDGPU.device(queue), f.mod.exe, f.entry, args)
+            # access kernel instance
+            kernel = signal.kernel
 
             # launch kernel
             lock($RT_LOCK)
@@ -48,10 +48,10 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             finally
                 unlock($RT_LOCK)
             end
-            launch_kernel!(queue, kern, signal.signal, groupsize, gridsize)
+            launch_kernel!(queue, kernel, signal.signal, groupsize, gridsize)
 
             # preserve kernel and arguments
-            $preserve!(signal, kern)
+            $preserve!(signal, kernel)
             for arg in args
                 $preserve!(signal, arg)
             end

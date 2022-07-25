@@ -94,16 +94,15 @@ function create_executable(device, entry, obj; globals=())
 end
 
 ## Event creation
-function create_event(exe::ROCExecutable; queue::ROCQueue=default_queue(), signal::Union{ROCKernelSignal,ROCSignal}=ROCSignal(), kwargs...)
+function create_event(kernel::ROCKernel; queue::ROCQueue=default_queue(), signal::Union{ROCKernelSignal,ROCSignal}=ROCSignal(), kwargs...)
     if signal isa ROCKernelSignal
         return signal
     end
-    return ROCKernelSignal(signal, queue, exe; kwargs...)
+    return ROCKernelSignal(signal, queue, kernel; kwargs...)
 end
 
 ## Kernel creation
-create_kernel(device::ROCDevice, exe::ROCExecutable, entry, args) =
-    ROCKernel(device, exe, entry, args)
+create_kernel(kernel::Runtime.HostKernel, f, args) = ROCKernel(kernel, f, args)
 
 ## Kernel launch and barriers
 
@@ -332,7 +331,7 @@ macro roc(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym kernel_f kernel_args kernel_tt device kernel queue signal
+    @gensym kernel_f kernel_args kernel_tt kernel kernel_instance device queue signal
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -353,6 +352,8 @@ macro roc(ex...)
         # convert the function, its arguments, call the compiler and launch the kernel
         # while keeping the original arguments alive
 
+        call_kwargs_signal = [filter(x->x.args[1] != :signal, call_kwargs)...,
+                              Expr(:(=), :signal, signal)]
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
@@ -364,8 +365,9 @@ macro roc(ex...)
                         foreach($wait!, ($(var_exprs...),))
                     end
                     if $launch
-                        local $signal = $create_event($kernel.mod.exe; $(signal_kwargs...))
-                        $kernel($kernel_args...; signal=$signal, $(filter(x->x.args[1] != :signal, call_kwargs)...))
+                        local $kernel_instance = $create_kernel($kernel, $kernel_f, $kernel_args)
+                        local $signal = $create_event($kernel_instance; $(signal_kwargs...))
+                        $kernel($kernel_args...; $(call_kwargs_signal...))
                         if $mark
                             foreach(x->$mark!(x, $signal), ($(var_exprs...),))
                         end

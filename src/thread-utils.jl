@@ -36,15 +36,15 @@ end
     status = Threads.atomic_cas!(x.guard, 0, 1)
     if status == 0
         try
-          x.value[] = constructor()
-          x.guard[] = 2
+            x.value[] = constructor()
+            x.guard[] = 2
         catch
-          x.guard[] = 0
-          rethrow()
+            x.guard[] = 0
+            rethrow()
         end
 
         if hook !== nothing
-          hook()
+            hook()
         end
     else
         yield()
@@ -168,5 +168,25 @@ macro memoize(ex...)
 
     quote
         $ex
+    end
+end
+
+## Safe (non-yielding) locking primitives
+# Borrowed from CUDA.jl
+
+macro spinlock(l, ex)
+    quote
+        temp = $(esc(l))
+        while !trylock(temp)
+            ccall(:jl_cpu_pause, Cvoid, ())
+            # Temporary solution before we have gc transition support in codegen.
+            ccall(:jl_gc_safepoint, Cvoid, ())
+            # we can't yield here
+        end
+        try
+            $(esc(ex))
+        finally
+            unlock(temp)
+        end
     end
 end
