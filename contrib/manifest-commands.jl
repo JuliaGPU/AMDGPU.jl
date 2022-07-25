@@ -1,7 +1,7 @@
 cmd = Cmd([Base.julia_cmd()...,
            "--project=$(@__DIR__)/..",
            "-e", "using Pkg; " * ARGS[1]])
-cd("..") do
+cd(joinpath(@__DIR__, "..")) do
     for version in (8, 7, 6)
         file = if version == 8
             "Manifest.toml"
