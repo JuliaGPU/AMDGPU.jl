@@ -108,7 +108,7 @@ for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # Grid dimension (in workitems)
     fn = Symbol("gridDim_$dim")
     base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
-    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size-1))), UInt32))
+    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim]-1))), UInt32))
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridDimWG_$dim")
     fn_wg_dim = Symbol("workgroupDim_$dim")
