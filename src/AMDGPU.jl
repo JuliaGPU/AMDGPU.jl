@@ -61,8 +61,8 @@ module Runtime
         include("memory.jl")
     end
     include("executable.jl")
-    include("kernel-signal.jl")
     include("kernel.jl")
+    include("kernel-signal.jl")
     include("launch.jl")
     include("execution.jl")
     include("sync.jl")
