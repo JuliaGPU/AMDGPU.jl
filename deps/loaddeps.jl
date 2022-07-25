@@ -4,6 +4,7 @@ try
 catch err
     if !isfile(joinpath(@__DIR__, "ext.jl"))
         @warn "Didn't find deps/ext.jl, please build AMDGPU.jl"
+        @eval const use_artifacts = false
         @eval const configured = false
         @eval const build_reason = "Build did not occur"
         @eval const lld_configured = false
