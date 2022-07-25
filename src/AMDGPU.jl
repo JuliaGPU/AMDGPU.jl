@@ -38,6 +38,7 @@ include(joinpath(@__DIR__, "hip", "HIP.jl"))
 end
 
 module Runtime
+    using ..CEnum
     using Setfield
     import ..HSA
     import ..Adapt
