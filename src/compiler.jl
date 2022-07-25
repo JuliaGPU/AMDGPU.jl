@@ -118,12 +118,7 @@ function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default
     target = GCNCompilerTarget(; dev_isa=arch, features=feat)
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
-    @debug begin
-        iob = IOBuffer()
-        Base.show_backtrace(iob, backtrace())
-        seek(iob, 0)
-        "Compiling $f ($tt)\n$(String(take!(iob)))"
-    end
+    @debug "Compiling $f ($tt)"
     fun = GPUCompiler.cached_compilation(cache, job,
                                          rocfunction_compile,
                                          rocfunction_link)::ROCFunction
