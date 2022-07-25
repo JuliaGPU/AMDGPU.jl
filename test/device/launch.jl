@@ -41,6 +41,8 @@
     @test_throws ArgumentError eval(:(@roc groupsize=0 $kernel()))
     eval(:(@roc groupsize=1024 $kernel()))
     @test_throws ArgumentError eval(:(@roc groupsize=1025 $kernel()))
+    @test_throws ArgumentError eval(:(@roc groupsize=(1024,2) $kernel()))
+    @test_throws ArgumentError eval(:(@roc groupsize=(512,2,2) $kernel()))
 
     # No-launch
     @test eval(:(@roc launch=true $kernel())) isa AMDGPU.ROCKernelSignal
