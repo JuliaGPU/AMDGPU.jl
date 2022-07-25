@@ -25,7 +25,7 @@ Base.:(==)(device1::ROCDevice, device2::ROCDevice) =
 
 const DEFAULT_DEVICE = Ref{ROCDevice}()
 const ALL_DEVICES = Vector{ROCDevice}()
-const DEVICES = IdDict{UInt64, ROCDevice}() # Map from device handles to ROCDevice structs
+const DEVICES = Dict{UInt64, ROCDevice}() # Map from device handles to ROCDevice structs
 
 ### @cfunction callbacks ###
 
@@ -178,8 +178,9 @@ function parse_isa(isa::HSA.ISA)
 end
 
 function llvm_arch_features(isa::HSA.ISA)
+    @memoize isa::HSA.ISA begin
     m = parse_isa(isa)
-    arch = m.captures[4]
+    arch = String(m.captures[4])
     features = join(map(x->x[1:end-1],
                         filter(x->!isempty(x) && (x[end]=='+'),
                                split(m.captures[5], ':'))),
@@ -190,7 +191,8 @@ function llvm_arch_features(isa::HSA.ISA)
     if Base.libllvm_version < v"12"
         features = replace(features, "sramecc"=>"sram-ecc")
     end
-    return (arch, features)
+    (arch, features)
+    end::Tuple{String, String}
 end
 architecture(isa::HSA.ISA) = llvm_arch_features(isa)[1]
 features(isa::HSA.ISA) = llvm_arch_features(isa)[2]
