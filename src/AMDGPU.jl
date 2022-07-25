@@ -52,6 +52,7 @@ module Runtime
     const RT_EXITING = Ref{Bool}(false)
 
     include("error.jl")
+    include("thread-utils.jl")
     include("device.jl")
     include("queue.jl")
     include("signal.jl")
