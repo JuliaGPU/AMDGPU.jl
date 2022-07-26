@@ -86,9 +86,10 @@ function normalize_launch_dimensions(groupsize, gridsize)
         throw(ArgumentError("Group dimensions must be non-zero"))
     (gridsize.x > 0 && gridsize.y > 0 && gridsize.z > 0) ||
         throw(ArgumentError("Grid dimensions must be non-zero"))
-    (groupsize.x <= AMDGPU.Device._max_group_size.x + 1 &&
-     groupsize.y <= AMDGPU.Device._max_group_size.y + 1 &&
-     groupsize.z <= AMDGPU.Device._max_group_size.z + 1) ||
+    (groupsize.x <= AMDGPU.Device._max_group_size &&
+     groupsize.y <= AMDGPU.Device._max_group_size &&
+     groupsize.z <= AMDGPU.Device._max_group_size &&
+     groupsize.x * groupsize.y * groupsize.z <= AMDGPU.Device._max_group_size) ||
         throw(ArgumentError("Group dimensions too large"))
 
     return groupsize, gridsize
