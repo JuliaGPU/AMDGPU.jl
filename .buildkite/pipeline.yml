@@ -80,7 +80,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx908"
+      rocmgpu: "gfx90a"
     if: build.message !~ /\[skip tests\]/
     soft_fail: true
     timeout_in_minutes: 180
