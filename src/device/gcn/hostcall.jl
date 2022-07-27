@@ -158,14 +158,16 @@ end
         end
     end
 end
-@inline @generated function hostcall_device_trigger_and_return!(hc::HostCall{UInt64,RT,AT}) where {RT,AT}
+@generated function hostcall_device_trigger_and_return!(hc::HostCall{UInt64,RT,AT}) where {RT,AT}
     ex = Expr(:block)
-    @gensym shmem ptr
+    @gensym shmem buf_ptr ret_ptr hostcall_return
 
     push!(ex.args, quote
         if $RT !== Nothing
             # FIXME: This is not valid without the @inline
-            $shmem = $alloc_local(:hostcall_return, $RT, 1)
+            #$shmem = $alloc_local($hostcall_return, $RT, 1)
+            # But this is fine (if slower)
+            $shmem = $get_global_pointer($(Val(hostcall_return)), $RT)
         end
         if $workitemIdx().x == 1
             # Ensure arguments are written
@@ -176,14 +178,14 @@ end
 
             # Get return buffer and load first value
             if $RT !== Nothing
-                $ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global}, hc.buf_ptr)
-                $ptr = unsafe_load($ptr)
-                if UInt64($ptr) == 0
+                $buf_ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global}, hc.buf_ptr)
+                $ret_ptr = unsafe_load($buf_ptr)
+                if UInt64($ret_ptr) == 0
                     $device_signal_store!(hc.signal, $DEVICE_ERR_SENTINEL)
                     AMDGPU.signal_exception()
                     AMDGPU.Device.trap()
                 end
-                unsafe_store!($shmem, unsafe_load($ptr)::$RT)
+                unsafe_store!($shmem, unsafe_load($ret_ptr)::$RT)
             end
             $device_signal_store!(hc.signal, $READY_SENTINEL)
         end
