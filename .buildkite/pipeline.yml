@@ -2,7 +2,7 @@ steps:
   - label: "Julia 1.7 - GPUArrays 8"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.7-nightly
+          version: 1.7
       - JuliaCI/julia-test#v1.4:
       - JuliaCI/julia-coverage#v1:
           codecov: true
@@ -18,7 +18,7 @@ steps:
   - label: "Julia 1.7 - GPUArrays 7"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.7-nightly
+          version: 1.7
       - JuliaCI/julia-test#v1.4:
           custom_manifest: Manifest.toml.gpuarrays-7
       - JuliaCI/julia-coverage#v1:
@@ -35,7 +35,7 @@ steps:
   - label: "Julia 1.7 - GPUArrays 6"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.7-nightly
+          version: 1.7
       - JuliaCI/julia-test#v1.4:
           custom_manifest: Manifest.toml.gpuarrays-6
       - JuliaCI/julia-coverage#v1:
@@ -52,7 +52,7 @@ steps:
   - label: "Julia 1.8 - GPUArrays 8"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.8-nightly
+          version: 1.8
       - JuliaCI/julia-test#v1.4:
       - JuliaCI/julia-coverage#v1:
           codecov: true
@@ -69,7 +69,7 @@ steps:
   - label: "Julia 1.8 - GPUArrays 8 - No artifacts"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.8-nightly
+          version: 1.8
       - JuliaCI/julia-test#v1.4:
       - JuliaCI/julia-coverage#v1:
           codecov: true
@@ -121,7 +121,7 @@ steps:
   - label: "Documentation"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.7-nightly
+          version: 1.7
     command: |
       julia --project -e '
         println("--- :julia: Instantiating project")
