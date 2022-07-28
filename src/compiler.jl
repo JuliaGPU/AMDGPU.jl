@@ -184,7 +184,7 @@ const default_global_hooks = Dict{Symbol,Function}()
 default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
     # initialize global output context
     gbl_ptr = Base.unsafe_convert(Ptr{AMDGPU.Device.GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
-    oc = Device.OutputContext(stdout; device, name=:__global_output)
+    oc = Device.OutputContext(stdout; device, name=:__global_output, timeout=nothing)
     Base.unsafe_store!(gbl_ptr, oc)
 end
 default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
