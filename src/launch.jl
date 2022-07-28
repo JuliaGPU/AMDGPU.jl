@@ -154,12 +154,19 @@ end
 
 function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue, signal::ROCSignal)
     # Obtain the current queue write index and queue size
-    _queue = unsafe_load(queue.queue)
+    queue_ptr = @atomic queue.queue
+    active = @atomic queue.active
+    if !active || queue_ptr == C_NULL
+        status = queue.status
+        @assert status != HSA.STATUS_SUCCESS
+        throw(QueueError(queue_ptr, HSAError(status)))
+    end
+    _queue = unsafe_load(queue_ptr)
     queue_size = _queue.size
-    write_index = HSA.queue_add_write_index_scacq_screl(queue.queue, UInt64(1))
+    write_index = HSA.queue_add_write_index_scacq_screl(queue_ptr, UInt64(1))
 
     # Yield until queue has space
-    while write_index - HSA.queue_load_read_index_scacquire(queue.queue) >= queue_size
+    while write_index - HSA.queue_load_read_index_scacquire(queue_ptr) >= queue_size
         # TODO: Exponential backoff with initial `Libc.systemsleep` calls
         yield()
     end
