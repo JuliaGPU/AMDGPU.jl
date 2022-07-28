@@ -150,8 +150,7 @@ end
     %ptr = inttoptr i$(Sys.WORD_SIZE) %0 to i16*
     store atomic i16 %1, i16* %ptr release, align 64
     ret void
-    """, Cvoid, Tuple{Ptr{UInt16}, UInt16},
-    Base.unsafe_convert(Ptr{UInt16}, x), v)
+    """, Cvoid, Tuple{Ptr{UInt16}, UInt16}, x, v)
 
 function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue, signal::ROCSignal)
     # Obtain the current queue write index and queue size
@@ -161,6 +160,7 @@ function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue, signal::ROCSignal
 
     # Yield until queue has space
     while write_index - HSA.queue_load_read_index_scacquire(queue.queue) >= queue_size
+        # TODO: Exponential backoff with initial `Libc.systemsleep` calls
         yield()
     end
 
@@ -177,11 +177,15 @@ function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue, signal::ROCSignal
     dispatch_packet_ptr = convert(Ptr{HSA.KernelDispatchPacket}, Base.unsafe_convert(Ptr{T}, dispatch_packet))
     unsafe_copyto!(baseaddr_ptr, dispatch_packet_ptr, 1)
 
+    Threads.atomic_fence()
+
+    # TODO: Generalize to allow barrier on kernel
     packetheadertype(::Type{HSA.KernelDispatchPacket}) = HSA.PACKET_TYPE_KERNEL_DISPATCH
     packetheadertype(::Type{HSA.BarrierAndPacket}) = HSA.PACKET_TYPE_BARRIER_AND
     packetheadertype(::Type{HSA.BarrierOrPacket}) = HSA.PACKET_TYPE_BARRIER_OR
 
     # Create and atomically store the header
+    # TODO: Generalize to make scopes configurable
     header = Ref{UInt16}(0)
     header[] |= UInt16(HSA.FENCE_SCOPE_SYSTEM) << UInt16(HSA.PACKET_HEADER_SCACQUIRE_FENCE_SCOPE)
     header[] |= UInt16(HSA.FENCE_SCOPE_SYSTEM) << UInt16(HSA.PACKET_HEADER_SCRELEASE_FENCE_SCOPE)
