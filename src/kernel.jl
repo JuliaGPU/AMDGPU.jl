@@ -1,5 +1,44 @@
 export barrier_and!, barrier_or!
 
+## Kernel allocations
+
+struct KernelMetadata
+    kern::UInt64
+    buf::Mem.Buffer
+end
+
+## Kernel module and function
+
+export ROCModule, ROCFunction
+
+const MAX_EXCEPTIONS = 256
+const EXE_TO_MODULE_MAP = IdDict{Any,WeakRef}()
+mutable struct ROCModule{E}
+    exe::ROCExecutable{E}
+    metadata::Vector{KernelMetadata}
+    exceptions::Mem.Buffer
+end
+function ROCModule(exe)
+    device = exe.device
+    metadata = KernelMetadata[]
+    exceptions = Mem.alloc(device, sizeof(AMDGPU.Device.ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
+    mod = ROCModule(exe, metadata, exceptions)
+    EXE_TO_MODULE_MAP[exe] = WeakRef(mod)
+    AMDGPU.hsaref!()
+    return finalizer(mod) do x
+        # FIXME: Free all metadata
+        Mem.free(mod.exceptions)
+        delete!(EXE_TO_MODULE_MAP, exe)
+        AMDGPU.hsaunref!()
+    end
+end
+mutable struct ROCFunction
+    mod::ROCModule
+    entry::String
+end
+
+## Kernel instance
+
 mutable struct ROCKernel{T<:Tuple}
     device::ROCDevice
     exe::ROCExecutable
@@ -12,8 +51,11 @@ mutable struct ROCKernel{T<:Tuple}
     kernarg_address::Ptr{Nothing}
 end
 
-# TODO device can be inferred from the executable
-function ROCKernel(device::ROCDevice, exe::ROCExecutable, symbol::String, args::Tuple)
+function ROCKernel(kernel, f::Core.Function, args::Tuple)
+    kernel::HostKernel
+    exe = kernel.mod.exe
+    device = exe.device
+    symbol = kernel.fun.entry
     agent_func = @cfunction(iterate_exec_agent_syms_cb, HSA.Status,
                            (HSA.Executable, HSA.Agent, HSA.ExecutableSymbol, Ptr{Cvoid}))
     exec_symbol = Ref{HSA.ExecutableSymbol}()
@@ -56,78 +98,36 @@ function ROCKernel(device::ROCDevice, exe::ROCExecutable, symbol::String, args::
     getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE,
             private_segment_size) |> check
 
-    # N.B. We use the region API because kernarg allocations don't
-    # show up in the memory pools API
-    kernarg_region = get_region(device, :kernarg)
+    # Allocate the kernel argument buffer
+    key = hash(f, hash(args))
+    kernarg_address, do_write = Mem.alloc_pooled(device, key, :kernarg, kernarg_segment_size[])
 
-    # Allocate the kernel argument buffer from the correct region
-    kernarg_address = Ref{Ptr{Nothing}}()
-    HSA.memory_allocate(kernarg_region.region,
-                        kernarg_segment_size[],
-                        kernarg_address) |> check
-
-    # Fill kernel argument buffer
-    # FIXME: Query kernarg segment alignment
-    ctr = 0x0
-    for arg in args
-        rarg = Ref(arg)
-        align = Base.datatype_alignment(typeof(arg))
-        rem = mod(ctr, align)
-        if rem > 0
-            ctr += align-rem
+    if do_write
+        # Fill kernel argument buffer
+        # FIXME: Query kernarg segment alignment
+        ctr = 0x0
+        for arg in (f, args...)
+            rarg = Ref(arg)
+            align = Base.datatype_alignment(typeof(arg))
+            rem = mod(ctr, align)
+            if rem > 0
+                ctr += align-rem
+            end
+            sz = sizeof(typeof(arg))
+            ccall(:memcpy, Cvoid,
+                  (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+                  kernarg_address+ctr, rarg, sz)
+            ctr += sz
         end
-        sz = sizeof(typeof(arg))
-        ccall(:memcpy, Cvoid,
-            (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-            kernarg_address[]+ctr, rarg, sz)
-        ctr += sz
     end
-
 
     kernel = ROCKernel(device, exe, symbol, args, kernel_object[],
                                kernarg_segment_size[], group_segment_size[],
-                               private_segment_size[], kernarg_address[])
+                               private_segment_size[], kernarg_address)
     AMDGPU.hsaref!()
     finalizer(kernel) do kernel
-        HSA.memory_free(kernel.kernarg_address) |> check
+        Mem.free_pooled(device, key, :kernarg, kernarg_address)
         AMDGPU.hsaunref!()
     end
     return kernel
-end
-
-## Kernel allocations
-
-struct KernelMetadata
-    kern::UInt64
-    buf::Mem.Buffer
-end
-
-## Kernel module and function
-
-export ROCModule, ROCFunction
-
-const MAX_EXCEPTIONS = 256
-const EXE_TO_MODULE_MAP = IdDict{Any,WeakRef}()
-mutable struct ROCModule{E}
-    exe::ROCExecutable{E}
-    metadata::Vector{KernelMetadata}
-    exceptions::Mem.Buffer
-end
-function ROCModule(exe)
-    device = exe.device
-    metadata = KernelMetadata[]
-    exceptions = Mem.alloc(device, sizeof(AMDGPU.Device.ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
-    mod = ROCModule(exe, metadata, exceptions)
-    EXE_TO_MODULE_MAP[exe] = WeakRef(mod)
-    AMDGPU.hsaref!()
-    finalizer(mod) do x
-        # FIXME: Free all metadata
-        Mem.free(mod.exceptions)
-        delete!(EXE_TO_MODULE_MAP, exe)
-        AMDGPU.hsaunref!()
-    end
-end
-mutable struct ROCFunction
-    mod::ROCModule
-    entry::String
 end

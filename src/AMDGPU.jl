@@ -38,6 +38,7 @@ include(joinpath(@__DIR__, "hip", "HIP.jl"))
 end
 
 module Runtime
+    using ..CEnum
     using Setfield
     import ..HSA
     import ..Adapt
@@ -51,6 +52,7 @@ module Runtime
     const RT_EXITING = Ref{Bool}(false)
 
     include("error.jl")
+    include("thread-utils.jl")
     include("device.jl")
     include("queue.jl")
     include("signal.jl")
@@ -59,8 +61,8 @@ module Runtime
         include("memory.jl")
     end
     include("executable.jl")
-    include("kernel-signal.jl")
     include("kernel.jl")
+    include("kernel-signal.jl")
     include("launch.jl")
     include("execution.jl")
     include("sync.jl")

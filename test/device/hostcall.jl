@@ -221,8 +221,6 @@ end
     end
 
     wait(@roc kernel(RA, RB, hc1, hc2))
-
-    sleep(1)
     @test Array(RB)[1] == 11f0
 end
 

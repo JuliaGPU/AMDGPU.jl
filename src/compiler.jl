@@ -113,17 +113,11 @@ function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default
     source = FunctionSpec(F, tt, true, name)
     cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
     isa = AMDGPU.default_isa(device)
-    arch = Runtime.architecture(isa)
-    feat = Runtime.features(isa)
+    arch, feat = Runtime.llvm_arch_features(isa)
     target = GCNCompilerTarget(; dev_isa=arch, features=feat)
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
-    @debug begin
-        iob = IOBuffer()
-        Base.show_backtrace(iob, backtrace())
-        seek(iob, 0)
-        "Compiling $f ($tt)\n$(String(take!(iob)))"
-    end
+    @debug "Compiling $f ($tt)"
     fun = GPUCompiler.cached_compilation(cache, job,
                                          rocfunction_compile,
                                          rocfunction_link)::ROCFunction
@@ -190,7 +184,7 @@ const default_global_hooks = Dict{Symbol,Function}()
 default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
     # initialize global output context
     gbl_ptr = Base.unsafe_convert(Ptr{AMDGPU.Device.GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)
-    oc = Device.OutputContext(stdout; device, name=:__global_output)
+    oc = Device.OutputContext(stdout; device, name=:__global_output, timeout=nothing)
     Base.unsafe_store!(gbl_ptr, oc)
 end
 default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin

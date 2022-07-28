@@ -2,11 +2,11 @@
 mutable struct ROCKernelSignal
     signal::ROCSignal
     queue::ROCQueue
-    exe::ROCExecutable
+    kernel::ROCKernel
     done::Base.Event
     exception::Union{Exception,Nothing}
-    function ROCKernelSignal(signal::ROCSignal, queue::ROCQueue, exe::ROCExecutable; kwargs...)
-        signal = new(signal, queue, exe, Base.Event(), nothing)
+    function ROCKernelSignal(signal::ROCSignal, queue::ROCQueue, kernel::ROCKernel; kwargs...)
+        signal = new(signal, queue, kernel, Base.Event(), nothing)
         errormonitor(Threads.@spawn _wait(signal; kwargs...)) # the real waiter
         signal
     end
@@ -56,7 +56,8 @@ function _wait(signal::ROCKernelSignal; check_exceptions=true, cleanup=true, kwa
         false
     end
     unpreserve!(signal) # allow kernel-associated objects to be freed
-    exe = signal.exe::ROCExecutable{Mem.Buffer}
+    finalize(signal.kernel)
+    exe = signal.kernel.exe::ROCExecutable{Mem.Buffer}
     mod = EXE_TO_MODULE_MAP[exe].value
     device = exe.device
     signal_handle = (signal.signal.signal[]::HSA.Signal).handle
