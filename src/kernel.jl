@@ -106,7 +106,7 @@ function ROCKernel(kernel, f::Core.Function, args::Tuple)
         # Fill kernel argument buffer
         # FIXME: Query kernarg segment alignment
         ctr = 0x0
-        for arg in args
+        for arg in (f, args...)
             rarg = Ref(arg)
             align = Base.datatype_alignment(typeof(arg))
             rem = mod(ctr, align)
