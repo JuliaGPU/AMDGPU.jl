@@ -101,7 +101,7 @@ end
 
 "Kills all kernels executing on the given queue, and destroys the queue."
 function kill_queue!(queue::ROCQueue; force=false)
-    queue_ptr = @atomicswap queue.queue = Ptr{HSA.Queue}(0)
+    #queue_ptr = @atomicswap queue.queue = Ptr{HSA.Queue}(0)
     if !force && !replacefield!(queue, :active, true, false, :acquire_release, :acquire).success
         return false # We didn't destroy the queue
     end
