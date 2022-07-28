@@ -239,14 +239,37 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false)
         # check(HSA.memory_assign_agent(buf.ptr, device.agent, HSA.ACCESS_PERMISSION_RW))
     end
 end
+function alloc_or_retry!(f)
+    for phase in 1:3
+        if phase == 2
+            GC.gc(false)
+            yield()
+        elseif phase == 3
+            GC.gc(true)
+            yield()
+        end
+        status = f()
+        if status == HSA.STATUS_SUCCESS
+            break
+        elseif status == HSA.STATUS_ERROR_OUT_OF_RESOURCES && phase == 3
+            check(status)
+        else
+            check(status)
+        end
+    end
+end
 function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
-    check(HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref))
+    alloc_or_retry!() do
+        HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
+    end
     return Buffer(ptr_ref[], C_NULL, bytesize, device, Runtime.pool_accessible_by_all(pool), true)
 end
 function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
-    check(HSA.memory_allocate(region.region, bytesize, ptr_ref))
+    alloc_or_retry!() do
+        HSA.memory_allocate(region.region, bytesize, ptr_ref)
+    end
     return Buffer(ptr_ref[], C_NULL, bytesize, device, Runtime.region_host_accessible(region), false)
 end
 alloc(bytesize; kwargs...) =
@@ -331,9 +354,11 @@ function alloc_pooled(device::ROCDevice, key::UInt64, kind::Symbol, bytesize::In
         # show up in the memory pools API
         kernarg_region = Runtime.get_region(device, :kernarg)
         kernarg_address = Ref{Ptr{Nothing}}(Ptr{Nothing}(0))
-        HSA.memory_allocate(kernarg_region.region,
-                            bytesize,
-                            kernarg_address) |> Runtime.check
+        alloc_or_retry!() do
+            HSA.memory_allocate(kernarg_region.region,
+                                bytesize,
+                                kernarg_address)
+        end
 
         Base.lock(ALLOC_POOL_LOCK)
 
