@@ -26,7 +26,7 @@ function queue_error_handler(status::HSA.Status, _queue::Ptr{HSA.Queue}, queue_o
     return nothing
 end
 
-function ROCQueue(device::ROCDevice)
+function ROCQueue(device::ROCDevice; priority::Symbol=:normal)
     queue_size = Ref{UInt32}(0)
     getinfo(device.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
     @assert queue_size[] > 0
@@ -49,7 +49,6 @@ function ROCQueue(device::ROCDevice)
     end
 
     # Monitor queue for async errors
-    # TODO: errormonitor
     queue_ptr = queue.queue
     errormonitor(Threads.@spawn begin
         try
@@ -71,6 +70,21 @@ function ROCQueue(device::ROCDevice)
             end
         end
     end)
+
+    # Set queue priority
+    if !in(priority, (:normal, :low, :high))
+        throw(ArgumentError("Invalid queue priority: $priority\nOptions are :low, :normal, :high"))
+    end
+    if priority != :normal
+        hsa_prio = if priority == :normal
+            HSA.AMD_QUEUE_PRIORITY_NORMAL
+        elseif priority == :low
+            HSA.AMD_QUEUE_PRIORITY_LOW
+        elseif priority == :high
+            HSA.AMD_QUEUE_PRIORITY_HIGH
+        end
+        HSA.amd_queue_set_priority(queue_ptr, hsa_prio) |> check
+    end
 
     AMDGPU.hsaref!()
     finalizer(queue) do queue
