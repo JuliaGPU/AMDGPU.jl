@@ -16,9 +16,11 @@ using Base.FastMath
                    isdefined(SpecialFunctions, jlintr) ? SpecialFunctions :
                    nothing)
         modname !== nothing || continue
+
         # FIXME: Handle all input and output args
         T = intr.inp_args[1]
         intr_kern = Symbol("intr_$(jlintr)_$T")
+
         @eval begin
             function $intr_kern(out, a)
                 i = Device.workitemIdx().x
@@ -37,6 +39,8 @@ using Base.FastMath
                 d_out = similar(d_a)
             end
             len = prod(dims)
+
+            @test only(Base.return_types($modname.$jlintr, (eltype(d_a),))) === eltype(d_out)
 
             wait(@roc groupsize=len $intr_kern(d_out, d_a))
             out = Array(d_out)
