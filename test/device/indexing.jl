@@ -1,5 +1,3 @@
-import .Device: workitemIdx, workgroupIdx, workgroupDim, gridDim, gridDimWG
-
 @testset "Kernel Indexing" begin
 
 function idx_kern(X)
@@ -16,7 +14,7 @@ end
 
 A = zeros(Int64, 6)
 RA = ROCArray(A)
-@roc groupsize=(1,2,3) gridsize=(4,5,6) idx_kern(RA)
+wait(@roc groupsize=(1,2,3) gridsize=(4,5,6) idx_kern(RA))
 A = Array(RA)
 @test all(A .> 0)
 
@@ -25,13 +23,13 @@ function dim_kern(X)
     X[2] = workgroupDim().y
     X[3] = workgroupDim().z
 
-    X[4] = gridDim().x
-    X[5] = gridDim().y
-    X[6] = gridDim().z
+    X[4] = gridItemDim().x
+    X[5] = gridItemDim().y
+    X[6] = gridItemDim().z
 
-    X[7] = gridDimWG().x
-    X[8] = gridDimWG().y
-    X[9] = gridDimWG().z
+    X[7] = gridGroupDim().x
+    X[8] = gridGroupDim().y
+    X[9] = gridGroupDim().z
 
     nothing
 end
