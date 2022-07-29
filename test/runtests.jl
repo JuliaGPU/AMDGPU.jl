@@ -56,6 +56,7 @@ end
     @info "Testing using device $(AMDGPU.default_device())"
 
     include("hsa/device.jl")
+    include("hsa/queue.jl")
     include("hsa/memory.jl")
 end
 @testset "Codegen" begin
