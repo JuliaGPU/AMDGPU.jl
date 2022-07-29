@@ -1,5 +1,3 @@
-export sync_workgroup
-
 """
     sync_workgroup()
 

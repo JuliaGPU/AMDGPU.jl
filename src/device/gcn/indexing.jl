@@ -1,6 +1,4 @@
 # Indexing and dimensions
-export workitemIdx, workgroupIdx, workgroupDim, gridDim, gridDimWG
-export threadIdx, blockIdx, blockDim
 
 @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
     Context() do ctx
@@ -106,11 +104,11 @@ for (dim,off) in ((:x,1), (:y,2), (:z,3))
     @eval @inline $cufn() = $fn()
 
     # Grid dimension (in workitems)
-    fn = Symbol("gridDim_$dim")
+    fn = Symbol("gridItemDim_$dim")
     base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
     @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim]-1))), UInt32))
     # Grid dimension (in workgroups)
-    fn_wg = Symbol("gridDimWG_$dim")
+    fn_wg = Symbol("gridGroupDim_$dim")
     fn_wg_dim = Symbol("workgroupDim_$dim")
     @eval @inline $fn_wg() = div($fn(), $fn_wg_dim())
 end
@@ -140,20 +138,20 @@ See also: [`blockDim`](@ref)
 @inline workgroupDim() = (x=workgroupDim_x(), y=workgroupDim_y(), z=workgroupDim_z())
 
 """
-    gridDim()::ROCDim3
+    gridItemDim()::ROCDim3
 
 Returns the size of the grid in workitems.
 This behaviour is different from CUDA where `gridDim` gives the size of the grid in blocks.
 """
-@inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
+@inline gridItemDim() = (x=gridItemDim_x(), y=gridItemDim_y(), z=gridItemDim_z())
 
 """
-    gridDimWG()::ROCDim3
+    gridGroupDim()::ROCDim3
 
 Returns the size of the grid in workgroups.
 This is equivalent to CUDA's `gridDim`.
 """
-@inline gridDimWG() = (x=gridDimWG_x(), y=gridDimWG_y(), z=gridDimWG_z())
+@inline gridGroupDim() = (x=gridGroupDim_x(), y=gridGroupDim_y(), z=gridGroupDim_z())
 
 # For compat with CUDAnative et. al
 

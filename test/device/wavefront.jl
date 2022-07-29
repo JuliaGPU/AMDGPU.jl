@@ -1,16 +1,16 @@
 @testset "Wavefront Operations" begin
     function reduce_kernel(op,X,Y)
-        idx = AMDGPU.workitemIdx().x
+        idx = workitemIdx().x
         Y[1] = AMDGPU.Device.wfred(op,X[idx])
         nothing
     end
     function scan_kernel(op,X,Y)
-        idx = AMDGPU.workitemIdx().x
+        idx = workitemIdx().x
         Y[idx] = AMDGPU.Device.wfscan(op,X[idx],true)
         nothing
     end
     function bool_kernel(X,Y)
-        idx = AMDGPU.workitemIdx().x
+        idx = workitemIdx().x
         Y[1] = AMDGPU.Device.wfany(X[idx])
         Y[2] = AMDGPU.Device.wfall(X[idx])
         Y[3] = AMDGPU.Device.wfsame(X[idx])

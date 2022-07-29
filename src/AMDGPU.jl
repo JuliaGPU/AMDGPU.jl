@@ -97,12 +97,15 @@ module Device
 end
 import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame
 import .Device: ROCDeviceArray, AS, HostCall, hostcall!
-import .Device: workitemIdx, workgroupIdx, workgroupDim, gridDim, gridDimWG
+import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 import .Device: threadIdx, blockIdx, blockDim
+import .Device: sync_workgroup
 import .Device: @rocprint, @rocprintln, @rocprintf
 
 export ROCDeviceArray
 export @rocprint, @rocprintln, @rocprintf
+export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
+export sync_workgroup
 
 module Compiler
     using ..GPUCompiler

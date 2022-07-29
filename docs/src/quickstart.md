@@ -116,13 +116,13 @@ wait(@roc groupsize=N vadd!(c_d, a_d, b_d))
     | [`workitemIdx`](@ref) | [`threadIdx`](@ref) |
     | [`workgroupIdx`](@ref) | [`blockIdx`](@ref) |
     | [`workgroupDim`](@ref) | [`blockDim`](@ref) |
-    | [`gridDim`](@ref) | No equivalent |
-    | [`gridDimWG`](@ref) | `gridDim` |
+    | [`gridItemDim`](@ref) | No equivalent |
+    | [`gridGroupDim`](@ref) | `gridDim` |
     | `groupsize` | `threads` |
     | `gridsize` | `blocks * threads` |
     | `queue` | `stream` |
 
-    For compatibilty reasons, the symbols in the CUDAnative column (except for `gridDim`) are also supported by AMDGPU.
+    For compatibilty reasons, the symbols in the CUDA column (except for `gridItemDim`) are also supported by AMDGPU.
 
 Finally, we can make sure that the results match, by first copying the data to the host and then comparing it with the CPU results:
 

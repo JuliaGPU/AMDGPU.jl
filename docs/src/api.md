@@ -16,16 +16,16 @@ AMDGPU.rocfunction
 #### HSA nomenclature
 
 ```@docs
-AMDGPU.Device.workitemIdx
-AMDGPU.Device.workgroupIdx
-AMDGPU.Device.workgroupDim
-AMDGPU.Device.gridDim
-AMDGPU.Device.gridDimWG
+AMDGPU.workitemIdx
+AMDGPU.workgroupIdx
+AMDGPU.workgroupDim
+AMDGPU.gridItemDim
+AMDGPU.gridGroupDim
 ```
 
 #### CUDA nomenclature
 
-Use these functions for compatibility with CUDAnative.jl.
+Use these functions for compatibility with CUDA.jl.
 
 ```@docs
 AMDGPU.Device.threadIdx
@@ -36,7 +36,7 @@ AMDGPU.Device.blockDim
 ### Synchronization
 
 ```@docs
-AMDGPU.Device.sync_workgroup
+AMDGPU.sync_workgroup
 ```
 
 ### Global Variables

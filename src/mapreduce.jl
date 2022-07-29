@@ -16,7 +16,7 @@
     # perform a reduction
     d = items>>1
     while d > 0
-        Device.sync_workgroup()
+        sync_workgroup()
         if item <= d
             shared[item] = op(shared[item], shared[item+d])
         end
@@ -44,7 +44,7 @@ function partial_mapreduce_device(f, op, neutral, maxitems, Rreduce, Rother, R, 
     localIdx_reduce = workitemIdx().x
     localDim_reduce = workgroupDim().x
     groupIdx_reduce, groupIdx_other = fldmod1(workgroupIdx().x, length(Rother))
-    groupDim_reduce = gridDimWG().x ÷ length(Rother)
+    groupDim_reduce = gridGroupDim().x ÷ length(Rother)
 
     # group-based indexing into the values outside of the reduction dimension
     # (that means we can safely synchronize items within this group)
