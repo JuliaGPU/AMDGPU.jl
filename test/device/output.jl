@@ -123,7 +123,7 @@ end
             if idx == i
                 @rocprintf "[%d] " idx
             end
-            Device.sync_workgroup()
+            sync_workgroup()
         end
         nothing
     end

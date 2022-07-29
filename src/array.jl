@@ -25,7 +25,7 @@ for (f, froc) in (
         (:blockidx, :blockIdx),
         (:blockdim, :blockDim),
         (:threadidx, :threadIdx),
-        (:griddim, :gridDimWG)
+        (:griddim, :gridGroupDim)
     )
     @eval @inline GPUArrays.$f(::ROCKernelContext) = AMDGPU.$froc().x
 end
@@ -47,7 +47,7 @@ end
 # synchronization
 
 @inline function GPUArrays.synchronize_threads(::ROCKernelContext)
-    AMDGPU.sync_workgroup()
+    sync_workgroup()
     return
 end
 

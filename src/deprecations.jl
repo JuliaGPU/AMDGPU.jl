@@ -1,3 +1,5 @@
+@deprecate gridDim() gridItemDim()
+@deprecate gridDimWG() gridGroupDim()
 @deprecate HSAAgent ROCDevice
 @deprecate HSAQueue ROCQueue
 @deprecate HSASignal ROCSignal

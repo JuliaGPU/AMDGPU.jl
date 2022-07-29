@@ -1,9 +1,9 @@
 # The original test :)
 @testset "Vector Addition Kernel" begin
     function vadd(a,b,c)
-        i = Device.workitemIdx().x
+        i = workitemIdx().x
         c[i] = a[i] + b[i]
-        Device.sync_workgroup()
+        sync_workgroup()
         return nothing
     end
 
