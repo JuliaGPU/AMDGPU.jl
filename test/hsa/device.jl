@@ -1,4 +1,13 @@
-@testset "Agent" begin
+@testset "Devices" begin
+    @testset "Device IDs" begin
+        for kind in (:cpu, :gpu)
+            devices = AMDGPU.devices()
+            for (idx,device) in enumerate(devices)
+                @test AMDGPU.device_id(device) == idx
+            end
+        end
+    end
+
     @testset "Default selection" begin
         agent = AMDGPU.default_device()
         @test agent !== nothing

@@ -38,6 +38,15 @@ default_device_id!(idx::Integer, kind::Symbol=:gpu) =
     default_device!(devices(kind)[idx])
 
 """
+    device_id(device::ROCDevice, kind::Symbol=:gpu) -> Int
+
+Returns the numerical device ID for `device`. See [`default_device_id`](@ref)
+for details on the numbering semantics.
+"""
+device_id(device::ROCDevice, kind::Symbol=:gpu) =
+    something(findfirst(dev->dev === device, devices(kind)))
+
+"""
     device_type(device::ROCDevice) -> Symbol
 
 Return the kind of `device` as a `Symbol`. CPU devices return `:cpu`, GPU
