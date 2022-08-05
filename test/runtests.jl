@@ -65,6 +65,7 @@ end
 end
 @testset "Device Functions" begin
     include("device/launch.jl")
+    include("device/array.jl")
     include("device/vadd.jl")
     include("device/memory.jl")
     include("device/indexing.jl")
