@@ -87,7 +87,6 @@ module Device
     # Device sources must load _before_ the compiler infrastructure
     # because of generated functions.
     include(joinpath("device", "addrspaces.jl"))
-    include(joinpath("device", "array.jl"))
     include(joinpath("device", "gcn.jl"))
     include(joinpath("device", "runtime.jl"))
     include(joinpath("device", "llvm.jl"))
@@ -151,19 +150,15 @@ include("deprecations.jl")
 
 const HSA_REFCOUNT = Threads.Atomic{UInt}(0)
 function hsaref!()
-    #=
     if Threads.atomic_add!(HSA_REFCOUNT, UInt(1)) > typemax(UInt)-10
         Core.println("HSA_REFCOUNT OVERFLOW!")
         exit(1)
     end
-    =#
 end
 function hsaunref!()
-    #=
     if Threads.atomic_sub!(HSA_REFCOUNT, UInt(1)) == 1
         HSA.shut_down()
     end
-    =#
 end
 
 # Load ROCm external libraries
@@ -246,7 +241,6 @@ function __init__()
         status = HSA.init()
         if status == HSA.STATUS_SUCCESS
             hsaref!()
-            HSA_REFCOUNT[] = 1
             # Register shutdown hook
             atexit() do
                 hsaunref!()

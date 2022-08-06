@@ -6,7 +6,7 @@ Each queue is uniquely associated with an device.
 """
 mutable struct ROCQueue
     device::ROCDevice
-    queue::Ptr{HSA.Queue}
+    @atomic queue::Ptr{HSA.Queue}
     status::HSA.Status
     cond::Base.AsyncCondition
     @atomic active::Bool
@@ -40,7 +40,7 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal)
     HSA.queue_create(device.agent, queue_size[], HSA.QUEUE_TYPE_MULTI,
                      @cfunction(queue_error_handler, Cvoid, (HSA.Status, Ptr{HSA.Queue}, Ptr{Cvoid})), pointer_from_objref(queue),
                      typemax(UInt32), typemax(UInt32), r_queue) |> check
-    queue.queue = r_queue[]
+    @atomic queue.queue = r_queue[]
 
     lock(RT_LOCK) do
         @assert !haskey(QUEUES, queue.queue)
@@ -89,6 +89,14 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal)
     AMDGPU.hsaref!()
     finalizer(queue) do queue
         kill_queue!(queue)
+        while !trylock(RT_LOCK)
+        end
+        try
+            delete!(QUEUES, queue_ptr)
+            delete!(_active_kernels, queue)
+        finally
+            unlock(RT_LOCK)
+        end
         AMDGPU.hsaunref!()
     end
     return queue
@@ -115,13 +123,14 @@ end
 
 "Kills all kernels executing on the given queue, and destroys the queue."
 function kill_queue!(queue::ROCQueue; force=false)
+    #queue_ptr = @atomicswap queue.queue = Ptr{HSA.Queue}(0)
+    queue_ptr = queue.queue
     if !force && !replacefield!(queue, :active, true, false, :acquire_release, :acquire).success
         return false # We didn't destroy the queue
     end
     @atomic queue.active = false
 
     lock(RT_LOCK) do
-        delete!(QUEUES, queue.queue)
         if get(DEFAULT_QUEUES, queue.device, nothing) == queue
             delete!(DEFAULT_QUEUES, queue.device)
         end
@@ -129,16 +138,14 @@ function kill_queue!(queue::ROCQueue; force=false)
 
         # Send exception to all waiter signals
         if queue.status != HSA.STATUS_SUCCESS
-            err = QueueError(queue.queue, HSAError(queue.status))
+            err = QueueError(queue_ptr, HSAError(queue.status))
             for signal in _active_kernels[queue]
                 signal.exception = err
                 notify(signal)
             end
         end
-
-        delete!(_active_kernels, queue)
     end
-    HSA.queue_destroy(queue.queue) |> check
+    HSA.queue_destroy(queue_ptr) |> check
 
     return true # We actually destroyed the queue
 end
