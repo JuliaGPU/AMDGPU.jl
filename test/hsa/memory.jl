@@ -242,4 +242,23 @@ end
     @test_throws ArgumentError Mem.alloc(MutableNonPtrFree)
 end
 
+@testset "Retry" begin
+    device = AMDGPU.default_device()
+    finegrained_region = Runtime.get_region(device, :finegrained)
+    coarsegrained_pool = Runtime.get_memory_pool(device, :coarsegrained)
+    finegrained_max = Runtime.region_size(finegrained_region)
+    coarsegrained_max = Runtime.pool_size(coarsegrained_pool)
+
+    if coarsegrained_max < finegrained_max
+        @testset "Coherent Fallback" begin
+            # This will still work because we fallback to coherent allocations
+            A = ROCVector{UInt8}(undef, Int(coarsegrained_max+8))
+            @test A.buf.coherent
+            A = nothing
+        end
+    else
+        @test_skip "Coherent Fallback"
+    end
+end
+
 end
