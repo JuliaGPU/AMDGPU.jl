@@ -35,14 +35,16 @@
         P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]
         P = ROCArray(P)
         P2 = AMDGPU.zeros(eltype(P),size(P))
-
-        buf = zeros(size(P))
         ranges = [1:size(P,1), 1:size(P,2), 1:size(P,3)]
+
+        # init buffers
+        buf = zeros(size(P))
+        dbuf = AMDGPU.zeros(eltype(P),size(P))
 
         # lock host pointer and convert it to eltype(buf)
         buf_Ptr = convert(Ptr{eltype(buf)}, AMDGPU.Mem.lock(pointer(buf), sizeof(buf), AMDGPU.default_device()))
 
-        # device to host
+        # 1. test device to host
         P_Ptr = convert(Ptr{eltype(buf)}, pointer(P))
         signal1 = ROCSignal()
         Mem.unsafe_copy3d!(
@@ -54,7 +56,7 @@
         wait(signal1)
         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
 
-        # host to device
+        # 2. test host to device
         P2_Ptr  = convert(Ptr{eltype(buf)}, pointer(P2))
         signal2 = ROCSignal()
         Mem.unsafe_copy3d!(
@@ -68,6 +70,18 @@
 
         # unlock host pointer
         Mem.unlock(pointer(buf))
+
+        # 3. test device to device
+        dbuf_Ptr = convert(Ptr{eltype(dbuf)}, pointer(dbuf))
+        signal3 = ROCSignal()
+        Mem.unsafe_copy3d!(
+            dbuf_Ptr, P_Ptr, length(ranges[1]), length(ranges[2]), length(ranges[3]);
+            dstPitch=sizeof(eltype(dbuf))*length(ranges[1]), dstSlice=sizeof(eltype(dbuf))*length(ranges[1])*length(ranges[2]),
+            srcPos=(ranges[1][1], ranges[2][1], ranges[3][1]), srcPitch=sizeof(eltype(dbuf))*size(P,1), srcSlice=sizeof(eltype(dbuf))*size(P,1)*size(P,2),
+            async=true, signal=signal3
+        )
+        wait(signal3)
+        @test all(Array(dbuf[:]) .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
     end
 end
 
