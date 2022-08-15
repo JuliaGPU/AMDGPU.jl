@@ -251,8 +251,10 @@ function alloc_or_retry!(f)
         status = f()
         if status == HSA.STATUS_SUCCESS
             break
-        elseif status == HSA.STATUS_ERROR_OUT_OF_RESOURCES && phase == 3
-            check(status)
+        elseif status == HSA.STATUS_ERROR_OUT_OF_RESOURCES
+            if phase == 3
+                check(status)
+            end
         else
             check(status)
         end
