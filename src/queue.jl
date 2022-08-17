@@ -132,8 +132,6 @@ attempt has already been made. Since queue pointers may be reused by the device,
 this may cause unpredictable behaviour by destroying an active queue.
 """
 function kill_queue!(queue::ROCQueue; force=false)
-    #queue_ptr = @atomicswap queue.queue = Ptr{HSA.Queue}(0)
-    queue_ptr = queue.queue
     if !force && !replacefield!(queue, :active, true, false, :acquire_release, :acquire).success
         # The queue was already marked as inactive and we are not forcing it.
         return false
@@ -151,14 +149,14 @@ function kill_queue!(queue::ROCQueue; force=false)
 
         # Send exception to all waiter signals
         if queue.status != HSA.STATUS_SUCCESS
-            err = QueueError(queue_ptr, HSAError(queue.status))
+            err = QueueError(queue.queue, HSAError(queue.status))
             for signal in _active_kernels[queue]
                 signal.exception = err
                 notify(signal)
             end
         end
     end
-    HSA.queue_destroy(queue_ptr) |> check
+    HSA.queue_destroy(queue.queue) |> check
 
     return true
 end
