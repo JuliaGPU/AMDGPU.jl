@@ -121,20 +121,32 @@ function get_default_queue(device::ROCDevice)
     end
 end
 
-"Kills all kernels executing on the given queue, and destroys the queue."
+"""
+    kill_queue!(queue::ROCQueue; force=false)
+
+Kills all kernels executing on the given queue, destroys the queue,
+and performs internal clean up. Returns true upon success.
+
+If `force` is `true`, this will attempt to kill a queue even if a previous
+attempt has already been made. Since queue pointers may be reused by the device,
+this may cause unpredictable behaviour by destroying an active queue.
+"""
 function kill_queue!(queue::ROCQueue; force=false)
     #queue_ptr = @atomicswap queue.queue = Ptr{HSA.Queue}(0)
     queue_ptr = queue.queue
     if !force && !replacefield!(queue, :active, true, false, :acquire_release, :acquire).success
-        return false # We didn't destroy the queue
+        # The queue was already marked as inactive and we are not forcing it.
+        return false
     end
     @atomic queue.active = false
 
     lock(RT_LOCK) do
+        # Clean up global queue lists
         if get(DEFAULT_QUEUES, queue.device, nothing) == queue
             delete!(DEFAULT_QUEUES, queue.device)
         end
         delete!(QUEUES, queue.queue)
+
         close(queue.cond)
 
         # Send exception to all waiter signals
@@ -148,5 +160,5 @@ function kill_queue!(queue::ROCQueue; force=false)
     end
     HSA.queue_destroy(queue_ptr) |> check
 
-    return true # We actually destroyed the queue
+    return true
 end
