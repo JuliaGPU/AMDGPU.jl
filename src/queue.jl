@@ -134,6 +134,7 @@ function kill_queue!(queue::ROCQueue; force=false)
         if get(DEFAULT_QUEUES, queue.device, nothing) == queue
             delete!(DEFAULT_QUEUES, queue.device)
         end
+        delete!(QUEUES, queue.queue)
         close(queue.cond)
 
         # Send exception to all waiter signals
