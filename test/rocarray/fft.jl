@@ -108,7 +108,7 @@ end
     in_place(X)
 end
 
-@test_skip "Batch 1D" #=begin
+@testset "Batch 1D" begin
     dims = (N1,N2)
     X = rand(T, dims)
     batched(X,1)
@@ -120,9 +120,8 @@ end
     dims = (N1,N2)
     X = rand(T, dims)
     batched(X,(1,2))
-end=#
+end
 
-# Broken upstream rocFFT#270
 @testset "3D" begin
     dims = (N1,N2,N3)
     X = rand(T, dims)
@@ -236,13 +235,12 @@ end
     out_of_place(X)
 end
 
-# still broken? rocFFT#128
 @testset "2D" begin
     X = rand(T, N1,N2)
     out_of_place(X)
 end
 
-@test_skip "Batch 1D" #=begin
+@testset "Batch 1D" begin
     dims = (N1,N2)
     X = rand(T, dims)
     batched(X,1)
@@ -254,7 +252,7 @@ end
     dims = (N1,N2)
     X = rand(T, dims)
     batched(X,(1,2))
-end=#
+end
 
 @testset "3D" begin
     X = rand(T, N1, N2, N3)
@@ -265,7 +263,7 @@ end
     dims = (N1,N2,N3)
     for region in [(1,2),(2,3),(1,3)]
         X = rand(T, dims)
-        @test_skip batched(X,region)
+        batched(X,region)
     end
 
     X = rand(T, dims)
@@ -276,7 +274,7 @@ end
     dims = (N1,N2,N3,N4)
     for region in [(1,2),(1,4),(3,4)]
         X = rand(T, dims)
-        @test_skip batched(X,region)
+        batched(X,region)
     end
     for region in [(1,3),(2,3),(2,4)]
         X = rand(T, dims)
