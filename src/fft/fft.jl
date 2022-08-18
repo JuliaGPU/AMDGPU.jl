@@ -224,20 +224,6 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
     return handle_ref[], workarea
 end
 
-# promote to a complex floating-point type (out-of-place only),
-# so implementations only need Complex{Float} methods
-for f in (:fft, :bfft, :ifft)
-    pf = Symbol("plan_", f)
-    @eval begin
-        $f(x::ROCArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::ROCArray{<:Real}, region) = $pf(complexfloat(x), region)
-        $f(x::ROCArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::ROCArray{<:Complex{<:Union{Integer,Rational}}}, region) = $pf(complexfloat(x), region)
-    end
-end
-rfft(x::ROCArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
-plan_rfft(x::ROCArray{<:Real}, region) = plan_rfft(realfloat(x), region)
-
 # inplace/notinplace complex
 for (f,xtype,inplace,forward) in ((:plan_fft!, :rocfft_transform_type_complex_forward, :true, :true),
                           (:plan_bfft!, :rocfft_transform_type_complex_inverse, :true, :false),
