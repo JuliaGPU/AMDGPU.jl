@@ -31,64 +31,69 @@ const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{UInt64,Int64,Tuple{LLV
 
 ### macros
 
-macro rocprint(oc, str)
-    rocprint(oc, str)
-end
-macro rocprintln(oc, str)
-    rocprint(oc, str, true)
-end
-
-macro rocprint(str)
-    @gensym oc_ptr oc
-    ex = quote
-        $(esc(oc_ptr)) = AMDGPU.Device.get_global_pointer(Val(:__global_output_context),
-                                                         $GLOBAL_OUTPUT_CONTEXT_TYPE)
-        $(esc(oc)) = Base.unsafe_load($(esc(oc_ptr)))
+macro rocprint(str...)
+    if first(str) isa String || Meta.isexpr(first(str), :string)
+        # No OutputContext
+        @gensym oc_ptr oc
+        ex = quote
+            $oc_ptr = $get_global_pointer($(Val(:__global_output_context)),
+                                          $GLOBAL_OUTPUT_CONTEXT_TYPE)
+            $oc = Base.unsafe_load($oc_ptr)
+        end
+        push!(ex.args, rocprint(oc, str...))
+        return esc(ex)
+    else
+        return esc(rocprint(first(str), str[2:end]...))
     end
-    push!(ex.args, rocprint(oc, str))
-    ex
 end
-macro rocprintln(str)
-    @gensym oc_ptr oc
-    ex = quote
-        $(esc(oc_ptr)) = AMDGPU.Device.get_global_pointer(Val(:__global_output_context),
-                                                         $GLOBAL_OUTPUT_CONTEXT_TYPE)
-        $(esc(oc)) = Base.unsafe_load($(esc(oc_ptr)))
+macro rocprintln(str...)
+    if first(str) isa String || Meta.isexpr(first(str), :string)
+        # No OutputContext
+        @gensym oc_ptr oc
+        ex = quote
+            $oc_ptr = $get_global_pointer($(Val(:__global_output_context)),
+                                                 $GLOBAL_OUTPUT_CONTEXT_TYPE)
+            $oc = Base.unsafe_load($oc_ptr)
+        end
+        push!(ex.args, rocprint(oc, str..., '\n'))
+        return esc(ex)
+    else
+        return esc(rocprint(first(str), str[2:end]..., '\n'))
     end
-    push!(ex.args, rocprint(oc, str, true))
-    ex
 end
 
 ### parse-time helpers
 
-function rocprint(oc, str, nl::Bool=false)
+function rocprint(oc, str...)
     ex = Expr(:block)
-    if !(str isa Expr)
-        str = Expr(:string, str)
-    end
-    @assert str.head == :string
-    for (idx,arg) in enumerate(str.args)
-        if nl && idx == length(str.args)
-            arg *= '\n'
+    strs = Expr[]
+    for s in str
+        if !(s isa Expr)
+            s = Expr(:string, s)
         end
-        push!(ex.args, :($hostcall_device_lock!($(esc(oc)).hostcall)))
-        N = rocprint!(ex, 1, oc, arg)
-        N = rocprint!(ex, N, oc, '\0')
-        push!(ex.args, :($hostcall_device_trigger_and_return!($(esc(oc)).hostcall)))
+        @assert s.head == :string
+        push!(strs, s)
     end
+    push!(ex.args, :($hostcall_device_lock!($oc.hostcall)))
+    N = 1
+    for str in strs
+        N = rocprint!(ex, N, oc, str)
+    end
+    rocprint!(ex, N, oc, '\0')
+    push!(ex.args, :($hostcall_device_trigger_and_return!($oc.hostcall)))
     push!(ex.args, :(nothing))
     return ex
 end
 function rocprint!(ex, N, oc, str::String)
     @gensym str_ptr
-    push!(ex.args, :($str_ptr = AMDGPU.Device.alloc_string($(Val(Symbol(str))))))
-    push!(ex.args, :(AMDGPU.Device.memcpy!($(esc(oc)).hostcall.buf_ptr+$(N-1), $str_ptr, $(length(str)))))
+    push!(ex.args, :($str_ptr = $alloc_string($(Val(Symbol(str))))))
+    push!(ex.args, :($memcpy!($oc.hostcall.buf_ptr+$(N-1), $str_ptr, $(length(str)))))
     return N+length(str)
 end
 function rocprint!(ex, N, oc, char::Char)
-    @assert char == '\0' "Non-null chars not yet implemented"
+    @assert length(codeunits(string(char))) == 1 "Multi-codeunit chars not yet implemented"
     byte = UInt8(char)
-    ptr = :(reinterpret(LLVMPtr{UInt8,AS.Global}, $(esc(oc)).hostcall.buf_ptr))
+    ptr = :(reinterpret($(LLVMPtr{UInt8,AS.Global}), $oc.hostcall.buf_ptr))
     push!(ex.args, :(Base.unsafe_store!($ptr, $byte, $N)))
     return N+1
 end

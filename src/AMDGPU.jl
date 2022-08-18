@@ -87,10 +87,10 @@ module Device
     # Device sources must load _before_ the compiler infrastructure
     # because of generated functions.
     include(joinpath("device", "addrspaces.jl"))
+    include(joinpath("device", "globals.jl"))
     include(joinpath("device", "gcn.jl"))
     include(joinpath("device", "runtime.jl"))
     include(joinpath("device", "llvm.jl"))
-    include(joinpath("device", "globals.jl"))
     include(joinpath("device", "strings.jl"))
     include(joinpath("device", "exceptions.jl"))
 end
