@@ -64,6 +64,23 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 
+function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
+    fftw_X = fft(X)
+    d_X = ROCArray(X)
+    d_Y = fft(d_X)
+    @test typeof(d_Y) <: ROCArray
+    @test isapprox(collect(d_Y), fftw_X, rtol=MYRTOL, atol=MYATOL)
+
+    d_Z = ifft(d_Y)
+    @test typeof(d_Z) <: ROCArray
+    @test isapprox(collect(d_Z), X, rtol=MYRTOL, atol=MYATOL)
+
+    fft!(d_X)
+    @test isapprox(collect(d_X), fftw_X, rtol=MYRTOL, atol=MYATOL)
+
+    ifft!(d_X)
+    @test isapprox(collect(d_X), X, rtol=MYRTOL, atol=MYATOL)
+end
 
 @testset for T in [ComplexF64, ComplexF32]
 
@@ -143,6 +160,17 @@ end
 
 end
 
+@testset "FFT Wrappers" begin
+    X = rand(T, N1)
+    fftwrapper(X)
+
+    X = rand(T, N1, N2)
+    fftwrapper(X)
+
+    X = rand(T, N1, N2, N3)
+    fftwrapper(X)
+end
+
 end # testset Complex
 
 
@@ -188,6 +216,18 @@ function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 
+function fftwrapper(X::AbstractArray{T}) where {T <: Real}
+    fftw_X = rfft(X)
+    d_X = ROCArray(X)
+    d_Y = rfft(d_X)
+    @test typeof(d_Y) <: ROCArray
+    @test isapprox(collect(d_Y), fftw_X, rtol=MYRTOL, atol=MYATOL)
+
+    @test_throws MethodError irfft(d_Y)
+    d_Z = irfft(d_Y, size(X, 1))
+    @test typeof(d_Z) <: ROCArray
+    @test isapprox(collect(d_Z), X, rtol=MYRTOL, atol=MYATOL)
+end
 
 @testset for T in [Float32, Float64]
 
@@ -242,6 +282,17 @@ end
         X = rand(T, dims)
         @test_throws ArgumentError batched(X,region)
     end
+end
+
+@testset "FFT Wrappers" begin
+    X = rand(T, N1)
+    fftwrapper(X)
+
+    X = rand(T, N1, N2)
+    fftwrapper(X)
+
+    X = rand(T, N1, N2, N3)
+    fftwrapper(X)
 end
 
 end
