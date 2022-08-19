@@ -8,7 +8,7 @@
         @test_throws ArgumentError ROCQueue(device; priority=:fake)
     end
 
-    @testset "KillQueue cleanup" begin
+    @testset "kill_queue! cleanup" begin
         queue = AMDGPU.default_queue()
         AMDGPU.Runtime.kill_queue!(queue)
 
