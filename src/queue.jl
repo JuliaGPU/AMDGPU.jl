@@ -57,14 +57,10 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal)
             err isa EOFError || rethrow(err)
             return
         end
+
         lock(RT_LOCK) do
-            if !haskey(QUEUES, queue_ptr) || QUEUES[queue_ptr].value === nothing
-                # Queue was destroyed
-                return
-            end
-            queue = QUEUES[queue_ptr].value
-            if queue.status != HSA.STATUS_SUCCESS
-                # Queue encountered an async error, manually kill it
+            if (@atomic queue.active) && queue.status != HSA.STATUS_SUCCESS
+                # An active queue has encountered an async error; manually kill it
                 @debug "Queue: Async error on $queue"
                 kill_queue!(queue)
             end
