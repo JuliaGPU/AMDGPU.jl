@@ -334,7 +334,9 @@ function HostCall(func, rettype, argtypes; return_task=false,
                 prev = HSA.signal_load_scacquire(signal.signal[])
 
                 if prev == READY_SENTINEL || prev == HOST_ERR_SENTINEL || prev == DEVICE_ERR_SENTINEL
-                    Mem.free(ret_buf[])
+                    if isassigned(ret_buf)
+                        Mem.free(ret_buf[])
+                    end
                     Mem.free(Mem.Buffer(reinterpret(Ptr{Cvoid}, hc.buf_ptr), C_NULL, 0, device, true, false))
                     break
                 end
