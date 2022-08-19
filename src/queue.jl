@@ -89,14 +89,6 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal)
     AMDGPU.hsaref!()
     finalizer(queue) do queue
         kill_queue!(queue)
-        while !trylock(RT_LOCK)
-        end
-        try
-            delete!(QUEUES, queue_ptr)
-            delete!(_active_kernels, queue)
-        finally
-            unlock(RT_LOCK)
-        end
         AMDGPU.hsaunref!()
     end
     return queue
@@ -139,12 +131,6 @@ function kill_queue!(queue::ROCQueue; force=false)
     @atomic queue.active = false
 
     lock(RT_LOCK) do
-        # Clean up global queue lists
-        if get(DEFAULT_QUEUES, queue.device, nothing) == queue
-            delete!(DEFAULT_QUEUES, queue.device)
-        end
-        delete!(QUEUES, queue.queue)
-
         close(queue.cond)
 
         # Send exception to all waiter signals
@@ -155,6 +141,13 @@ function kill_queue!(queue::ROCQueue; force=false)
                 notify(signal)
             end
         end
+
+        # Clean up global queue lists
+        if get(DEFAULT_QUEUES, queue.device, nothing) == queue
+            delete!(DEFAULT_QUEUES, queue.device)
+        end
+        delete!(QUEUES, queue.queue)
+        delete!(_active_kernels, queue)
     end
     HSA.queue_destroy(queue.queue) |> check
 
