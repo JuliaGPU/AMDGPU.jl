@@ -246,7 +246,7 @@ end
 
 end
 
-@testset "Casted types" begin
+@testset "Promoted types" begin
     @testset for T in (Float32, Float64)
         X = rand(T, 10, 10)
         d_X = ROCArray(X)
