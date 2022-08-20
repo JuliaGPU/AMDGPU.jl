@@ -22,6 +22,10 @@ gpuarrays = pathof(GPUArrays)
 gpuarrays_root = dirname(dirname(gpuarrays))
 include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 testf(f, xs...; kwargs...) = TestSuite.compare(f, ROCArray, xs...; kwargs...)
+if isdefined(TestSuite, :WrapArray)
+    Base.hash(a::TestSuite.WrapArray{T1,N1,ROCDeviceArray{T2,N2,A}}, h::UInt) where {T1,N1,T2,N2,A} =
+        hash(a.data, hash(typeof(a), h))
+end
 
 import AMDGPU: allowscalar, @allowscalar
 allowscalar(false)
