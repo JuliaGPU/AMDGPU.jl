@@ -24,7 +24,6 @@ import AMDGPU: HostCall, hostcall!
     wait(@roc kernel(RA, RB, hc))
 
     @test Array(RB)[1] == 1f0
-    sleep(1)
     @test dref[] == true
 end
 
@@ -52,7 +51,6 @@ end
         end
 
         @test_throws Runtime.KernelException wait(@roc kernel(RA, RB, hc))
-        sleep(1)
 
         empty!(RB.syncstate.signals)
         @test Array(RB)[1] == 0f0
@@ -80,7 +78,6 @@ end
 
     wait(@roc kernel(RA, RB, hc))
 
-    sleep(1)
     @test Array(RB)[1] == 2f0
 end
 
@@ -103,7 +100,6 @@ end
 
     wait(@roc kernel(RA, RB, hc))
 
-    sleep(1)
     @test Array(RB)[1] == 44f0
 end
 
@@ -126,7 +122,6 @@ end
 
     wait(@roc kernel(RA, RB, hc))
 
-    sleep(1)
     @test Array(RB)[1] == 47f0
 end
 
@@ -149,7 +144,6 @@ end
 
     wait(@roc kernel(RA, RB, hc))
 
-    sleep(1)
     @test Array(RB)[1] == 47f0
 end
 
@@ -172,7 +166,6 @@ end
 
     wait(@roc kernel(RA, RB, hc))
 
-    sleep(1)
     @test Array(RB)[1] == 48f0
 end
 
@@ -195,7 +188,6 @@ end
 
     wait(@roc kernel(RA, RB, hc))
 
-    sleep(1)
     @test Array(RB)[1] == 48f0
 end
 
@@ -244,7 +236,6 @@ end
     wait(@roc kernel(RA, RB, hc))
     wait(@roc kernel(RA, RB, hc))
 
-    sleep(1)
     @test Array(RB)[1] == 5f0
 end
 
