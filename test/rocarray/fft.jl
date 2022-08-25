@@ -294,4 +294,42 @@ end
 end
 
 end
+
+@testset "Promoted types" begin
+    @testset for T in (Float32, Float64)
+        X = rand(T, 10, 10)
+        d_X = ROCArray(X)
+
+        Y = fft(X)
+        d_Y = fft(d_X)
+        @test isapprox(collect(d_Y), Y, rtol=MYRTOL, atol=MYATOL)
+
+        Y = ifft(X)
+        d_Y = ifft(d_X)
+        @test isapprox(collect(d_Y), Y, rtol=MYRTOL, atol=MYATOL)
+    end
+
+    @testset "Complex{Int}" begin
+        X = rand(Complex{Int}, 10, 10)
+        d_X = ROCArray(X)
+
+        Y = fft(X)
+        d_Y = fft(d_X)
+        @test isapprox(collect(d_Y), Y, rtol=MYRTOL, atol=MYATOL)
+
+        Y = ifft(X)
+        d_Y = ifft(d_X)
+        @test isapprox(collect(d_Y), Y, rtol=MYRTOL, atol=MYATOL)
+    end
+
+    @testset "Int" begin
+        X = rand(Int, 10, 10)
+        d_X = ROCArray(X)
+
+        Y = rfft(X)
+        d_Y = rfft(d_X)
+        @test isapprox(collect(d_Y), Y, rtol=MYRTOL, atol=MYATOL)
+    end
+end
+
 end # testset FFT
