@@ -6,6 +6,7 @@ import AMDGPU: HSA
 import AMDGPU: Runtime
 import .Runtime: ROCDevice, ROCSignal, ROCMemoryRegion, ROCMemoryPool, ROCDim, ROCDim3
 import .Runtime: DEVICES, check, get_region, get_memory_pool
+using Preferences
 
 ## buffer type
 
@@ -197,6 +198,10 @@ function transfer end
 
 ## pointer-based
 
+const USE_SLOW_ALLOCATION_FALLBACK = @load_preference("use_slow_allocation_fallback", true)
+"Enables or disables the slow allocation fallback for non-coherent allocations."
+enable_slow_allocation_fallback(flag::Bool) = @set_preferences!("use_slow_allocation_fallback" => flag)
+
 """
     alloc(bytesize::Integer; coherent=false) -> Buffer
 
@@ -220,7 +225,7 @@ carefully managed.
 Allocate `bytesize` bytes of HSA-managed memory on the region `region` or
 memory pool `pool`.
 """
-function alloc(device::ROCDevice, bytesize::Integer; coherent=false)
+function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallback=!coherent && USE_SLOW_ALLOCATION_FALLBACK)
     bytesize == 0 && return Buffer(C_NULL, C_NULL, 0, device, coherent, false)
 
     region_kind = if coherent
@@ -229,14 +234,28 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false)
         :coarsegrained
     end
 
-    if region_kind != :coarsegrained
-        region = get_region(device, region_kind)
-        return alloc(device, region, bytesize)
-    else
-        pool = get_memory_pool(device, region_kind)
-        return alloc(device, pool, bytesize)
-        # On AMD this is a no-op and we need to make sure that we use the right region instead.
-        # check(HSA.memory_assign_agent(buf.ptr, device.agent, HSA.ACCESS_PERMISSION_RW))
+    try
+        if region_kind != :coarsegrained
+            region = get_region(device, region_kind)
+            @debug "Allocating $(Base.format_bytes(bytesize)) from $region"
+            return alloc(device, region, bytesize)
+        else
+            pool = get_memory_pool(device, region_kind)
+            @debug "Allocating $(Base.format_bytes(bytesize)) from $pool"
+            return alloc(device, pool, bytesize)
+            # This is a no-op and we need to make sure that we use the right region instead
+            # check(HSA.memory_assign_agent(buf.ptr, device.agent, HSA.ACCESS_PERMISSION_RW))
+        end
+    catch err
+        if slow_fallback &&
+           !coherent &&
+           err isa Runtime.HSAError &&
+           (err.code == HSA.STATUS_ERROR_OUT_OF_RESOURCES ||
+            err.code == HSA.STATUS_ERROR_INVALID_ALLOCATION)
+            return alloc(device, bytesize; coherent=true)
+        else
+            rethrow(err)
+        end
     end
 end
 function alloc_or_retry!(f)
@@ -249,10 +268,13 @@ function alloc_or_retry!(f)
             yield()
         end
         status = f()
+        @debug "Allocation phase $phase: $status"
         if status == HSA.STATUS_SUCCESS
             break
-        elseif status == HSA.STATUS_ERROR_OUT_OF_RESOURCES && phase == 3
-            check(status)
+        elseif status == HSA.STATUS_ERROR_OUT_OF_RESOURCES || status == HSA.STATUS_ERROR_INVALID_ALLOCATION
+            if phase == 3
+                check(status)
+            end
         else
             check(status)
         end
