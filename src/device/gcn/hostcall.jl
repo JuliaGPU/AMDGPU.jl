@@ -327,15 +327,21 @@ function HostCall(func, rettype, argtypes; return_task=false,
             HSA.signal_store_screlease(signal.signal[], HOST_ERR_SENTINEL)
             rethrow(err)
         finally
-            # TODO: This is probably a bad idea to free while the kernel might
-            # still hold a reference. We should probably have some way to
-            # reference count these buffers from kernels (other than just
-            # using a ROCArray, which can't currently be serialized to the
-            # GPU).
-            if isassigned(ret_buf)
-                Mem.free(ret_buf[])
+            # We need to free the memory buffers, but first we need to ensure that
+            # the device has read from these buffers. Therefore we wait either for
+            # READY_SENTINEL or else an error signal.
+            while !Runtime.RT_EXITING[]
+                prev = HSA.signal_load_scacquire(signal.signal[])
+
+                if prev == READY_SENTINEL || prev == HOST_ERR_SENTINEL || prev == DEVICE_ERR_SENTINEL
+                    if isassigned(ret_buf)
+                        Mem.free(ret_buf[])
+                    end
+                    Mem.free(Mem.Buffer(reinterpret(Ptr{Cvoid}, hc.buf_ptr), C_NULL, 0, device, true, false))
+                    break
+                end
             end
-            Mem.free(Mem.Buffer(reinterpret(Ptr{Cvoid}, hc.buf_ptr), C_NULL, 0, device, true, false))
+
         end
     end
 
