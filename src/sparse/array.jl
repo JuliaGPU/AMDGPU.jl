@@ -404,9 +404,9 @@ Adapt.adapt_storage(::Type{ROCArray}, xs::SparseMatrixCSC) = ROCSparseMatrixCSC(
 Adapt.adapt_storage(::Type{ROCArray{T}}, xs::SparseVector) where {T} = ROCSparseVector{T}(xs)
 Adapt.adapt_storage(::Type{ROCArray{T}}, xs::SparseMatrixCSC) where {T} = ROCSparseMatrixCSC{T}(xs)
 
-Adapt.adapt_storage(::AMDGPU.Float32Adaptor, xs::AbstractSparseArray) =
+Adapt.adapt_storage(::AMDGPU.ROCArrayAdaptor, xs::AbstractSparseArray) =
   adapt(ROCArray, xs)
-Adapt.adapt_storage(::AMDGPU.Float32Adaptor, xs::AbstractSparseArray{<:AbstractFloat}) =
+Adapt.adapt_storage(::AMDGPU.ROCArrayAdaptor, xs::AbstractSparseArray{<:AbstractFloat}) =
   adapt(ROCArray{Float32}, xs)
 
 Adapt.adapt_storage(::Type{Array}, xs::ROCSparseVector) = SparseVector(xs)
