@@ -76,7 +76,7 @@ for (bname,aname,sname,elty) in ((:rocsparse_sbsrsv_buffer_size, :rocsparse_sbsr
                 throw(DimensionMismatch("X must have length $m, but has length $mX"))
             end
             info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info)
+            rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
                 out = Ref{Cint}(1)
@@ -129,7 +129,7 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsv_buffer_size, :rocsparse_scsr
                 throw(DimensionMismatch("First dimension of A, $m, and of X, $(size(X)[1]) must match"))
             end
             info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info)
+            rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
                 out = Ref{Cint}(1)
@@ -191,7 +191,7 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsv_buffer_size, :rocsparse_scsr
             end
 
             info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info)
+            rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
                 out = Ref{Cint}(1)
