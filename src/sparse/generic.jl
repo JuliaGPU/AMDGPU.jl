@@ -104,7 +104,7 @@ function gather!(X::ROCSparseVector, Y::ROCVector, index::SparseChar)
     descX = ROCSparseVectorDescriptor(X, index)
     descY = ROCDenseVectorDescriptor(Y)
 
-    rocsparseGather(handle(), descY, descX)
+    rocsparse_gather(handle(), descY, descX)
 
     X
 end
