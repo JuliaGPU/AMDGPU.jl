@@ -195,7 +195,7 @@ function mv!(transa::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{TA}, X::De
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{T},
-             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar, 
+             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
              algo::rocsparse_spmm_alg=rocsparse_spmm_alg_default) where {T}
     m,k = size(A)
     n = size(C)[2]
@@ -236,7 +236,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparse
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{T},
-             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar, 
+             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
              algo::rocsparse_spmm_alg=rocsparse_spmm_alg_default) where {T}
     ctransa = 'N'
     if transa == 'N'
