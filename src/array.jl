@@ -85,6 +85,11 @@ function unsafe_free!(xs::ROCArray)
     return
 end
 
+const DenseROCArray{T,N} = ROCArray{T,N}
+const DenseROCVector{T} = DenseROCArray{T,1}
+const DenseROCMatrix{T} = DenseROCArray{T,2}
+const DenseROCVecOrMat{T} = Union{DenseROCVector{T}, DenseROCMatrix{T}}
+
 wait!(x::ROCArray) = wait!(x.syncstate)
 mark!(x::ROCArray, s) = mark!(x.syncstate, s)
 wait!(xs::Vector{<:ROCArray}) = foreach(wait!, xs)
@@ -112,6 +117,20 @@ device(A::ROCArray) = A.buf.device
 const ROCVector{T} = ROCArray{T,1}
 const ROCMatrix{T} = ROCArray{T,2}
 const ROCVecOrMat{T} = Union{ROCVector{T},ROCMatrix{T}}
+
+# strided arrays
+const StridedSubROCArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
+                                            Base.AbstractCartesianIndex}}}} = SubArray{T,N,<:ROCArray,I}
+const StridedROCArray{T,N} = Union{ROCArray{T,N}, StridedSubROCArray{T,N}}
+const StridedROCVector{T} = StridedROCArray{T,1}
+const StridedROCMatrix{T} = StridedROCArray{T,2}
+const StridedROCVecOrMat{T} = Union{StridedROCVector{T}, StridedROCMatrix{T}}
+
+Base.pointer(x::StridedROCArray{T}) where {T} = Base.unsafe_convert(LLVMPtr{T}, x)
+@inline function Base.pointer(x::StridedROCArray{T}, i::Integer) where T
+    Base.unsafe_convert(LLVMPtr{T}, x) + Base._memory_offset(x, i)
+end
+
 
 # anything that's (secretly) backed by a ROCArray
 AnyROCArray{T,N} = Union{ROCArray{T,N}, WrappedArray{T,N,ROCArray,ROCArray{T,N}}}
@@ -183,7 +202,7 @@ Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 ## memory operations
 
 function Base.copyto!(dest::Array{T}, d_offset::Integer,
-                      source::ROCArray{T}, s_offset::Integer,
+                      source::DenseROCArray{T}, s_offset::Integer,
                       amount::Integer) where T
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
@@ -194,7 +213,7 @@ function Base.copyto!(dest::Array{T}, d_offset::Integer,
                   amount*sizeof(T))
     dest
 end
-function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
+function Base.copyto!(dest::DenseROCArray{T}, d_offset::Integer,
                       source::Array{T}, s_offset::Integer,
                       amount::Integer) where T
     amount == 0 && return dest
@@ -206,8 +225,8 @@ function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
                 amount*sizeof(T))
     dest
 end
-function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
-                      source::ROCArray{T}, s_offset::Integer,
+function Base.copyto!(dest::DenseROCArray{T}, d_offset::Integer,
+                      source::DenseROCArray{T}, s_offset::Integer,
                       amount::Integer) where T
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
