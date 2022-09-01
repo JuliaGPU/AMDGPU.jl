@@ -4,12 +4,12 @@ struct ROCSPARSEError <: Exception
     code::rocsparse_status
 end
 
-Base.convert(::Type{rocsparseStatus}, err::ROCSPARSEError) = err.code
+Base.convert(::Type{rocsparse_status}, err::ROCSPARSEError) = err.code
 
 Base.showerror(io::IO, err::ROCSPARSEError) =
     print(io, "ROCSPARSEError: ", description(err), " (code $(reinterpret(Int32, err.code)), $(name(err)))")
 
-function rocsparse_get_error_name(err::rocsparse_status) : Base.string
+function rocsparse_get_error_name(err::rocsparse_status)::Base.string
     if err == rocsparse_status_success
         return "rocsparse_status_success"
     elseif err == rocsparse_status_invalid_handle
@@ -55,18 +55,13 @@ name(err::ROCSPARSEError) = rocsparse_get_error_name(err.code)
     end
 end
 
-macro check(ex, errs...)
-    check = :(isequal(err, rocsparse_status_memory_error))
-    for err in errs
-        check = :($check || isequal(err, $(esc(err))))
-    end
-
+macro check(fft_func)
     quote
-        res = @retry_reclaim err->$check $(esc(ex))
-        if res != rocsparse_status_success
-            throw_api_error(res)
+        local err::rocsparse_status
+        err = $(esc(fft_func::Expr))
+        if err != rocfft_status_success
+            throw(ROCSPARSEError(err))
         end
-
-        nothing
+        err
     end
 end

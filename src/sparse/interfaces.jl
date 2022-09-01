@@ -4,7 +4,7 @@ using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal
 
 function mv_wrapper(transa::SparseChar, alpha::Number, A::ROCSparseMatrix, X::DenseROCVector{T},
-                    beta::Number, Y::CuVector{T}) where {T}
+                    beta::Number, Y::ROCVector{T}) where {T}
     mv!(transa, alpha, A, X, beta, Y, 'O')
 end
 
