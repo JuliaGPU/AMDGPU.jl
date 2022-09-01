@@ -21,7 +21,7 @@ for (fname, elty) in ((:rocsparse_scsrgeam, :Float32),
 
             rowPtrC = ROCArray{Int32,1}(undef, m+1)
 
-            $gname(handle(), m, n,
+            $fname(handle(), m, n,
                 alpha, descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
                 beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
                 descrC, nzValC, rowPtrC, colValC)

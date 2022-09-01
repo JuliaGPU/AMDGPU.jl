@@ -137,7 +137,7 @@ end
 for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcsr2csc),
                      (:ComplexF32, :rocsparse_ccsr2csc), (:ComplexF64, :rocsparse_zcsr2csc))
     @eval begin
-        function ROCSparseMatrixCSC{Float32}(csr::ROCSparseMatrixCSR{Float32}; inda::SparseChar='O')
+        function ROCSparseMatrixCSC{$elty}(csr::ROCSparseMatrixCSR{$elty}; inda::SparseChar='O')
             m,n = size(csr)
             colPtr = AMDGPU.zeros(Cint, n+1)
             rowVal = AMDGPU.zeros(Cint, nnz(csr))
@@ -149,7 +149,7 @@ for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcs
                 return out[]
             end
             with_workspace(bufferSize) do buffer
-                $rocsfunc(handle(), m, n, nnz(csr), nonzeros(csr),
+                $fname(handle(), m, n, nnz(csr), nonzeros(csr),
                     csr.rowPtr, csr.colVal, nzVal, rowVal, colPtr,
                     rocsparse_action_numeric, inda, buffer)
             end
@@ -169,7 +169,7 @@ for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcs
                 return out[]
             end
             with_workspace(bufferSize) do buffer
-                $rocsfunc(handle(), n, m, nnz(csc), nonzeros(csc),
+                $fname(handle(), n, m, nnz(csc), nonzeros(csc),
                     csc.colPtr, rowvals(csc), nzVal, colVal, rowPtr,
                     rocsparse_action_numeric, inda, buffer)
             end
