@@ -145,8 +145,8 @@ function device_type(agent::HSA.Agent)
     return devtype[]
 end
 
-wavefront_size(device::ROCDevice) = wavefront_size(device.agent)
-function wavefront_size(agent::HSA.Agent)
+wavefrontsize(device::ROCDevice) = wavefrontsize(device.agent)
+function wavefrontsize(agent::HSA.Agent)
     wfsize = Ref{UInt32}()
     getinfo(agent, HSA.AGENT_INFO_WAVEFRONT_SIZE, wfsize) |> check
     return wfsize[]
