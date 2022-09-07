@@ -145,6 +145,13 @@ function device_type(agent::HSA.Agent)
     return devtype[]
 end
 
+wavefrontsize(device::ROCDevice) = wavefrontsize(device.agent)
+function wavefrontsize(agent::HSA.Agent)
+    wfsize = Ref{UInt32}()
+    getinfo(agent, HSA.AGENT_INFO_WAVEFRONT_SIZE, wfsize) |> check
+    return wfsize[]
+end
+
 function getinfo(agent::HSA.Agent, attribute::HSA.AgentInfo,
                  value::Union{Vector,Base.RefValue,String})
     # TODO: allocation/create Refs here
