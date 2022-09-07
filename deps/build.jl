@@ -279,24 +279,28 @@ function main()
     ### Find ld.lld
     ld_path = nothing
     if use_artifacts
-        try
+        lld_using_success = try
             @eval using LLD_jll
+            true
         catch err
             iob = IOBuffer()
             println(iob, "`using LLD_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:lld_build_reason] = String(take!(iob))
+            false
         end
-        if (Base.libllvm_version < v"14" && @invokelatest(LLD_jll.LLVM_jll.is_available())) || @invokelatest(LLD_jll.is_available())
-            if isdefined(LLD_jll, :lld_path)
-                ld_path = LLD_jll.lld_path
-                config[:lld_artifact] = true
+        if lld_using_success
+            if (Base.libllvm_version < v"14" && @invokelatest(LLD_jll.LLVM_jll.is_available())) || @invokelatest(LLD_jll.is_available())
+                if isdefined(LLD_jll, :lld_path)
+                    ld_path = LLD_jll.lld_path
+                    config[:lld_artifact] = true
+                else
+                    config[:lld_build_reason] = "LLD_jll does not export lld_path"
+                end
             else
-                config[:lld_build_reason] = "LLD_jll does not export lld_path"
+                config[:lld_build_reason] = "LLD_jll is not available on this platform"
             end
-        else
-            config[:lld_build_reason] = "LLD_jll is not available on this platform"
         end
     else
         ld_path = find_ld_lld()
@@ -314,20 +318,24 @@ function main()
     device_libs_path = nothing
     device_libs_downloaded = nothing
     if use_artifacts
-        try
+        devlibs_using_success = try
             @eval using ROCmDeviceLibs_jll
+            true
         catch err
             iob = IOBuffer()
             println(iob, "`using ROCmDeviceLibs_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:device_libs_build_reason] = String(take!(iob))
+            false
         end
-        if @invokelatest ROCmDeviceLibs_jll.is_available()
-            device_libs_path = ROCmDeviceLibs_jll.bitcode_path
-            device_libs_downloaded = false
-        else
-            config[:device_libs_build_reason] = "ROCmDeviceLibs_jll is not available on this platform"
+        if devlibs_using_success
+            if @invokelatest ROCmDeviceLibs_jll.is_available()
+                device_libs_path = ROCmDeviceLibs_jll.bitcode_path
+                device_libs_downloaded = false
+            else
+                config[:device_libs_build_reason] = "ROCmDeviceLibs_jll is not available on this platform"
+            end
         end
     else
         device_libs_path = find_device_libs()
@@ -343,19 +351,23 @@ function main()
     ### Find HIP
     libhip_path = nothing
     if use_artifacts
-        try
+        hip_using_success = try
             @eval using HIP_jll
+            true
         catch err
             iob = IOBuffer()
             println(iob, "`using HIP_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:hip_build_reason] = String(take!(iob))
+            false
         end
-        if @invokelatest HIP_jll.is_available()
-            libhip_path = HIP_jll.libamdhip64
-        else
-            config[:hip_build_reason] = "HIP_jll is not available on this platform"
+        if hip_using_success
+            if @invokelatest HIP_jll.is_available()
+                libhip_path = HIP_jll.libamdhip64
+            else
+                config[:hip_build_reason] = "HIP_jll is not available on this platform"
+            end
         end
     else
         libhip_path = find_rocm_library(["libamdhip64", "libhip_hcc"], roc_dirs)
