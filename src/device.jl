@@ -16,9 +16,10 @@ mutable struct ROCDevice
         device.productname = product_name(device)
         device.uuid = uuid(device)
 
-        device
+        return device
     end
 end
+ROCDevice() = get_default_device()
 
 Base.:(==)(device1::ROCDevice, device2::ROCDevice) =
     device1.agent == device2.agent
