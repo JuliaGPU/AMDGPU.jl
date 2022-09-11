@@ -247,6 +247,32 @@ function axpy!(alpha::Ta,
     y
 end
 
+## rot
+for (fname, elty, cty, sty) in ((:rocblas_srot,  :Float32,    :Float32, :Float32),
+                                (:rocblas_drot,  :Float64,    :Float64, :Float64),
+                                (:rocblas_crot,  :ComplexF32, :Float32, :ComplexF32),
+                                (:rocblas_csrot, :ComplexF32, :Float32, :Float32),
+                                (:rocblas_zrot,  :ComplexF64, :Float64, :ComplexF64),
+                                (:rocblas_zdrot, :ComplexF64, :Float64, :Float64))
+    @eval begin
+        function rot!(n::Integer,
+                      dx::ROCArray{$elty},
+                      incx::Integer,
+                      dy::ROCArray{$elty},
+                      incy::Integer,
+                      c::$cty,
+                      s::$sty)
+            wait!((dx,dy))
+            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
+                         (rocblas_handle, Cint, Ptr{$elty}, Cint,
+                          Ptr{$elty}, Cint, Ref{$cty}, Ref{$sty}),
+                         handle(), n, dx, incx, dy, incy, c, s)
+            mark!((dx,dy),rocblas_get_stream(handle()))
+            dx, dy
+        end
+    end
+end
+
 #= FIXME
 ## iamax
 # TODO: fix iamax in julia base

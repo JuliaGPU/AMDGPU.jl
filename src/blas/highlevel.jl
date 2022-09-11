@@ -51,6 +51,23 @@ function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) wher
     axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end
 
+function LinearAlgebra.rotate!(x::ROCArray{T}, y::ROCArray{T}, c::Number, s::Number) where T<:CublasFloat
+    lx = length(x)
+    ly = length(y)
+    lx==ly || throw(DimensionMismatch("rotate arguments have lengths $lx and $ly"))
+    rot!(lx, x, 1, y, 1, c, s)
+    x, y
+end
+
+function LinearAlgebra.reflect!(x::ROCArray{T}, y::ROCArray{T}, c::Number, s::Number) where T<:CublasFloat
+    lx = length(x)
+    ly = length(y)
+    lx==ly || throw(DimensionMismatch("reflect arguments have lengths $lx and $ly"))
+    rot!(lx, x, 1, y, 1, c, s)
+    scal!(ly, -real(one(T)), y, 1)
+    x, y
+end
+
 #= FIXME
 Base.argmin(xs::ROCBLASArray{<:ROCBLASReal}) = iamin(xs)
 Base.argmax(xs::ROCBLASArray{<:ROCBLASReal}) = iamax(xs)
