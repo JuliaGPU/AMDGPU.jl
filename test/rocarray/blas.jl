@@ -27,6 +27,27 @@ end
             Rx = ROCArray(x)
             nx = norm(Rx)
             @test isapprox(nx, norm(x))
+    @testset "axpy!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x = rand(T, 8)
+            y = rand(T, 8)
+            Rx = ROCArray(x)
+            Ry = ROCArray(y)
+            alpha = rand(T)
+            axpby!(alpha, x, y)
+            @test isapprox(alpha*x + y , Array(Ry))
+        end
+    end
+    @testset "axpby!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x = rand(T, 8)
+            y = rand(T, 8)
+            Rx = ROCArray(x)
+            Ry = ROCArray(y)
+            alpha = rand(T)
+            beta = rand(T)
+            axpby!(alpha, x, beta, y)
+            @test isapprox(alpha*x + beta*y , Array(Ry))
         end
     end
 end
