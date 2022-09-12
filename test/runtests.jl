@@ -87,12 +87,12 @@ end
     end
     @testset "ROCm External Libraries" begin
         if CI
+            @test AMDGPU.functional(:rocblas)
+            @test AMDGPU.functional(:rocrand)
             if !AMDGPU.use_artifacts
                 # We don't have artifacts for these
-                @test AMDGPU.functional(:rocblas)
                 @test AMDGPU.functional(:rocfft)
             end
-            @test AMDGPU.functional(:rocrand)
         end
         if AMDGPU.functional(:rocblas)
             include("rocarray/blas.jl")
