@@ -34,7 +34,7 @@ function Base.showerror(io::IO, err::KernelException)
 end
 
 "The set of active kernels signals for each queue"
-const _active_kernels = IdDict{ROCQueue,Vector{ROCKernelSignal}}()
+const _active_kernels = WeakKeyDict{ROCQueue,Vector{ROCKernelSignal}}()
 
 function Base.wait(signal::ROCKernelSignal)
     wait(signal.done)
