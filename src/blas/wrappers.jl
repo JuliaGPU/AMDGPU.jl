@@ -177,7 +177,6 @@ for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
 end
 # TODO: consider ROCVector and ROCStridedVector
 #nrm2(x::StridedVector) = nrm2(length(x), x, stride(x,1))
-nrm2(x::ROCArray) = nrm2(length(x), x, 1)
 
 ## asum
 for (fname, elty, ret_type) in ((:rocblas_dasum,:Float64,:Float64),
