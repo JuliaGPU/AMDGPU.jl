@@ -43,7 +43,7 @@ function LinearAlgebra.BLAS.dotu(DX::ROCArray{T}, DY::ROCArray{T}) where T<:Unio
     dotu(n, DX, 1, DY, 1)
 end
 
-LinearAlgebra.norm(x::ROCArray{T}) where T<:ROCBLASFloat = nrm2(length(x), x, 1)
+LinearAlgebra.norm(x::ROCArray{T}) where T<:Union{ROCBLASFloat,ROCBLASComplex} = nrm2(length(x), x, 1)
 LinearAlgebra.BLAS.asum(x::ROCBLASArray) = asum(length(x), x, 1)
 
 function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) where T<:ROCBLASFloat
