@@ -34,7 +34,7 @@ end
             Rx = ROCArray(x)
             Ry = ROCArray(y)
             alpha = rand(T)
-            axpby!(alpha, x, y)
+            axpy!(alpha, Rx, Ry)
             @test isapprox(alpha*x + y , Array(Ry))
         end
     end
@@ -46,7 +46,7 @@ end
             Ry = ROCArray(y)
             alpha = rand(T)
             beta = rand(T)
-            axpby!(alpha, x, beta, y)
+            axpby!(alpha, Rx, beta, Ry)
             @test isapprox(alpha*x + beta*y , Array(Ry))
         end
     end

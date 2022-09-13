@@ -46,14 +46,14 @@ end
 LinearAlgebra.norm(x::ROCArray{T}) where T<:Union{ROCBLASFloat,ROCBLASComplex} = nrm2(length(x), x, 1)
 LinearAlgebra.BLAS.asum(x::ROCBLASArray) = asum(length(x), x, 1)
 
-function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) where T<:ROCBLASFloat
+function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) where T<:Union{ROCBLASFloat,ROCBLASComplex}
     lx = length(x)
     ly = length(y)
     lx==ly || throw(DimensionMismatch(""))
     axpy!(lx, convert(T,alpha), x, 1, y, 1)
 end
 
-function LinearAlgebra.axpby!(alpha::Number, x::ROCArray{T}, beta::Number, y::ROCArray{T}) where T<:ROCBLASFloat
+function LinearAlgebra.axpby!(alpha::Number, x::ROCArray{T}, beta::Number, y::ROCArray{T}) where T<:Union{ROCBLASFloat,ROCBLASComplex}
     lx = length(x)
     ly = length(y)
     lx==ly || throw(DimensionMismatch(""))
