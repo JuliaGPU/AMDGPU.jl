@@ -237,7 +237,7 @@ function axpy!(alpha::Ta,
                x::ROCArray{T},
                rx::Union{UnitRange{Ti},AbstractRange{Ti}},
                y::ROCArray{T},
-               ry::Union{UnitRange{Ti},AbstractRange{Ti}}) where {T<:ROCBLASFloat,Ta<:Number,Ti<:Integer}
+               ry::Union{UnitRange{Ti},AbstractRange{Ti}}) where {T<:ROCBLASReal,Ta<:Number,Ti<:Integer}
     length(rx)==length(ry) || throw(DimensionMismatch(""))
     if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
         throw(BoundsError())
