@@ -13,7 +13,7 @@ const rocblas_half = Int16
 const rocblas_half_complex = ComplexF32 # wtf???
 const rocblas_handle = Ptr{Nothing}
 
-const ROCBLASFloat = Union{Float32,Float64}
+const ROCBLASFloat = Union{Float32,Float64,ComplexF32,ComplexF64}
 const ROCBLASReal = Union{Float32,Float64}
 const ROCBLASComplex = Union{ComplexF32,ComplexF64}
 
