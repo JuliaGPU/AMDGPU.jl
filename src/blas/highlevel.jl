@@ -40,7 +40,7 @@ function LinearAlgebra.BLAS.dotu(DX::ROCArray{T}, DY::ROCArray{T}) where T<:ROCB
 end
 
 LinearAlgebra.norm(x::ROCArray{T}) where T<:ROCBLASFloat = nrm2(length(x), x, 1)
-LinearAlgebra.BLAS.asum(x::x::ROCArray{T}) where T<:ROCBLASFloat = asum(length(x), x, 1)
+LinearAlgebra.BLAS.asum(x::ROCArray{T}) where T<:ROCBLASFloat = asum(length(x), x, 1)
 
 function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) where T<:ROCBLASFloat
     length(x)==length(y) || throw(DimensionMismatch(""))
