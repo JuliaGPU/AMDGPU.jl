@@ -4,9 +4,7 @@ module rocSparse
 
 using ..AMDGPU
 using ..AMDGPU: librocsparse
-# using ..AMDGPU: CUstream
-# using ..AMDGPU: unsafe_free!, @retry_reclaim, initialize_context, i32, @allowscalar
-using ..AMDGPU: @allowscalar
+using ..AMDGPU: @allowscalar, wait!, mark!
 
 using CEnum: @cenum
 
@@ -28,7 +26,7 @@ include("librocsparse.jl")
 const _handle = Ref{rocsparse_handle}(C_NULL)
 function handle()
     if _handle[] == C_NULL
-        rocsparse_create_handle(_handle)
+        @assert rocsparse_status_success == rocsparse_create_handle(_handle)
         atexit(()->rocsparse_destroy_handle(_handle[]))
     end
     return _handle[]
