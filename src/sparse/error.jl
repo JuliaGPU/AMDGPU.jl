@@ -7,9 +7,9 @@ end
 Base.convert(::Type{rocsparse_status}, err::ROCSPARSEError) = err.code
 
 Base.showerror(io::IO, err::ROCSPARSEError) =
-    print(io, "ROCSPARSEError: ", description(err), " (code $(reinterpret(Int32, err.code)), $(name(err)))")
+    print(io, "ROCSPARSEError: (code $(reinterpret(Int32, err.code)), $(name(err)))")
 
-function rocsparse_get_error_name(err::rocsparse_status)::Base.string
+function rocsparse_get_error_name(err::rocsparse_status)
     if err == rocsparse_status_success
         return "rocsparse_status_success"
     elseif err == rocsparse_status_invalid_handle
@@ -55,11 +55,11 @@ name(err::ROCSPARSEError) = rocsparse_get_error_name(err.code)
     end
 end
 
-macro check(fft_func)
+macro check(rocsparse_func)
     quote
         local err::rocsparse_status
-        err = $(esc(fft_func::Expr))
-        if err != rocfft_status_success
+        err = $(esc(rocsparse_func::Expr))
+        if err != rocsparse_status_success
             throw(ROCSPARSEError(err))
         end
         err
