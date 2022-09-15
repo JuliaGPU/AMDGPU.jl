@@ -78,9 +78,11 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
 end
 
 function unsafe_free!(xs::ROCArray)
-    Mem.release(xs.buf) && Mem.free(xs.buf)
-    if xs.own
-        hsaunref!()
+    if Mem.refcounts[xs.buf] != 0 && Mem.release(xs.buf) 
+      Mem.free(xs.buf)
+      if xs.own
+          hsaunref!()
+      end
     end
     return
 end
