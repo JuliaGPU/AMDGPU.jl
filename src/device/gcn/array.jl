@@ -2,7 +2,7 @@
 
 import ..AMDGPU.Adapt: WrappedArray
 
-export ROCDeviceArray, ROCDeviceVector, ROCDeviceMatrix, ROCBoundsError
+export ROCDeviceArray, ROCDeviceVector, ROCDeviceMatrix
 
 # construction
 

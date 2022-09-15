@@ -99,13 +99,13 @@ module Device
     include(joinpath("device", "exceptions.jl"))
 end
 import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame
-import .Device: ROCDeviceArray, ROCDeviceVector, ROCDeviceMatrix, ROCBoundsError, AS, HostCall, hostcall!
+import .Device: ROCDeviceArray, ROCDeviceVector, ROCDeviceMatrix, AS, HostCall, hostcall!
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 import .Device: threadIdx, blockIdx, blockDim
 import .Device: sync_workgroup
 import .Device: @rocprint, @rocprintln, @rocprintf
 
-export ROCDeviceArray, ROCDeviceVector, ROCDeviceMatrix, ROCBoundsError
+export ROCDeviceArray, ROCDeviceVector, ROCDeviceMatrix
 export @rocprint, @rocprintln, @rocprintf
 export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup
@@ -142,6 +142,7 @@ include("conversions.jl")
 #include("subarray.jl")
 #include("indexing.jl")
 include("broadcast.jl")
+include("call.jl")
 #include("matmul.jl")
 include("mapreduce.jl")
 #include("gpuarray_interface.jl")
