@@ -51,27 +51,23 @@ function sort_rows(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat,Ti}
     m,n = size(coo)
 
     perm = ROCArray{Ti}(undef, nnz(coo))
-    cusparseCreateIdentityPermutation(handle(), nnz(coo), perm)
+    rocsparse_create_identity_permutation(handle(), nnz(coo), perm)
 
     sorted_rowInd = copy(coo.rowInd)
     sorted_colInd = copy(coo.colInd)
     function bufferSize()
         out = Ref{Csize_t}()
-        cusparseXcoosort_bufferSizeExt(handle(), m, n, nnz(coo), coo.rowInd,
+        rocsparse_coosort_buffer_size(handle(), m, n, nnz(coo), coo.rowInd,
             coo.colInd, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        cusparseXcoosortByRow(handle(), m, n, nnz(coo), sorted_rowInd, sorted_colInd, perm, buffer)
+        rocsparse_coosort_by_row(handle(), m, n, nnz(coo), sorted_rowInd, sorted_colInd, perm, buffer)
     end
 
     sorted_nzVal = similar(coo.nzVal)
     let spvec = ROCSparseVector(perm, sorted_nzVal, nnz(coo))
-        if version() >= v"11.1.1"
-            gather!(spvec, nonzeros(coo), 'Z')
-        else
-            gthr!(spvec, nonzeros(coo), 'Z')
-        end
+        gthr!(spvec, nonzeros(coo), 'Z')
     end
 
     AMDGPU.unsafe_free!(perm)
@@ -144,8 +140,8 @@ for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcs
             nzVal = AMDGPU.zeros($elty, nnz(csr))
             function bufferSize()
                 out = Ref{Csize_t}(1)
-                rocsparse_csr2csc_buffer_size(handle(), m, n, nnz(csr), nonzeros(csr),
-                    csr.rowPtr, csr.colVal, nzVal, rowVal, colPtr, rocsparse_action_numeric, inda, out)
+                rocsparse_csr2csc_buffer_size(handle(), m, n, nnz(csr),
+                    csr.rowPtr, csr.colVal, rocsparse_action_numeric, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
@@ -163,9 +159,9 @@ for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcs
             nzVal  = AMDGPU.zeros($elty,nnz(csc))
             function bufferSize()
                 out = Ref{Csize_t}(1)
-                rocsparse_csr2csc_buffer_size(handle(), n, m, nnz(csc), nonzeros(csc),
-                    csc.colPtr, rowvals(csc), nzVal, colVal, rowPtr,
-                    rocsparse_action_numeric, inda, out)
+                rocsparse_csr2csc_buffer_size(handle(), n, m, nnz(csc),
+                    csc.colPtr, rowvals(csc),
+                    rocsparse_action_numeric, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
@@ -332,7 +328,7 @@ end
 
 function ROCSparseMatrixCOO(csr::ROCSparseMatrixCSR{Tv}, ind::SparseChar='O') where {Tv}
     m,n = size(csr)
-    cooRowInd = ROCVector{Cint}(undef, nnz(csr))
+    cooRowInd = ROCVector{Cint}(undef, Int.(nnz(csr)))
     rocsparse_csr2coo(handle(), csr.rowPtr, nnz(csr), m, cooRowInd, ind)
     ROCSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, nonzeros(csr), size(csr), nnz(csr))
 end
