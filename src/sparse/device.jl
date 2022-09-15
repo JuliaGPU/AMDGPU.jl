@@ -21,6 +21,7 @@ end
 Base.length(g::ROCSparseDeviceVector) = prod(g.dims)
 Base.size(g::ROCSparseDeviceVector) = (g.len,)
 Base.ndims(g::ROCSparseDeviceVector) = 1
+Base.hash(x::T, h::UInt) where T<:ROCSparseDeviceVector = foldr(hash, (x.iPtr, x.nzVal, x.len, x.nnz, T, h))
 SparseArrays.nnz(g::ROCSparseDeviceVector) = g.nnz
 
 struct ROCSparseDeviceMatrixCSC{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
@@ -34,6 +35,7 @@ end
 Base.length(g::ROCSparseDeviceMatrixCSC) = prod(g.dims)
 Base.size(g::ROCSparseDeviceMatrixCSC) = g.dims
 Base.ndims(g::ROCSparseDeviceMatrixCSC) = 2
+Base.hash(x::T, h::UInt) where T<:ROCSparseDeviceMatrixCSC = foldr(hash, (x.colPtr, x.rowVal, x.nzVal, x.dims, x.nnz, T, h))
 SparseArrays.nnz(g::ROCSparseDeviceMatrixCSC) = g.nnz
 
 struct ROCSparseDeviceMatrixCSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
@@ -47,6 +49,7 @@ end
 Base.length(g::ROCSparseDeviceMatrixCSR) = prod(g.dims)
 Base.size(g::ROCSparseDeviceMatrixCSR) = g.dims
 Base.ndims(g::ROCSparseDeviceMatrixCSR) = 2
+Base.hash(x::T, h::UInt) where T<:ROCSparseDeviceMatrixCSR = foldr(hash, (x.rowPtr, x.colVal, x.nzVal, x.dims, x.nnz, T, h))
 SparseArrays.nnz(g::ROCSparseDeviceMatrixCSR) = g.nnz
 
 struct ROCSparseDeviceMatrixBSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
@@ -62,6 +65,7 @@ end
 Base.length(g::ROCSparseDeviceMatrixBSR) = prod(g.dims)
 Base.size(g::ROCSparseDeviceMatrixBSR) = g.dims
 Base.ndims(g::ROCSparseDeviceMatrixBSR) = 2
+Base.hash(x::T, h::UInt) where T<:ROCSparseDeviceMatrixBSR = foldr(hash, (x.rowPtr, x.colVal, x.nzVal, x.dims, x.blockDim, x.dir, x.nnz, T, h))
 SparseArrays.nnz(g::ROCSparseDeviceMatrixBSR) = g.nnz
 
 struct ROCSparseDeviceMatrixCOO{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
@@ -75,6 +79,7 @@ end
 Base.length(g::ROCSparseDeviceMatrixCOO) = prod(g.dims)
 Base.size(g::ROCSparseDeviceMatrixCOO) = g.dims
 Base.ndims(g::ROCSparseDeviceMatrixCOO) = 2
+Base.hash(x::T, h::UInt) where T<:ROCSparseDeviceMatrixCOO = foldr(hash, (x.rowInd, x.colInd, x.nzVal, x.dims, x.nnz, T, h))
 SparseArrays.nnz(g::ROCSparseDeviceMatrixCOO) = g.nnz
 
 
