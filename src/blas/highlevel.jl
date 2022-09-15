@@ -6,15 +6,15 @@ rocblas_size(t::Char, M::ROCVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N'
 #
 ###########
 
-LinearAlgebra.rmul!(x::ROCArray{T}, k::Number) where T<:ROCBLASFloat =
+LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASFloat}, k::Number) =
   scal!(length(x), convert(eltype(x), k), x, 1)
 
-LinearAlgebra.rmul!(x::ROCArray{T}, k::Real) where T<:ROCBLASComplex =
+LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASComplex}, k::Real) =
   scal!(length(x), convert(real(eltype(x)), k), x, 1)
 
 # Work around ambiguity with GPUArrays wrapper
 # T<:ROCBLASFloat?
-LinearAlgebra.rmul!(x::ROCArray{T}, k::Real) where T<:ROCBLASReal =
+LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASReal}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)
 
 function LinearAlgebra.BLAS.dot(DX::ROCArray{T}, DY::ROCArray{T}) where T<:ROCBLASReal
@@ -40,7 +40,7 @@ function LinearAlgebra.BLAS.dotu(DX::ROCArray{T}, DY::ROCArray{T}) where T<:ROCB
 end
 
 LinearAlgebra.norm(x::ROCArray{T}) where T<:ROCBLASFloat = nrm2(length(x), x, 1)
-LinearAlgebra.BLAS.asum(x::ROCArray{T}) where T<:ROCBLASFloat = asum(length(x), x, 1)
+LinearAlgebra.BLAS.asum(x::ROCArray{<:ROCBLASFloat}) = asum(length(x), x, 1)
 
 function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) where T<:ROCBLASFloat
     length(x)==length(y) || throw(DimensionMismatch(""))
