@@ -62,7 +62,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx908"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     soft_fail: true
     timeout_in_minutes: 180
@@ -80,7 +80,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx90a"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     soft_fail: true
     timeout_in_minutes: 180
@@ -99,7 +99,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx908"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     soft_fail: true
     timeout_in_minutes: 180
@@ -117,7 +117,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx908"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     soft_fail: true
     timeout_in_minutes: 180
