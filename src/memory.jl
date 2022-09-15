@@ -283,7 +283,9 @@ end
 function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
-        HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
+        @assert ccall((:hipMalloc, AMDGPU.libhip), Cint, (Ptr{Ptr{Cvoid}}, Csize_t), ptr_ref, bytesize) == 0
+        HSA.STATUS_SUCCESS
+        # HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
     end
     return Buffer(ptr_ref[], C_NULL, bytesize, device, Runtime.pool_accessible_by_all(pool), true)
 end
@@ -302,7 +304,8 @@ function free(buf::Buffer)
         if buf.host_ptr == C_NULL
             # HSA-backed
             if buf.pool_alloc
-                check(HSA.amd_memory_pool_free(buf.ptr))
+                # check(HSA.amd_memory_pool_free(buf.ptr))
+                @assert ccall((:hipFree, AMDGPU.libhip), Cint, (Ptr{Cvoid},), buf.ptr) == 0
             else
                 check(HSA.memory_free(buf.ptr))
             end
