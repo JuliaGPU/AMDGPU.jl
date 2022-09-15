@@ -110,7 +110,8 @@ for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridGroupDim_$dim")
     fn_wg_dim = Symbol("workgroupDim_$dim")
-    @eval @inline $fn_wg() = div($fn(), $fn_wg_dim())
+    # N.B. Don't use div to avoid inserting an exception path
+    @eval @inline $fn_wg() = Core.Intrinsics.udiv_int($fn(), $fn_wg_dim())
 end
 
 """

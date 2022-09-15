@@ -1,9 +1,11 @@
 # Copied from CUDA.jl/src/device/quirks.jl
 
-macro print_and_throw(args...)
+macro print_and_throw(arg)
     quote
-        @rocprintln "ERROR: " $(args...) "."
-        throw(nothing)
+        str = $alloc_string($(Val(Symbol(arg))))
+        $device_report_exception(reinterpret(Ptr{Cchar}, str))
+        # FIXME: Report exception frames
+        signal_exception()
     end
 end
 

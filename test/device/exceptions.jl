@@ -12,7 +12,7 @@ catch err
     @test err isa Runtime.KernelException
     if err isa Runtime.KernelException
         @test err.exstr !== nothing
-        @test occursin("julia_throw_boundserror", err.exstr)
+        @test occursin("Out-of-bounds array access", err.exstr)
     end
 end
 

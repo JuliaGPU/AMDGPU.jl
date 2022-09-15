@@ -1,6 +1,7 @@
 export malloc, free
 
-function malloc(sz::Csize_t)
+malloc(sz) = device_malloc(sz)
+function device_malloc(sz::Csize_t)
     malloc_gbl = get_global_pointer(Val(:__global_malloc_hostcall),
                                     HostCall{UInt64,Ptr{Cvoid},Tuple{UInt64,Csize_t}})
     malloc_hc = Base.unsafe_load(malloc_gbl)
@@ -9,7 +10,8 @@ function malloc(sz::Csize_t)
     return ptr
 end
 
-function free(ptr::Ptr{Cvoid})
+free(ptr) = device_free(ptr)
+function device_free(ptr::Ptr{Cvoid})
     free_gbl = get_global_pointer(Val(:__global_free_hostcall),
                                   HostCall{UInt64,Nothing,Tuple{UInt64,Ptr{Cvoid}}})
     free_hc = Base.unsafe_load(free_gbl)
