@@ -2,7 +2,7 @@ using LinearAlgebra
 
 function sum_dim1(A::ROCSparseMatrixCSR)
     function kernel(Tnorm, out, dA)
-        idx = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        idx = Int32((blockIdx().x-1) * blockDim().x + threadIdx().x)
         idx < length(dA.rowPtr) || return
         s = zero(Tnorm)
         for k in dA.rowPtr[idx]:dA.rowPtr[idx+1]-1
@@ -16,12 +16,9 @@ function sum_dim1(A::ROCSparseMatrixCSR)
     Tnorm = typeof(float(real(zero(eltype(A)))))
     Tsum = promote_type(Float64,Tnorm)
     rowsum = AMDGPU.ROCArray{Tsum}(undef, m)
-    kernel_f = @roc launch=false kernel(Tnorm, rowsum, A)
-    
-    config = launch_configuration(kernel_f.fun)
-    threads = min(n, config.threads)
+    threads = n
     blocks = cld(n, threads)
-    kernel_f(Tnorm, rowsum, A; threads, blocks)
+    @roc threads=threads blocks=blocks kernel(Tnorm, rowsum, A)
     return rowsum
 end
 
