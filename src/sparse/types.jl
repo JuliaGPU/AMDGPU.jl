@@ -1,5 +1,18 @@
 # ROCSPARSE types
 
+function Base.convert(::Type{rocsparse_datatype}, T::DataType)
+    if T == Float32
+        return rocsparse_datatype_f32_r
+    elseif T == ComplexF32
+        return rocsparse_datatype_f32_c
+    elseif T == Float64
+        return rocsparse_datatype_f64_r
+    elseif T == ComplexF64
+        return rocsparse_datatype_f64_c
+    else
+        throw(ArgumentError("ROCSPARSE type equivalent for data type $T does not exist!"))
+    end
+end
 ## index type
 
 function Base.convert(::Type{rocsparse_indextype}, T::DataType)
