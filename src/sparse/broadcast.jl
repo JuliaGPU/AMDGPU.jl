@@ -1,6 +1,6 @@
 using Base.Broadcast: Broadcasted
 
-using AMDGPU: ROCArrayStyle
+using AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
 
 # TODO: support more types (SparseVector, SparseMatrixCSC, COO, BSR)
 
@@ -133,7 +133,7 @@ function CSRIterator{Ti}(row, args::Vararg{<:Any, N}) where {Ti,N}
     col_ends = ntuple(Val(N)) do i
         arg = @inbounds args[i]
         if arg isa ROCSparseDeviceMatrixCSR
-            @inbounds(arg.rowPtr[row+1i32])
+            @inbounds(arg.rowPtr[row+1])
         else
             zero(Ti)
         end
@@ -218,7 +218,7 @@ function CSCIterator{Ti}(col, args::Vararg{<:Any, N}) where {Ti,N}
     row_ends = ntuple(Val(N)) do i
         arg = @inbounds args[i]
         x = if arg isa ROCSparseDeviceMatrixCSC
-            @inbounds(arg.colPtr[col+1i32])
+            @inbounds(arg.colPtr[col+1])
         else
             zero(Ti)
         end
@@ -305,8 +305,8 @@ _getindex(arg, I, ptr) = Broadcast._broadcast_getindex(arg, I)
 function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSR}, offsets::AbstractVector{Ti},
                                 args...) where Ti
     # every thread processes an entire row
-    row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    row > length(offsets)-1 && return
+    row = Ti(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
+    row > length(offsets) - 1 && return
     iter = @inbounds CSRIterator{Ti}(row, args...)
 
     # count the nonzero columns of all inputs
@@ -329,7 +329,7 @@ end
 function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSC}, offsets::AbstractVector{Ti},
                                 args...) where Ti
     # every thread processes an entire columm
-    col = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    col = Ti(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
     col > length(offsets)-1 && return
     iter = @inbounds CSCIterator{Ti}(col, args...)
 
@@ -356,7 +356,7 @@ function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSR{<
                                            offsets::Union{AbstractVector,Nothing},
                                            args...) where {Ti}
     # every thread processes an entire row
-    row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    row = Ti(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
     row > size(output, 1) && return
     iter = @inbounds CSRIterator{Ti}(row, args...)
 
@@ -364,7 +364,7 @@ function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSR{<
     @inbounds begin
         output_ptr = output.rowPtr[row] = offsets[row]
         if row == size(output, 1)
-            output.rowPtr[row+1i32] = offsets[row+1i32]
+            output.rowPtr[row+1] = offsets[row+1]
         end
     end
 
@@ -388,7 +388,7 @@ function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSC{<
                                            offsets::Union{AbstractVector,Nothing},
                                            args...) where {Ti}
     # every thread processes an entire column
-    col = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    col = Ti(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
     col > size(output, 2) && return
     iter = @inbounds CSCIterator{Ti}(col, args...)
 
@@ -396,7 +396,7 @@ function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSC{<
     @inbounds begin
         output_ptr = output.colPtr[col] = offsets[col]
         if col == size(output, 2)
-            output.colPtr[col+1i32] = offsets[col+1i32]
+            output.colPtr[col+1] = offsets[col+1]
         end
     end
 
@@ -419,9 +419,9 @@ end
 function sparse_to_dense_broadcast_kernel(::Type{<:ROCSparseMatrixCSR}, f,
                                           output::ROCDeviceArray, args...)
     # every thread processes an entire row
-    row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    row = Int32(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
     row > size(output, 1) && return
-    iter = @inbounds CSRIterator{Int}(row, args...)
+    iter = @inbounds CSRIterator{Int32}(row, args...)
 
     # set the values for this row
     for (col, ptrs) in iter
@@ -440,7 +440,7 @@ end
 function sparse_to_dense_broadcast_kernel(::Type{<:ROCSparseMatrixCSC}, f,
                                           output::ROCDeviceArray, args...)
     # every thread processes an entire column
-    col = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    col = Int32(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
     col > size(output, 2) && return
     iter = @inbounds CSCIterator{Int}(col, args...)
 
@@ -502,15 +502,15 @@ function Broadcast.copy(bc::Broadcasted{<:Union{ROCSparseVecStyle,ROCSparseMatSt
     # the kernels below parallelize across rows or cols, not elements, so it's unlikely
     # we'll launch many threads. to maximize utilization, parallelize across blocks first.
     rows, cols = size(bc)
-    function compute_launch_config(kernel)
-        config = launch_configuration(kernel.fun)
+    function compute_launch_config()
+        # config = launch_configuration(kernel.fun)
         if sparse_typ <: ROCSparseMatrixCSR
-            threads = min(rows, config.threads)
-            blocks = max(cld(rows, threads), config.blocks)
+            threads = rows
+            blocks = cld(rows, threads)
             threads = cld(rows, blocks)
         elseif sparse_typ <: ROCSparseMatrixCSC
-            threads = min(cols, config.threads)
-            blocks = max(cld(cols, threads), config.blocks)
+            threads = cols
+            blocks = cld(cols, threads)
             threads = cld(cols, blocks)
         end
         (; threads, blocks)
@@ -561,9 +561,8 @@ function Broadcast.copy(bc::Broadcasted{<:Union{ROCSparseVecStyle,ROCSparseMatSt
         end
         let
             args = (sparse_typ, offsets, bc.args...)
-            kernel = @roc launch=false compute_offsets_kernel(args...)
-            threads, blocks = compute_launch_config(kernel)
-            kernel(args...; threads, blocks)
+            threads, blocks = compute_launch_config()
+            @roc threads=threads blocks=blocks compute_offsets_kernel(args...)
         end
 
         # accumulate these values so that we can use them directly as row pointer offsets,
@@ -586,14 +585,12 @@ function Broadcast.copy(bc::Broadcasted{<:Union{ROCSparseVecStyle,ROCSparseMatSt
     # perform the actual broadcast
     if output isa AbstractROCSparseArray
         args = (bc.f, output, offsets, bc.args...)
-        kernel = @roc launch=false sparse_to_sparse_broadcast_kernel(args...)
-        threads, blocks = compute_launch_config(kernel)
-        kernel(args...; threads, blocks)
+        threads, blocks = compute_launch_config()
+        @roc threads=threads blocks=blocks sparse_to_sparse_broadcast_kernel(args...)
     else
         args = (sparse_typ, bc.f, output, bc.args...)
-        kernel = @roc launch=false sparse_to_dense_broadcast_kernel(args...)
-        threads, blocks = compute_launch_config(kernel)
-        kernel(args...; threads, blocks)
+        threads, blocks = compute_launch_config()
+        @roc threads=threads blocks=blocks sparse_to_dense_broadcast_kernel(args...)
     end
 
     return output
