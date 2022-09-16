@@ -62,8 +62,9 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx908"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
+    command: "julia --project -e 'using Pkg; Pkg.update(); Pkg.build(\"AMDGPU\")'"
     soft_fail: true
     timeout_in_minutes: 180
     env:
@@ -80,8 +81,9 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx90a"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
+    command: "julia --project -e 'using Pkg; Pkg.update(); Pkg.build(\"AMDGPU\")'"
     soft_fail: true
     timeout_in_minutes: 180
     env:
@@ -99,8 +101,9 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx908"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
+    command: "julia --project -e 'using Pkg; Pkg.update(); Pkg.build(\"AMDGPU\")'"
     soft_fail: true
     timeout_in_minutes: 180
     env:
@@ -117,8 +120,9 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx908"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
+    command: "julia --project -e 'using Pkg; Pkg.update(); Pkg.build(\"AMDGPU\")'"
     soft_fail: true
     timeout_in_minutes: 180
     env:
