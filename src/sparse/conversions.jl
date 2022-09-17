@@ -4,7 +4,7 @@
     sparse(x::DenseROCMatrix; fmt=:csc)
     sparse(I::ROCVector, J::ROCVector, V::ROCVector, [m, n]; fmt=:csc)
 
-Return a sparse cuda matrix, with type determined by `fmt`.
+Return a sparse rocm matrix, with type determined by `fmt`.
 Possible formats are :csc, :csr, :bsr, and :coo.
 """
 function SparseArrays.sparse(x::DenseROCMatrix; fmt=:csc)
@@ -74,11 +74,12 @@ function sort_rows(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat,Ti}
     ROCSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
 end
 function sort_rows(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv,Ti}
-    perm = sortperm(coo.rowInd)
+    # TODO: Use GPU-based sortperm for this
+    perm = @allowscalar sortperm(coo.rowInd)
     sorted_rowInd = coo.rowInd[perm]
     sorted_colInd = coo.colInd[perm]
     sorted_nzVal = coo.nzVal[perm]
-    AMDGPU.unsafe_free!(perm)
+    # AMDGPU.unsafe_free!(perm)
 
     ROCSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
 end
@@ -118,7 +119,7 @@ end
 
 for SparseMatrixType in [:ROCSparseMatrixCSC, :ROCSparseMatrixCSR]
     @eval begin
-        $SparseMatrixType(S::Diagonal) = $SparseMatrixType(cu(S))
+        $SparseMatrixType(S::Diagonal) = $SparseMatrixType(roc(S))
         $SparseMatrixType(S::Diagonal{T, <:ROCArray}) where T = $SparseMatrixType{T}(S)
         $SparseMatrixType{Tv}(S::Diagonal{T, <:ROCArray}) where {Tv, T} = $SparseMatrixType{Tv, Cint}(S)
         function $SparseMatrixType{Tv, Ti}(S::Diagonal{T, <:ROCArray}) where {Tv, Ti, T}
@@ -362,8 +363,8 @@ for (cname,rname,elty) in ((:rocsparse_scsc2dense, :rocsparse_scsr2dense, :Float
             m,n = size(csc)
             denseA = AMDGPU.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
-            cudesc = ROCMatrixDescriptor('G', 'L', 'N', ind)
-            $cname(handle(), m, n, cudesc, nonzeros(csc),
+            rocdesc = ROCMatrixDescriptor('G', 'L', 'N', ind)
+            $cname(handle(), m, n, rocdesc, nonzeros(csc),
                    rowvals(csc), csc.colPtr, denseA, lda)
             return denseA
         end
@@ -422,19 +423,19 @@ for (nname,cname,rname,elty) in ((:rocsparse_snnz, :rocsparse_sdense2csc, :rocsp
         function ROCSparseMatrixCSR(A::ROCMatrix{$elty}; ind::SparseChar='O')
             m,n = size(A)
             lda = max(1, stride(A,2))
-            cudesc = ROCMatrixDescriptor('G',
+            rocdesc = ROCMatrixDescriptor('G',
                                         'L',
                                         'N', ind)
             nnzRowCol = AMDGPU.zeros(Cint, m)
             nnzTotal = Ref{Cint}(1)
             $nname(handle(),
-                   'R', m, n, cudesc, A, lda, nnzRowCol,
+                   'R', m, n, rocdesc, A, lda, nnzRowCol,
                    nnzTotal)
             nzVal = AMDGPU.zeros($elty,nnzTotal[])
 
             rowPtr = AMDGPU.zeros(Cint,m+1)
             colInd = AMDGPU.zeros(Cint,nnzTotal[])
-            $rname(handle(), m, n, cudesc, A,
+            $rname(handle(), m, n, rocdesc, A,
                     lda, nnzRowCol, nzVal, rowPtr, colInd)
             return ROCSparseMatrixCSR(rowPtr,colInd,nzVal,size(A))
         end
@@ -442,26 +443,26 @@ for (nname,cname,rname,elty) in ((:rocsparse_snnz, :rocsparse_sdense2csc, :rocsp
         function ROCSparseMatrixCSC(A::ROCMatrix{$elty}; ind::SparseChar='O')
             m,n = size(A)
             lda = max(1, stride(A,2))
-            cudesc = ROCMatrixDescriptor('G',
+            rocdesc = ROCMatrixDescriptor('G',
                                         'L',
                                         'N', ind)
             nnzRowCol = AMDGPU.zeros(Cint, n)
             nnzTotal = Ref{Cint}(1)
             $nname(handle(),
-                   'C', m, n, cudesc, A, lda, nnzRowCol,
+                   'C', m, n, rocdesc, A, lda, nnzRowCol,
                    nnzTotal)
             nzVal = AMDGPU.zeros($elty,nnzTotal[])
 
             colPtr = AMDGPU.zeros(Cint,n+1)
             rowInd = AMDGPU.zeros(Cint,nnzTotal[])
-            $cname(handle(), m, n, cudesc, A,
-                    lda, nnzRowCol, nzVal, rowInd, colPtr)
+            $cname(handle(), m, n, rocdesc, A,
+                    lda, nnzRowCol, nzVal, colPtr, rowInd)
             return ROCSparseMatrixCSC(colPtr,rowInd,nzVal,size(A))
         end
     end
 end
 
-# to do: use cusparseDenseToSparse_convert here
+
 for (elty, welty) in ((:Float16, :Float32),
                       (:ComplexF16, :ComplexF32))
     @eval begin
