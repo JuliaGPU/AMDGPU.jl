@@ -69,16 +69,16 @@ using LinearAlgebra, SparseArrays
         # test with empty inputs
         @test Array(dA * AMDGPU.zeros(elty, n, 0)) == zeros(elty, n, 0)
 
-        mul!(c, f(A), b, alpha, beta)
-        mul!(dc, f(dA), db, alpha, beta)
+        LinearAlgebra.mul!(c, f(A), b, alpha, beta)
+        LinearAlgebra.mul!(dc, f(dA), db, alpha, beta)
         @test c ≈ collect(dc)
 
         A = A + transpose(A)
         dA = ROCSparseMatrixCSR(A)
 
         @assert issymmetric(A)
-        mul!(c, f(Symmetric(A)), b, alpha, beta)
-        mul!(dc, f(Symmetric(dA)), db, alpha, beta)
+        LinearAlgebra.mul!(c, f(Symmetric(A)), b, alpha, beta)
+        LinearAlgebra.mul!(dc, f(Symmetric(dA)), db, alpha, beta)
         @test c ≈ collect(dc)
     end
 
@@ -100,16 +100,16 @@ using LinearAlgebra, SparseArrays
         # test with empty inputs
         @test Array(dA * AMDGPU.zeros(Complex{elty}, n, 0)) == zeros(Complex{elty}, n, 0)
 
-        mul!(c, f(A), b, alpha, beta)
-        mul!(dc, f(dA), db, alpha, beta)
+        LinearAlgebra.mul!(c, f(A), b, alpha, beta)
+        LinearAlgebra.mul!(dc, f(dA), db, alpha, beta)
         @test c ≈ collect(dc)
 
         A = A + transpose(A)
         dA = ROCSparseMatrixCSR(A)
 
         @assert issymmetric(A)
-        mul!(c, f(Symmetric(A)), b, alpha, beta)
-        mul!(dc, f(Symmetric(dA)), db, alpha, beta)
+        LinearAlgebra.mul!(c, f(Symmetric(A)), b, alpha, beta)
+        LinearAlgebra.mul!(dc, f(Symmetric(dA)), db, alpha, beta)
         @test c ≈ collect(dc)
     end
 
@@ -134,16 +134,16 @@ using LinearAlgebra, SparseArrays
         dB = ROCArray(B)
         dC = ROCArray(C)
 
-        mul!(C, f(A), h(B), alpha, beta)
-        mul!(dC, f(dA), h(dB), alpha, beta)
+        LinearAlgebra.mul!(C, f(A), h(B), alpha, beta)
+        LinearAlgebra.mul!(dC, f(dA), h(dB), alpha, beta)
         @test C ≈ collect(dC)
 
         A = A + transpose(A)
         dA = ROCSparseMatrixCSR(A)
 
         @assert issymmetric(A)
-        mul!(C, f(Symmetric(A)), h(B), alpha, beta)
-        mul!(dC, f(Symmetric(dA)), h(dB), alpha, beta)
+        LinearAlgebra.mul!(C, f(Symmetric(A)), h(B), alpha, beta)
+        LinearAlgebra.mul!(dC, f(Symmetric(dA)), h(dB), alpha, beta)
         @test C ≈ collect(dC)
     end
 
@@ -160,16 +160,16 @@ using LinearAlgebra, SparseArrays
         dB = ROCArray(B)
         dC = ROCArray(C)
 
-        mul!(C, A, B, alpha, beta)
-        mul!(dC, dA, dB, alpha, beta)
+        LinearAlgebra.mul!(C, A, B, alpha, beta)
+        LinearAlgebra.mul!(dC, dA, dB, alpha, beta)
         @test C ≈ collect(dC)
 
-        mul!(B, transpose(A), C, alpha, beta)
-        mul!(dB, transpose(dA), dC, alpha, beta)
+        LinearAlgebra.mul!(B, transpose(A), C, alpha, beta)
+        LinearAlgebra.mul!(dB, transpose(dA), dC, alpha, beta)
         @test B ≈ collect(dB)
 
-        mul!(B, adjoint(A), C, alpha, beta)
-        mul!(dB, adjoint(dA), dC, alpha, beta)
+        LinearAlgebra.mul!(B, adjoint(A), C, alpha, beta)
+        LinearAlgebra.mul!(dB, adjoint(dA), dC, alpha, beta)
         @test B ≈ collect(dB)
     end
 

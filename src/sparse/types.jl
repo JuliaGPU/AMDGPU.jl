@@ -13,6 +13,25 @@ function Base.convert(::Type{rocsparse_datatype}, T::DataType)
         throw(ArgumentError("ROCSPARSE type equivalent for data type $T does not exist!"))
     end
 end
+
+function Base.convert(::Type{rocsparse_double_complex}, x::ComplexF64)
+    return rocsparse_double_complex(x.re, x.im)
+end
+
+function Base.convert(::Type{rocsparse_float_complex}, x::ComplexF32)
+    return rocsparse_single_complex(x.re, x.im)
+end
+
+# rocsparse_float_complex and rocsparse_double_complex are defined as classes and their arrays need explicit conversion
+function Base.unsafe_convert(::Type{Ptr{rocsparse_float_complex}}, x::Base.RefValue{ComplexF32})
+    return Base.unsafe_convert(Ptr{rocsparse_float_complex}, Base.unsafe_convert(Ptr{ComplexF32}, x))
+end
+
+function Base.unsafe_convert(::Type{Ptr{rocsparse_double_complex}}, x::Base.RefValue{ComplexF64})
+    return Base.unsafe_convert(Ptr{rocsparse_double_complex}, Base.unsafe_convert(Ptr{ComplexF64}, x))
+end
+
+
 ## index type
 
 function Base.convert(::Type{rocsparse_indextype}, T::DataType)

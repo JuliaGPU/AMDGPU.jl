@@ -128,7 +128,7 @@ const StridedROCVector{T} = StridedROCArray{T,1}
 const StridedROCMatrix{T} = StridedROCArray{T,2}
 const StridedROCVecOrMat{T} = Union{StridedROCVector{T}, StridedROCMatrix{T}}
 
-Base.pointer(x::StridedROCArray{T}) where {T} = Base.unsafe_convert(LLVMPtr{T}, x)
+Base.pointer(x::StridedROCArray{T}) where {T} = Base.unsafe_convert(Ptr{T}, x)
 @inline function Base.pointer(x::StridedROCArray{T}, i::Integer) where T
     Base.unsafe_convert(LLVMPtr{T}, x) + Base._memory_offset(x, i)
 end
@@ -418,6 +418,8 @@ ones(dims...) = ones(Float32, dims...)
 ones(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), one(T))
 zeros(dims...) = zeros(Float32, dims...)
 zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
+fill(v, dims...) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
+fill(v, dims::Dims) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
 
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
