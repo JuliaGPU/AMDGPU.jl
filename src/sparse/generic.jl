@@ -137,12 +137,12 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{ROCSparseMatrixBSR{TA},
     function bufferSize()
         out = Ref{Csize_t}()
         rocsparse_spmv(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                                 descY, compute_type, algo, out, Ptr{Cvoid}(C_NULL))
+                              descY, compute_type, algo, out, Ptr{Cvoid}(C_NULL))
         return out[]
     end
     with_workspace(bufferSize) do buffer
         rocsparse_spmv(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                     descY, compute_type, algo, bufferSize, buffer)
+                     descY, compute_type, algo, Ref{Csize_t}(sizeof(buffer)), buffer)
     end
     Y
 end
@@ -188,14 +188,15 @@ function mv!(transa::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{TA}, X::De
     end
     with_workspace(bufferSize) do buffer
         rocsparse_spmv(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                      descY, compute_type, algo, bufferSize, buffer)
+                      descY, compute_type, algo, Ref{Csize_t}(sizeof(buffer)), buffer)
     end
 
     return Y
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{T},
-             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar, algo::rocsparse_spmm_alg=rocsparse_mm_alg_default) where {T}
+             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar, 
+             algo::rocsparse_spmm_alg=rocsparse_mm_alg_default) where {T}
     m,k = size(A)
     n = size(C)[2]
 
@@ -217,20 +218,26 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparse
         out = Ref{Csize_t}()
         rocsparse_spmm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, out, Ptr{Cvoid}(C_NULL))
+            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, Ptr{Cvoid}(C_NULL))
         return out[]
     end
     with_workspace(bufferSize) do buffer
+        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spmm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, bufferSize, buffer)
+            descC, T, algo, rocsparse_spmm_stage_preprocess, buffer_len_ref, buffer)
+
+        rocsparse_spmm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
     end
 
     return C
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{T},
-             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar, algo::rocsparse_spmm_alg=rocsparse_mm_alg_default) where {T}
+             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar, 
+             algo::rocsparse_spmm_alg=rocsparse_mm_alg_default) where {T}
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
@@ -260,13 +267,17 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparse
         out = Ref{Csize_t}()
         rocsparse_spmm(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, out, Ptr{Cvoid}(C_NULL))
+            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, Ptr{Cvoid}(C_NULL))
         return out[]
     end
     with_workspace(bufferSize) do buffer
+        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spmm(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, bufferSize, buffer)
+            descC, T, algo, rocsparse_spmm_stage_preprocess, buffer_len_ref, buffer)
+        rocsparse_spmm(
+            handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
     end
 
     return C
@@ -289,21 +300,24 @@ function mm!(transa::SparseChar, transb::SparseChar, α::Number, A::ROCSparseMat
     descB = ROCSparseMatrixDescriptor(B, index)
     descC = ROCSparseMatrixDescriptor(C, index)
 
+    descD = ROCSparseMatrixDescriptor()
+
     function bufferSize()
         out = Ref{Csize_t}(0)
         rocsparse_spgemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_buffer_size, out,
+            descC, descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_buffer_size, out,
             Ptr{Cvoid}(C_NULL))
         return out[]
     end
     with_workspace(bufferSize) do buffer
+        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spgemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_nnz, bufferSize, buffer)
+            descC, descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_nnz, buffer_len_ref, buffer)
         rocsparse_spgemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_compute, bufferSize, buffer)
+            descC, descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_compute, buffer_len_ref, buffer)
     end
     return C
 end
