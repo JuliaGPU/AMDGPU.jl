@@ -21,11 +21,20 @@ for (fname, elty) in ((:rocsparse_scsrgeam, :Float32),
 
             rowPtrC = ROCArray{Int32,1}(undef, m+1)
 
+            nnzcount_C = Ref{Cint}()
+            rocsparse_csrgeam_nnz(handle(), m, n, descrA, nnz(A), A.rowPtr, A.colVal,
+                                  descrB, nnz(B), B.rowPtr, B.colVal,
+                                  descrC, rowPtrC, nnzcount_C)
+
+            nnz_C = ROCArray{$elty}(undef, nnzcount_C[])
+            colValC = ROCArray{Int32}(undef, nnzcount_C[])
+
+
             $fname(handle(), m, n,
-                alpha, descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
-                beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
-                descrC, nzValC, rowPtrC, colValC)
-            return ROCSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
+                Ref(alpha), descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
+                Ref(beta), descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
+                descrC, pointer(nnz_C), rowPtrC, colValC)
+            return ROCSparseMatrixCSR(rowPtrC, colValC, nnz_C, (m, n))
         end
     end
 end

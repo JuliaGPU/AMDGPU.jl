@@ -271,6 +271,8 @@ ones(dims...) = ones(Float32, dims...)
 ones(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), one(T))
 zeros(dims...) = zeros(Float32, dims...)
 zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
+fill(v, dims...) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
+fill(v, dims::Dims) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
 
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
