@@ -4,9 +4,9 @@ using AMDGPU.rocSparse
 using SparseArrays
 
 
-@testset "generic mv!" for T in [Float32, Float64]
+@testset "generic mv!" for T in [Float32, Float64, ComplexF32, ComplexF64]
     A = sprand(T, 10, 10, 0.1)
-    x = rand(Complex{T}, 10)
+    x = rand(T, 10)
     y = similar(x)
     dx = adapt(ROCArray, x)
     dy = adapt(ROCArray, y)
