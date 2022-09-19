@@ -84,7 +84,7 @@ end
 
 ## COV_EXCL_STOP
 
-function GPUArrays.mapreducedim!(f::F, op::OP, R::ROCArray{T},
+function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
                                  A::Union{AbstractArray,Broadcast.Broadcasted};
                                  init=nothing) where {F, OP, T}
     Base.check_reducedims(R, A)
