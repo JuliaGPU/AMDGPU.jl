@@ -496,10 +496,34 @@ version = "1.2.2+0"
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 
+[[deps.rocBLAS_jll]]
+deps = ["Artifacts", "HIP_jll", "JLLWrappers", "Libdl", "Pkg", "ROCmCompilerSupport_jll", "ROCmDeviceLibs_jll", "ROCmOpenCLRuntime_jll", "hsa_rocr_jll", "rocminfo_jll"]
+git-tree-sha1 = "ef456085368c5a424fa339b2ce2da8be6775e038"
+uuid = "1ef8cab2-a151-54b4-a57f-5fbb4046a4ab"
+version = "4.2.0+0"
+
+[[deps.rocPRIM_jll]]
+deps = ["Artifacts", "HIP_jll", "JLLWrappers", "Libdl", "Pkg", "ROCmCompilerSupport_jll", "ROCmDeviceLibs_jll", "ROCmOpenCLRuntime_jll", "hsa_rocr_jll", "rocm_cmake_jll", "rocminfo_jll"]
+git-tree-sha1 = "6a3f7f14264d989b200c34f8d24539301f732a35"
+uuid = "52935e6f-76c5-5ebb-b227-36676f75be9c"
+version = "4.2.0+1"
+
 [[deps.rocRAND_jll]]
 deps = ["Artifacts", "HIP_jll", "JLLWrappers", "Libdl", "Pkg", "ROCmCompilerSupport_jll", "ROCmOpenCLRuntime_jll", "hsa_rocr_jll", "rocminfo_jll"]
 git-tree-sha1 = "8bc31c5b67e1e81fdbdc11a2dc1acf4912ea8200"
 uuid = "a6151927-a32b-54c0-bc8c-bbd7b3f1a996"
+version = "4.2.0+0"
+
+[[deps.rocSPARSE_jll]]
+deps = ["Artifacts", "HIP_jll", "JLLWrappers", "Libdl", "Pkg", "ROCmCompilerSupport_jll", "ROCmDeviceLibs_jll", "ROCmOpenCLRuntime_jll", "hsa_rocr_jll", "rocPRIM_jll", "rocminfo_jll"]
+git-tree-sha1 = "095672870d46ea73c8c4cbc3224ab666dee5be0c"
+uuid = "8c6ce2ba-659c-5ec7-ba4c-37596cf1f22a"
+version = "4.2.0+0"
+
+[[deps.rocm_cmake_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "da9ea138534e1a22bf9e63ef57e2754e4fd2ad41"
+uuid = "c3eb98f6-eb42-520d-ab3c-506c3b64aac0"
 version = "4.2.0+0"
 
 [[deps.rocminfo_jll]]

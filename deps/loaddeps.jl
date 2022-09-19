@@ -1,6 +1,7 @@
 # Load configurations
-try
+const ext_file_found = try
     include("ext.jl")
+    true
 catch err
     if !isfile(joinpath(@__DIR__, "ext.jl"))
         @warn "Didn't find deps/ext.jl, please build AMDGPU.jl"
@@ -15,18 +16,23 @@ catch err
         @eval const hip_build_reason = "Build did not occur"
         @eval const device_libs_configured = false
         @eval const device_libs_build_reason = "Build did not occur"
-        @eval const rocrand_configured = false
-        @eval const rocrand_build_reason = "Build did not occur"
-        @eval const librocblas = nothing
-        @eval const librocsolver = nothing
-        @eval const librocsparse = nothing
-        @eval const librocrand = nothing
-        @eval const librocfft = nothing
-        @eval const librocalution = nothing
-        @eval const libmiopen = nothing
+
+        for name in (:rocblas,
+                     :rocsparse,
+                     :rocsolver,
+                     :rocrand,
+                     :rocfft,
+                     :rocalution,
+                     :MIOpen)
+            lib = Symbol(:lib, lowercase(string(name)))
+            @eval const $lib = nothing
+            @eval const $(Symbol(name, :_configured)) = false
+            @eval const $(Symbol(name, :_build_reason)) = "Build did not occur"
+        end
     else
         rethrow(err)
     end
+    false
 end
 
 # HSA runtime and ROCm External Libraries
@@ -43,6 +49,12 @@ if use_artifacts
     end
     if device_libs_configured
         using ROCmDeviceLibs_jll
+    end
+    if rocblas_configured
+        using rocBLAS_jll
+    end
+    if rocsparse_configured
+        using rocSPARSE_jll
     end
     if rocrand_configured
         using rocRAND_jll
@@ -69,6 +81,14 @@ if device_libs_configured && device_libs_downloaded
 elseif !device_libs_configured
     const device_libs_path = ""
 end
-if !rocrand_configured
-    const librocrand = nothing
+if ext_file_found
+    if !rocblas_configured
+        const librocblas = nothing
+    end
+    if !rocsparse_configured
+        const librocsparse = nothing
+    end
+    if !rocrand_configured
+        const librocrand = nothing
+    end
 end
