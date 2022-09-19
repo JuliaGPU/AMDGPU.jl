@@ -7,6 +7,7 @@ using Libdl
 using LLVM, LLVM.Interop
 using GPUCompiler
 using GPUArrays
+using GPUCompiler
 using Adapt
 using Requires
 import LinearAlgebra
@@ -167,6 +168,17 @@ function hsaunref!()
 end
 
 # Load ROCm external libraries
+const rocm_ext_libs = [
+    (:rocblas, :rocBLAS_jll),
+    (:rocsparse, :rocSPARSE_jll),
+    (:rocsolver, nothing),
+    (:rocalution, nothing),
+    (:rocrand, :rocRAND_jll),
+    (:rocfft, nothing),
+    (:MIOpen, nothing),
+]
+
+# Load ROCm external libraries
 if functional(:hip)
 functional(:rocblas)      && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
 functional(:rocsparse)  && include(joinpath(@__DIR__, "sparse", "rocSparse.jl"))
@@ -319,12 +331,23 @@ function __init__()
     end
 
     # Check whether external libraries are available
-    if use_artifacts && !functional(:rocrand)
-        @warn """
-        rocRAND_jll failed to load, RNG functionality will be unavailable.
-        Please run Pkg.build("AMDGPU") and reload AMDGPU.
-        Reason: $rocrand_build_reason
-        """
+    for ((name, pkg), purpose) in zip(rocm_ext_libs,
+                                      ("dense BLAS",
+                                       "sparse BLAS",
+                                       "linear solver",
+                                       "fancy linear solver",
+                                       "RNG",
+                                       "FFT",
+                                       "DNN/convolution"))
+        if use_artifacts && pkg !== nothing && !functional(name)
+            # These are numerous and thus noisy
+            build_reason = Symbol(name, :_build_reason)
+            @debug """
+            $pkg failed to load, $purpose functionality will be unavailable.
+            Please run Pkg.build("AMDGPU") and reload AMDGPU.
+            Reason: $(@eval $build_reason)
+            """
+        end
     end
 
     # Load optional OpenCL integrations

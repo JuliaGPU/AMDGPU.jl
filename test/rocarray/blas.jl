@@ -21,6 +21,14 @@ end
         _b = Array(Rb)
         @test isapprox(A*x, _b)
     end
+    @testset "norm" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x = rand(T, 8)
+            Rx = ROCArray(x)
+            nx = norm(Rx)
+            @test isapprox(nx, norm(x))
+        end
+    end
 end
 
 @testset "Level 1 BLAS" begin

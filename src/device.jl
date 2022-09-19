@@ -16,9 +16,10 @@ mutable struct ROCDevice
         device.productname = product_name(device)
         device.uuid = uuid(device)
 
-        device
+        return device
     end
 end
+ROCDevice() = get_default_device()
 
 Base.:(==)(device1::ROCDevice, device2::ROCDevice) =
     device1.agent == device2.agent
@@ -143,6 +144,13 @@ function device_type(agent::HSA.Agent)
     devtype = Ref{HSA.DeviceType}()
     getinfo(agent, HSA.AGENT_INFO_DEVICE, devtype) |> check
     return devtype[]
+end
+
+wavefrontsize(device::ROCDevice) = wavefrontsize(device.agent)
+function wavefrontsize(agent::HSA.Agent)
+    wfsize = Ref{UInt32}()
+    getinfo(agent, HSA.AGENT_INFO_WAVEFRONT_SIZE, wfsize) |> check
+    return wfsize[]
 end
 
 function getinfo(agent::HSA.Agent, attribute::HSA.AgentInfo,

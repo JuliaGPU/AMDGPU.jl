@@ -167,6 +167,15 @@ function write_ext(config, path)
     end
 end
 
+const rocm_ext_libs = [
+    (:rocblas, :rocBLAS_jll),
+    (:rocsparse, :rocSPARSE_jll),
+    (:rocsolver, nothing),
+    (:rocalution, nothing),
+    (:rocrand, :rocRAND_jll),
+    (:rocfft, nothing),
+    (:MIOpen, nothing),
+]
 
 function main()
     ispath(config_path) && mv(config_path, previous_config_path; force=true)
@@ -183,16 +192,13 @@ function main()
         :hip_build_reason => "unknown",
         :device_libs_configured => false,
         :device_libs_build_reason => "unknown",
-        :librocblas => nothing,
-        :librocsolver => nothing,
-        :librocsparse => nothing,
-        :librocalution => nothing,
-        :librocfft => nothing,
-        :librocrand => nothing,
-        :rocrand_configured => false,
-        :rocrand_build_reason => false,
-        :libmiopen => nothing,
     )
+    for (name, _) in rocm_ext_libs
+        lib = Symbol(:lib, lowercase(string(name)))
+        config[lib] = nothing
+        config[Symbol(name, :_configured)] = false
+        config[Symbol(name, :_build_reason)] = "Build did not occur"
+    end
     write_ext(config, config_path)
 
     # Skip build if running under AutoMerge
@@ -279,24 +285,28 @@ function main()
     ### Find ld.lld
     ld_path = nothing
     if use_artifacts
-        try
+        lld_using_success = try
             @eval using LLD_jll
+            true
         catch err
             iob = IOBuffer()
             println(iob, "`using LLD_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:lld_build_reason] = String(take!(iob))
+            false
         end
-        if (Base.libllvm_version < v"14" && @invokelatest(LLD_jll.LLVM_jll.is_available())) || @invokelatest(LLD_jll.is_available())
-            if isdefined(LLD_jll, :lld_path)
-                ld_path = LLD_jll.lld_path
-                config[:lld_artifact] = true
+        if lld_using_success
+            if (Base.libllvm_version < v"14" && @invokelatest(LLD_jll.LLVM_jll.is_available())) || @invokelatest(LLD_jll.is_available())
+                if isdefined(LLD_jll, :lld_path)
+                    ld_path = LLD_jll.lld_path
+                    config[:lld_artifact] = true
+                else
+                    config[:lld_build_reason] = "LLD_jll does not export lld_path"
+                end
             else
-                config[:lld_build_reason] = "LLD_jll does not export lld_path"
+                config[:lld_build_reason] = "LLD_jll is not available on this platform"
             end
-        else
-            config[:lld_build_reason] = "LLD_jll is not available on this platform"
         end
     else
         ld_path = find_ld_lld()
@@ -314,20 +324,24 @@ function main()
     device_libs_path = nothing
     device_libs_downloaded = nothing
     if use_artifacts
-        try
+        devlibs_using_success = try
             @eval using ROCmDeviceLibs_jll
+            true
         catch err
             iob = IOBuffer()
             println(iob, "`using ROCmDeviceLibs_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:device_libs_build_reason] = String(take!(iob))
+            false
         end
-        if @invokelatest ROCmDeviceLibs_jll.is_available()
-            device_libs_path = ROCmDeviceLibs_jll.bitcode_path
-            device_libs_downloaded = false
-        else
-            config[:device_libs_build_reason] = "ROCmDeviceLibs_jll is not available on this platform"
+        if devlibs_using_success
+            if @invokelatest ROCmDeviceLibs_jll.is_available()
+                device_libs_path = ROCmDeviceLibs_jll.bitcode_path
+                device_libs_downloaded = false
+            else
+                config[:device_libs_build_reason] = "ROCmDeviceLibs_jll is not available on this platform"
+            end
         end
     else
         device_libs_path = find_device_libs()
@@ -343,19 +357,23 @@ function main()
     ### Find HIP
     libhip_path = nothing
     if use_artifacts
-        try
+        hip_using_success = try
             @eval using HIP_jll
+            true
         catch err
             iob = IOBuffer()
             println(iob, "`using HIP_jll` failed:")
             Base.showerror(iob, err)
             Base.show_backtrace(iob, catch_backtrace())
             config[:hip_build_reason] = String(take!(iob))
+            false
         end
-        if @invokelatest HIP_jll.is_available()
-            libhip_path = HIP_jll.libamdhip64
-        else
-            config[:hip_build_reason] = "HIP_jll is not available on this platform"
+        if hip_using_success
+            if @invokelatest HIP_jll.is_available()
+                libhip_path = HIP_jll.libamdhip64
+            else
+                config[:hip_build_reason] = "HIP_jll is not available on this platform"
+            end
         end
     else
         libhip_path = find_rocm_library(["libamdhip64", "libhip_hcc"], roc_dirs)
@@ -364,39 +382,32 @@ function main()
         config[:libhip_path] = libhip_path
         config[:hip_configured] = true
 
-        if !use_artifacts
-            ### Find external HIP-based libraries
-            for name in ("rocblas", "rocsolver", "rocsparse", "rocalution", "rocfft", "MIOpen")
-                lib = Symbol("lib$(lowercase(name))")
-                path = find_rocm_library("lib$name", roc_dirs)
+        ### Find external HIP-based libraries
+        for (name, pkg) in rocm_ext_libs
+            lib = Symbol(:lib, lowercase(string(name)))
+            if use_artifacts
+                if pkg === nothing
+                    continue
+                end
+                try
+                    @eval using $pkg
+                    config[lib] = getfield(@eval($pkg), lib)
+                    config[Symbol(name, :_configured)] = true
+                catch err
+                    iob = IOBuffer()
+                    println(iob, "`using $pkg` failed:")
+                    Base.showerror(iob, err)
+                    Base.show_backtrace(iob, catch_backtrace())
+                    config[Symbol(name, :_build_reason)] = String(take!(iob))
+                end
+            else
+                path = find_rocm_library(string(lib), roc_dirs)
                 if !isempty(something(path, ""))
                     config[lib] = path
+                    config[Symbol(name, :_configured)] = true
                 else
                     build_warning("Could not find library '$name'")
-                    # TODO: Save build reason?
                 end
-            end
-        end
-        lib = :librocrand
-        if use_artifacts
-            try
-                @eval using rocRAND_jll
-                config[lib] = rocRAND_jll.librocrand
-                config[:rocrand_configured] = true
-            catch err
-                iob = IOBuffer()
-                println(iob, "`using rocRAND_jll` failed:")
-                Base.showerror(iob, err)
-                Base.show_backtrace(iob, catch_backtrace())
-                config[:rocrand_build_reason] = String(take!(iob))
-            end
-        else
-            path = find_rocm_library("librocrand", roc_dirs)
-            if !isempty(something(path, ""))
-                config[lib] = path
-                config[:rocrand_configured] = true
-            else
-                build_warning("Could not find library 'librocrand'")
             end
         end
     else
