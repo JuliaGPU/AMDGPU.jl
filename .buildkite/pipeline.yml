@@ -64,7 +64,7 @@ steps:
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update(); Pkg.build(\"AMDGPU\")'"
+    command: "julia --project -e 'using Pkg; Pkg.update()"
     soft_fail: true
     timeout_in_minutes: 180
     env:
@@ -83,7 +83,7 @@ steps:
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update(); Pkg.build(\"AMDGPU\")'"
+    command: "julia --project -e 'using Pkg; Pkg.update()"
     soft_fail: true
     timeout_in_minutes: 180
     env:
@@ -103,7 +103,7 @@ steps:
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update(); Pkg.build(\"AMDGPU\")'"
+    command: "julia --project -e 'using Pkg; Pkg.update()"
     soft_fail: true
     timeout_in_minutes: 180
     env:
@@ -122,7 +122,7 @@ steps:
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update(); Pkg.build(\"AMDGPU\")'"
+    command: "julia --project -e 'using Pkg; Pkg.update()"
     soft_fail: true
     timeout_in_minutes: 180
     env:

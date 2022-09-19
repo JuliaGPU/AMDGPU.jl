@@ -1,19 +1,31 @@
+function hsa_version()
+    major_ref = Ref{Cushort}(typemax(Cushort))
+    minor_ref = Ref{Cushort}(typemax(Cushort))
+    major_status = ccall((:hsa_system_get_info, libhsaruntime_path), Cint, (Cint, Ptr{Cushort}), HSA.SYSTEM_INFO_VERSION_MAJOR, major_ref)
+    minor_status = ccall((:hsa_system_get_info, libhsaruntime_path), Cint, (Cint, Ptr{Cushort}), HSA.SYSTEM_INFO_VERSION_MINOR, minor_ref)
+    if major_status != HSA.STATUS_SUCCESS ||
+       minor_status != HSA.STATUS_SUCCESS
+        @warn "Failed to detect HSA version: $status"
+        return v"0"
+    end
+    return VersionNumber(major_ref[], minor_ref[])
+end
+
 function versioninfo(io::IO=stdout)
     println("HSA Runtime ($(functional(:hsa) ? "ready" : "MISSING"))")
     if functional(:hsa)
         println("- Path: $libhsaruntime_path")
-        println("- Version: $(libhsaruntime_version)")
+        println("- Version: $libhsaruntime_version")
         #println("- Initialized: $(repr(HSA_REFCOUNT[] > 0))")
     end
     println("ld.lld ($(functional(:lld) ? "ready" : "MISSING"))")
     if functional(:lld)
-        println("- Path: $ld_lld_path")
+        println("- Path: $lld_path")
     end
     println("ROCm-Device-Libs ($(functional(:device_libs) ? "ready" : "MISSING"))")
     if functional(:device_libs)
         println("- Path: $device_libs_path")
         # TODO: println("- Version: $(device_libs_version)")
-        println("- Downloaded: $(repr(device_libs_downloaded))")
     end
     println("HIP Runtime ($(functional(:hip) ? "ready" : "MISSING"))")
     if functional(:hip)
@@ -151,12 +163,11 @@ end
 
 function print_build_diagnostics()
     println("Diagnostics:")
-    println("-- deps/build.log")
-    println(String(read(joinpath(@__DIR__, "..", "deps", "build.log"))))
-    println("-- deps/ext.jl")
-    println(String(read(joinpath(@__DIR__, "..", "deps", "ext.jl"))))
     println("-- permissions")
     run(`ls -lah /dev/kfd`)
     run(`ls -lah /dev/dri`)
+    for file in readdir("/dev/dri")
+        run(`ls -lah $(joinpath("/dev/dri", file))`)
+    end
     run(`id`)
 end

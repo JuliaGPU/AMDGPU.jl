@@ -2,18 +2,19 @@
 
 ## Installation
 
-After making sure that your ROCm stack is installed and working, simply add the AMDGPU.jl package to your Julia environment and build it:
+After making sure that your ROCm stack is installed and working, simply add the AMDGPU.jl package to your Julia environment:
 
 ```julia
-]add AMDGPU
-]build AMDGPU
+using Pkg
+Pkg.add("AMDGPU")
 ```
 
-If everything ran successfully, you can try loading the `AMDGPU` package and running the unit tests:
+You can then load the `AMDGPU` package and run the unit tests:
 
 ```julia
 using AMDGPU
-]test AMDGPU
+using Pkg
+Pkg.test("AMDGPU")
 ```
 
 !!! warning
@@ -27,7 +28,7 @@ using AMDGPU
     LD_PRELOAD=/usr/lib/libstdc++.so julia
     ```
 
-    Alternatively, you can build Julia from sources as described [here](https://github.com/JuliaLang/julia/blob/master/doc/build/build.md).
+    Alternatively, you can build Julia from source as described [here](https://github.com/JuliaLang/julia/blob/master/doc/build/build.md).
 
     You can quickly debug this issue by starting Julia and trying to load a ROCm library:
 
@@ -37,7 +38,7 @@ using AMDGPU
     ```
 
 !!! warning
-    If during the build process you get an error message along the lines of `hipErrorNoBinaryForGpu: Coudn't find binary for current devices!` and you already have ROCm installed locally then you should set the environment variable `JULIA_AMDGPU_DISABLE_ARTIFACTS=1` and re-build AMDGPU.jl.
+    If during the build process you get an error message along the lines of `hipErrorNoBinaryForGpu: Coudn't find binary for current devices!` and you already have ROCm installed locally then you should set the environment variable `JULIA_AMDGPU_DISABLE_ARTIFACTS=1` and reload AMDGPU.jl.
 
 ## Running a simple kernel
 
