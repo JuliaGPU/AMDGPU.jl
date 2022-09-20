@@ -26,7 +26,7 @@ include(joinpath(@__DIR__, "hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
 
 # Load binary dependencies
-include(joinpath(dirname(@__DIR__), "deps", "loaddeps.jl"))
+include(joinpath(dirname(@__DIR__), "deps", "bindeps.jl"))
 
 # Utilities
 include("utils.jl")
@@ -161,16 +161,6 @@ function hsaunref!()
     end
 end
 
-const rocm_ext_libs = [
-    (:rocblas, :rocBLAS_jll),
-    (:rocsparse, :rocSPARSE_jll),
-    (:rocsolver, nothing),
-    (:rocalution, nothing),
-    (:rocrand, :rocRAND_jll),
-    (:rocfft, nothing),
-    (:MIOpen, nothing),
-]
-
 # Load ROCm external libraries
 if functional(:hip)
 functional(:rocblas)      && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
@@ -183,21 +173,6 @@ include(joinpath(@__DIR__, "random.jl"))
 end
 functional(:rocfft)      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
 #functional(:miopen)     && include("dnn/MIOpen.jl")
-
-# Ensure external libraries are up to date
-function check_library(name, path)
-    path === nothing && return
-    if !ispath(path)
-        @warn "$name library has changed. Please run Pkg.build(\"AMDGPU\") and restart Julia."
-    end
-end
-check_library("rocBLAS", librocblas)
-check_library("rocSPARSE", librocsparse)
-check_library("rocSOLVER", librocsolver)
-check_library("rocALUTION", librocalution)
-check_library("rocRAND", librocrand)
-check_library("rocFFT", librocfft)
-check_library("MIOpen", libmiopen)
 end # functional(:hip)
 
 function __init__()
@@ -225,24 +200,8 @@ function __init__()
     end
 
     # Verbose path, something is misconfigured
-    if !configured && build_reason != "unknown"
-        if build_reason == "Build did not occur"
-            @warn """
-            AMDGPU.jl has not been built
-            Please run Pkg.build("AMDGPU") and restart Julia
-            """
-            return
-        end
-
-        # Some other reason
-        @warn """
-        Build failed to start!
-        Reason: $build_reason
-        """
-        return
-    end
     if hsa_configured
-        # Make sure we load the library found by the last `] build`
+        # Make sure we load the right library
         push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
         # TODO: Do the same (if possible) for the debug library
 
@@ -266,10 +225,12 @@ function __init__()
         else
             @warn "HSA initialization failed with code $status"
         end
+
+        # Detect HSA version
+        @eval const libhsaruntime_version = hsa_version()
     else
         @warn """
-        HSA runtime has not been built, runtime functionality will be unavailable.
-        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        HSA runtime is unavailable, compilation and runtime functionality will be disabled.
         Reason: $hsa_build_reason
         """
 
@@ -282,8 +243,7 @@ function __init__()
     # Check whether ld.lld was found
     if !functional(:lld)
         @warn """
-        ld.lld was not found, compilation functionality will be unavailable.
-        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        LLD is unavailable, compilation functionality will be disabled.
         Reason: $lld_build_reason
         """
 
@@ -296,8 +256,7 @@ function __init__()
     # Check whether device intrinsics are available
     if !functional(:device_libs)
         @warn """
-        ROCm-Device-Libs were not found, device intrinsics will be unavailable.
-        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        Device libraries are unavailable, device intrinsics will be disabled.
         Reason: $device_libs_build_reason
         """
 
@@ -312,8 +271,7 @@ function __init__()
         push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
     else
         @warn """
-        HIP library has not been built, HIP integration will be unavailable.
-        Please run Pkg.build("AMDGPU") and reload AMDGPU.
+        HIP library is unavailable, HIP integration will be disabled.
         Reason: $hip_build_reason
         """
 
@@ -336,8 +294,7 @@ function __init__()
             # These are numerous and thus noisy
             build_reason = Symbol(name, :_build_reason)
             @debug """
-            $pkg failed to load, $purpose functionality will be unavailable.
-            Please run Pkg.build("AMDGPU") and reload AMDGPU.
+            $pkg is unavailable, $purpose functionality will be disabled.
             Reason: $(@eval $build_reason)
             """
         end

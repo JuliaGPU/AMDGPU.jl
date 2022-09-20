@@ -527,7 +527,7 @@ uuid = "c3eb98f6-eb42-520d-ab3c-506c3b64aac0"
 version = "4.2.0+0"
 
 [[deps.rocminfo_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "hsa_rocr_jll"]
-git-tree-sha1 = "c541d64914a089c777ca31d7b7428b12185abeb5"
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "hsa_rocr_jll", "hsakmt_roct_jll"]
+git-tree-sha1 = "b2b3293e9990bcb6f3f669e18237b6cc2026b779"
 uuid = "5a766526-3cf8-5128-8c31-4f7b7ad60f0e"
-version = "4.2.0+0"
+version = "5.2.3+0"

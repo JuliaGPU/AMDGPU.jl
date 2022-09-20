@@ -82,7 +82,7 @@ default_isa_features(device::ROCDevice) =
 
 function create_executable(device, entry, obj; globals=())
     # link with ld.lld
-    @assert ld_lld_path != "" "ld.lld was not found; cannot link kernel"
+    @assert lld_path != "" "ld.lld was not found; cannot link kernel"
     path_exe = mktemp() do path_o, io_o
         write(io_o, obj)
         flush(io_o)
@@ -92,7 +92,7 @@ function create_executable(device, entry, obj; globals=())
                 run(`$lld -flavor gnu -shared -o $path_exe $path_o`)
             end
         else
-            run(`$ld_lld_path -shared -o $path_exe $path_o`)
+            run(`$lld_path -shared -o $path_exe $path_o`)
         end
         path_exe
     end

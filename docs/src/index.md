@@ -78,6 +78,6 @@ In terms of Linux kernel versions, just pick the newest one you can. If
 building your own kernel, make sure all the regular AMDGPU and HSA options are
 enabled.
 
-Once all of this is setup properly, you should be able to `] build AMDGPU`
+Once all of this is setup properly, you should be able to do `using AMDGPU`
 successfully. See the Quickstart documentation for an introduction to using
 AMDGPU.jl.
