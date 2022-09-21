@@ -31,64 +31,69 @@ const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{UInt64,Int64,Tuple{LLV
 
 ### macros
 
-macro rocprint(oc, str)
-    rocprint(oc, str)
-end
-macro rocprintln(oc, str)
-    rocprint(oc, str, true)
-end
-
-macro rocprint(str)
-    @gensym oc_ptr oc
-    ex = quote
-        $(esc(oc_ptr)) = AMDGPU.Device.get_global_pointer(Val(:__global_output_context),
-                                                         $GLOBAL_OUTPUT_CONTEXT_TYPE)
-        $(esc(oc)) = Base.unsafe_load($(esc(oc_ptr)))
+macro rocprint(str...)
+    if first(str) isa String || Meta.isexpr(first(str), :string)
+        # No OutputContext
+        @gensym oc_ptr oc
+        ex = quote
+            $oc_ptr = $get_global_pointer($(Val(:__global_output_context)),
+                                          $GLOBAL_OUTPUT_CONTEXT_TYPE)
+            $oc = Base.unsafe_load($oc_ptr)
+        end
+        push!(ex.args, rocprint(oc, str...))
+        return esc(ex)
+    else
+        return esc(rocprint(first(str), str[2:end]...))
     end
-    push!(ex.args, rocprint(oc, str))
-    ex
 end
-macro rocprintln(str)
-    @gensym oc_ptr oc
-    ex = quote
-        $(esc(oc_ptr)) = AMDGPU.Device.get_global_pointer(Val(:__global_output_context),
-                                                         $GLOBAL_OUTPUT_CONTEXT_TYPE)
-        $(esc(oc)) = Base.unsafe_load($(esc(oc_ptr)))
+macro rocprintln(str...)
+    if first(str) isa String || Meta.isexpr(first(str), :string)
+        # No OutputContext
+        @gensym oc_ptr oc
+        ex = quote
+            $oc_ptr = $get_global_pointer($(Val(:__global_output_context)),
+                                                 $GLOBAL_OUTPUT_CONTEXT_TYPE)
+            $oc = Base.unsafe_load($oc_ptr)
+        end
+        push!(ex.args, rocprint(oc, str..., '\n'))
+        return esc(ex)
+    else
+        return esc(rocprint(first(str), str[2:end]..., '\n'))
     end
-    push!(ex.args, rocprint(oc, str, true))
-    ex
 end
 
 ### parse-time helpers
 
-function rocprint(oc, str, nl::Bool=false)
+function rocprint(oc, str...)
     ex = Expr(:block)
-    if !(str isa Expr)
-        str = Expr(:string, str)
-    end
-    @assert str.head == :string
-    for (idx,arg) in enumerate(str.args)
-        if nl && idx == length(str.args)
-            arg *= '\n'
+    strs = Expr[]
+    for s in str
+        if !(s isa Expr)
+            s = Expr(:string, s)
         end
-        push!(ex.args, :($hostcall_device_lock!($(esc(oc)).hostcall)))
-        N = rocprint!(ex, 1, oc, arg)
-        N = rocprint!(ex, N, oc, '\0')
-        push!(ex.args, :($hostcall_device_trigger_and_return!($(esc(oc)).hostcall)))
+        @assert s.head == :string
+        push!(strs, s)
     end
+    push!(ex.args, :($hostcall_device_lock!($oc.hostcall)))
+    N = 1
+    for str in strs
+        N = rocprint!(ex, N, oc, str)
+    end
+    rocprint!(ex, N, oc, '\0')
+    push!(ex.args, :($hostcall_device_trigger_and_return!($oc.hostcall)))
     push!(ex.args, :(nothing))
     return ex
 end
 function rocprint!(ex, N, oc, str::String)
     @gensym str_ptr
-    push!(ex.args, :($str_ptr = AMDGPU.Device.alloc_string($(Val(Symbol(str))))))
-    push!(ex.args, :(AMDGPU.Device.memcpy!($(esc(oc)).hostcall.buf_ptr+$(N-1), $str_ptr, $(length(str)))))
+    push!(ex.args, :($str_ptr = $alloc_string($(Val(Symbol(str))))))
+    push!(ex.args, :($memcpy!($oc.hostcall.buf_ptr+$(N-1), $str_ptr, $(length(str)))))
     return N+length(str)
 end
 function rocprint!(ex, N, oc, char::Char)
-    @assert char == '\0' "Non-null chars not yet implemented"
+    @assert length(codeunits(string(char))) == 1 "Multi-codeunit chars not yet implemented"
     byte = UInt8(char)
-    ptr = :(reinterpret(LLVMPtr{UInt8,AS.Global}, $(esc(oc)).hostcall.buf_ptr))
+    ptr = :(reinterpret($(LLVMPtr{UInt8,AS.Global}), $oc.hostcall.buf_ptr))
     push!(ex.args, :(Base.unsafe_store!($ptr, $byte, $N)))
     return N+1
 end
@@ -103,27 +108,6 @@ function rocprint!(ex, N, oc, sym::S) where S
 end
 
 ## @rocprintf
-
-macro rocprintf(fmt, args...)
-    ex = Expr(:block)
-    @gensym device_ptr device_fmt_ptr printf_hc
-    push!(ex.args, :($device_fmt_ptr = AMDGPU.Device.alloc_string($(Val(Symbol(fmt))))))
-    push!(ex.args, :($printf_hc = unsafe_load(AMDGPU.Device.get_global_pointer(Val(:__global_printf_context),
-                                                                        HostCall{UInt64,Int64,Tuple{LLVMPtr{ROCPrintfBuffer,AS.Global}}}))))
-    push!(ex.args, :($device_ptr = reinterpret($(LLVMPtr{UInt64,AS.Global}), $printf_hc.buf_ptr)))
-
-    push!(ex.args, :($hostcall_device_lock!($printf_hc)))
-
-    push!(ex.args, :($device_ptr = AMDGPU.Device._rocprintf_fmt($device_ptr, $device_fmt_ptr, $(sizeof(fmt)))))
-    for arg in args
-        push!(ex.args, :($device_ptr = AMDGPU.Device._rocprintf_arg($device_ptr, $(esc(arg)))))
-    end
-    push!(ex.args, :(unsafe_store!($device_ptr, UInt64(0))))
-
-    push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
-    push!(ex.args, :(nothing))
-    ex
-end
 
 # Serializes execution of a function within a wavefront
 # From implementation by @jonathanvdc in CUDAnative.jl#419
@@ -150,28 +134,55 @@ Base.sizeof(::ROCPrintfBuffer) = 0
 Base.unsafe_store!(::LLVMPtr{ROCPrintfBuffer,as} where as, x) = nothing
 function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
     ptr = reinterpret(Ptr{UInt64}, ptr)
+
+    # Read number of argument blocks in buffer
+    blocks = unsafe_load(ptr)
+    ptr += sizeof(UInt64)
+
+    # Read pointer to format string
     fmt_ptr = Ptr{UInt64}(unsafe_load(ptr))
     ptr += sizeof(UInt64)
+
+    # Read format string length
     fmt_len = unsafe_load(ptr)
     ptr += sizeof(UInt64)
+
+    # Read format string into host buffer
     fmt_buf = Vector{UInt8}(undef, fmt_len)
     HSA.memory_copy(convert(Ptr{Cvoid}, pointer(fmt_buf)), convert(Ptr{Cvoid}, fmt_ptr), fmt_len) |> Runtime.check
     fmt = String(fmt_buf)
-    args = []
-    while true
-        T_ptr = Ptr{UInt64}(unsafe_load(ptr))
-        ptr += sizeof(UInt64)
-        UInt64(T_ptr) == 0 && break
-        T = unsafe_pointer_to_objref(T_ptr)
-        valid, arg = Runtime.semi_safe_load(convert(Ptr{T}, ptr))
-        if !valid
-            @warn "@rocprintf: Memory read failed! Printed string may include garbage\nFuture read failures will be ignored" maxlog=1
+
+    # Read arguments
+    block = 1
+    all_args = []
+    while block <= blocks
+        args = []
+        while true
+            # Read argument type
+            T_ptr = Ptr{UInt64}(unsafe_load(ptr))
+            ptr += sizeof(UInt64)
+            if UInt64(T_ptr) == 0
+                # Terminator
+                break
+            end
+            T = unsafe_pointer_to_objref(T_ptr)
+
+            # Read argument
+            #=
+            valid, arg = Runtime.semi_safe_load(convert(Ptr{T}, ptr))::Tuple{Bool,T}
+            if !valid
+                @warn "@rocprintf: Memory read failed! Printed string may include garbage\nFuture read failures will be ignored" maxlog=1
+            end
+            =#
+            arg = unsafe_load(reinterpret(Ptr{T}, ptr))
+            push!(args, arg)
+            ptr += sizeof(arg)
         end
-        arg = arg::T
-        push!(args, arg)
-        ptr += sizeof(arg)
+        push!(all_args, args)
+        block += 1
     end
-    return (fmt, args)
+
+    return (fmt, all_args)
 end
 
 function _rocprintf_fmt(ptr, fmt_ptr, fmt_len)
@@ -224,3 +235,97 @@ end
     end
 end
 =#
+
+function unsafe_ceil(x, y)
+    up = Core.Intrinsics.urem_int(x, y) > 0
+    return Core.Intrinsics.udiv_int(x, y) + up
+end
+
+macro rocprintf(args...)
+    mode = :group
+    @assert first(args) isa Union{QuoteNode,String} "First argument must be an inline Symbol or String"
+    if first(args) isa QuoteNode
+        mode = args[1].value::Symbol
+        args = args[2:end]
+        @assert mode isa Symbol "Execution mode must be a Symbol"
+        @assert mode in (:grid, :group, :wave, :lane) "Invalid execution mode: $mode"
+    end
+    @assert first(args) isa String "Format must be a String"
+    fmt = args[1]
+    args = args[2:end]
+
+    ex = Expr(:block)
+    @gensym device_ptr device_fmt_ptr printf_hc write_size
+
+    if mode == :grid
+        push!(ex.args, quote
+            # Skip all execution if not on the first group
+            if prod($workgroupIdx()) != 1
+                return
+            end
+        end)
+    end
+
+    # Allocate device-side format pointer
+    push!(ex.args, :($device_fmt_ptr = $alloc_string($(Val(Symbol(fmt))))))
+
+    # Load HostCall object
+    push!(ex.args, :($printf_hc = unsafe_load($get_global_pointer(Val(:__global_printf_context),
+                                                                        HostCall{UInt64,Int64,Tuple{LLVMPtr{ROCPrintfBuffer,AS.Global}}}))))
+    push!(ex.args, :($device_ptr = reinterpret($(LLVMPtr{UInt64,AS.Global}), $printf_hc.buf_ptr)))
+
+    # Lock hostcall buffer
+    push!(ex.args, :($hostcall_device_lock!($printf_hc)))
+
+    # Write block count
+    # FIXME: Use y and z dims
+    if mode == :grid
+        push!(ex.args, :(unsafe_store!($device_ptr, UInt64(1))))
+    elseif mode == :group
+        push!(ex.args, :(unsafe_store!($device_ptr, UInt64(1))))
+    elseif mode == :wave
+        waves_per_group = :($unsafe_ceil(reinterpret(UInt64, $workgroupDim().x),
+                                         Base.unsafe_trunc(UInt64, $wavefrontsize())))
+        push!(ex.args, :(unsafe_store!($device_ptr, $waves_per_group)))
+    elseif mode == :lane
+        push!(ex.args, :(unsafe_store!($device_ptr, reinterpret(UInt64, $workgroupDim().x))))
+    end
+    push!(ex.args, :($device_ptr += sizeof(UInt64)))
+
+    # Write format string pointer
+    push!(ex.args, :($device_ptr = $_rocprintf_fmt($device_ptr, $device_fmt_ptr, $(sizeof(fmt)))))
+
+    # Calculate total write size per args block
+    push!(ex.args, :($write_size = $hostcall_device_args_size($(map(esc, args)...)) # Space for arguments
+                                 + $(length(args))*sizeof(UInt64) + # Space for type tags
+                                 + sizeof(UInt64))) # Space for terminator
+
+    # Calulate offset into buffer
+    # FIXME: Use y and z dims
+    offset = if mode == :grid
+        :(0)
+    elseif mode == :group
+        :(0)
+    elseif mode == :wave
+        wave_idx = :(Core.Intrinsics.udiv_int(reinterpret(UInt64, $workitemIdx().x - 1),
+                                              Base.unsafe_trunc(UInt64, $wavefrontsize())))
+        :($wave_idx * $write_size)
+    elseif mode == :lane
+        lane_idx = :(workitemIdx().x - 1)
+        :($lane_idx * $write_size)
+    end
+    push!(ex.args, :($device_ptr += $offset))
+
+    # Write arguments and terminating null word
+    ex_args = Expr(:block)
+    for arg in args
+        push!(ex_args.args, :($device_ptr = $_rocprintf_arg($device_ptr, $(esc(arg)))))
+    end
+    push!(ex_args.args, :(unsafe_store!($device_ptr, 0)))
+    push!(ex.args, :(@device_execution_gate $mode $ex_args))
+
+    # Submit and unlock hostcall buffer
+    push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
+    push!(ex.args, :(nothing))
+    ex
+end

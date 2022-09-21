@@ -126,18 +126,62 @@ end
 ## Device
 
 "Calls the host function stored in `hc` with arguments `args`."
-@inline function hostcall!(hc::HostCall{UInt64,RT,AT}, args...) where {RT,AT}
-    hostcall_device_lock!(hc)
-    hostcall_device_write_args!(hc, args...)
-    hostcall_device_trigger_and_return!(hc)
+@inline hostcall!(hc::HostCall, args...) =
+    hostcall!(Val(:group), hc, args...)
+@inline function hostcall!(::Val{mode}, hc::HostCall{UInt64,RT,AT}, args...) where {mode,RT,AT}
+    hostcall_device_lock!(Val(mode), hc)
+    hostcall_device_write_args!(Val(mode), hc, args...)
+    return hostcall_device_trigger_and_return!(Val(mode), hc)
 end
-function hostcall_device_lock!(hc::HostCall)
-    # Acquire lock on hostcall buffer
-    if workitemIdx().x == 1
-        hostcall_device_signal_wait_cas!(hc.signal, READY_SENTINEL, DEVICE_LOCK_SENTINEL)
+macro device_execution_gate(mode, exec_ex)
+    if mode isa QuoteNode
+        mode = mode.value::Symbol
+    end
+    @assert mode in (:grid, :group, :wave, :lane) "Invalid mode: $mode"
+    ex = Expr(:block)
+    if mode == :grid
+        push!(ex.args, quote
+            # Must be on first item of first group
+            if $workgroupIdx().x != 1 || $workitemIdx().x != 1
+                @goto gated_done
+            end
+        end)
+    elseif mode == :group
+        push!(ex.args, quote
+            # Must be on first item of each group
+            if $workitemIdx().x != 1
+                @goto gated_done
+            end
+        end)
+    elseif mode == :wave
+        push!(ex.args, quote
+            # Must be on first lane of each wavefront of each group
+            if Core.Intrinsics.urem_int(reinterpret(UInt64, $workitemIdx().x-1),
+                                        Base.unsafe_trunc(UInt64, $wavefrontsize())) != 0
+                @goto gated_done
+            end
+        end)
+    end
+    push!(ex.args, quote
+        $(esc(exec_ex))
+        @label gated_done
+        $sync_workgroup()
+    end)
+    return ex
+end
+@inline hostcall_device_lock!(hc::HostCall) =
+    hostcall_device_lock!(Val(:group), hc)
+@generated function hostcall_device_lock!(::Val{mode}, hc::HostCall) where mode
+    return quote
+        @device_execution_gate $mode begin
+            # Acquire lock on hostcall buffer
+            hostcall_device_signal_wait_cas!(hc.signal, READY_SENTINEL, DEVICE_LOCK_SENTINEL)
+        end
     end
 end
-@generated function hostcall_device_write_args!(hc::HostCall{UInt64,RT,AT}, args...) where {RT,AT}
+@inline hostcall_device_write_args!(hc::HostCall, args...) =
+    hostcall_device_write_args!(Val(:group), hc, args...)
+@inline @generated function hostcall_device_write_args!(::Val{mode}, hc::HostCall{UInt64,RT,AT}, args...) where {mode,RT,AT}
     ex = Expr(:block)
 
     # Copy arguments into buffer
@@ -152,13 +196,22 @@ end
         off += sz
     end
 
-    return quote
-        if $workitemIdx().x == 1
+    return macroexpand(@__MODULE__, quote
+        @device_execution_gate $mode begin
             $ex
         end
-    end
+    end)
 end
-@generated function hostcall_device_trigger_and_return!(hc::HostCall{UInt64,RT,AT}) where {RT,AT}
+@inline @generated function hostcall_device_args_size(args...)
+    sz = 0
+    for arg in args
+        sz += sizeof(arg)
+    end
+    return sz
+end
+@inline hostcall_device_trigger_and_return!(hc::HostCall) =
+    hostcall_device_trigger_and_return!(Val(:group), hc::HostCall)
+@inline @generated function hostcall_device_trigger_and_return!(::Val{mode}, hc::HostCall{UInt64,RT,AT}) where {mode,RT,AT}
     ex = Expr(:block)
     @gensym shmem buf_ptr ret_ptr hostcall_return
 
@@ -169,7 +222,7 @@ end
             # But this is fine (if slower)
             $shmem = $get_global_pointer($(Val(hostcall_return)), $RT)
         end
-        if $workitemIdx().x == 1
+        @device_execution_gate $mode begin
             # Ensure arguments are written
             $hostcall_device_signal_wait_cas!(hc.signal, $DEVICE_LOCK_SENTINEL, $DEVICE_MSG_SENTINEL)
 
@@ -182,18 +235,17 @@ end
                 $ret_ptr = unsafe_load($buf_ptr)
                 if UInt64($ret_ptr) == 0
                     $device_signal_store!(hc.signal, $DEVICE_ERR_SENTINEL)
-                    AMDGPU.signal_exception()
-                    AMDGPU.Device.trap()
+                    $signal_exception()
+                    $trap()
                 end
                 unsafe_store!($shmem, unsafe_load($ret_ptr)::$RT)
             end
             $device_signal_store!(hc.signal, $READY_SENTINEL)
         end
-        $sync_workgroup()
         if $RT !== Nothing
-            unsafe_load($shmem)
+            return unsafe_load($shmem)
         else
-            nothing
+            return nothing
         end
     end)
 

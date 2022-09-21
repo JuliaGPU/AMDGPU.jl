@@ -81,18 +81,19 @@ module Device
     using ..GPUCompiler
     using ..LLVM
     using ..LLVM.Interop
+    import ..LinearAlgebra
     import ..AMDGPU
     import .AMDGPU: method_table
 
     # Device sources must load _before_ the compiler infrastructure
     # because of generated functions.
     include(joinpath("device", "addrspaces.jl"))
-    include(joinpath("device", "gcn.jl"))
-    include(joinpath("device", "runtime.jl"))
-    include(joinpath("device", "llvm.jl"))
     include(joinpath("device", "globals.jl"))
     include(joinpath("device", "strings.jl"))
     include(joinpath("device", "exceptions.jl"))
+    include(joinpath("device", "gcn.jl"))
+    include(joinpath("device", "runtime.jl"))
+    include(joinpath("device", "quirks.jl"))
 end
 import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame
 import .Device: ROCDeviceArray, AS, HostCall, hostcall!

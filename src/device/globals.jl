@@ -3,7 +3,7 @@
 # Gets a pointer to a global with a particular name. If the global
 # does not exist yet, then it is declared in the global memory address
 # space.
-@generated function get_global_pointer(::Val{global_name}, ::Type{T})::AMDGPU.LLVMPtr{T} where {global_name, T}
+@inline @generated function get_global_pointer(::Val{global_name}, ::Type{T})::LLVMPtr{T} where {global_name, T}
     Context() do ctx
         T_global = convert(LLVMType, T; ctx)
         T_result = convert(LLVMType, Ptr{T}; ctx)
@@ -38,7 +38,7 @@
 
         # Call the function.
         quote
-            AMDGPU.LLVMPtr{T, AMDGPU.AS.Global}(convert(Csize_t, $(call_function(llvm_f, Ptr{T}))))
+            $(LLVMPtr{T, AS.Global})($(call_function(llvm_f, Ptr{T})))
         end
     end
 end
