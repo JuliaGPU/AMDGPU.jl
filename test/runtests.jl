@@ -86,9 +86,6 @@ end
 @testset "ROCArray" begin
     include("rocarray/base.jl")
     include("rocarray/broadcast.jl")
-    @testset "GPUArrays test suite" begin
-        TestSuite.test(ROCArray)
-    end
     @testset "ROCm External Libraries" begin
         if CI
             @test AMDGPU.functional(:rocblas)
@@ -118,6 +115,9 @@ end
         else
             @test_skip "NMF"
         end
+    end
+    @testset "GPUArrays test suite" begin
+        TestSuite.test(ROCArray)
     end
 end
 @testset "External Packages" begin
