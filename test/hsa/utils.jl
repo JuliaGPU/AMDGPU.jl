@@ -1,7 +1,8 @@
 @testset "Utils" begin
     @testset "versioninfo" begin
-        AMDGPU.versioninfo()
-        @test true  # Just test that versioninfo() prints something.
+        _, msg = @grab_output AMDGPU.versioninfo()
+        # Just test that versioninfo() prints something.
+        @test length(msg) > 0
     end
 
     @testset "has_rocm_gpu" begin

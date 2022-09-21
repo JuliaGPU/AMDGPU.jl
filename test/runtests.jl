@@ -1,73 +1,64 @@
-using AMDGPU
-using AMDGPU: Runtime, Mem, Device, HSA, AS
-if AMDGPU.functional(:hip)
-    using AMDGPU: HIP
-end
-using GPUCompiler
-using LinearAlgebra
-using LLVM, LLVM.Interop
-using InteractiveUtils
-using SpecialFunctions
+using Distributed
 using Test
 
-using Random
-Random.seed!(1)
-
-include("util.jl")
-
-# GPUArrays has a testsuite that isn't part of the main package.
-# Include it directly.
-import GPUArrays
-gpuarrays = pathof(GPUArrays)
-gpuarrays_root = dirname(dirname(gpuarrays))
-include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
-testf(f, xs...; kwargs...) = TestSuite.compare(f, ROCArray, xs...; kwargs...)
-if isdefined(TestSuite, :WrapArray)
-    Base.hash(a::TestSuite.WrapArray{T1,N1,ROCDeviceArray{T2,N2,A}}, h::UInt) where {T1,N1,T2,N2,A} =
-        hash(a.data, hash(typeof(a), h))
-end
-
-import AMDGPU: allowscalar, @allowscalar
-allowscalar(false)
-
-CI = parse(Bool, get(ENV, "CI", "false"))
-
-if CI
-    # Disable fault handler (signal timeout will catch hangs)
-    # FIXME: Instead kill all associated queues
-    fault_handler(ev, data) = HSA.STATUS_SUCCESS
-    function setup_fault_handler()
-        fault_handler_cb = @cfunction(fault_handler, HSA.Status, (Ptr{HSA.AMDEvent}, Ptr{Cvoid}))
-        @assert AMDGPU.HSA.amd_register_system_event_handler(fault_handler_cb, C_NULL) == HSA.STATUS_SUCCESS
-    end
-    setup_fault_handler()
-end
-
-Runtime.DEFAULT_SIGNAL_TIMEOUT[] = 15.0
-Device.DEFAULT_HOSTCALL_TIMEOUT[] = 15.0
+include("setup.jl")
 
 @testset "AMDGPU" begin
 
-@testset "Core" begin
-include("pointer.jl")
+# Run tests in parallel
+np = Threads.nthreads()
+ws = Int[]
+ws_pids = Int[]
+if np == 1
+    push!(ws, 1)
+    push!(ws_pids, getpid())
+else
+    for i in 1:np
+        w = first(addprocs(1; exeflags=AMDGPU.julia_exeflags()))
+        @everywhere [w] include("setup.jl")
+        pid = remotecall_fetch(getpid, w)
+        push!(ws, w)
+        push!(ws_pids, pid)
+    end
 end
+atexit() do
+    for (w, pid) in zip(ws, ws_pids)
+        w == 1 && continue
+        @info "Shutting down worker $w"
+        try
+            # Try to gracefully terminate the process
+            rmprocs(w; waitfor=3)
+        catch err
+            @warn "Forcing down worker $w"
+            # Send a loving SIGKILL
+            ccall(:kill, Cint, (Cint, Cint), pid, 9)
+        end
+    end
+end
+failed = Ref(false)
+tests = Pair{String,Function}[]
+tasks = Dict{Int,String}()
 
-@testset "HSA" begin
+@test length(AMDGPU.devices()) > 0
+@info "Testing using device $(AMDGPU.default_device())"
+AMDGPU.versioninfo()
+
+@info "Running tests with $(length(ws)) workers"
+
+push!(tests, "Core" => ()->include("pointer.jl"))
+push!(tests, "HSA" => ()->begin
     include("hsa/error.jl")
     include("hsa/utils.jl")
-
-    @test length(AMDGPU.devices()) > 0
-    @info "Testing using device $(AMDGPU.default_device())"
-
     include("hsa/device.jl")
     include("hsa/queue.jl")
     include("hsa/memory.jl")
-end
-@testset "Codegen" begin
+end)
+push!(tests, "Codegen" => ()->begin
     include("codegen/synchronization.jl")
     include("codegen/trap.jl")
-end
-@testset "Device Functions" begin
+end)
+
+push!(tests, "Device Functions" => ()->begin
     include("device/launch.jl")
     include("device/array.jl")
     include("device/vadd.jl")
@@ -82,46 +73,127 @@ end
     include("device/exceptions.jl")
     include("device/deps.jl")
     include("device/queries.jl")
+end)
+push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
+push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
+if CI
+    push!(tests, "ROCm libraries are functional" => ()->begin
+        @test AMDGPU.functional(:rocblas)
+        @test AMDGPU.functional(:rocrand)
+        if !AMDGPU.use_artifacts
+            # We don't have artifacts for these
+            @test AMDGPU.functional(:rocfft)
+        end
+    end)
 end
-@testset "ROCArray" begin
-    include("rocarray/base.jl")
-    include("rocarray/broadcast.jl")
-    @testset "ROCm External Libraries" begin
-        if CI
-            @test AMDGPU.functional(:rocblas)
-            @test AMDGPU.functional(:rocrand)
-            if !AMDGPU.use_artifacts
-                # We don't have artifacts for these
-                @test AMDGPU.functional(:rocfft)
+push!(tests, "rocBLAS" => ()->begin
+    if AMDGPU.functional(:rocblas)
+        include("rocarray/blas.jl")
+    else
+        @test_skip "rocBLAS"
+    end
+end)
+push!(tests, "rocRAND" => ()->begin
+    if AMDGPU.functional(:rocrand)
+        include("rocarray/random.jl")
+    else
+        @test_skip "rocRAND"
+    end
+end)
+push!(tests, "rocFFT" => ()->begin
+    if AMDGPU.functional(:rocfft)
+        include("rocarray/fft.jl")
+    else
+        @test_skip "rocFFT"
+    end
+end)
+push!(tests, "NMF" => ()->begin
+    if AMDGPU.functional(:rocblas)
+        include("rocarray/nmf.jl")
+    else
+        @test_skip "NMF"
+    end
+end)
+push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
+for name in keys(TestSuite.tests)
+    push!(tests, "GPUArrays TestSuite - $name" =>
+                 ()->TestSuite.tests[name](ROCArray))
+end
+
+function run_worker(w)
+    while !isempty(tests)
+        name, task = popfirst!(tests)
+        tasks[w] = name
+        try
+            remotecall_fetch(w, name, task) do name, task
+                @testset "$name" begin
+                    printstyled("Running $name\n"; color=:blue)
+                    task()
+                end
             end
+        catch err
+            if err isa TestSetException
+                failed[] = true
+                continue
+            end
+            if err isa InterruptException || err isa ProcessExitedException
+                rethrow(err)
+            end
+            @error "Test failure for: $name" exception=err
+        finally
+            delete!(tasks, w)
         end
-        if AMDGPU.functional(:rocblas)
-            include("rocarray/blas.jl")
-        else
-            @test_skip "rocBLAS"
-        end
-        if AMDGPU.functional(:rocrand)
-            include("rocarray/random.jl")
-        else
-            @test_skip "rocRAND"
-        end
-        if AMDGPU.functional(:rocfft)
-            include("rocarray/fft.jl")
-        else
-            @test_skip "rocFFT"
-        end
-        if AMDGPU.functional(:rocblas)
-            include("rocarray/nmf.jl")
-        else
-            @test_skip "NMF"
-        end
-    end
-    @testset "GPUArrays test suite" begin
-        TestSuite.test(ROCArray)
     end
 end
-@testset "External Packages" begin
-    include("external/forwarddiff.jl")
+function handle_worker(w, pid)
+    try
+        run_worker(w)
+    catch err
+        if err isa InterruptException
+            exit(1)
+        elseif err isa ProcessExitedException
+            failed[] = true
+            w_idx = findfirst(==(w), ws)
+            deleteat!(ws, w_idx)
+            deleteat!(ws_pids, w_idx)
+            printstyled("Worker $w ($pid) died\n"; color=:red)
+            start_worker!()
+        else
+            rethrow(err)
+        end
+    end
+end
+function start_worker!()
+    w = first(addprocs(1; exeflags=AMDGPU.julia_exeflags()))
+    @everywhere [w] include("setup.jl")
+    pid = remotecall_fetch(getpid, w)
+    push!(ws, w)
+    push!(ws_pids, pid)
+    printstyled("Started worker $w ($pid)\n"; color=:blue)
+    errormonitor(@async handle_worker(w, pid))
+end
+
+for (w, pid) in zip(ws, ws_pids)
+    errormonitor(@async handle_worker(w, pid))
+end
+
+try
+    while !isempty(tests) || !isempty(tasks)
+        sleep(1)
+    end
+catch err
+    if !(err isa InterruptException)
+        rethrow(err)
+    end
+    failed[] = true
+end
+
+if failed[]
+    printstyled("FAILED\n"; color=:red, bold=true)
+    exit(1)
+else
+    printstyled("SUCCESS\n"; color=:green, bold=true)
+    exit(0)
 end
 
 end
