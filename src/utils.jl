@@ -15,7 +15,7 @@ function versioninfo(io::IO=stdout)
     println("HSA Runtime ($(functional(:hsa) ? "ready" : "MISSING"))")
     if functional(:hsa)
         println("- Path: $libhsaruntime_path")
-        println("- Version: $libhsaruntime_version")
+        println("- Version: $(hsa_version())")
         #println("- Initialized: $(repr(HSA_REFCOUNT[] > 0))")
     end
     println("ld.lld ($(functional(:lld) ? "ready" : "MISSING"))")

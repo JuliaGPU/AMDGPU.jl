@@ -226,9 +226,6 @@ function __init__()
         else
             @warn "HSA initialization failed with code $status"
         end
-
-        # Detect HSA version
-        @eval const libhsaruntime_version = hsa_version()
     else
         @warn """
         HSA runtime is unavailable, compilation and runtime functionality will be disabled.
