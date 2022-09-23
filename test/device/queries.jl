@@ -1,11 +1,11 @@
 @testset "Active kernels" begin
     function kernel(sig)
-        hostcall!(sig)
+        AMDGPU.Device.hostcall!(sig)
         nothing
     end
 
     wait_ev = Base.Event()
-    hc = HostCall(Nothing, Tuple{}) do
+    hc = AMDGPU.Device.HostCall(Nothing, Tuple{}) do
         wait(wait_ev)
     end
 
