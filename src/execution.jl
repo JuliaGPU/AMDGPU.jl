@@ -67,7 +67,7 @@ end
 
 @inline function roccall(kernel::HostKernel, tt, args...; config=nothing, signal, device=nothing, kwargs...)
     device = something(device, AMDGPU.default_device())
-    queue = get(kwargs, :queue, AMDGPU.default_queue(device))
+    queue = signal.queue
     if config !== nothing
         roccall(kernel.fun, tt, args...; kwargs..., config(kernel)..., queue, signal)
     else

@@ -160,9 +160,9 @@ rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 function split_kwargs(kwargs)
     alias_kws    = Dict(:stream=>:queue)
     macro_kws    = [:dynamic, :launch, :wait, :mark]
-    compiler_kws = [:name, :device, :queue, :global_hooks]
-    call_kws     = [:gridsize, :groupsize, :config, :device, :queue]
-    signal_kws   = [:signal, :soft, :minlat, :timeout]
+    compiler_kws = [:name, :device, :global_hooks]
+    call_kws     = [:gridsize, :groupsize, :config, :device]
+    signal_kws   = [:queue, :signal, :soft, :minlat, :timeout]
     computed_kws = [:threads, :blocks]
 
     macro_kwargs = []
@@ -250,7 +250,7 @@ function assign_args!(code, args)
     # convert the arguments, compile the function and call the kernel
     # while keeping the original arguments alive
     var_exprs = map(vars, args, splats) do var, arg, splat
-         splat ? Expr(:(...), var) : var
+        splat ? Expr(:(...), var) : var
     end
 
     return vars, var_exprs
