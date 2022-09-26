@@ -5,7 +5,7 @@ function hsa_version()
     minor_status = ccall((:hsa_system_get_info, libhsaruntime_path), Cint, (Cint, Ptr{Cushort}), HSA.SYSTEM_INFO_VERSION_MINOR, minor_ref)
     if major_status != HSA.STATUS_SUCCESS ||
        minor_status != HSA.STATUS_SUCCESS
-        @warn "Failed to detect HSA version: $status"
+        @warn "Failed to detect HSA version: $major_status"
         return v"0"
     end
     return VersionNumber(major_ref[], minor_ref[])
