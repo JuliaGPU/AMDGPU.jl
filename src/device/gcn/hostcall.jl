@@ -375,9 +375,13 @@ function HostCall(func, rettype, argtypes; return_task=false,
             end
         catch err
             # Gracefully terminate all waiters
-            @error "HostCall error" exception=(err,catch_backtrace())
             HSA.signal_store_screlease(signal.signal[], HOST_ERR_SENTINEL)
-            rethrow(err)
+            if err isa EOFError
+                # If EOF, then Julia is exiting. Do not rethrow.
+            else
+                @error "HostCall error" exception=(err,catch_backtrace())
+                rethrow(err)
+            end
         finally
             # We need to free the memory buffers, but first we need to ensure that
             # the device has read from these buffers. Therefore we wait either for
