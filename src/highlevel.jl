@@ -361,8 +361,6 @@ macro roc(ex...)
         # convert the function, its arguments, call the compiler and launch the kernel
         # while keeping the original arguments alive
 
-        call_kwargs_signal = [filter(x->x.args[1] != :signal, call_kwargs)...,
-                              Expr(:(=), :signal, signal)]
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
@@ -376,7 +374,7 @@ macro roc(ex...)
                     if $launch
                         local $kernel_instance = $create_kernel($kernel, $kernel_f, $kernel_args)
                         local $signal = $create_event($kernel_instance; $(signal_kwargs...))
-                        $kernel($kernel_args...; $(call_kwargs_signal...))
+                        $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                         if $mark
                             foreach(x->$mark!(x, $signal), ($(var_exprs...),))
                         end
