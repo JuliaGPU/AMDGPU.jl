@@ -160,9 +160,9 @@ rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 function split_kwargs(kwargs)
     alias_kws    = Dict(:stream=>:queue)
     macro_kws    = [:dynamic, :launch, :wait, :mark]
-    compiler_kws = [:name, :device, :queue, :global_hooks]
-    call_kws     = [:gridsize, :groupsize, :config, :device, :queue]
-    signal_kws   = [:signal, :soft, :minlat, :timeout]
+    compiler_kws = [:name, :device, :global_hooks]
+    call_kws     = [:gridsize, :groupsize, :config, :device]
+    signal_kws   = [:queue, :signal, :soft, :minlat, :timeout]
     computed_kws = [:threads, :blocks]
 
     macro_kwargs = []
@@ -250,7 +250,7 @@ function assign_args!(code, args)
     # convert the arguments, compile the function and call the kernel
     # while keeping the original arguments alive
     var_exprs = map(vars, args, splats) do var, arg, splat
-         splat ? Expr(:(...), var) : var
+        splat ? Expr(:(...), var) : var
     end
 
     return vars, var_exprs
@@ -361,8 +361,6 @@ macro roc(ex...)
         # convert the function, its arguments, call the compiler and launch the kernel
         # while keeping the original arguments alive
 
-        call_kwargs_signal = [filter(x->x.args[1] != :signal, call_kwargs)...,
-                              Expr(:(=), :signal, signal)]
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
@@ -376,7 +374,7 @@ macro roc(ex...)
                     if $launch
                         local $kernel_instance = $create_kernel($kernel, $kernel_f, $kernel_args)
                         local $signal = $create_event($kernel_instance; $(signal_kwargs...))
-                        $kernel($kernel_args...; $(call_kwargs_signal...))
+                        $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                         if $mark
                             foreach(x->$mark!(x, $signal), ($(var_exprs...),))
                         end
