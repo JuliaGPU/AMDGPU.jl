@@ -37,6 +37,11 @@
     eval(:(@roc queue=$queue $kernel()))
     eval(:(@roc stream=$queue $kernel()))
 
+    # Non-default queue
+    queue2 = ROCQueue()
+    sig = @roc queue=queue2 kernel()
+    @test sig.queue === queue2
+
     # Group size validity
     @test_throws ArgumentError eval(:(@roc groupsize=0 $kernel()))
     eval(:(@roc groupsize=1024 $kernel()))
@@ -93,6 +98,7 @@ end
     wait(sig)
     wait(sig.signal)
     wait(sig.signal.signal[])
+    @test sig.queue === AMDGPU.default_queue()
 end
 
 @testset "Custom signal" begin
