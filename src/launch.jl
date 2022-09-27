@@ -16,10 +16,10 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
 
 # we need a generated function to get an args array,
 # without having to inspect the types at runtime
-@generated function launch_kernel!(queue::ROCQueue, signal::ROCKernelSignal, f::ROCFunction,
-                                   groupsize::ROCDim, gridsize::ROCDim,
-                                   args::NTuple{N,Any}) where N
-
+@generated function launch_kernel!(
+    signal::ROCKernelSignal, groupsize::ROCDim, gridsize::ROCDim,
+    args::NTuple{N,Any},
+) where N
     all(isbitstype, args.parameters) ||
         throw(ArgumentError("Arguments to kernel should be bitstype."))
 
@@ -38,20 +38,19 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             # validate launch parameters
             groupsize, gridsize = normalize_launch_dimensions(groupsize, gridsize)
 
-            # access kernel instance
-            kernel = signal.kernel
-
             # launch kernel
             lock($RT_LOCK)
             try
-                push!($_active_kernels[queue], signal)
+                push!($_active_kernels[signal.queue], signal)
             finally
                 unlock($RT_LOCK)
             end
-            launch_kernel!(queue, kernel, signal.signal, groupsize, gridsize)
+            launch_kernel!(
+                signal.queue, signal.kernel, signal.signal,
+                groupsize, gridsize)
 
             # preserve kernel and arguments
-            $preserve!(signal, kernel)
+            $preserve!(signal, signal.kernel)
             for arg in args
                 $preserve!(signal, arg)
             end
