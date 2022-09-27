@@ -116,6 +116,36 @@ function find_device_libs()
     return nothing
 end
 
+function detect_projects()
+    amdgpu_project = normpath(joinpath(@__DIR__, ".."))
+    current_project = Base.ACTIVE_PROJECT[]
+    julia_project = if Base.JLOptions().project != C_NULL
+        unsafe_string(Base.JLOptions().project)
+    elseif current_project !== nothing
+        current_project
+    else
+        amdgpu_project
+    end
+    return (;amdgpu_project, current_project, julia_project)
+end
+julia_exeflags(projects=detect_projects()) =
+    String["--startup-file=no",
+           "--project=$(projects.julia_project)"]
+function julia_cmd_projects(jl_str)
+    projects = detect_projects()
+
+    cmd = Base.julia_cmd()
+    append!(cmd.exec, julia_exeflags(projects))
+
+    (;amdgpu_project, current_project, julia_project) = projects
+    if current_project !== nothing
+        jl_str = "push!(LOAD_PATH, \"$current_project\");" * jl_str
+    end
+    jl_str = "push!(LOAD_PATH, \"$amdgpu_project\");" * jl_str
+    append!(cmd.exec, ("-e", jl_str))
+    return cmd
+end
+
 function populate_globals!(config)
     for (key,val) in config
         @eval const $key = $val
@@ -172,23 +202,8 @@ function bindeps_setup()
     # Find some paths for library search
     roc_dirs = find_roc_paths()
 
-    # Load path to julia binary
-    julia_bin = unsafe_string(Base.JLOptions().julia_bin)
-    amdgpu_project = normpath(joinpath(@__DIR__, ".."))
-    current_project = Base.ACTIVE_PROJECT[]
-    julia_project = if Base.JLOptions().project != C_NULL
-        unsafe_string(Base.JLOptions().project)
-    elseif current_project !== nothing
-        current_project
-    else
-        amdgpu_project
-    end
     function safe_exec(str)
-        if current_project != nothing
-            str = "push!(LOAD_PATH, \"$current_project\");" * str
-        end
-        str = "push!(LOAD_PATH, \"$amdgpu_project\");" * str
-        cmd = `$julia_bin --startup-file=no --project=$julia_project -e $str`
+        cmd = julia_cmd_projects(str)
         success = false
         error_str = mktemp() do path, _
             p = run(pipeline(cmd; stdout=path, stderr=path); wait=false)
