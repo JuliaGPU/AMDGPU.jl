@@ -90,15 +90,8 @@ Base.IndexStyle(::Type{<:ROCDeviceArray}) = Base.IndexLinear()
 
 # comparisons
 
-Base.hash(a::R, h::UInt) where R<:ROCDeviceArray =
-    hash(a.shape, hash(a.ptr, hash(R, h)))
 Base.isequal(a1::R1, a2::R2) where {R1<:ROCDeviceArray,R2<:ROCDeviceArray} =
     R1 == R2 && a1.shape == a2.shape && a1.ptr == a2.ptr
-
-Base.hash(a::S, h::UInt) where S<:SubArray{<:Any, <:Any, <:ROCDeviceArray, <:Any, <:Any} =
-    hash(a.indices, hash(parent(a), hash(S, h)))
-Base.hash(a::S, h::UInt) where S<:AnyROCDeviceArray =
-    hash(parent(a), hash(S, h))
 
 # other
 
