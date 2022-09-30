@@ -99,7 +99,7 @@ function ROCKernel(kernel, f::Core.Function, args::Tuple)
             private_segment_size) |> check
 
     # Allocate the kernel argument buffer
-    key = hash(f, hash(args))
+    key = khash(f, khash(args))
     kernarg_address, do_write = Mem.alloc_pooled(device, key, :kernarg, kernarg_segment_size[])
 
     if do_write
