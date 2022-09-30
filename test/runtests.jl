@@ -52,6 +52,7 @@ push!(tests, "HSA" => ()->begin
     include("hsa/device.jl")
     include("hsa/queue.jl")
     include("hsa/memory.jl")
+    include("hsa/hashing.jl")
 end)
 push!(tests, "Codegen" => ()->begin
     include("codegen/synchronization.jl")
