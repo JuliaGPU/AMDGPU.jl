@@ -2,7 +2,7 @@ using LinearAlgebra
 
 function sum_dim1(A::ROCSparseMatrixCSR)
     function kernel(Tnorm, out, dA)
-        idx = Int32((blockIdx().x-1) * blockDim().x + threadIdx().x)
+        idx::UInt32 = (blockIdx().x-1) * blockDim().x + threadIdx().x
         idx < length(dA.rowPtr) || return
         s = zero(Tnorm)
         for k in dA.rowPtr[idx]:dA.rowPtr[idx+1]-1

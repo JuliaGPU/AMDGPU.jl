@@ -302,10 +302,10 @@ _getindex(arg, I, ptr) = Broadcast._broadcast_getindex(arg, I)
 # TODO: unify CSC/CSR kernels
 
 # kernel to count the number of non-zeros in a row, to determine the row offsets
-function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSR}, offsets::AbstractVector{Ti},
+function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSR}, offsets::ROCDeviceVector{Ti},
                                 args...) where Ti
     # every thread processes an entire row
-    row = Ti(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
+    row::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     row > length(offsets) - 1 && return
     iter = @inbounds CSRIterator{Ti}(row, args...)
 
@@ -326,10 +326,10 @@ function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSR}, offsets::AbstractV
 
     return
 end
-function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSC}, offsets::AbstractVector{Ti},
+function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSC}, offsets::ROCDeviceVector{Ti},
                                 args...) where Ti
     # every thread processes an entire columm
-    col = Ti(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
+    col::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     col > length(offsets)-1 && return
     iter = @inbounds CSCIterator{Ti}(col, args...)
 
@@ -353,10 +353,10 @@ end
 
 # broadcast kernels that iterate the elements of sparse arrays
 function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSR{<:Any,Ti},
-                                           offsets::Union{AbstractVector,Nothing},
+                                           offsets::Union{ROCDeviceVector,Nothing},
                                            args...) where {Ti}
     # every thread processes an entire row
-    row = Ti(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
+    row::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     row > size(output, 1) && return
     iter = @inbounds CSRIterator{Ti}(row, args...)
 
@@ -385,10 +385,10 @@ function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSR{<
     return
 end
 function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSC{<:Any,Ti},
-                                           offsets::Union{AbstractVector,Nothing},
+                                           offsets::Union{ROCDeviceVector,Nothing},
                                            args...) where {Ti}
     # every thread processes an entire column
-    col = Ti(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
+    col::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     col > size(output, 2) && return
     iter = @inbounds CSCIterator{Ti}(col, args...)
 
@@ -419,9 +419,9 @@ end
 function sparse_to_dense_broadcast_kernel(::Type{<:ROCSparseMatrixCSR}, f,
                                           output::ROCDeviceArray, args...)
     # every thread processes an entire row
-    row = Int32(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
+    row::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     row > size(output, 1) && return
-    iter = @inbounds CSRIterator{Int32}(row, args...)
+    iter = @inbounds CSRIterator{UInt32}(row, args...)
 
     # set the values for this row
     for (col, ptrs) in iter
@@ -440,9 +440,9 @@ end
 function sparse_to_dense_broadcast_kernel(::Type{<:ROCSparseMatrixCSC}, f,
                                           output::ROCDeviceArray, args...)
     # every thread processes an entire column
-    col = Int32(threadIdx().x + (blockIdx().x - 1) * blockDim().x)
+    col::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     col > size(output, 2) && return
-    iter = @inbounds CSCIterator{Int}(col, args...)
+    iter = @inbounds CSCIterator{UInt32}(col, args...)
 
     # set the values for this col
     for (row, ptrs) in iter
