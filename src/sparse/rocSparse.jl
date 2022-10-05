@@ -37,7 +37,10 @@ end
 include("array.jl")
 include("util.jl")
 include("types.jl")
-include("linalg.jl")
+
+# native functionality
+include("device.jl")
+include("broadcast.jl")
 
 # low-level wrappers
 include("helpers.jl")
@@ -52,9 +55,6 @@ include("generic.jl")
 
 # high-level integrations
 include("interfaces.jl")
-
-# native functionality
-include("device.jl")
-include("broadcast.jl")
+include("linalg.jl")
 
 end
