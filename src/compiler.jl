@@ -53,8 +53,7 @@ struct ROCCompilerParams <: AbstractCompilerParams
     global_hooks::NamedTuple
 end
 
-ROCCompilerJob = CompilerJob{GCNCompilerTarget,ROCCompilerParams}
-
+const ROCCompilerJob = CompilerJob{GCNCompilerTarget,ROCCompilerParams}
 
 GPUCompiler.runtime_module(::ROCCompilerJob) = AMDGPU
 
@@ -84,7 +83,6 @@ function GPUCompiler.link_libraries!(job::ROCCompilerJob, mod::LLVM.Module,
     invoke(GPUCompiler.link_libraries!,
            Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
            job, mod, undefined_fns)
-
     link_device_libs!(job.target, mod)
 end
 
@@ -109,9 +107,10 @@ The output of this function is automatically cached, i.e. you can simply call
 generated automatically, when function definitions change, or when different
 types or keyword arguments are provided.
 """
-function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default_device(), global_hooks=NamedTuple(), kwargs...) where {F <: Core.Function}
+function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default_device(), global_hooks=NamedTuple()) where {F <: Core.Function}
     source = FunctionSpec(F, tt, true, name)
-    cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
+    cache = get!(()->Dict{UInt, Any}(), rocfunction_cache, device)
+
     isa = AMDGPU.default_isa(device)
     arch, feat = Runtime.llvm_arch_features(isa)
     target = GCNCompilerTarget(; dev_isa=arch, features=feat)
@@ -190,12 +189,16 @@ end
 default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     # initialize global printf context
     # Return type of Int to force synchronizing behavior
-    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Int,Tuple{LLVMPtr{UInt8,AS.Global}}}}, gbl)
+    args_type = Tuple{LLVMPtr{UInt8, AS.Global}}
+    ret_type = Int
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type}}, gbl)
+
     hc = Device.named_perdevice_hostcall(device, :__global_printf) do
-        HostCall(Int, Tuple{LLVMPtr{UInt8,AS.Global}}; device, continuous=true, buf_len=2^16, timeout=nothing) do _
+        HostCall(ret_type, args_type; device, continuous=true, buf_len=2^16, timeout=nothing) do _
             fmt, all_args = unsafe_load(reinterpret(LLVMPtr{AMDGPU.Device.ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
+
             for args in all_args
-                args = map(x->x isa Cstring ? unsafe_string(x) : x, args)
+                args = map(x-> x isa Cstring ? unsafe_string(x) : x, args)
                 @debug "@rocprintf with $fmt and $(args)"
                 try
                     @eval @printf($fmt, $(args...))
@@ -218,6 +221,7 @@ default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
     gbl_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, gbl)
     ex_ptr = Base.unsafe_convert(Ptr{ExceptionEntry}, mod.exceptions)
     unsafe_store!(gbl_ptr, ex_ptr)
+
     # setup initial slots
     for i in 1:Runtime.MAX_EXCEPTIONS-1
         unsafe_store!(ex_ptr, ExceptionEntry(0, LLVMPtr{UInt8,1}(0)))
@@ -228,31 +232,38 @@ default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
 end
 default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
     # initialize malloc hostcall
-    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Ptr{Cvoid},Tuple{UInt64,Csize_t}}}, gbl)
+    args_type = Tuple{UInt64, Csize_t}
+    ret_type = Ptr{Cvoid}
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type}}, gbl)
+
     hc = Device.named_perdevice_hostcall(device, :__global_malloc) do
-        HostCall(Ptr{Cvoid}, Tuple{UInt64,Csize_t}; device, continuous=true, timeout=nothing) do kern, sz
+        HostCall(ret_type, args_type; device, continuous=true, timeout=nothing) do kern, sz
             buf = Mem.alloc(device, sz; coherent=true)
-            ptr = buf.ptr
             # FIXME: Lock
             push!(mod.metadata, Runtime.KernelMetadata(kern, buf))
-            @debug "Allocated $ptr ($sz bytes) for kernel $kern on device $device"
-            return ptr
+            @debug("Allocated $(buf.ptr) ($sz bytes) for kernel $kern on device $device")
+            return buf.ptr
         end
     end
     Base.unsafe_store!(gbl_ptr, hc)
 end
 default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
     # initialize free hostcall
-    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{UInt64,Nothing,Tuple{UInt64,Ptr{Cvoid}}}}, gbl)
+    args_type = Tuple{UInt64, Ptr{Cvoid}}
+    ret_type = Nothing
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type}}, gbl)
+
     hc = Device.named_perdevice_hostcall(device, :__global_free) do
-        HostCall(Nothing, Tuple{UInt64,Ptr{Cvoid}}; device, continuous=true, timeout=nothing) do kern, ptr
+        HostCall(ret_type, args_type; device, continuous=true, timeout=nothing) do kern, ptr
             # FIXME: Lock
             for idx in length(mod.metadata):-1:1
-                if mod.metadata[idx].kern == kern && mod.metadata[idx].buf.ptr == ptr
-                    sz = mod.metadata[idx].buf.bytesize
-                    Mem.free(mod.metadata[idx].buf)
+                meta = mod.metadata[idx]
+                same_kern = meta.kern == kern
+                same_ptr = meta.buf.ptr == ptr
+                if same_kern && same_ptr
+                    Mem.free(meta.buf)
                     deleteat!(mod.metadata, idx)
-                    @debug "Freed $ptr ($sz bytes) for kernel $kern on device $device"
+                    @debug("Freed $ptr ($(meta.buf.bytesize) bytes) for kernel $kern.")
                     break
                 end
             end

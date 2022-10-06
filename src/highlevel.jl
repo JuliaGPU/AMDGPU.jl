@@ -102,12 +102,37 @@ function create_executable(device, entry, obj; globals=())
     return ROCExecutable(device, data, entry; globals=globals)
 end
 
+function create_kernel_queue(;
+    queue::Union{ROCQueue, Nothing}, device::Union{ROCDevice, Nothing},
+)
+    if !isnothing(queue) && !isnothing(device)
+        if queue.device != device
+            error(
+                "Specified both `device` and `queue`, " *
+                "but `queue` is on a different device than `device`.\n" *
+                "In this case, only one argument can be specified.")
+        else
+            return queue
+        end
+    end
+    isnothing(queue) && isnothing(device) && return default_queue()
+    isnothing(queue) && return ROCQueue(device)
+    queue
+end
+
 ## Event creation
-function create_event(kernel::ROCKernel; queue::ROCQueue=default_queue(), signal::Union{ROCKernelSignal,ROCSignal}=ROCSignal(), kwargs...)
+function create_event(
+    kernel::ROCKernel;
+    signal::Union{ROCKernelSignal, ROCSignal} = ROCSignal(),
+    device::Union{ROCDevice, Nothing} = nothing,
+    queue::Union{ROCQueue, Nothing} = nothing,
+    kwargs...,
+)
     if signal isa ROCKernelSignal
         return signal
     end
-    return ROCKernelSignal(signal, queue, kernel; kwargs...)
+    kernel_queue = create_kernel_queue(; queue, device)
+    return ROCKernelSignal(signal, kernel_queue, kernel; kwargs...)
 end
 
 ## Kernel creation
@@ -155,55 +180,56 @@ rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 
 ### @roc helper functions
 
-# split keyword arguments to `@roc` into ones affecting the macro itself, the compiler and
-# the code it generates, or the execution
+# split keyword arguments to `@roc` into ones affecting the macro itself, the compiler
+# and the code it generates, or the execution
 function split_kwargs(kwargs)
     alias_kws    = Dict(:stream=>:queue)
     macro_kws    = [:dynamic, :launch, :wait, :mark]
-    compiler_kws = [:name, :device, :global_hooks]
-    call_kws     = [:gridsize, :groupsize, :config, :device]
+    compiler_kws = [:name, :global_hooks]
+    call_kws     = [:gridsize, :groupsize, :config]
     signal_kws   = [:queue, :signal, :soft, :minlat, :timeout]
     computed_kws = [:threads, :blocks]
 
+    device_kwargs = []
     macro_kwargs = []
     compiler_kwargs = []
     call_kwargs = []
     signal_kwargs = []
+
     for kwarg in kwargs
-        if Meta.isexpr(kwarg, :(=))
-            key,val = kwarg.args
-            oldkey = key
-            if key in keys(alias_kws)
-                key = alias_kws[key]
-                kwarg = :($key=$val)
-            end
-            if isa(key, Symbol)
-                if key in macro_kws
-                    push!(macro_kwargs, kwarg)
-                elseif key in compiler_kws
-                    push!(compiler_kwargs, kwarg)
-                    # Ensure we pass :device to call as well
-                    if key in call_kws
-                        push!(call_kwargs, kwarg)
-                    end
-                elseif key in call_kws
-                    push!(call_kwargs, kwarg)
-                elseif key in signal_kws
-                    push!(signal_kwargs, kwarg)
-                elseif key in computed_kws
-                    push!(call_kwargs, kwarg)
-                else
-                    throw(ArgumentError("unknown keyword argument '$oldkey'"))
-                end
-            else
-                throw(ArgumentError("non-symbolic keyword '$oldkey'"))
-            end
-        else
+        if !Meta.isexpr(kwarg, :(=))
             throw(ArgumentError("non-keyword argument like option '$kwarg'"))
+        end
+
+        key, val = kwarg.args
+        oldkey = key
+        if key in keys(alias_kws)
+            key = alias_kws[key]
+            kwarg = :($key=$val)
+        end
+
+        if !isa(key, Symbol)
+            throw(ArgumentError("non-symbolic keyword '$oldkey'"))
+        end
+
+        if key == :device
+            push!(device_kwargs, kwarg)
+        elseif key in macro_kws
+            push!(macro_kwargs, kwarg)
+        elseif key in compiler_kws
+            push!(compiler_kwargs, kwarg)
+        elseif key in call_kws
+            push!(call_kwargs, kwarg)
+        elseif key in signal_kws
+            push!(signal_kwargs, kwarg)
+        elseif key in computed_kws
+            push!(call_kwargs, kwarg)
+        else
+            throw(ArgumentError("unknown keyword argument '$oldkey'"))
         end
     end
 
-    return macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs
+    return device_kwargs, macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs
 end
 function simplify_call_kwargs!(call_kwargs)
     call_kwargs_keys = map(x->x.args[1], call_kwargs)
@@ -310,7 +336,7 @@ macro roc(ex...)
     args = call.args[2:end]
 
     code = quote end
-    macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs = split_kwargs(kwargs)
+    device_kw, macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs = split_kwargs(kwargs)
     simplify_call_kwargs!(call_kwargs)
     vars, var_exprs = assign_args!(code, args)
 
@@ -354,26 +380,33 @@ macro roc(ex...)
                 local $kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
                 local $kernel = $dynamic_rocfunction($f, $kernel_tt)
                 $kernel($(var_exprs...); $(call_kwargs...))
-             end)
+            end)
     else
         # regular, host-side kernel launch
         #
         # convert the function, its arguments, call the compiler and launch the kernel
         # while keeping the original arguments alive
-
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
                     local $kernel_f = $rocconvert($f)
                     local $kernel_args = map($rocconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    local $kernel = $rocfunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
+                    local $kernel = $rocfunction(
+                        $kernel_f, $kernel_tt;
+                        $(device_kw...), $(compiler_kwargs...))
+
                     if $wait
                         foreach($wait!, ($(var_exprs...),))
                     end
                     if $launch
-                        local $kernel_instance = $create_kernel($kernel, $kernel_f, $kernel_args)
-                        local $signal = $create_event($kernel_instance; $(signal_kwargs...))
+                        local $kernel_instance = $create_kernel(
+                            $kernel, $kernel_f, $kernel_args)
+                        local $signal = $create_event(
+                            $kernel_instance;
+                            $(device_kw...),
+                            $(signal_kwargs...))
+
                         $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                         if $mark
                             foreach(x->$mark!(x, $signal), ($(var_exprs...),))

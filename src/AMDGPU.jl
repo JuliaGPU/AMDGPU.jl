@@ -34,7 +34,7 @@ include("utils.jl")
 # Load HIP
 const libhip = "libamdhip64.so"
 if functional(:hip)
-include(joinpath(@__DIR__, "hip", "HIP.jl"))
+    include(joinpath(@__DIR__, "hip", "HIP.jl"))
 end
 
 module Runtime
@@ -51,23 +51,22 @@ module Runtime
     const RT_LOCK = Threads.ReentrantLock()
     const RT_EXITING = Ref{Bool}(false)
 
-    include("error.jl")
-    include("thread-utils.jl")
-    include("device.jl")
-    include("queue.jl")
-    include("signal.jl")
-    include("dims.jl")
+    include("runtime/error.jl")
+    include("runtime/thread-utils.jl")
+    include("runtime/device.jl")
+    include("runtime/queue.jl")
+    include("runtime/signal.jl")
+    include("runtime/dims.jl")
     module Mem
-        include("memory.jl")
+        include("runtime/memory.jl")
     end
-    include("executable.jl")
-    include("hashing.jl")
-    include("kernel.jl")
-    include("kernel-signal.jl")
-    include("launch.jl")
-    include("execution.jl")
-    include("sync.jl")
-    include("safe-load.jl")
+    include("runtime/executable.jl")
+    include("runtime/kernel.jl")
+    include("runtime/kernel-signal.jl")
+    include("runtime/launch.jl")
+    include("runtime/execution.jl")
+    include("runtime/sync.jl")
+    include("runtime/safe-load.jl")
 end # module Runtime
 import .Runtime: Mem
 
@@ -137,12 +136,8 @@ import .Runtime: Mem
 
 include("array.jl")
 include("conversions.jl")
-#include("subarray.jl")
-#include("indexing.jl")
 include("broadcast.jl")
-#include("matmul.jl")
 include("mapreduce.jl")
-#include("gpuarray_interface.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
@@ -165,17 +160,17 @@ end
 
 # Load ROCm external libraries
 if functional(:hip)
-functional(:rocblas)      && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
-#functional(:rocsparse)  && include("sparse/rocSPARSE.jl")
-#functional(:rocsolver)   && include("solver/rocSOLVER.jl")
-#functional(:rocalution) && include("solver/rocALUTION.jl")
-if functional(:rocrand)
-include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
-include(joinpath(@__DIR__, "random.jl"))
+    functional(:rocblas) && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
+    #functional(:rocsparse) && include("sparse/rocSPARSE.jl")
+    #functional(:rocsolver) && include("solver/rocSOLVER.jl")
+    #functional(:rocalution) && include("solver/rocALUTION.jl")
+    if functional(:rocrand)
+        include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
+        include(joinpath(@__DIR__, "random.jl"))
+    end
+    functional(:rocfft) && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
+    #functional(:miopen) && include("dnn/MIOpen.jl")
 end
-functional(:rocfft)      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-#functional(:miopen)     && include("dnn/MIOpen.jl")
-end # functional(:hip)
 
 function __init__()
     atexit() do
@@ -184,7 +179,7 @@ function __init__()
 
     # Quiet path first, in case this system doesn't have AMD GPUs
     if !ispath("/dev/kfd")
-        @debug "/dev/kfd not available, silently skipping initialization"
+        @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
         return
     end
     has_gpu = false
@@ -281,21 +276,18 @@ function __init__()
     end
 
     # Check whether external libraries are available
-    for ((name, pkg), purpose) in zip(rocm_ext_libs,
-                                      ("dense BLAS",
-                                       "sparse BLAS",
-                                       "linear solver",
-                                       "fancy linear solver",
-                                       "RNG",
-                                       "FFT",
-                                       "DNN/convolution"))
+    descriptions = (
+        "dense BLAS", "sparse BLAS", "linear solver",
+        "fancy linear solver", "RNG", "FFT", "DNN/convolution")
+    for ((name, pkg), purpose) in zip(rocm_ext_libs, descriptions)
         if use_artifacts && pkg !== nothing && !functional(name)
             # These are numerous and thus noisy
-            build_reason = Symbol(name, :_build_reason)
+            # FIXME crashes on Julia 1.9 due to @eval in precompile
+            # build_reason = Symbol(name, :_build_reason)
             @debug """
             $pkg is unavailable, $purpose functionality will be disabled.
-            Reason: $(@eval $build_reason)
             """
+            # Reason: $(@eval $build_reason)
         end
     end
 

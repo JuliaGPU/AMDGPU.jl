@@ -11,7 +11,8 @@
 
     sig = @roc kernel(hc)
     @test sig in AMDGPU.active_kernels()
-    @test !sig.done.set
+    @test (@atomic sig.active)
+
     notify(wait_ev)
     wait(sig)
     @test !(sig in AMDGPU.active_kernels())

@@ -32,14 +32,14 @@ end
 
 # math
 
-@inline GPUArrays.cos(ctx::ROCKernelContext, x) = cos(x)
-@inline GPUArrays.sin(ctx::ROCKernelContext, x) = sin(x)
-@inline GPUArrays.sqrt(ctx::ROCKernelContext, x) = sqrt(x)
-@inline GPUArrays.log(ctx::ROCKernelContext, x) = log(x)
+@inline GPUArrays.cos(::ROCKernelContext, x) = cos(x)
+@inline GPUArrays.sin(::ROCKernelContext, x) = sin(x)
+@inline GPUArrays.sqrt(::ROCKernelContext, x) = sqrt(x)
+@inline GPUArrays.log(::ROCKernelContext, x) = log(x)
 
 # memory
 
-@inline function GPUArrays.LocalMemory(ctx::ROCKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}) where {T,dims,id}
+@inline function GPUArrays.LocalMemory(::ROCKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}) where {T,dims,id}
     ptr = AMDGPU.Device.alloc_special(Val(id), T, AMDGPU.AS.Local, Val(prod(dims)))
     ROCDeviceArray(dims, ptr)
 end
@@ -137,7 +137,7 @@ ROCArray{T}(::UndefInitializer, dims::Integer...) where {T} =
 
 # from Base arrays
 function ROCArray{T,N}(x::Array{T,N}, dims::Dims{N}) where {T,N}
-    r = ROCArray{T,N}(undef, size(x))
+    r = ROCArray{T,N}(undef, dims)
     Mem.upload!(r.buf, pointer(x), sizeof(x))
     return r
 end
@@ -150,9 +150,8 @@ end
 ROCArray{T,1}() where {T} = ROCArray{T,1}(undef, 0)
 
 Base.similar(a::ROCArray{T,N}) where {T,N} = ROCArray{T,N}(undef, size(a))
-Base.similar(a::ROCArray{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
-Base.similar(a::ROCArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
-
+Base.similar(::ROCArray{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
+Base.similar(::ROCArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
 
 ## array interface
 
@@ -160,7 +159,6 @@ Base.elsize(::Type{<:ROCArray{T}}) where {T} = sizeof(T)
 
 Base.size(x::ROCArray) = x.dims
 Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
-
 
 ## interop with Julia arrays
 
@@ -248,9 +246,9 @@ struct NonContiguous end
 ROCIndexStyle() = Contiguous()
 ROCIndexStyle(I...) = NonContiguous()
 ROCIndexStyle(::Base.ScalarIndex...) = Contiguous()
-ROCIndexStyle(i1::Colon, ::Base.ScalarIndex...) = Contiguous()
-ROCIndexStyle(i1::AbstractUnitRange, ::Base.ScalarIndex...) = Contiguous()
-ROCIndexStyle(i1::Colon, I...) = ROCIndexStyle(I...)
+ROCIndexStyle(::Colon, ::Base.ScalarIndex...) = Contiguous()
+ROCIndexStyle(::AbstractUnitRange, ::Base.ScalarIndex...) = Contiguous()
+ROCIndexStyle(::Colon, I...) = ROCIndexStyle(I...)
 
 rocviewlength() = ()
 @inline rocviewlength(::Real, I...) = rocviewlength(I...) # skip scalar
@@ -299,7 +297,7 @@ end
 
 function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     if prod(dims) != length(a)
-        throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
+        throw(DimensionMismatch("new dimensions $dims must be consistent with array size $(size(a))"))
     end
 
     if N == M && dims == size(a)
@@ -308,7 +306,7 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
 
     Mem.retain(a.buf)
     b = ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
-    finalizer(unsafe_free!, b)
+    finalizer(unsafe_free!, b) # TODO is finalizer needed?
     return b
 end
 

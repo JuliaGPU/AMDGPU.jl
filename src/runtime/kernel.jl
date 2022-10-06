@@ -12,23 +12,43 @@ end
 export ROCModule, ROCFunction
 
 const MAX_EXCEPTIONS = 256
-const EXE_TO_MODULE_MAP = IdDict{Any,WeakRef}()
-mutable struct ROCModule{E}
-    exe::ROCExecutable{E}
+const EXE_TO_MODULE_MAP = IdDict{ROCExecutable, WeakRef}()
+mutable struct ROCModule
+    exe::ROCExecutable
     metadata::Vector{KernelMetadata}
     exceptions::Mem.Buffer
 end
-function ROCModule(exe)
+
+function delete_metadata!(m::ROCModule; signal_handle::UInt64 = UInt64(0))
+    isempty(m.metadata) && return nothing
+
+    only_handle = signal_handle != UInt64(0)
+    for i in length(m.metadata):-1:1
+        meta = m.metadata[i]
+        if only_handle && (meta.kern == signal_handle)
+            Mem.free(meta.buf)
+            deleteat!(m.metadata, i)
+        else
+            Mem.free(meta.buf)
+        end
+    end
+    only_handle || empty!(m.metadata)
+    return nothing
+end
+
+function ROCModule(exe::ROCExecutable)
     device = exe.device
     metadata = KernelMetadata[]
     exceptions = Mem.alloc(device, sizeof(AMDGPU.Device.ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
+
     mod = ROCModule(exe, metadata, exceptions)
     EXE_TO_MODULE_MAP[exe] = WeakRef(mod)
+
     AMDGPU.hsaref!()
-    return finalizer(mod) do x
-        # FIXME: Free all metadata
-        Mem.free(mod.exceptions)
-        delete!(EXE_TO_MODULE_MAP, exe)
+    return finalizer(mod) do m
+        delete_metadata!(m)
+        Mem.free(m.exceptions)
+        delete!(EXE_TO_MODULE_MAP, m.exe)
         AMDGPU.hsaunref!()
     end
 end
@@ -51,8 +71,7 @@ mutable struct ROCKernel{T<:Tuple}
     kernarg_address::Ptr{Nothing}
 end
 
-function ROCKernel(kernel, f::Core.Function, args::Tuple)
-    kernel::HostKernel
+function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple)
     exe = kernel.mod.exe
     device = exe.device
     symbol = kernel.fun.entry
@@ -125,8 +144,8 @@ function ROCKernel(kernel, f::Core.Function, args::Tuple)
                                kernarg_segment_size[], group_segment_size[],
                                private_segment_size[], kernarg_address)
     AMDGPU.hsaref!()
-    finalizer(kernel) do kernel
-        Mem.free_pooled(device, key, :kernarg, kernarg_address)
+    finalizer(kernel) do k
+        Mem.free_pooled(device, key, :kernarg, k.kernarg_address)
         AMDGPU.hsaunref!()
     end
     return kernel
