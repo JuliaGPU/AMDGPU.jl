@@ -61,6 +61,7 @@ module Runtime
         include("runtime/memory.jl")
     end
     include("runtime/executable.jl")
+    include("runtime/hashing.jl")
     include("runtime/kernel.jl")
     include("runtime/kernel-signal.jl")
     include("runtime/launch.jl")
