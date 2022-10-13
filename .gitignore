@@ -7,3 +7,4 @@
 *.jl.mem
 
 docs/build
+LocalPreferences.toml
