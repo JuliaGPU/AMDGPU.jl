@@ -136,7 +136,17 @@ function create_event(
 end
 
 ## Kernel creation
-create_kernel(kernel::Runtime.HostKernel, f, args) = ROCKernel(kernel, f, args)
+"""
+    create_kernel(kernel::HostKernel, f, args::Tuple; kwargs...)
+
+Constructs a `ROCKernel` object from a compiled kernel described by `kernel`.
+`f` is the function being called, and `args` is the `Tuple` of arguments that
+`f` is called with.
+
+See [`@roc`](@ref) for the list of available keyword arguments.
+"""
+create_kernel(kernel::Runtime.HostKernel, f, args; kwargs...) =
+    ROCKernel(kernel, f, args; kwargs...)
 
 ## Kernel launch and barriers
 
@@ -188,6 +198,7 @@ function split_kwargs(kwargs)
     compiler_kws = [:name, :global_hooks]
     call_kws     = [:gridsize, :groupsize, :config]
     signal_kws   = [:queue, :signal, :soft, :minlat, :timeout]
+    kernel_kws   = [:localmem]
     computed_kws = [:threads, :blocks]
 
     device_kwargs = []
@@ -222,6 +233,8 @@ function split_kwargs(kwargs)
             push!(call_kwargs, kwarg)
         elseif key in signal_kws
             push!(signal_kwargs, kwarg)
+        elseif key in kernel_kws
+            push!(kernel_kwargs, kwarg)
         elseif key in computed_kws
             push!(call_kwargs, kwarg)
         else
@@ -229,7 +242,7 @@ function split_kwargs(kwargs)
         end
     end
 
-    return device_kwargs, macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs
+    return device_kwargs, macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs, kernel_kwargs
 end
 function simplify_call_kwargs!(call_kwargs)
     call_kwargs_keys = map(x->x.args[1], call_kwargs)
@@ -287,21 +300,43 @@ end
 """
     @roc [kwargs...] func(args...)
 
-High-level interface for executing code on a GPU. The `@roc` macro should prefix a call,
-with `func` a callable function or object that should return nothing. It will be compiled to
-a GCN function upon first use, and to a certain extent arguments will be converted and
-managed automatically using `rocconvert`. Finally, a call to `roccall` is
-performed, scheduling a kernel launch on the specified (or default) HSA queue.
+High-level interface for executing code on a GPU. The `@roc` macro should
+prefix a call, with `func` a callable function or object that should return
+nothing. It will be compiled to a GCN function via `rocfunction` upon first
+use, and to a certain extent arguments will be converted and managed
+automatically using `rocconvert`. Finally, a call to `roccall` is performed,
+scheduling a kernel launch on the specified (or default) HSA queue.
 
 Several keyword arguments are supported that influence the behavior of `@roc`.
-- `dynamic`: use dynamic parallelism to launch device-side kernels
-- `launch`: whether to launch the kernel
-- `wait`: whether to wait on all arguments' dependencies
-- `mark`: whether to mark this kernel as a dependency for all arguments
-- arguments that influence kernel compilation: see [`rocfunction`](@ref) and
-  [`dynamic_rocfunction`](@ref)
-- arguments that influence kernel launch: see [`AMDGPU.HostKernel`](@ref) and
-  [`AMDGPU.DeviceKernel`](@ref)
+
+Keyword arguments that control general `@roc` behavior:
+- `dynamic::Bool = false`: Use dynamic parallelism to launch as a device-side kernel
+- `launch::Bool = true`: Whether to launch the kernel
+- `wait::Bool = true`: Whether to wait on all arguments' dependencies
+- `mark::Bool = true`: Whether to mark this kernel as a dependency for all arguments
+
+Keyword arguments that affect various parts of `@roc`:
+- `device::ROCDevice = AMDGPU.default_device()`: The device to compile code for, and launch the kernel on.
+- `queue::ROCQueue = AMDGPU.default_queue(device)`: Which queue to associate the kernel (and its completion signal) with. May also be specified as `stream` for compatibility with CUDA.jl.
+
+Keyword arguments that control kernel compilation via [`rocfunction`](@ref) and [`dynamic_rocfunction`](@ref):
+- `name::Union{String,Nothing} = nothing`: If not `nothing`, the name to use for the generated kernel.
+- `global_hooks::NamedTuple = (;)`: The set of global compiler hooks to use to initialize memory accessed by the kernel. See `AMDGPU.Compiler.default_global_hooks` for an example of how to implement these.
+
+Keyword arguments that control signal creation via [`AMDGPU.create_event`](@ref):
+- `signal::ROCSignal = ROCSignal()`: The underlying signal object to associate the high-level `ROCKernelSignal` with.
+- `soft::Bool = true`: Whether to use the "soft" busy-poll waiter algorithm. If `false`, uses HSA's built-in blocking wait.
+- `minlat::Float64 = 0.000001`: The minimum latency allowed on the first wait cycle. Specifically, if the kernel completes in less than this amount of time, then the observed latency from kernel launch to return from `wait` is this value, in seconds.
+- `timeout::Union{Float64, Nothing} = nothing`: How long to wait for the signal to complete before throwing an `AMDGPU.Runtime.SignalTimeoutException`, in seconds. If `nothing`, then timeouts are disabled and the `wait` call may hang forever if the kernel never completes.
+
+Keyword arguments that control kernel creation via [`AMDGPU.create_kernel`](@ref):
+- `localmem::Int = 0`: The minimum amount of local memory to allocate for the kernel. This value is lower-bounded by the amount of static local memory required by the kernel (as reported by the compiler).
+
+Keyword arguments that control kernel launch via [`AMDGPU.HostKernel`](@ref) and [`AMDGPU.DeviceKernel`](@ref):
+- `groupsize::Union{Tuple,Integer} = 1`: The size of the groups to execute over the grid. If an `Integer` or `Tuple{<:Integer}`, only activate the X dimension of the group. If `Tuple{<:Integer,<:Integer}`, activate the X and Y dimensions of the group. If `Tuple{<:Integer,<:Integer,<:Integer}`, activate the X, Y, and Z dimensions of the group. All sizes must be greater than 0.
+- `gridsize::Union{Tuple,Integer} = 1`: The size of the grid to execute the kernel over. If an `Integer` or `Tuple{<:Integer}`, only activate the X dimension of the grid. If `Tuple{<:Integer,<:Integer}`, activate the X and Y dimensions of the grid. If `Tuple{<:Integer,<:Integer,<:Integer}`, activate the X, Y, and Z dimensions of the grid. All sizes must be greater than 0.
+- `threads::Union{Tuple,Integer}` - Alias for `groupsize`, for compatibility with CUDA.jl.
+- `blocks::Union{Tuple,Integer}` - How many groups to execute across the grid. Potentially a more convenient way to specify groupsize, and intended for compatibility with CUDA.jl.
 
 The underlying operations (argument conversion, kernel compilation, kernel call) can be
 performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
@@ -336,7 +371,7 @@ macro roc(ex...)
     args = call.args[2:end]
 
     code = quote end
-    device_kw, macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs = split_kwargs(kwargs)
+    device_kw, macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs, kernel_kwargs = split_kwargs(kwargs)
     simplify_call_kwargs!(call_kwargs)
     vars, var_exprs = assign_args!(code, args)
 
@@ -401,12 +436,9 @@ macro roc(ex...)
                     end
                     if $launch
                         local $kernel_instance = $create_kernel(
-                            $kernel, $kernel_f, $kernel_args)
+                            $kernel, $kernel_f, $kernel_args, $(kernel_kwargs...))
                         local $signal = $create_event(
-                            $kernel_instance;
-                            $(device_kw...),
-                            $(signal_kwargs...))
-
+                            $kernel_instance; $(device_kw...), $(signal_kwargs...))
                         $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                         if $mark
                             foreach(x->$mark!(x, $signal), ($(var_exprs...),))

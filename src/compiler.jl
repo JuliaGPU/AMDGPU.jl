@@ -112,8 +112,8 @@ function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default
     cache = get!(()->Dict{UInt, Any}(), rocfunction_cache, device)
 
     isa = AMDGPU.default_isa(device)
-    arch, feat = Runtime.llvm_arch_features(isa)
-    target = GCNCompilerTarget(; dev_isa=arch, features=feat)
+    dev_isa, features = Runtime.llvm_arch_features(isa)
+    target = GCNCompilerTarget(; dev_isa, features)
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
     @debug "Compiling $f ($tt)"
