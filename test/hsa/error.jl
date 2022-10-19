@@ -3,7 +3,9 @@
     @test Runtime.description(errorcode) == "HSA_STATUS_SUCCESS: The function has been executed successfully."
 end
 
-@testset "HSA Async Queue Error" begin
-    kernel() = (Device.trap(); nothing)
-    @test_throws Runtime.QueueError wait(@roc kernel())
+if !IS_NAVI_2
+    @testset "HSA Async Queue Error" begin
+        kernel() = (Device.trap(); nothing)
+        @test_throws Runtime.QueueError wait(@roc kernel())
+    end
 end

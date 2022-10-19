@@ -25,12 +25,6 @@ const DEVICE_ERR_SENTINEL = 5
 "Fatal error on host thread accessing the signal."
 const HOST_ERR_SENTINEL = 6
 
-const ATOMIC_MONOTONIC = Int32(1)
-const ATOMIC_ACQUIRE = Int32(2)
-const ATOMIC_RELEASE = Int32(3)
-const ATOMIC_ACQ_REL = Int32(4)
-const ATOMIC_SEQ_CST = Int32(5)
-
 const DEFAULT_HOSTCALL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
 const DEFAULT_HOSTCALL_LATENCY = Ref{Float64}(0.01)
 
@@ -60,7 +54,7 @@ function HostCall(RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.alloc(device, buf_len; coherent=true)
     buf_ptr = LLVMPtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
-    store_release!(HSA.Signal(signal_handle), READY_SENTINEL)
+    host_signal_store!(HSA.Signal(signal_handle), READY_SENTINEL)
     HostCall{RT,AT}(signal_handle, buf_ptr, buf_len)
 end
 
@@ -234,7 +228,7 @@ end
 struct HostCallException <: Exception
     reason::String
     err::Union{Exception, Nothing}
-    bt::Union{Vector,Nothing}
+    bt::Union{Vector, Nothing}
 end
 
 HostCallException(reason) = HostCallException(reason, nothing, backtrace())
@@ -269,7 +263,7 @@ hostcall will fail with undefined behavior.
 
 Note: This API is currently experimental and is subject to change at any time.
 """
-function HostCall(func::Function, rettype::Type, argtypes::Type{<:Tuple}; return_task::Bool = false,
+function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; return_task::Bool = false,
                   device=AMDGPU.default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
                   timeout=nothing, continuous=false, buf_len=nothing)
     signal = Runtime.ROCSignal()
@@ -325,7 +319,7 @@ function HostCall(func::Function, rettype::Type, argtypes::Type{<:Tuple}; return
                         args_buf_ptr = reinterpret(Ptr{Ptr{Cvoid}}, hc.buf_ptr)
                         unsafe_store!(args_buf_ptr, ret_ptr)
                     end
-                    store_release!(signal.signal[], HOST_MSG_SENTINEL)
+                    host_signal_store!(signal.signal[], HOST_MSG_SENTINEL)
                 catch err
                     throw(HostCallException("Error returning hostcall result", err))
                 end
@@ -334,7 +328,7 @@ function HostCall(func::Function, rettype::Type, argtypes::Type{<:Tuple}; return
             end
         catch err
             # Gracefully terminate all waiters
-            store_release!(signal.signal[], HOST_ERR_SENTINEL)
+            host_signal_store!(signal.signal[], HOST_ERR_SENTINEL)
             if err isa EOFError
                 # If EOF, then Julia is exiting, no need to re-throw.
             else
@@ -370,9 +364,9 @@ function hostcall_host_wait(signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_L
     @debug "Hostcall: Waiting on signal $signal_handle"
     start_time = time_ns()
     while !Runtime.RT_EXITING[]
-        prev = get_value(signal_handle)
+        prev = host_signal_load(signal_handle)
         if prev == DEVICE_MSG_SENTINEL
-            prev = set_value_acq_rel!(
+            prev = cmpxchg_acq_rel!(
                 signal_handle, DEVICE_MSG_SENTINEL, HOST_LOCK_SENTINEL)
             if prev == DEVICE_MSG_SENTINEL
                 @debug "Hostcall: Device message on signal $signal_handle"

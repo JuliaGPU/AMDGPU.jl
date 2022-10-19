@@ -1,4 +1,4 @@
-const DEFAULT_SIGNAL_TIMEOUT = Ref{Float64}(-1)
+const DEFAULT_SIGNAL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
 
 const SIGNAL_TIMEOUT_KILL_QUEUE = Ref{Bool}(true)
 
@@ -40,21 +40,20 @@ ROCSignal(signal::HSA.Signal) = ROCSignal(Ref(signal))
 
 get_handle(signal::ROCSignal) = signal.signal[].handle
 
-function is_done(signal::ROCSignal)
-    value = HSA.signal_load_scacquire(signal.signal[])
-    value < 1
-end
+load_acquire(signal::ROCSignal) = HSA.signal_load_scacquire(signal.signal[])
 
-function get_value(signal::ROCSignal)
-    HSA.signal_load_scacquire(signal.signal[])
-end
+is_done(signal::ROCSignal) = load_acquire(signal) < 1
 
 Base.show(io::IO, signal::ROCSignal) =
     print(io, "ROCSignal($(signal.signal[]))")
 
-function Base.wait(signal::ROCSignal; timeout::Real = DEFAULT_SIGNAL_TIMEOUT[])
-    has_timeout = sign(timeout) == 1
-    min_latency = 1_000 # 1 micro-second.
+function Base.wait(
+    signal::ROCSignal; timeout::Union{Real, Nothing} = DEFAULT_SIGNAL_TIMEOUT[],
+    min_latency::Int64 = 1_000, # 1 micro-second
+)
+    has_timeout = !isnothing(timeout)
+    has_timeout && (timeout < 0) && error(
+        "Timeout `$timeout` must be a positive real value or `nothing`.")
 
     start_time = time_ns()
     finished = false

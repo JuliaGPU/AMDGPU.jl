@@ -306,7 +306,7 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
 
     Mem.retain(a.buf)
     b = ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
-    finalizer(unsafe_free!, b) # TODO is finalizer needed?
+    finalizer(unsafe_free!, b)
     return b
 end
 

@@ -198,7 +198,7 @@ default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
             fmt, all_args = unsafe_load(reinterpret(LLVMPtr{AMDGPU.Device.ROCPrintfBuffer,AS.Global}, hc.buf_ptr))
 
             for args in all_args
-                args = map(x-> x isa Cstring ? unsafe_string(x) : x, args)
+                args = map(x -> x isa Cstring ? unsafe_string(x) : x, args)
                 @debug "@rocprintf with $fmt and $(args)"
                 try
                     @eval @printf($fmt, $(args...))
@@ -241,7 +241,7 @@ default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
             buf = Mem.alloc(device, sz; coherent=true)
             # FIXME: Lock
             push!(mod.metadata, Runtime.KernelMetadata(kern, buf))
-            @debug("Allocated $(buf.ptr) ($sz bytes) for kernel $kern on device $device")
+            @debug "Allocated $(buf.ptr) ($sz bytes) for kernel $kern on device $device"
             return buf.ptr
         end
     end
@@ -263,7 +263,7 @@ default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
                 if same_kern && same_ptr
                     Mem.free(meta.buf)
                     deleteat!(mod.metadata, idx)
-                    @debug("Freed $ptr ($(meta.buf.bytesize) bytes) for kernel $kern.")
+                    @debug "Freed $ptr ($(meta.buf.bytesize) bytes) for kernel $kern on device $device."
                     break
                 end
             end

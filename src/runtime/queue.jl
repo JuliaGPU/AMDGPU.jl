@@ -19,7 +19,6 @@ const QUEUES = Dict{Ptr{HSA.Queue}, WeakRef}()
 
 const DEFAULT_QUEUES = IdDict{ROCDevice, ROCQueue}()
 
-# FIXME does not seem to work.
 function queue_error_handler(
     status::HSA.Status, _queue::Ptr{HSA.Queue}, queue_obj_ptr::Ptr{Cvoid},
 )::Nothing
@@ -46,7 +45,7 @@ function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
 
     HSA.queue_create(
         device.agent, queue_size[], HSA.QUEUE_TYPE_MULTI,
-        c_queue_error_handler, pointer_from_objref(queue), # FIXME handler not working?
+        c_queue_error_handler, pointer_from_objref(queue),
         typemax(UInt32), typemax(UInt32), r_queue) |> check
     @atomic queue.queue = r_queue[]
 
@@ -108,8 +107,8 @@ end
 
 function kill_queue!(queue::ROCQueue)
     (@atomic queue.active) || return nothing
-
     @atomic queue.active = false
+
     lock(RT_LOCK) do
         if get(DEFAULT_QUEUES, queue.device, nothing) == queue
             delete!(DEFAULT_QUEUES, queue.device)
