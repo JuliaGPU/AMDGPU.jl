@@ -51,7 +51,7 @@ mutable struct ROCKernel{T<:Tuple}
     kernarg_address::Ptr{Nothing}
 end
 
-function ROCKernel(kernel, f::Core.Function, args::Tuple)
+function ROCKernel(kernel, f::Core.Function, args::Tuple; localmem::Int=0)
     kernel::HostKernel
     exe = kernel.mod.exe
     device = exe.device
@@ -93,6 +93,7 @@ function ROCKernel(kernel, f::Core.Function, args::Tuple)
     group_segment_size = Ref{UInt32}(0)
     getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE,
             group_segment_size) |> check
+    group_segment_size[] = max(group_segment_size[], localmem)
 
     private_segment_size = Ref{UInt32}(0)
     getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE,

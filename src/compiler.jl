@@ -109,12 +109,12 @@ The output of this function is automatically cached, i.e. you can simply call
 generated automatically, when function definitions change, or when different
 types or keyword arguments are provided.
 """
-function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default_device(), global_hooks=NamedTuple(), kwargs...) where {F <: Core.Function}
+function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default_device(), global_hooks=NamedTuple()) where {F <: Core.Function}
     source = FunctionSpec(F, tt, true, name)
     cache = get!(()->Dict{UInt,Any}(), rocfunction_cache, device)
     isa = AMDGPU.default_isa(device)
-    arch, feat = Runtime.llvm_arch_features(isa)
-    target = GCNCompilerTarget(; dev_isa=arch, features=feat)
+    dev_isa, features = Runtime.llvm_arch_features(isa)
+    target = GCNCompilerTarget(; dev_isa, features)
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
     @debug "Compiling $f ($tt)"
