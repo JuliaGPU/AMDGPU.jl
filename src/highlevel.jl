@@ -206,6 +206,7 @@ function split_kwargs(kwargs)
     compiler_kwargs = []
     call_kwargs = []
     signal_kwargs = []
+    kernel_kwargs = []
 
     for kwarg in kwargs
         if !Meta.isexpr(kwarg, :(=))
@@ -436,7 +437,7 @@ macro roc(ex...)
                     end
                     if $launch
                         local $kernel_instance = $create_kernel(
-                            $kernel, $kernel_f, $kernel_args, $(kernel_kwargs...))
+                            $kernel, $kernel_f, $kernel_args; $(kernel_kwargs...))
                         local $signal = $create_event(
                             $kernel_instance; $(device_kw...), $(signal_kwargs...))
                         $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
