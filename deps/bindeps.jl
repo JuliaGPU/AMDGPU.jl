@@ -18,6 +18,9 @@ function find_roc_paths()
     paths = filter(path->path != "", paths)
     paths = map(Base.Filesystem.abspath, paths)
     push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
+    if haskey(ENV, "ROCM_PATH")
+        push!(paths, joinpath(ENV["ROCM_PATH"], "lib"))
+    end
     paths = filter(isdir, paths)
     @debug "bindeps: ROCm library search paths:"
     for path in paths
