@@ -349,7 +349,6 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
                     break
                 end
             end
-
         end
     end
 
@@ -366,7 +365,7 @@ function hostcall_host_wait(signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_L
     while !Runtime.RT_EXITING[]
         prev = host_signal_load(signal_handle)
         if prev == DEVICE_MSG_SENTINEL
-            prev = cmpxchg_acq_rel!(
+            prev = host_signal_cmpxchg!(
                 signal_handle, DEVICE_MSG_SENTINEL, HOST_LOCK_SENTINEL)
             if prev == DEVICE_MSG_SENTINEL
                 @debug "Hostcall: Device message on signal $signal_handle"

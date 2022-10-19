@@ -30,8 +30,8 @@ end
 end
 
 @inline function hostcall_device_signal_wait_cas!(
-    signal_handle::UInt64, expected::Int64, value::Int64,
-    order::Int32 = ATOMIC_ACQ_REL,
+    signal_handle::UInt64, expected::Int64,
+    value::Int64, order::Int32 = ATOMIC_ACQ_REL,
 )
     while true
         loaded = device_signal_cas!(signal_handle, expected, value, order)
@@ -45,6 +45,13 @@ end
         # device_sethalt(Int32(1))
         device_sleep(Int32(5))
     end
+end
+
+@inline function hostcall_device_signal_wait_cas!(
+    signal::HSA.Signal, expected::Int64,
+    value::Int64, order::Int32 = ATOMIC_ACQ_REL,
+)
+    hostcall_device_signal_wait_cas!(signal.handle, expected, value, order)
 end
 
 @inline function hostcall_device_signal_wait(
@@ -62,6 +69,12 @@ end
         # device_sethalt(Int32(1))
         device_sleep(Int32(5))
     end
+end
+
+@inline function hostcall_device_signal_wait(
+    signal::HSA.Signal, value::Int64, order::Int32 = ATOMIC_ACQUIRE,
+)
+    hostcall_device_signal_wait(signal.handle, value, order)
 end
 
 @inline function host_signal_store!(
@@ -87,7 +100,7 @@ end
     throw(ArgumentError("Unsupported `order`: `$order`. Supported values are: `Val{:release}` and `Val{:relaxed}`."))
 end
 
-@inline function cmpxchg_acq_rel!(signal::HSA.Signal, expected, value)
+@inline function host_signal_cmpxchg!(signal::HSA.Signal, expected, value)
     HSA.signal_cas_scacq_screl(signal, expected, value)
 end
 

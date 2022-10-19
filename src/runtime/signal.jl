@@ -42,7 +42,7 @@ get_handle(signal::ROCSignal) = signal.signal[].handle
 
 load_acquire(signal::ROCSignal) = HSA.signal_load_scacquire(signal.signal[])
 
-is_done(signal::ROCSignal) = load_acquire(signal) < 1
+Base.isdone(signal::ROCSignal) = load_acquire(signal) < 1
 
 Base.show(io::IO, signal::ROCSignal) =
     print(io, "ROCSignal($(signal.signal[]))")

@@ -283,12 +283,10 @@ function __init__()
     for ((name, pkg), purpose) in zip(rocm_ext_libs, descriptions)
         if use_artifacts && pkg !== nothing && !functional(name)
             # These are numerous and thus noisy
-            # FIXME crashes on Julia 1.9 due to @eval in precompile
-            # build_reason = Symbol(name, :_build_reason)
+            build_reason = getfield(AMDGPU, Symbol(name, :_build_reason))
             @debug """
-            $pkg is unavailable, $purpose functionality will be disabled.
+            $pkg is unavailable, $purpose functionality will be disabled. Reason: $build_reason
             """
-            # Reason: $(@eval $build_reason)
         end
     end
 
