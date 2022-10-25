@@ -171,11 +171,12 @@ functional(:rocblas)      && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
 #functional(:rocalution) && include("solver/rocALUTION.jl")
 if functional(:rocrand)
 include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
-include(joinpath(@__DIR__, "random.jl"))
 end
 functional(:rocfft)      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
 #functional(:miopen)     && include("dnn/MIOpen.jl")
 end # functional(:hip)
+
+include("random.jl")
 
 function __init__()
     atexit() do
