@@ -45,3 +45,5 @@ end
 
 Runtime.DEFAULT_SIGNAL_TIMEOUT[] = 15.0
 Device.DEFAULT_HOSTCALL_TIMEOUT[] = 15.0
+
+const IS_NAVI_2 = AMDGPU.default_device().name in ("gfx1030", "gfx1031", "gfx1032")

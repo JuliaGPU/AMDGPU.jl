@@ -1,4 +1,4 @@
-import AMDGPU: HostCall, hostcall!
+import AMDGPU.Device: HostCall, hostcall!
 
 @testset "Hostcall" begin
 

@@ -25,114 +25,52 @@ const DEVICE_ERR_SENTINEL = 5
 "Fatal error on host thread accessing the signal."
 const HOST_ERR_SENTINEL = 6
 
-## Hostcall implementation
+const DEFAULT_HOSTCALL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
+const DEFAULT_HOSTCALL_LATENCY = Ref{Float64}(0.01)
+
+include("hostcall_signal_helpers.jl")
 
 """
-    HostCall{S,RT,AT}
+    HostCall{RT,AT}
 
 GPU-compatible struct for making hostcalls.
 """
-struct HostCall{S,RT,AT}
-    signal::S
+struct HostCall{RT,AT}
+    signal_handle::UInt64
     buf_ptr::LLVMPtr{UInt8,AS.Global}
     buf_len::UInt
 end
-function HostCall(RT::Type, AT::Type{<:Tuple}, signal::S;
-                  device=AMDGPU.default_device(), buf_len=nothing) where {S<:UInt64}
-    if buf_len === nothing
+
+function HostCall(RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
+                  device=AMDGPU.default_device(), buf_len=nothing)
+    if isnothing(buf_len)
         buf_len = 0
         for T in AT.parameters
             @assert isbitstype(T) "Hostcall arguments must be bits-type"
             buf_len += sizeof(T)
         end
     end
+
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.alloc(device, buf_len; coherent=true)
     buf_ptr = LLVMPtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
-    HSA.signal_store_release(HSA.Signal(signal), READY_SENTINEL)
-    HostCall{S,RT,AT}(signal, buf_ptr, buf_len)
+    host_signal_store!(HSA.Signal(signal_handle), READY_SENTINEL)
+    HostCall{RT,AT}(signal_handle, buf_ptr, buf_len)
 end
-
-@inline device_sleep(duration::Int32) = ccall("llvm.amdgcn.s.sleep", llvmcall, Cvoid, (Int32,), duration)
-@inline device_sethalt(code::Int32=1) = ccall("llvm.amdgcn.s.sethalt", llvmcall, Cvoid, (Int32,), code)
-
-const ATOMIC_MONOTONIC = Int32(1)
-const ATOMIC_ACQUIRE = Int32(2)
-const ATOMIC_RELEASE = Int32(3)
-const ATOMIC_ACQ_REL = Int32(4)
-const ATOMIC_SEQ_CST = Int32(5)
-
-## device signal functions
-@inline device_signal_load(signal::UInt64, order::Int32=ATOMIC_ACQUIRE) =
-    ccall("extern __ockl_hsa_signal_load", llvmcall, Int64, (UInt64, Int32), signal, order)
-@inline device_signal_load(signal::HSA.Signal, order::Int32=ATOMIC_ACQUIRE) =
-    device_signal_load(signal.handle, order)
-
-@inline device_signal_store!(signal::UInt64, value::Int64, order::Int32=ATOMIC_RELEASE) =
-    ccall("extern __ockl_hsa_signal_store", llvmcall, Int64, (UInt64, Int64, Int32), signal, value, order)
-@inline device_signal_store!(signal::HSA.Signal, value::Int64, order::Int32=ATOMIC_RELEASE) =
-    device_signal_store!(signal.handle, value, order)
-
-@inline device_signal_cas!(signal::UInt64, expected::Int64, value::Int64, order::Int32=ATOMIC_ACQ_REL) =
-    ccall("extern __ockl_hsa_signal_cas", llvmcall, Int64, (UInt64, Int64, Int64, Int32), signal, expected, value, order)
-@inline device_signal_cas!(signal::HSA.Signal, expected::Int64, value::Int64, order::Int32=ATOMIC_ACQ_REL) =
-    device_signal_cas!(signal.handle, expected, value, order)
-
-# hostcall signal helpers
-
-@inline function hostcall_device_signal_wait(signal::UInt64, value::Int64, order::Int32=ATOMIC_ACQUIRE)
-    while true
-        loaded = device_signal_load(signal, order)
-        if loaded == value
-            return
-        end
-        if loaded == DEVICE_ERR_SENTINEL
-            signal_exception()
-            #trap()
-        end
-        if loaded == HOST_ERR_SENTINEL
-            signal_exception()
-            #trap()
-        end
-        # FIXME: Make kernel actually sleep
-        # device_sethalt(Int32(1))
-        device_sleep(Int32(5))
-    end
-end
-@inline hostcall_device_signal_wait(signal::HSA.Signal, value::Int64, order::Int32=ATOMIC_ACQUIRE) =
-    hostcall_device_signal_wait(signal.handle, value, order)
-@inline function hostcall_device_signal_wait_cas!(signal::UInt64, expected::Int64, value::Int64, order::Int32=ATOMIC_ACQ_REL)
-    while true
-        loaded = device_signal_cas!(signal, expected, value, order)
-        if loaded == expected
-            return
-        end
-        if loaded == DEVICE_ERR_SENTINEL
-            signal_exception()
-            trap()
-        end
-        if loaded == HOST_ERR_SENTINEL
-            signal_exception()
-            trap()
-        end
-        # FIXME: Make kernel actually sleep
-        # device_sethalt(Int32(1))
-        device_sleep(Int32(127))
-    end
-end
-@inline hostcall_device_signal_wait_cas!(signal::HSA.Signal, expected::Int64, value::Int64, order::Int32=ATOMIC_ACQ_REL) =
-    hostcall_device_signal_wait_cas!(signal.handle, expected, value, order)
-
-## Device
 
 "Calls the host function stored in `hc` with arguments `args`."
-@inline hostcall!(hc::HostCall, args...) =
-    hostcall!(Val(:group), hc, args...)
-@inline function hostcall!(::Val{mode}, hc::HostCall{UInt64,RT,AT}, args...) where {mode,RT,AT}
-    hostcall_device_lock!(Val(mode), hc)
-    hostcall_device_write_args!(Val(mode), hc, args...)
-    return hostcall_device_trigger_and_return!(Val(mode), hc)
+@inline function hostcall!(hc::HostCall, args...)
+    hostcall!(Val{:group}(), hc, args...)
 end
+
+@inline function hostcall!(
+    ::Val{mode}, hc::HostCall{RT, AT}, args...,
+) where {mode, RT, AT}
+    hostcall_device_lock!(Val{mode}(), hc)
+    hostcall_device_write_args!(Val{mode}(), hc, args...)
+    return hostcall_device_trigger_and_return!(Val{mode}(), hc)
+end
+
 macro device_execution_gate(mode, exec_ex)
     if mode isa QuoteNode
         mode = mode.value::Symbol
@@ -169,19 +107,29 @@ macro device_execution_gate(mode, exec_ex)
     end)
     return ex
 end
-@inline hostcall_device_lock!(hc::HostCall) =
-    hostcall_device_lock!(Val(:group), hc)
-@generated function hostcall_device_lock!(::Val{mode}, hc::HostCall) where mode
+
+@inline function hostcall_device_lock!(hc::HostCall)
+    hostcall_device_lock!(Val{:group}(), hc)
+end
+
+@inline @generated function hostcall_device_lock!(
+    ::Val{mode}, hc::HostCall,
+) where mode
     return quote
         @device_execution_gate $mode begin
             # Acquire lock on hostcall buffer
-            hostcall_device_signal_wait_cas!(hc.signal, READY_SENTINEL, DEVICE_LOCK_SENTINEL)
+            hostcall_device_signal_wait_cas!(hc.signal_handle, READY_SENTINEL, DEVICE_LOCK_SENTINEL)
         end
     end
 end
-@inline hostcall_device_write_args!(hc::HostCall, args...) =
-    hostcall_device_write_args!(Val(:group), hc, args...)
-@inline @generated function hostcall_device_write_args!(::Val{mode}, hc::HostCall{UInt64,RT,AT}, args...) where {mode,RT,AT}
+
+@inline function hostcall_device_write_args!(hc::HostCall, args...)
+    hostcall_device_write_args!(Val{:group}(), hc, args...)
+end
+
+@inline @generated function hostcall_device_write_args!(
+    ::Val{mode}, hc::HostCall{RT, AT}, args...,
+) where {mode, RT, AT}
     ex = Expr(:block)
 
     # Copy arguments into buffer
@@ -202,45 +150,40 @@ end
         end
     end)
 end
-@inline @generated function hostcall_device_args_size(args...)
-    sz = 0
-    for arg in args
-        sz += sizeof(arg)
-    end
-    return sz
+
+@inline function hostcall_device_trigger_and_return!(hc::HostCall)
+    hostcall_device_trigger_and_return!(Val{:group}(), hc::HostCall)
 end
-@inline hostcall_device_trigger_and_return!(hc::HostCall) =
-    hostcall_device_trigger_and_return!(Val(:group), hc::HostCall)
-@inline @generated function hostcall_device_trigger_and_return!(::Val{mode}, hc::HostCall{UInt64,RT,AT}) where {mode,RT,AT}
+
+@inline @generated function hostcall_device_trigger_and_return!(::Val{mode}, hc::HostCall{RT, AT}) where {mode, RT, AT}
     ex = Expr(:block)
     @gensym shmem buf_ptr ret_ptr hostcall_return
 
     push!(ex.args, quote
         if $RT !== Nothing
             # FIXME: This is not valid without the @inline
-            #$shmem = $alloc_local($hostcall_return, $RT, 1)
+            # $shmem = $alloc_local($hostcall_return, $RT, 1)
             # But this is fine (if slower)
-            $shmem = $get_global_pointer($(Val(hostcall_return)), $RT)
+            $shmem = $get_global_pointer($(Val{hostcall_return}()), $RT)
         end
+
         @device_execution_gate $mode begin
             # Ensure arguments are written
-            $hostcall_device_signal_wait_cas!(hc.signal, $DEVICE_LOCK_SENTINEL, $DEVICE_MSG_SENTINEL)
-
+            $hostcall_device_signal_wait_cas!(hc.signal_handle, $DEVICE_LOCK_SENTINEL, $DEVICE_MSG_SENTINEL)
             # Wait on host message
-            $hostcall_device_signal_wait(hc.signal, $HOST_MSG_SENTINEL)
-
+            $hostcall_device_signal_wait(hc.signal_handle, $HOST_MSG_SENTINEL)
             # Get return buffer and load first value
             if $RT !== Nothing
-                $buf_ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global}, hc.buf_ptr)
+                $buf_ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global},hc.buf_ptr)
                 $ret_ptr = unsafe_load($buf_ptr)
                 if UInt64($ret_ptr) == 0
-                    $device_signal_store!(hc.signal, $DEVICE_ERR_SENTINEL)
+                    $device_signal_store!(hc.signal_handle, $DEVICE_ERR_SENTINEL)
                     $signal_exception()
                     $trap()
                 end
                 unsafe_store!($shmem, unsafe_load($ret_ptr)::$RT)
             end
-            $device_signal_store!(hc.signal, $READY_SENTINEL)
+            $device_signal_store!(hc.signal_handle, $READY_SENTINEL)
         end
         if $RT !== Nothing
             return unsafe_load($shmem)
@@ -252,9 +195,15 @@ end
     return ex
 end
 
-## Host
+@inline @generated function hostcall_device_args_size(args...)
+    sz = 0
+    for arg in args
+        sz += sizeof(arg)
+    end
+    return sz
+end
 
-@generated function hostcall_host_read_args(hc::HostCall{UInt64,RT,AT}) where {RT,AT}
+@generated function hostcall_host_read_args(hc::HostCall{RT,AT}) where {RT,AT}
     ex = Expr(:tuple)
 
     # Copy arguments into buffer
@@ -266,7 +215,7 @@ end
         push!(ex.args, quote
             lref = Ref{$T}()
             HSA.memory_copy(reinterpret(Ptr{Cvoid}, Base.unsafe_convert(Ptr{$T}, lref)),
-                            reinterpret(Ptr{Cvoid}, hc.buf_ptr+$(off-1)),
+                            reinterpret(Ptr{Cvoid}, hc.buf_ptr+$off - 1),
                             $sz) |> Runtime.check
             lref[]
         end)
@@ -278,11 +227,14 @@ end
 
 struct HostCallException <: Exception
     reason::String
-    err::Union{Exception,Nothing}
-    bt::Union{Vector,Nothing}
+    err::Union{Exception, Nothing}
+    bt::Union{Vector, Nothing}
 end
+
 HostCallException(reason) = HostCallException(reason, nothing, backtrace())
+
 HostCallException(reason, err) = HostCallException(reason, err, catch_backtrace())
+
 function Base.showerror(io::IO, err::HostCallException)
     print(io, "HostCallException: $(err.reason)")
     if err.err !== nothing || err.bt !== nothing
@@ -311,19 +263,19 @@ hostcall will fail with undefined behavior.
 
 Note: This API is currently experimental and is subject to change at any time.
 """
-function HostCall(func, rettype, argtypes; return_task=false,
+function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; return_task::Bool = false,
                   device=AMDGPU.default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
                   timeout=nothing, continuous=false, buf_len=nothing)
     signal = Runtime.ROCSignal()
-    hc = HostCall(rettype, argtypes, signal.signal[].handle; device=device, buf_len=buf_len)
+    hc = HostCall(rettype, argtypes, Runtime.get_handle(signal); device, buf_len)
 
     tsk = Threads.@spawn begin
         ret_buf = Ref{Mem.Buffer}()
         ret_len = 0
         try
             while true
-                if !hostcall_host_wait(signal; maxlat=maxlat, timeout=timeout)
-                    throw(HostCallException("Hostcall: Timeout on signal $(signal.signal[])"))
+                if !hostcall_host_wait(signal.signal[]; maxlat=maxlat, timeout=timeout)
+                    throw(HostCallException("Hostcall: Timeout on signal $signal"))
                 end
                 if length(argtypes.parameters) > 0
                     args = try
@@ -363,10 +315,11 @@ function HostCall(func, rettype, argtypes; return_task=false,
                             src_ptr = reinterpret(Ptr{Cvoid}, Base.unsafe_convert(Ptr{rettype}, ret_ref))
                             HSA.memory_copy(ret_ptr, src_ptr, sizeof(ret)) |> Runtime.check
                         end
+
                         args_buf_ptr = reinterpret(Ptr{Ptr{Cvoid}}, hc.buf_ptr)
                         unsafe_store!(args_buf_ptr, ret_ptr)
                     end
-                    HSA.signal_store_screlease(signal.signal[], HOST_MSG_SENTINEL)
+                    host_signal_store!(signal.signal[], HOST_MSG_SENTINEL)
                 catch err
                     throw(HostCallException("Error returning hostcall result", err))
                 end
@@ -375,9 +328,9 @@ function HostCall(func, rettype, argtypes; return_task=false,
             end
         catch err
             # Gracefully terminate all waiters
-            HSA.signal_store_screlease(signal.signal[], HOST_ERR_SENTINEL)
+            host_signal_store!(signal.signal[], HOST_ERR_SENTINEL)
             if err isa EOFError
-                # If EOF, then Julia is exiting. Do not rethrow.
+                # If EOF, then Julia is exiting, no need to re-throw.
             else
                 @error "HostCall error" exception=(err,catch_backtrace())
                 rethrow(err)
@@ -387,8 +340,7 @@ function HostCall(func, rettype, argtypes; return_task=false,
             # the device has read from these buffers. Therefore we wait either for
             # READY_SENTINEL or else an error signal.
             while !Runtime.RT_EXITING[]
-                prev = HSA.signal_load_scacquire(signal.signal[])
-
+                prev = host_signal_load(signal.signal[])
                 if prev == READY_SENTINEL || prev == HOST_ERR_SENTINEL || prev == DEVICE_ERR_SENTINEL
                     if isassigned(ret_buf)
                         Mem.free(ret_buf[])
@@ -397,7 +349,6 @@ function HostCall(func, rettype, argtypes; return_task=false,
                     break
                 end
             end
-
         end
     end
 
@@ -408,30 +359,28 @@ function HostCall(func, rettype, argtypes; return_task=false,
     end
 end
 
-const DEFAULT_HOSTCALL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
-const DEFAULT_HOSTCALL_LATENCY = Ref{Float64}(0.01)
-
-# CPU functions
-function hostcall_host_wait(signal; maxlat=DEFAULT_HOSTCALL_LATENCY[], timeout=DEFAULT_HOSTCALL_TIMEOUT[])
-    @debug "Hostcall: Waiting on signal $signal"
+function hostcall_host_wait(signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_LATENCY[], timeout=DEFAULT_HOSTCALL_TIMEOUT[])
+    @debug "Hostcall: Waiting on signal $signal_handle"
     start_time = time_ns()
     while !Runtime.RT_EXITING[]
-        prev = HSA.signal_load_scacquire(signal.signal[])
+        prev = host_signal_load(signal_handle)
         if prev == DEVICE_MSG_SENTINEL
-            prev = HSA.signal_cas_scacq_screl(signal.signal[], DEVICE_MSG_SENTINEL, HOST_LOCK_SENTINEL)
+            prev = host_signal_cmpxchg!(
+                signal_handle, DEVICE_MSG_SENTINEL, HOST_LOCK_SENTINEL)
             if prev == DEVICE_MSG_SENTINEL
-                @debug "Hostcall: Device message on signal $signal"
+                @debug "Hostcall: Device message on signal $signal_handle"
                 return true
             end
         elseif prev == DEVICE_ERR_SENTINEL
-            @debug "Hostcall: Device error on signal $signal"
-            throw(HostCallException("Device error on signal $(signal.signal[])"))
+            @debug "Hostcall: Device error on signal $signal_handle"
+            throw(HostCallException("Device error on signal $signal_handle"))
         end
+
         if timeout !== nothing
             now_time = time_ns()
             diff_time = (now_time - start_time) / 10^9
             if diff_time > timeout
-                @debug "Hostcall: Signal wait timeout on signal $signal"
+                @debug "Hostcall: Signal wait timeout on signal $signal_handle"
                 return false
             end
         end

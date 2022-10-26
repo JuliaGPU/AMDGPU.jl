@@ -19,23 +19,23 @@
         ((1,1,1),2),
         (1,(1024,1,1)),
     )
-        eval(:(@roc groupsize=$groupsize $kernel()))
-        eval(:(@roc groupsize=$groupsize gridsize=$gridsize $kernel()))
-        eval(:(@roc gridsize=$gridsize $kernel()))
+        eval(:(wait(@roc groupsize=$groupsize $kernel())))
+        eval(:(wait(@roc groupsize=$groupsize gridsize=$gridsize $kernel())))
+        eval(:(wait(@roc gridsize=$gridsize $kernel())))
 
         threads = groupsize
         blocks = gridsize .÷ groupsize
-        eval(:(@roc threads=$threads $kernel()))
-        eval(:(@roc blocks=$blocks $kernel()))
-        eval(:(@roc threads=$threads blocks=$blocks $kernel()))
+        eval(:(wait(@roc threads=$threads $kernel())))
+        eval(:(wait(@roc blocks=$blocks $kernel())))
+        eval(:(wait(@roc threads=$threads blocks=$blocks $kernel())))
     end
 
     # Device/queue selection and aliases
     # FIXME: Test that device/queue are used!
-    eval(:(@roc device=$device $kernel()))
-    eval(:(@roc device=$device queue=$queue $kernel()))
-    eval(:(@roc queue=$queue $kernel()))
-    eval(:(@roc stream=$queue $kernel()))
+    eval(:(wait(@roc device=$device $kernel())))
+    eval(:(wait(@roc device=$device queue=$queue $kernel())))
+    eval(:(wait(@roc queue=$queue $kernel())))
+    eval(:(wait(@roc stream=$queue $kernel())))
 
     # Non-default queue
     queue2 = ROCQueue()
@@ -43,15 +43,20 @@
     @test sig.queue === queue2
 
     # Group size validity
-    @test_throws ArgumentError eval(:(@roc groupsize=0 $kernel()))
-    eval(:(@roc groupsize=1024 $kernel()))
-    @test_throws ArgumentError eval(:(@roc groupsize=1025 $kernel()))
-    @test_throws ArgumentError eval(:(@roc groupsize=(1024,2) $kernel()))
-    @test_throws ArgumentError eval(:(@roc groupsize=(512,2,2) $kernel()))
+    @test_throws ArgumentError eval(:(wait(@roc groupsize=0 $kernel())))
+    eval(:(wait(@roc groupsize=1024 $kernel())))
+    @test_throws ArgumentError eval(:(wait(@roc groupsize=1025 $kernel())))
+    @test_throws ArgumentError eval(:(wait(@roc groupsize=(1024,2) $kernel())))
+    @test_throws ArgumentError eval(:(wait(@roc groupsize=(512,2,2) $kernel())))
 
     # No-launch
-    @test eval(:(@roc launch=true $kernel())) isa AMDGPU.ROCKernelSignal
-    @test eval(:(@roc launch=false $kernel())) isa Runtime.HostKernel
+    kersig = eval(:(@roc launch=true $kernel()))
+    @test isa(kersig, AMDGPU.ROCKernelSignal)
+    wait(kersig)
+
+    host_kernel = eval(:(@roc launch=false $kernel()))
+    @test isa(host_kernel, Runtime.HostKernel)
+
     @test_throws Exception eval(:(@roc launch=1 $kernel())) # TODO: ArgumentError
 end
 

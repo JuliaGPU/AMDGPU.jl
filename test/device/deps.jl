@@ -1,7 +1,7 @@
 @testset "Kernel Dependencies" begin
     function kernel(sig, waitval, A, val)
         i = workitemIdx().x
-        Device.hostcall_device_signal_wait(sig, waitval)
+        AMDGPU.Device.hostcall_device_signal_wait(sig, waitval)
         A[i] = val
         return nothing
     end

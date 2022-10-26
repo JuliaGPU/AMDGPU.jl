@@ -104,5 +104,4 @@ wait(@roc memset_kernel(RA,0x3))
 
 @test all(collect(RA)[1:2] .== 0x3)
 @test all(collect(RA)[3:4] .== 0x0)
-
 end

@@ -112,25 +112,32 @@ end
 
 @testset "Per-wavefront" begin
     kernel() = @rocprintf :wave "[%d] " workitemIdx().x
+    wsize::Int64 = AMDGPU.Runtime.wavefrontsize(ROCDevice())
 
     # One group, one wavefront
     exp = "[1] "
-    _, msg = @grab_output wait(@roc groupsize=8 kernel())
+    _, msg = @grab_output wait(@roc groupsize=1 kernel())
     @test msg == exp
 
     # One group, multiple wavefronts
-    exp = reduce(*, ["[$i] " for i in [1, 65]])
-    _, msg = @grab_output wait(@roc groupsize=128 kernel())
+    groupsize = 128
+    exp = reduce(*, ["[$i] " for i in collect(1:wsize:groupsize)])
+    _, msg = @grab_output wait(@roc groupsize=groupsize kernel())
     @test msg == exp
 
     # Multiple groups, one wavefront each
-    exp = reduce(*, ["[$i] " for i in [1, 1, 1, 1]])
-    _, msg = @grab_output wait(@roc groupsize=64 gridsize=256 kernel())
+    gridsize = 256
+    exp = repeat("[1] ", gridsize ÷ wsize)
+    _, msg = @grab_output(wait(@roc groupsize=wsize gridsize=gridsize kernel()))
     @test msg == exp
 
     # Multiple groups, multiple wavefronts each
-    exp = reduce(*, ["[$i] " for i in [1, 65, 1, 65]])
-    _, msg = @grab_output wait(@roc groupsize=128 gridsize=256 kernel())
+    groupsize = 128
+    n_groups = gridsize ÷ groupsize
+    exp = repeat(
+        reduce(*, ["[$i] " for i in collect(1:wsize:groupsize)]),
+        n_groups)
+    _, msg = @grab_output(wait(@roc groupsize=128 gridsize=256 kernel()))
     @test msg == exp
 end
 

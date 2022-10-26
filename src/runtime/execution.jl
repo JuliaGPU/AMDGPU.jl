@@ -65,13 +65,11 @@ end
 
 @doc (@doc AbstractKernel) HostKernel
 
-@inline function roccall(kernel::HostKernel, tt, args...; config=nothing, signal, device=nothing, kwargs...)
-    device = something(device, AMDGPU.default_device())
-    queue = signal.queue
+@inline function roccall(kernel::HostKernel, tt, args...; signal::ROCKernelSignal, config=nothing, kwargs...)
     if config !== nothing
-        roccall(kernel.fun, tt, args...; kwargs..., config(kernel)..., queue, signal)
+        roccall(signal, tt, args...; config(kernel)..., kwargs...)
     else
-        roccall(kernel.fun, tt, args...; kwargs..., queue, signal)
+        roccall(signal, tt, args...; kwargs...)
     end
 end
 
@@ -85,9 +83,7 @@ end
 export roccall
 
 """
-    roccall(f::ROCFunction, types, values...;
-            queue::ROCQueue, signal::ROCKernelSignal,
-            groupsize::ROCDim, gridsize::ROCDim)
+    roccall(signal::ROCKernelSignal, types, values...; groupsize::ROCDim, gridsize::ROCDim)
 
 `ccall`-like interface for launching a ROC function `f` on a GPU.
 
@@ -114,8 +110,10 @@ roccall
 
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function roccall(f::ROCFunction, tt::Type, args::Vararg{Any,N}; queue::ROCQueue,
-                            signal::ROCKernelSignal, groupsize::ROCDim=1, gridsize::ROCDim=groupsize) where N
+@generated function roccall(
+    signal::ROCKernelSignal, tt::Type, args::Vararg{Any,N};
+    groupsize::ROCDim=1, gridsize::ROCDim=groupsize,
+) where N
 
     # the type of `tt` is Type{Tuple{<:DataType...}}
     types = tt.parameters[1].parameters
@@ -136,7 +134,7 @@ roccall
 
     append!(ex.args, (quote
         #GC.@preserve $(converted_args...) begin
-            launch_kernel!(queue, signal, f, groupsize, gridsize, ($(arg_ptrs...),))
+            launch_kernel!(signal, groupsize, gridsize, ($(arg_ptrs...),))
         #end
     end).args)
 
@@ -157,7 +155,7 @@ end
 # FIXME: duplication with roccall
 @generated function dynamic_roccall(f::Ptr{Cvoid}, tt::Type, args...;
                                      blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
-                                     stream=CuDefaultStream())
+                                     queue=default_queue())
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
     ex = quote

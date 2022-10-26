@@ -16,10 +16,10 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
 
 # we need a generated function to get an args array,
 # without having to inspect the types at runtime
-@generated function launch_kernel!(queue::ROCQueue, signal::ROCKernelSignal, f::ROCFunction,
-                                   groupsize::ROCDim, gridsize::ROCDim,
-                                   args::NTuple{N,Any}) where N
-
+@generated function launch_kernel!(
+    signal::ROCKernelSignal, groupsize::ROCDim,
+    gridsize::ROCDim, args::NTuple{N,Any},
+) where N
     all(isbitstype, args.parameters) ||
         throw(ArgumentError("Arguments to kernel should be bitstype."))
 
@@ -38,20 +38,17 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             # validate launch parameters
             groupsize, gridsize = normalize_launch_dimensions(groupsize, gridsize)
 
-            # access kernel instance
-            kernel = signal.kernel
-
             # launch kernel
             lock($RT_LOCK)
             try
-                push!($_active_kernels[queue], signal)
+                push!($_active_kernels[signal.queue], signal)
             finally
                 unlock($RT_LOCK)
             end
-            launch_kernel!(queue, kernel, signal.signal, groupsize, gridsize)
+            launch_kernel!(signal.queue, signal.kernel, signal.signal, groupsize, gridsize)
 
             # preserve kernel and arguments
-            $preserve!(signal, kernel)
+            $preserve!(signal, signal.kernel)
             for arg in args
                 $preserve!(signal, arg)
             end
@@ -65,7 +62,9 @@ struct ROCSignalSet{T}
     signals::Vector{ROCSignal}
 end
 ROCSignalSet{T}() where T = ROCSignalSet{T}(ROCSignal[])
+
 Base.wait(ss::ROCSignalSet{HSA.BarrierAndPacket}) = wait.(ss.signals)
+
 function Base.wait(ss::ROCSignalSet{HSA.BarrierOrPacket})
     #= FIXME
     # We need to hack around the fact that barrier OR packets don't handle more
@@ -108,9 +107,11 @@ copied to the internal kernel parameter buffer, or a pointer to device memory.
 
 This is a low-level call, preferably use [`roccall`](@ref) instead.
 """
-function launch_kernel!(queue::ROCQueue, kernel::ROCKernel, signal::ROCSignal,
-                        groupsize::ROCDim3, gridsize::ROCDim3)
-    enqueue_packet!(HSA.KernelDispatchPacket, queue, signal) do _packet
+function launch_kernel!(
+    queue::ROCQueue, kernel::ROCKernel, signal::ROCSignal,
+    groupsize::ROCDim3, gridsize::ROCDim3,
+)
+    enqueue_packet!(HSA.KernelDispatchPacket, queue) do _packet
         @set! _packet.setup = 3 << Int(HSA.KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
         @set! _packet.workgroup_size_x = groupsize.x
         @set! _packet.workgroup_size_y = groupsize.y
@@ -132,7 +133,7 @@ function launch_barrier!(T, queue::ROCQueue, signals::Vector{ROCSignal})
     if !isempty(signals)
         for signal_set in Iterators.partition(signals, 5)
             comp_signal = ROCSignal()
-            enqueue_packet!(T, queue, comp_signal) do _packet
+            enqueue_packet!(T, queue) do _packet
                 @set! _packet.dep_signal = ntuple(i->length(signal_set)>=i ? signal_set[i].signal[] : HSA.Signal(0), 5)
                 _packet
             end
@@ -152,7 +153,7 @@ end
     ret void
     """, Cvoid, Tuple{Ptr{UInt16}, UInt16}, x, v)
 
-function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue, signal::ROCSignal)
+function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue)
     # Obtain the current queue write index and queue size
     queue_ptr = @atomic queue.queue
     active = @atomic queue.active
