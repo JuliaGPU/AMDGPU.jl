@@ -102,7 +102,7 @@ function create_executable(device, entry, obj; globals=())
     return ROCExecutable(device, data, entry; globals=globals)
 end
 
-function create_kernel_queue(;
+function get_kernel_queue(;
     queue::Union{ROCQueue, Nothing}, device::Union{ROCDevice, Nothing},
 )
     if !isnothing(queue) && !isnothing(device)
@@ -116,13 +116,12 @@ function create_kernel_queue(;
         end
     end
     isnothing(queue) && isnothing(device) && return default_queue()
-    isnothing(queue) && return ROCQueue(device)
+    isnothing(queue) && return default_queue(device)
     queue
 end
 
 ## Event creation
-function create_event(
-    kernel::ROCKernel;
+function create_event(kernel::ROCKernel;
     signal::Union{ROCKernelSignal, ROCSignal} = ROCSignal(),
     device::Union{ROCDevice, Nothing} = nothing,
     queue::Union{ROCQueue, Nothing} = nothing,
@@ -131,7 +130,7 @@ function create_event(
     if signal isa ROCKernelSignal
         return signal
     end
-    kernel_queue = create_kernel_queue(; queue, device)
+    kernel_queue = get_kernel_queue(; queue, device)
     return ROCKernelSignal(signal, kernel_queue, kernel; kwargs...)
 end
 
@@ -372,7 +371,7 @@ macro roc(ex...)
     args = call.args[2:end]
 
     code = quote end
-    device_kw, macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs, kernel_kwargs = split_kwargs(kwargs)
+    device_kwargs, macro_kwargs, compiler_kwargs, call_kwargs, signal_kwargs, kernel_kwargs = split_kwargs(kwargs)
     simplify_call_kwargs!(call_kwargs)
     vars, var_exprs = assign_args!(code, args)
 
@@ -430,7 +429,7 @@ macro roc(ex...)
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $rocfunction(
                         $kernel_f, $kernel_tt;
-                        $(device_kw...), $(compiler_kwargs...))
+                        $(device_kwargs...), $(compiler_kwargs...))
 
                     if $wait
                         foreach($wait!, ($(var_exprs...),))
@@ -439,7 +438,7 @@ macro roc(ex...)
                         local $kernel_instance = $create_kernel(
                             $kernel, $kernel_f, $kernel_args; $(kernel_kwargs...))
                         local $signal = $create_event(
-                            $kernel_instance; $(device_kw...), $(signal_kwargs...))
+                            $kernel_instance; $(device_kwargs...), $(signal_kwargs...))
                         $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
                         if $mark
                             foreach(x->$mark!(x, $signal), ($(var_exprs...),))

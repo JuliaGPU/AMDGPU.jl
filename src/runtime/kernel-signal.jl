@@ -50,21 +50,20 @@ function Base.wait(
     end
 
     cleanup!(kersig; finished, check_exceptions)
-    finished
+    return finished
 end
 
 function cleanup!(
     kersig::ROCKernelSignal; finished::Bool, check_exceptions::Bool = true,
 )
-    (@atomic kersig.active) || return nothing
-    @atomic kersig.active = false
+    _, succ = @atomicreplace kersig.active true => false
+    succ || return
 
     unpreserve!(kersig)
-    finalize(kersig.kernel)
 
     exe::ROCExecutable = kersig.kernel.exe
     mod::ROCModule = EXE_TO_MODULE_MAP[exe].value
-    signal_handle::UInt64 = (kersig.signal.signal[]::HSA.Signal).handle
+    signal_handle::UInt64 = get_handle(kersig.signal)
     if finished
         ex = get_exception(exe; signal_handle, check_exceptions)
         isnothing(ex) || (kersig.exception = ex;)

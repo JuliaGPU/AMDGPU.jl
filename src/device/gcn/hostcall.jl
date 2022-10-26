@@ -340,7 +340,7 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
             # the device has read from these buffers. Therefore we wait either for
             # READY_SENTINEL or else an error signal.
             while !Runtime.RT_EXITING[]
-                prev = Runtime.get_value(signal)
+                prev = host_signal_load(signal.signal[])
                 if prev == READY_SENTINEL || prev == HOST_ERR_SENTINEL || prev == DEVICE_ERR_SENTINEL
                     if isassigned(ret_buf)
                         Mem.free(ret_buf[])

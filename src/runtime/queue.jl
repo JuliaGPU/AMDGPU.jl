@@ -101,13 +101,13 @@ function has_active_kernels(q::ROCQueue)
     lock(RT_LOCK) do
         active_kernels = get(_active_kernels, q, nothing)
         isnothing(active_kernels) && return false
-        !isempty(active_kernels)
+        return !isempty(active_kernels)
     end
 end
 
 function kill_queue!(queue::ROCQueue)
-    (@atomic queue.active) || return nothing
-    @atomic queue.active = false
+    _, succ = @atomicreplace queue.active true => false
+    succ || return
 
     lock(RT_LOCK) do
         if get(DEFAULT_QUEUES, queue.device, nothing) == queue
@@ -123,7 +123,7 @@ function kill_queue!(queue::ROCQueue)
                 notify(kersig)
             end
         end
-        # Delete queue from global holders.
+        # Clear active kernel set.
         delete!(_active_kernels, queue)
     end
 

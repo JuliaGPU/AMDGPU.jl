@@ -25,11 +25,9 @@ function delete_metadata!(m::ROCModule; signal_handle::UInt64 = UInt64(0))
     only_handle = signal_handle != UInt64(0)
     for i in length(m.metadata):-1:1
         meta = m.metadata[i]
+        Mem.free(meta.buf)
         if only_handle && (meta.kern == signal_handle)
-            Mem.free(meta.buf)
             deleteat!(m.metadata, i)
-        else
-            Mem.free(meta.buf)
         end
     end
     only_handle || empty!(m.metadata)

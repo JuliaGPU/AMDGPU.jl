@@ -13,12 +13,17 @@ end
 Adapt.adapt_structure(::Adaptor, sig::ROCSignal) = sig.signal[]
 
 """
+    ROCSignal(init::Integer = 1; ipc::Bool=true) -> ROCSignal
+
+Allocates an HSA signal object which can be used to communicate values
+between the host and device.
+
 - `ipc::Bool`: If `true` signal may be used for interprocess communication.
     IPC signals can be read, written, and waited on from any process.
 """
-function ROCSignal(init::Integer = 1; interrupt::Bool = true, ipc::Bool = true)
+function ROCSignal(init::Integer = 1; ipc::Bool = true)
     signal = ROCSignal(Ref{HSA.Signal}())
-    if interrupt || ipc
+    if ipc
         attrs = UInt32(0)
         ipc && (attrs |= HSA.AMD_SIGNAL_IPC;)
 
@@ -74,7 +79,6 @@ function Base.wait(
         # when kernels need to perform HostCalls.
         yield()
     end
-    nothing
 end
 
 function Base.wait(signal::HSA.Signal; timeout = DEFAULT_SIGNAL_TIMEOUT[])
