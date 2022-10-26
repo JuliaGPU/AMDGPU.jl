@@ -162,16 +162,17 @@ end
 # Load ROCm external libraries
 if functional(:hip)
     functional(:rocblas) && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
-    #functional(:rocsparse) && include("sparse/rocSPARSE.jl")
-    #functional(:rocsolver) && include("solver/rocSOLVER.jl")
+    #functional(:rocsparse)  && include("sparse/rocSPARSE.jl")
+    #functional(:rocsolver)   && include("solver/rocSOLVER.jl")
     #functional(:rocalution) && include("solver/rocALUTION.jl")
     if functional(:rocrand)
         include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
-        include(joinpath(@__DIR__, "random.jl"))
     end
-    functional(:rocfft) && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-    #functional(:miopen) && include("dnn/MIOpen.jl")
+    functional(:rocfft)      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
+    #functional(:miopen)     && include("dnn/MIOpen.jl")
 end
+
+include("random.jl")
 
 function __init__()
     atexit() do
