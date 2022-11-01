@@ -168,8 +168,8 @@ if functional(:hip)
     if functional(:rocrand)
         include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
     end
-    functional(:rocfft)      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-    #functional(:miopen)     && include("dnn/MIOpen.jl")
+    functional(:rocfft) && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
+    functional(:MIOpen) && include("dnn/MIOpen.jl")
 end
 
 include("random.jl")

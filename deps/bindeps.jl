@@ -162,7 +162,7 @@ const rocm_ext_libs = [
     (:rocalution, nothing),
     (:rocrand, :rocRAND_jll),
     (:rocfft, nothing),
-    (:MIOpen, nothing),
+    (:MIOpen, :MIOpen_jll),
 ]
 
 function bindeps_setup()
@@ -181,7 +181,7 @@ function bindeps_setup()
         :device_libs_build_reason => "unknown",
     )
     for (name, _) in rocm_ext_libs
-        lib = Symbol(:lib, lowercase(string(name)))
+        lib = Symbol(:lib, name == :MIOpen ? string(name) : lowercase(string(name)))
         config[lib] = nothing
         config[Symbol(name, :_configured)] = false
         config[Symbol(name, :_build_reason)] = "unknown"
@@ -359,7 +359,7 @@ function bindeps_setup()
         ### Find HIP-based libraries
         @sync for (name, pkg) in rocm_ext_libs
             @async begin
-            lib = Symbol(:lib, lowercase(string(name)))
+            lib = Symbol(:lib, name == :MIOpen ? string(name) : lowercase(string(name)))
             if use_artifacts
                 if pkg !== nothing
                     loaded, available, error_str = safe_import(pkg)
