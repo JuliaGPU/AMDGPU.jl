@@ -898,44 +898,30 @@ end
 for (fname, elty) in
         ((:rocblas_dgemm,:Float64),
          (:rocblas_sgemm,:Float32),
-         (:rocblasHgemm, :Float16),
+         (:rocblas_hgemm,:Float16),
          (:rocblas_zgemm,:ComplexF64),
          (:rocblas_cgemm,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgemm(
-        #   rocblas_handle handle, rocblas_operation_t transa, rocblas_operation_t transb,
-        #   int m, int n, int k,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb, const double *beta,
-        #   double *C, int ldc)
-        function gemm!(transA::Char,
-                       transB::Char,
-                       alpha::($elty),
-                       A::ROCVecOrMat{$elty},
-                       B::ROCVecOrMat{$elty},
-                       beta::($elty),
-                       C::ROCVecOrMat{$elty})
+        function gemm!(
+            transA::Char, transB::Char, alpha::($elty),
+            A::ROCVecOrMat{$elty}, B::ROCVecOrMat{$elty}, beta::($elty),
+            C::ROCVecOrMat{$elty},
+        )
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)
             n = size(B, transB == 'N' ? 2 : 1)
             if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
                 throw(DimensionMismatch(""))
             end
-            roctransA = rocblasop(transA)
-            roctransB = rocblasop(transB)
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
-            wait!((A,B,C))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_operation_t,
-                          rocblas_operation_t, Cint, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint),
-                         handle(), roctransA,
-                         roctransB, m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta),
-                         C, ldc)
-            mark!((A,B,C),rocblas_get_stream(handle()))
+
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+            ldc = max(1, stride(C, 2))
+            wait!((A, B, C))
+            $(fname)(
+                handle(), rocblasop(transA), rocblasop(transB),
+                m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
+            mark!((A, B, C),rocblas_get_stream(handle()))
             C
         end
         function gemm(transA::Char,
@@ -958,81 +944,124 @@ end
 
 # helper function to get a device array of device pointers
 function device_batch(batch::Array{T}) where {T<:ROCArray}
-  E = eltype(T)
-  ptrs = [Base.unsafe_convert(Ptr{E}, arr.buf) for arr in batch]
-  ROCArray(ptrs)
+    E = eltype(T)
+    ptrs = [Base.unsafe_convert(Ptr{E}, arr.buf) for arr in batch]
+    ROCArray(ptrs)
+end
+
+function device_batch(x::ROCArray{T, 3}) where T
+    batch_count = size(x, 3)
+    shift = size(x, 1) * size(x, 2) * sizeof(T)
+    ptrs = [
+        Base.unsafe_convert(Ptr{T}, AMDGPU.Mem.view(x.buf, shift * (i - 1)))
+        for i in 1:batch_count]
+    ROCArray(ptrs)
+end
+
+@inline function check_gemm_batched_dims(
+    transA::Char, transB::Char, A::ROCArray, B::ROCArray, C::ROCArray,
+)
+    if (size(A, 3) != size(B, 3)) || (size(A, 3) != size(C, 3))
+        throw(DimensionMismatch(
+            "Last dimension (batch count) must be the same " *
+            "for `A`, `B` and `C`, instead:\n" *
+            "- size(A, 3)=$(size(A, 3))\n" *
+            "- size(B, 3)=$(size(B, 3))\n" *
+            "- size(C, 3)=$(size(C, 3))\n"))
+    end
+    m, k = size(A, transA == 'N' ? 1 : 2), size(A, transA == 'N' ? 2 : 1)
+    n, g = size(B, transB == 'N' ? 2 : 1), size(B, transB == 'N' ? 1 : 2)
+    if m != size(C, 1) || n != size(C, 2) || k != g
+        throw(DimensionMismatch(
+            "Invalid dimensions for `A`, `B` and `C`.\n" *
+            "- size(A)=$(size(A)), transA=$transA \n" *
+            "- size(B)=$(size(B)), transB=$transB \n" *
+            "- size(C)=$(size(C))\n"))
+    end
+    lda = max(1, stride(A, 2))
+    ldb = max(1, stride(B, 2))
+    ldc = max(1, stride(C, 2))
+    m, k, n, lda, ldb, ldc
+end
+
+@inline function check_gemm_batched_dims(
+    transA::Char, transB::Char, A::Array, B::Array, C::Array,
+)
+    if length(A) != length(B) || length(A) != length(C)
+        throw(DimensionMismatch(
+            "Batch count must be the same for `A`, `B` and `C`, instead:\n" *
+            "- length(A)=$(length(A))\n" *
+            "- length(B)=$(length(B))\n" *
+            "- length(C)=$(length(C))\n"))
+    end
+    m, n, k = 0, 0, 0
+    for (i, (As, Bs, Cs)) in enumerate(zip(A, B, C))
+        m = size(As, transA == 'N' ? 1 : 2)
+        k = size(As, transA == 'N' ? 2 : 1)
+        n = size(Bs, transB == 'N' ? 2 : 1)
+        g = size(Bs, transB == 'N' ? 1 : 2)
+        if m != size(Cs, 1) || n != size(Cs, 2) || k != g
+            throw(DimensionMismatch(
+                "Invalid dimensions for $i-th entry in `A`, `B` and `C`.\n" *
+                "- size(A[$i])=$(size(As)), transA=$transA \n" *
+                "- size(B[$i])=$(size(Bs)), transB=$transB \n" *
+                "- size(C[$i])=$(size(Cs))\n"))
+        end
+    end
+    lda = max(1, stride(A[1], 2))
+    ldb = max(1, stride(B[1], 2))
+    ldc = max(1, stride(C[1], 2))
+    m, k, n, lda, ldb, ldc
 end
 
 ## (GE) general matrix-matrix multiplication batched
 for (fname, elty) in
-        ((:rocblas_dgemmBatched,:Float64),
-         (:rocblas_sgemmBatched,:Float32),
-         (:rocblas_zgemmBatched,:ComplexF64),
-         (:rocblas_cgemmBatched,:ComplexF32))
+        ((:rocblas_dgemm_batched,:Float64),
+         (:rocblas_sgemm_batched,:Float32),
+         (:rocblas_hgemm_batched,:Float16),
+         (:rocblas_zgemm_batched,:ComplexF64),
+         (:rocblas_cgemm_batched,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgemmBatched(
-        #   rocblas_handle handle, rocblas_operation_t transa, rocblas_operation_t transb,
-        #   int m, int n, int k,
-        #   const double *alpha, const double **A, int lda,
-        #   const double **B, int ldb, const double *beta,
-        #   double **C, int ldc, int batchCount)
-        function gemm_batched!(transA::Char,
-                               transB::Char,
-                               alpha::($elty),
-                               A::Array{ROCMatrix{$elty},1},
-                               B::Array{ROCMatrix{$elty},1},
-                               beta::($elty),
-                               C::Array{ROCMatrix{$elty},1})
-            if( length(A) != length(B) || length(A) != length(C) )
-                throw(DimensionMismatch(""))
-            end
-            for (As,Bs,Cs) in zip(A,B,C)
-                m = size(As, transA == 'N' ? 1 : 2)
-                k = size(As, transA == 'N' ? 2 : 1)
-                n = size(Bs, transB == 'N' ? 2 : 1)
-                if m != size(Cs,1) || n != size(Cs,2) || k != size(Bs, transB == 'N' ? 1 : 2)
-                    throw(DimensionMismatch(""))
-                end
-            end
-            m = size(A[1], transA == 'N' ? 1 : 2)
-            k = size(A[1], transA == 'N' ? 2 : 1)
-            n = size(B[1], transB == 'N' ? 2 : 1)
-            roctransA = rocblasop(transA)
-            roctransB = rocblasop(transB)
-            lda = max(1,stride(A[1],2))
-            ldb = max(1,stride(B[1],2))
-            ldc = max(1,stride(C[1],2))
-            Aptrs = device_batch(A)
-            Bptrs = device_batch(B)
-            Cptrs = device_batch(C)
+        function gemm_batched!(
+            transA::Char, transB::Char, alpha::($elty),
+            A::T, B::T, beta::($elty), C::T,
+        ) where T <: Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}}
+            m, k, n, lda, ldb, ldc = check_gemm_batched_dims(
+                transA, transB, A, B, C)
             wait!(A)
             wait!(B)
             wait!(C)
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_operation_t,
-                          rocblas_operation_t, Cint, Cint, Cint, Ptr{$elty},
-                          Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}}, Cint, Ptr{$elty},
-                          Ptr{Ptr{$elty}}, Cint, Cint),
-                         handle(), roctransA,
-                         roctransB, m, n, k, Ref(alpha), Aptrs, lda, Bptrs, ldb, Ref(beta),
-                         Cptrs, ldc, length(A))
-            mark!(A,rocblas_get_stream(handle()))
-            mark!(B,rocblas_get_stream(handle()))
-            mark!(C,rocblas_get_stream(handle()))
+            $(fname)(
+                handle(), rocblasop(transA), rocblasop(transB),
+                m, n, k, Ref(alpha),
+                device_batch(A), lda, device_batch(B), ldb, Ref(beta),
+                device_batch(C), ldc, size(A, 3))
+            mark!(A, rocblas_get_stream(handle()))
+            mark!(B, rocblas_get_stream(handle()))
+            mark!(C, rocblas_get_stream(handle()))
             C
         end
-        function gemm_batched(transA::Char,
-                      transB::Char,
-                      alpha::($elty),
-                      A::Array{ROCMatrix{$elty},1},
-                      B::Array{ROCMatrix{$elty},1})
-            C = ROCMatrix{$elty}[similar( B[1], $elty, (size(A[1], transA == 'N' ? 1 : 2),size(B[1], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
-            gemm_batched!(transA, transB, alpha, A, B, zero($elty), C )
+        function gemm_batched(
+            transA::Char, transB::Char, alpha::($elty), A::T, B::T,
+        ) where T <: Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}}
+            if T isa Vector
+                C = ROCMatrix{$elty}[
+                    similar(B[i], $elty, (
+                        size(A[i], transA == 'N' ? 1 : 2),
+                        size(B[i], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
+            else
+                m = size(A, transA == 'N' ? 1 : 2)
+                k = size(B, transB == 'N' ? 2 : 1)
+                batch_count = size(A, 3)
+                C = similar(A, $elty, (m, k, batch_count))
+            end
+            gemm_batched!(transA, transB, alpha, A, B, zero($elty), C)
         end
-        function gemm_batched(transA::Char,
-                      transB::Char,
-                      A::Array{ROCMatrix{$elty},1},
-                      B::Array{ROCMatrix{$elty},1})
+        function gemm_batched(
+            transA::Char, transB::Char,
+            A::Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
+            B::Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
+        )
             gemm_batched(transA, transB, one($elty), A, B)
         end
     end

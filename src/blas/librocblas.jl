@@ -136,3 +136,43 @@ function rocblas_sgemv(handle, trans::rocblas_operation_t, m::rocblas_int, n::ro
                      handle, trans, m, n, ref_alpha, pointer(A), lda, pointer(x), incx, ref_beta, pointer(y), incy)
     end
 end
+
+function rocblas_sgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @check ccall((:rocblas_sgemm, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{Cfloat}, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}, Ptr{Cfloat}, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+end
+
+function rocblas_dgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @check ccall((:rocblas_dgemm, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{Cdouble}, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}, Ptr{Cdouble}, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+end
+
+function rocblas_hgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @check ccall((:rocblas_hgemm, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{rocblas_half}, Ptr{rocblas_half}, rocblas_int, Ptr{rocblas_half}, rocblas_int, Ptr{rocblas_half}, Ptr{rocblas_half}, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+end
+
+function rocblas_cgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @check ccall((:rocblas_cgemm, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{rocblas_float_complex}, Ptr{rocblas_float_complex}, rocblas_int, Ptr{rocblas_float_complex}, rocblas_int, Ptr{rocblas_float_complex}, Ptr{rocblas_float_complex}, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+end
+
+function rocblas_zgemm(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+    @check ccall((:rocblas_zgemm, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{rocblas_double_complex}, Ptr{rocblas_double_complex}, rocblas_int, Ptr{rocblas_double_complex}, rocblas_int, Ptr{rocblas_double_complex}, Ptr{rocblas_double_complex}, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+end
+
+function rocblas_sgemm_batched(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+    @check ccall((:rocblas_sgemm_batched, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{Cfloat}, Ptr{Ptr{Cfloat}}, rocblas_int, Ptr{Ptr{Cfloat}}, rocblas_int, Ptr{Cfloat}, Ptr{Ptr{Cfloat}}, rocblas_int, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+end
+
+function rocblas_dgemm_batched(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+    @check ccall((:rocblas_dgemm_batched, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{Cdouble}, Ptr{Ptr{Cdouble}}, rocblas_int, Ptr{Ptr{Cdouble}}, rocblas_int, Ptr{Cdouble}, Ptr{Ptr{Cdouble}}, rocblas_int, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+end
+
+function rocblas_hgemm_batched(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+    @check ccall((:rocblas_hgemm_batched, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{rocblas_half}, Ptr{Ptr{rocblas_half}}, rocblas_int, Ptr{Ptr{rocblas_half}}, rocblas_int, Ptr{rocblas_half}, Ptr{Ptr{rocblas_half}}, rocblas_int, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+end
+
+function rocblas_cgemm_batched(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+    @check ccall((:rocblas_cgemm_batched, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{rocblas_float_complex}, Ptr{Ptr{rocblas_float_complex}}, rocblas_int, Ptr{Ptr{rocblas_float_complex}}, rocblas_int, Ptr{rocblas_float_complex}, Ptr{Ptr{rocblas_float_complex}}, rocblas_int, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+end
+
+function rocblas_zgemm_batched(handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+    @check ccall((:rocblas_zgemm_batched, librocblas), rocblas_status_t, (rocblas_handle, rocblas_operation_t, rocblas_operation_t, rocblas_int, rocblas_int, rocblas_int, Ptr{rocblas_double_complex}, Ptr{Ptr{rocblas_double_complex}}, rocblas_int, Ptr{Ptr{rocblas_double_complex}}, rocblas_int, Ptr{rocblas_double_complex}, Ptr{Ptr{rocblas_double_complex}}, rocblas_int, rocblas_int), handle, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc, batch_count)
+end

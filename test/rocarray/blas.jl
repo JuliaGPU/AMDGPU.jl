@@ -124,4 +124,44 @@ end
     end
 end
 
-end # testset BLAS
+@testset "Level 3 BLAS" begin
+    @testset "gemm()" begin
+        for T in (Float16, Float32, Float64, ComplexF32, ComplexF64)
+            for at in ('N', 'T'), bt in ('N', 'T')
+                A = rand(T, 4, 4)
+                B = rand(T, 4, 4)
+                RA = ROCArray(A)
+                RB = ROCArray(B)
+
+                RC = rocBLAS.gemm(at, bt, RA, RB)
+                C =
+                    (at == 'T' ? transpose(A) : A) *
+                    (bt == 'T' ? transpose(B) : B)
+                @test Array(RC) ≈ C
+            end
+        end
+    end
+
+    @testset "gemm_batched()" begin
+        for T in (Float16, Float32, Float64, ComplexF32, ComplexF64)
+            for at in ('N', 'T'), bt in ('N', 'T')
+                batch_count = 3
+                A = rand(T, 4, 4, batch_count)
+                B = rand(T, 4, 4, batch_count)
+                RA = ROCArray(A)
+                RB = ROCArray(B)
+
+                RC = rocBLAS.gemm_batched(at, bt, RA, RB)
+                C = Array(RC)
+                for i in 1:batch_count
+                    c =
+                        (at == 'T' ? transpose(A[:, :, i]) : A[:, :, i]) *
+                        (bt == 'T' ? transpose(B[:, :, i]) : B[:, :, i])
+                    @test C[:, :, i] ≈ c
+                end
+            end
+        end
+    end
+end
+
+end # testse BLAS
