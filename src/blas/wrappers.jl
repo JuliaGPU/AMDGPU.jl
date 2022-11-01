@@ -898,43 +898,30 @@ end
 for (fname, elty) in
         ((:rocblas_dgemm,:Float64),
          (:rocblas_sgemm,:Float32),
-         (:rocblasHgemm, :Float16),
+         (:rocblas_hgemm,:Float16),
          (:rocblas_zgemm,:ComplexF64),
          (:rocblas_cgemm,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgemm(
-        #   rocblas_handle handle, rocblas_operation_t transa, rocblas_operation_t transb,
-        #   int m, int n, int k,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb, const double *beta,
-        #   double *C, int ldc)
-        function gemm!(transA::Char,
-                       transB::Char,
-                       alpha::($elty),
-                       A::ROCVecOrMat{$elty},
-                       B::ROCVecOrMat{$elty},
-                       beta::($elty),
-                       C::ROCVecOrMat{$elty})
+        function gemm!(
+            transA::Char, transB::Char, alpha::($elty),
+            A::ROCVecOrMat{$elty}, B::ROCVecOrMat{$elty}, beta::($elty),
+            C::ROCVecOrMat{$elty},
+        )
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)
             n = size(B, transB == 'N' ? 2 : 1)
             if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
                 throw(DimensionMismatch(""))
             end
-            roctransA = rocblasop(transA)
-            roctransB = rocblasop(transB)
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
-            wait!((A,B,C))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_operation_t,
-                          rocblas_operation_t, Cint, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint),
-                         handle(), roctransA,
-                         roctransB, m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta),
-                         C, ldc)
+
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+            ldc = max(1, stride(C, 2))
+            wait!((A, B, C))
+
+            $(fname)(
+                handle(), rocblasop(transA), rocblasop(transB),
+                m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
             mark!((A,B,C),rocblas_get_stream(handle()))
             C
         end
