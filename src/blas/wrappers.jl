@@ -1029,13 +1029,17 @@ for (fname, elty) in
         ) where T <: Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}}
             m, k, n, lda, ldb, ldc = check_gemm_batched_dims(
                 transA, transB, A, B, C)
-            wait!((A, B, C))
+            wait!(A)
+            wait!(B)
+            wait!(C)
             $(fname)(
                 handle(), rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha),
                 device_batch(A), lda, device_batch(B), ldb, Ref(beta),
                 device_batch(C), ldc, size(A, 3))
-            mark!((A, B, C), rocblas_get_stream(handle()))
+            mark!(A, rocblas_get_stream(handle()))
+            mark!(B, rocblas_get_stream(handle()))
+            mark!(C, rocblas_get_stream(handle()))
             C
         end
         function gemm_batched(
