@@ -922,7 +922,7 @@ for (fname, elty) in
             $(fname)(
                 handle(), rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
-            mark!((A,B,C),rocblas_get_stream(handle()))
+            mark!((A, B, C),rocblas_get_stream(handle()))
             C
         end
         function gemm(transA::Char,
