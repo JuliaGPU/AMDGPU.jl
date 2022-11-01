@@ -918,7 +918,6 @@ for (fname, elty) in
             ldb = max(1, stride(B, 2))
             ldc = max(1, stride(C, 2))
             wait!((A, B, C))
-
             $(fname)(
                 handle(), rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
