@@ -9,7 +9,7 @@ const rocblas_int = Int32
 const rocblas_long = Int64
 const rocblas_float_complex = ComplexF32
 const rocblas_double_complex = ComplexF64
-const rocblas_half = Int16
+const rocblas_half = Float16
 const rocblas_half_complex = ComplexF32 # wtf???
 const rocblas_handle = Ptr{Nothing}
 

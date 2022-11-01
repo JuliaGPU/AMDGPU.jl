@@ -124,4 +124,23 @@ end
     end
 end
 
-end # testset BLAS
+@testset "Level 3 BLAS" begin
+    @testset "gemm_batched()" begin
+        for T in (Float16, Float32, Float64)
+            batch_count = 3
+            A = rand(T, 8, 4, batch_count)
+            B = rand(T, 8, 4, batch_count)
+            RA = ROCArray(A)
+            RB = ROCArray(B)
+
+            RC = rocBLAS.gemm_batched('T', 'N', RA, RB)
+            C = Array(RC)
+            for i in 1:batch_count
+                c = A[:, :, i]' * B[:, :, i]
+                @test C[:, :, i] ≈ c
+            end
+        end
+    end
+end
+
+end # testse BLAS
