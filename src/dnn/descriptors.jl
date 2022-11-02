@@ -33,10 +33,25 @@ end
 function TensorDescriptor(x::ROCArray{T}) where T
     check_ndims(x)
     dtype = get_miopen_data_type(T)
-    sizes = Int32[size(x)...]
-    # NOTE strides are in reversed order.
-    strides_ = Int32[strides(x)[end:-1:1]...]
+    # NOTE: Dims and strides are reversed to support WHCN convolutions.
+    sizes = Int32[reverse(size(x))...]
+    strides_ = Int32[reverse(strides(x))...]
     TensorDescriptor(dtype, ndims(x), sizes, strides_)
+end
+
+function Base.ndims(desc::TensorDescriptor)
+    nd = Ref{Int32}(0)
+    miopenGetTensorDescriptorSize(desc.handle, nd) |> check
+    Int64(nd[])
+end
+
+function get(desc::TensorDescriptor)
+    nd = ndims(desc)
+    dtype = Ref{miopenDataType_t}()
+    dims, stride = Vector{Int32}(undef, nd), Vector{Int32}(undef, nd)
+    miopenGetTensorDescriptor(
+        desc.handle, dtype, dims, stride) |> check
+    dtype[], dims, stride
 end
 
 mutable struct ConvolutionDescriptor
@@ -44,7 +59,7 @@ mutable struct ConvolutionDescriptor
 end
 
 function ConvolutionDescriptor(
-    dims::Int64,
+    n_dims::Int64,
     padding::Vector{Int32}, stride::Vector{Int32},
     dilation::Vector{Int32}, groups::Int64,
 )
@@ -53,9 +68,7 @@ function ConvolutionDescriptor(
 
     handle = handle_ref[]
     miopenInitConvolutionNdDescriptor(
-        handle,
-        dims, padding, stride, dilation,
-        miopenConvolution) |> check
+        handle, n_dims, padding, stride, dilation, miopenConvolution) |> check
     miopenSetConvolutionGroupCount(handle, groups) |> check
     d = ConvolutionDescriptor(handle)
 
@@ -63,4 +76,17 @@ function ConvolutionDescriptor(
         miopenDestroyConvolutionDescriptor(d_.handle) |> check
     end
     d
+end
+
+function get_output_size(
+    cdesc::ConvolutionDescriptor,
+    idesc::TensorDescriptor, wdesc::TensorDescriptor,
+)
+    nd = ndims(idesc)
+    out_nd = Ref{Int32}()
+    out_dims = Vector{Int32}(undef, nd)
+    miopenGetConvolutionNdForwardOutputDim(
+        cdesc.handle, idesc.handle, wdesc.handle, out_nd, out_dims) |> check
+    @assert nd == out_nd[]
+    NTuple{nd, Int32}(reverse(out_dims[1:out_nd[]]))
 end

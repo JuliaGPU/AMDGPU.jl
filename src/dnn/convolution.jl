@@ -99,15 +99,14 @@ function find_algorithm(
     conv_type::C, handle::miopenHandle_t, conv_args::ConvolutionArgs,
     a, a_desc, b, b_desc, conv_desc, c, c_desc,
 ) where C <: CONV_ALGOS
-    @show conv_type, typeof(conv_type)
-
     dev = GPUArrays.device(a)
     cache = get_benchmark_cache(conv_type, conv_args, dev)
     isnothing(cache) || return cache
 
     is_fwd = conv_type == Type{miopenConvFwdAlgorithm_t}
     workspace_size = get_workspace_size(conv_type;
-        handle, a_desc=(is_fwd ? b_desc : a_desc),
+        handle,
+        a_desc=(is_fwd ? b_desc : a_desc),
         b_desc=(is_fwd ? a_desc : b_desc), conv_desc, c_desc)
 
     workspace = Workspace(dev, workspace_size)
@@ -118,40 +117,60 @@ function find_algorithm(
     perf_results, workspace
 end
 
+function _get_conv_descriptors(args...; padding, stride, dilation, groups)
+    pi32, si32, di32 = Int32[padding...], Int32[stride...], Int32[dilation...]
+    descriptors = TensorDescriptor.(args)
+    conv_desc = ConvolutionDescriptor(ndims(args[1]) - 2, pi32, si32, di32, groups)
+    (descriptors..., conv_desc, pi32, si32, di32)
+end
+
 function convolution!(
-    y::ROCArray{T}, x::ROCArray{T}, w::ROCArray{T};
-    padding, stride, dilation, groups,
-) where T
-    padding_i32 = Int32[padding...]
-    stride_i32 = Int32[stride...]
-    dilation_i32 = Int32[dilation...]
-
-    # TODO check that it is in NCHW
-    # TODO check that device is the same
-
-    x_desc, w_desc, y_desc = TensorDescriptor.((x, w, y))
-    conv_desc = ConvolutionDescriptor(
-        ndims(x) - 2, padding_i32, stride_i32, dilation_i32, groups)
-
+    y::ROCArray{T, N}, ydesc::TensorDescriptor,
+    x::ROCArray{T, N}, xdesc::TensorDescriptor,
+    w::ROCArray{T, N}, wdesc::TensorDescriptor, cdesc::ConvolutionDescriptor;
+    padding, stride, dilation, groups
+) where {T, N}
     handle = get_handle()
-    conv_args = ConvolutionArgs(
-        x, w; handle, groups, padding=padding_i32,
-        stride=stride_i32, dilation=dilation_i32)
+    conv_args = ConvolutionArgs(x, w; handle, groups, padding, stride, dilation)
     perf_results, workspace = find_algorithm(
         miopenConvFwdAlgorithm_t, handle, conv_args,
-        x, x_desc, w, w_desc, conv_desc, y, y_desc)
+        x, xdesc, w, wdesc, cdesc, y, ydesc)
 
     alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
     miopenConvolutionForward(
-        handle, alpha, x_desc.handle, x, w_desc.handle, w, conv_desc.handle,
-        perf_results.fwd_algo, beta, y_desc.handle, y,
+        handle, alpha, xdesc.handle, x, wdesc.handle, w, cdesc.handle,
+        perf_results.fwd_algo, beta, ydesc.handle, y,
         workspace.data.ptr, perf_results.memory) |> check
     y
 end
 
+function convolution!(
+    y::ROCArray{T, N}, x::ROCArray{T, N}, w::ROCArray{T, N};
+    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
+) where {T, N}
+    xdesc, wdesc, ydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
+        x, w, y; padding, stride, dilation, groups)
+    convolution!(
+        y, ydesc, x, xdesc, w, wdesc, cdesc;
+        padding=pi32, stride=si32, dilation=di32, groups)
+end
+
+function convolution(
+    x::ROCArray{T, N}, w::ROCArray{T, N};
+    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
+) where {T, N}
+    xdesc, wdesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
+        x, w; padding, stride, dilation, groups)
+
+    y = similar(x, T, get_output_size(cdesc, xdesc, wdesc))
+    convolution!(
+        y, TensorDescriptor(y), x, xdesc, w, wdesc, cdesc;
+        padding=pi32, stride=si32, dilation=di32, groups)
+end
+
 function ∇convolution_weight!(
     ∇w::ROCArray{T}, Δ::ROCArray{T}, x::ROCArray{T};
-    padding, stride, dilation, groups,
+    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
 ) where T
     padding_i32 = Int32[padding...]
     stride_i32 = Int32[stride...]
@@ -179,7 +198,7 @@ end
 
 function ∇convolution_data!(
     ∇x::ROCArray{T}, Δ::ROCArray{T}, w::ROCArray{T};
-    padding, stride, dilation, groups,
+    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
 ) where T
     padding_i32 = Int32[padding...]
     stride_i32 = Int32[stride...]
@@ -206,29 +225,32 @@ function ∇convolution_data!(
     ∇x
 end
 
-# TODO test them
-# TODO add format checks
-# TODO figure out WHCN format (simply reshape?)
+# function main()
+#     @show get_version()
 
-function main()
-    @show get_version()
+#     xh = rand(Float32, 16, 16, 3, 2)
+#     wh = ones(Float32, 3, 3, 3, 2)
+#     yh = NNlib.conv(xh, wh)
 
-    x = AMDGPU.rand(Float32, 1, 3, 16, 16)
-    w = AMDGPU.rand(Float32, 2, 3, 3, 3)
-    y = AMDGPU.zeros(Float32, 1, 2, 14, 14)
+#     x = ROCArray(xh)
+#     w = ROCArray(wh)
+#     y = AMDGPU.zeros(Float32, 14, 14, 2, 2)
 
-    Δ = AMDGPU.rand(Float32, 1, 2, 14, 14)
-    ∇w = AMDGPU.zeros(Float32, 2, 3, 3, 3)
-    ∇x = AMDGPU.zeros(Float32, 1, 3, 16, 16)
+#     convolution!(y, x, w)
+#     @assert Array(y) ≈ yh
 
-    @time convolution!(y, x, w; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
-    @time convolution!(y, x, w; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
+#     Δ = AMDGPU.rand(Float32, 14, 14, 2, 2)
+#     ∇w = AMDGPU.zeros(Float32, 3, 3, 3, 2)
+#     ∇x = AMDGPU.zeros(Float32, 16, 16, 3, 2)
 
-    @time ∇convolution_weight!(∇w, Δ, x; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
-    @time ∇convolution_weight!(∇w, Δ, x; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
+#     @time convolution!(y, x, w)
+#     @time convolution!(y, x, w)
 
-    @time ∇convolution_data!(∇x, Δ, w; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
-    @time ∇convolution_data!(∇x, Δ, w; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
+#     @time ∇convolution_weight!(∇w, Δ, x)
+#     @time ∇convolution_weight!(∇w, Δ, x)
 
-    nothing
-end
+#     @time ∇convolution_data!(∇x, Δ, w)
+#     @time ∇convolution_data!(∇x, Δ, w)
+
+#     nothing
+# end
