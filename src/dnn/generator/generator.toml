@@ -1,6 +1,0 @@
-[general]
-module_name = "libMIOpen"
-library_name = "libMIOpen_path"
-output_file_path = "./libMIOpen.jl"
-jll_pkg_name = "MIOpen_jll"
-export_symbol_prefixes = []
