@@ -7,7 +7,7 @@ const MIOPEN_TYPES = (
     (Int8, MIOpen.miopenInt8),
     (Int32, MIOpen.miopenInt32),
 )
-# TODO double check
+# TODO check why other types don't work
 const MIOPEN_CONV_TYPES = (Float32,)
 
 @testset "Tensor descriptors" begin
@@ -35,5 +35,11 @@ end
         @test eltype(y) == T
         @test size(y) == (1, 1, 1, 1)
         @test Array(y)[1] == T(9)
+
+        Δ = AMDGPU.ones(T, size(y))
+        ∇w = MIOpen.∇convolution_weight(Δ, x, w)
+        @test size(∇w) == size(w)
+        ∇x = MIOpen.∇convolution_data(Δ, x, w)
+        @test size(∇x) == size(x)
     end
 end
