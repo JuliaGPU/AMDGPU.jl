@@ -49,8 +49,7 @@ function get(desc::TensorDescriptor)
     nd = ndims(desc)
     dtype = Ref{miopenDataType_t}()
     dims, stride = Vector{Int32}(undef, nd), Vector{Int32}(undef, nd)
-    miopenGetTensorDescriptor(
-        desc.handle, dtype, dims, stride) |> check
+    miopenGetTensorDescriptor(desc.handle, dtype, dims, stride) |> check
     dtype[], dims, stride
 end
 
@@ -69,7 +68,7 @@ function ConvolutionDescriptor(
     handle = handle_ref[]
     miopenInitConvolutionNdDescriptor(
         handle, n_dims, padding, stride, dilation, miopenConvolution) |> check
-    miopenSetConvolutionGroupCount(handle, groups) |> check
+    miopenSetConvolutionGroupCount(handle, Int32(groups)) |> check
     d = ConvolutionDescriptor(handle)
 
     finalizer(d) do d_

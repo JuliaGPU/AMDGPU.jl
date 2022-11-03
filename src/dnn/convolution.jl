@@ -120,17 +120,26 @@ function find_algorithm(
 end
 
 function _get_conv_descriptors(args...; padding, stride, dilation, groups)
-    pi32, si32, di32 = Int32[padding...], Int32[stride...], Int32[dilation...]
+    pi32, si32, di32 = map(v -> Int32[reverse(v)...], (padding, stride, dilation))
     descriptors = TensorDescriptor.(args)
     cdesc = ConvolutionDescriptor(ndims(args[1]) - 2, pi32, si32, di32, groups)
     (descriptors..., cdesc, pi32, si32, di32)
+end
+
+function _check_conv_args_dims(K, N)
+    K == N - 2 && return nothing
+    throw(ArgumentError(
+        "Convolution arguments (`padding`, `stride`, `dilation`) must have " *
+        "K = N - 2 dimensions, instead:\n" *
+        "- N=$N (input ndims)\n" *
+        "- K=$K (conv args ndims)\n"))
 end
 
 function convolution!(
     y::ROCArray{T, N}, ydesc::TensorDescriptor,
     x::ROCArray{T, N}, xdesc::TensorDescriptor,
     w::ROCArray{T, N}, wdesc::TensorDescriptor, cdesc::ConvolutionDescriptor;
-    padding, stride, dilation, groups
+    padding, stride, dilation, groups,
 ) where {T, N}
     handle = get_handle()
     conv_args = ConvolutionArgs(x, w; handle, groups, padding, stride, dilation)
@@ -138,7 +147,8 @@ function convolution!(
         miopenConvFwdAlgorithm_t, handle, conv_args,
         x, xdesc, w, wdesc, cdesc, y, ydesc)
 
-    alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
+    # alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
+    alpha, beta = Ref{Float32}(one(Float32)), Ref{Float32}(zero(Float32))
     miopenConvolutionForward(
         handle, alpha, xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, beta, ydesc.handle, y,
@@ -148,8 +158,10 @@ end
 
 function convolution!(
     y::ROCArray{T, N}, x::ROCArray{T, N}, w::ROCArray{T, N};
-    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
-) where {T, N}
+    padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    dilation::NTuple{K, Int}, groups::Int,
+) where {T, N, K}
+    _check_conv_args_dims(K, N)
     xdesc, wdesc, ydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
         x, w, y; padding, stride, dilation, groups)
     convolution!(
@@ -159,8 +171,10 @@ end
 
 function convolution(
     x::ROCArray{T, N}, w::ROCArray{T, N};
-    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
-) where {T, N}
+    padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    dilation::NTuple{K, Int}, groups::Int,
+) where {T, N, K}
+    _check_conv_args_dims(K, N)
     xdesc, wdesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
         x, w; padding, stride, dilation, groups)
     y = similar(x, T, get_output_size(cdesc, xdesc, wdesc))
@@ -182,7 +196,8 @@ function ∇convolution_weight!(
         miopenConvBwdWeightsAlgorithm_t, handle, conv_args,
         dy, dydesc, x, xdesc, cdesc, ∇w, ∇wdesc)
 
-    alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
+    # alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
+    alpha, beta = Ref{Float32}(one(Float32)), Ref{Float32}(zero(Float32))
     miopenConvolutionBackwardWeights(
         handle, alpha, dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, beta, ∇wdesc.handle, ∇w,
@@ -192,8 +207,10 @@ end
 
 function ∇convolution_weight!(
     ∇w::ROCArray{T, N}, dy::ROCArray{T, N}, x::ROCArray{T, N};
-    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
-) where {T, N}
+    padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    dilation::NTuple{K, Int}, groups::Int,
+) where {T, N, K}
+    _check_conv_args_dims(K, N)
     xdesc, ∇wdesc, dydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
         x, ∇w, dy; padding, stride, dilation, groups)
     ∇convolution_weight!(
@@ -203,8 +220,10 @@ end
 
 function ∇convolution_weight(
     dy::ROCArray{T, N}, x::ROCArray{T, N}, w::ROCArray{T, N};
-    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
-) where {T, N}
+    padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    dilation::NTuple{K, Int}, groups::Int,
+) where {T, N, K}
+    _check_conv_args_dims(K, N)
     xdesc, dydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
         x, dy; padding, stride, dilation, groups)
     ∇w = similar(x, T, size(w))
@@ -226,7 +245,8 @@ function ∇convolution_data!(
         miopenConvBwdDataAlgorithm_t, handle, conv_args,
         dy, dydesc, w, wdesc, cdesc, ∇x, ∇xdesc)
 
-    alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
+    # alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
+    alpha, beta = Ref{Float32}(one(Float32)), Ref{Float32}(zero(Float32))
     miopenConvolutionBackwardData(
         handle, alpha, dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, beta, ∇xdesc.handle, ∇x,
@@ -236,8 +256,10 @@ end
 
 function ∇convolution_data!(
     ∇x::ROCArray{T, N}, dy::ROCArray{T, N}, w::ROCArray{T, N};
-    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
-) where {T, N}
+    padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    dilation::NTuple{K, Int}, groups::Int,
+) where {T, N, K}
+    _check_conv_args_dims(K, N)
     wdesc, ∇xdesc, dydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
         w, ∇x, dy; padding, stride, dilation, groups)
     ∇convolution_data!(
@@ -247,8 +269,10 @@ end
 
 function ∇convolution_data(
     dy::ROCArray{T, N}, x::ROCArray{T, N}, w::ROCArray{T, N};
-    padding = (0, 0), stride = (1, 1), dilation = (1, 1), groups = 1,
-) where {T, N}
+    padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    dilation::NTuple{K, Int}, groups::Int,
+) where {T, N, K}
+    _check_conv_args_dims(K, N)
     wdesc, dydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
         w, dy; padding, stride, dilation, groups)
     ∇x = similar(x, T, size(x))
