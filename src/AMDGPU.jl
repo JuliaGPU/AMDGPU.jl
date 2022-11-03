@@ -306,14 +306,4 @@ function __init__()
     @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
 end
 
-# function main()
-#     x = AMDGPU.ones(Float32, 10, 10, 4, 10)
-#     w = AMDGPU.ones(Float32, 2, 2, 2, 4)
-#     y = AMDGPU.MIOpen.convolution(
-#         x, w; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=2)
-#     @show size(y), typeof(y)
-
-#     nothing
-# end
-
 end # module
