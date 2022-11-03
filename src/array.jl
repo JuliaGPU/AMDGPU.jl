@@ -78,9 +78,11 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
 end
 
 function unsafe_free!(xs::ROCArray)
-    Mem.release(xs.buf) && Mem.free(xs.buf)
-    if xs.own
-        hsaunref!()
+    if Mem.release(xs.buf)
+        Mem.free(xs.buf)
+        if xs.own
+            hsaunref!()
+        end
     end
     return
 end
@@ -225,15 +227,15 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
-function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; device=default_device()) where {T,N}
+function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; device=default_device(), lock::Bool=true) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
-    device_ptr = Mem.lock(ptr, sz, device)
-    buf = Mem.Buffer(device_ptr, ptr, sz, device, false, false)
-    ROCArray{T, N}(buf, dims; own=false)
+    device_ptr = lock ? Mem.lock(ptr, sz, device) : ptr
+    buf = Mem.Buffer(device_ptr, ptr, device_ptr, sz, device, false, false)
+    return ROCArray{T, N}(buf, dims; own=false)
 end
-Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims) where T =
-    unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims)
+Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
+    unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
 ## views
 

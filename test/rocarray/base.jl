@@ -61,4 +61,10 @@ end
     @test Array(RD) ≈ Array(RA) ≈ C
 end
 
+@testset "unsafe_free" begin
+    A = AMDGPU.ones(4, 3)
+    AMDGPU.unsafe_free!(A)
+    finalize(A)
+end
+
 end

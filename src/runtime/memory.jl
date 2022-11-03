@@ -13,6 +13,7 @@ using Preferences
 struct Buffer
     ptr::Ptr{Cvoid}
     host_ptr::Ptr{Cvoid}
+    base_ptr::Ptr{Cvoid}
     bytesize::Int
     device::ROCDevice
     coherent::Bool
@@ -25,40 +26,63 @@ function view(buf::Buffer, bytes::Int)
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
     return Buffer(buf.ptr+bytes,
                   buf.host_ptr != C_NULL ? buf.host_ptr+bytes : C_NULL,
+                  buf.base_ptr,
                   buf.bytesize-bytes, buf.device, buf.coherent, buf.pool_alloc)
 end
 
 ## refcounting
 
-const refcounts = Dict{Buffer, Int}()
+const refcounts = Dict{Ptr{Cvoid}, Threads.Atomic{Int}}()
+const refcounts_lock = Threads.ReentrantLock()
 
 function refcount(buf::Buffer)
-    get(refcounts, Base.unsafe_convert(Ptr{Cvoid}, buf), 0)
+    Base.lock(refcounts_lock) do
+        get(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
+    end[]
 end
 
 """
-    retain(buf)
+    retain(buf::Buffer)
 
 Increase the refcount of a buffer.
 """
 function retain(buf::Buffer)
-    refcount = get!(refcounts, buf, 0)
-    refcounts[buf] = refcount + 1
+    count = Base.lock(refcounts_lock) do
+        get!(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
+    end
+    Threads.atomic_add!(count, 1)
     return
 end
 
 """
-    release(buf)
+    release(buf::Buffer)
 
-Decrease the refcount of a buffer. Returns `true` if the refcount has dropped to 0, and
-some action needs to be taken.
+Decrease the refcount of a buffer. Returns `true` if the refcount has dropped
+to 0, and some action needs to be taken.
 """
 function release(buf::Buffer)
-    haskey(refcounts, buf) || error("Release of unmanaged $buf")
-    refcount = refcounts[buf]
-    @assert refcount > 0 "Release of dead $buf"
-    refcounts[buf] = refcount - 1
-    return refcount==1
+    while !Base.trylock(refcounts_lock) end
+    count = try
+        get(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
+    finally
+        Base.unlock(refcounts_lock)
+    end
+    old = Threads.atomic_sub!(count, 1)
+    return (old == 1)
+end
+
+"""
+    untrack(buf::Buffer)
+
+Removing refcount tracking information for a buffer.
+"""
+function untrack(buf::Buffer)
+    while !Base.trylock(refcounts_lock) end
+    try
+        delete!(refcounts, buf.base_ptr)
+    finally
+        Base.unlock(refcounts_lock)
+    end
 end
 
 
@@ -226,7 +250,7 @@ Allocate `bytesize` bytes of HSA-managed memory on the region `region` or
 memory pool `pool`.
 """
 function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallback=!coherent && USE_SLOW_ALLOCATION_FALLBACK)
-    bytesize == 0 && return Buffer(C_NULL, C_NULL, 0, device, coherent, false)
+    bytesize == 0 && return Buffer(C_NULL, C_NULL, C_NULL, 0, device, coherent, false)
 
     region_kind = if coherent
         :finegrained
@@ -285,14 +309,14 @@ function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     alloc_or_retry!() do
         HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
     end
-    return Buffer(ptr_ref[], C_NULL, bytesize, device, Runtime.pool_accessible_by_all(pool), true)
+    return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, device, Runtime.pool_accessible_by_all(pool), true)
 end
 function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
         HSA.memory_allocate(region.region, bytesize, ptr_ref)
     end
-    return Buffer(ptr_ref[], C_NULL, bytesize, device, Runtime.region_host_accessible(region), false)
+    return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, device, Runtime.region_host_accessible(region), false)
 end
 alloc(bytesize; kwargs...) =
     alloc(Runtime.get_default_device(), bytesize; kwargs...)
@@ -310,6 +334,7 @@ function free(buf::Buffer)
             # Wrapped
             unlock(buf.ptr)
         end
+        untrack(buf)
     end
     return
 end
