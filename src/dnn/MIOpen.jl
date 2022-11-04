@@ -15,16 +15,16 @@ include("low_level.jl")
 const HANDLE = Ref{miopenHandle_t}(C_NULL)
 
 function get_status_string(status)
-    if     status == 0 return "Success"
-    elseif status == 1 return "Not initialized"
-    elseif status == 2 return "Invalid value"
-    elseif status == 3 return "Bad parameter"
-    elseif status == 4 return "Allocation failed"
-    elseif status == 5 return "Internal error"
-    elseif status == 6 return "Not implemented"
-    elseif status == 7 return "Unknown error"
-    elseif status == 8 return "Unsupported operation"
-    elseif status == 9 return "GPU operations skipped" end
+    if     status == miopenStatusSuccess return "Success"
+    elseif status == miopenStatusNotInitialized return "Not initialized"
+    elseif status == miopenStatusInvalidValue return "Invalid value"
+    elseif status == miopenStatusBadParm return "Bad parameter"
+    elseif status == miopenStatusAllocFailed return "Allocation failed"
+    elseif status == miopenStatusInternalError return "Internal error"
+    elseif status == miopenStatusNotImplemented return "Not implemented"
+    elseif status == miopenStatusUnknownError return "Unknown error"
+    elseif status == miopenStatusUnsupportedOp return "Unsupported operation"
+    elseif status == miopenStatusGpuOperationsSkipped return "GPU operations skipped" end
     error("Invalid status code: $status")
 end
 
@@ -47,7 +47,7 @@ end
 function get_version()
     major, minor, patch = Ref{Csize_t}(0), Ref{Csize_t}(0), Ref{Csize_t}(0)
     miopenGetVersion(major, minor, patch) |> check
-    major[], minor[], patch[]
+    VersionNumber(major[], minor[], patch[])
 end
 
 function create_handle()::miopenHandle_t
