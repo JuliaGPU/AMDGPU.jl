@@ -162,6 +162,18 @@ end
             end
         end
     end
+
+    @testset "2D * 3D batched gemm" begin
+        A = ROCArray(rand(Float32, 4, 4))
+        B = ROCArray(rand(Float32, 4, 16, 5))
+        C = rocBLAS.gemm_batched('N', 'N', A, B)
+        @test size(C) == (4, 16, 5)
+
+        A = ROCArray(rand(Float32, 4, 4, 5))
+        B = ROCArray(rand(Float32, 4, 16))
+        C = rocBLAS.gemm_batched('N', 'N', A, B)
+        @test size(C) == (4, 16, 5)
+    end
 end
 
-end # testse BLAS
+end # testset BLAS
