@@ -143,9 +143,9 @@ end
     end
 
     @testset "gemm_batched()" begin
+        batch_count = 3
         for T in (Float16, Float32, Float64, ComplexF32, ComplexF64)
             for at in ('N', 'T'), bt in ('N', 'T')
-                batch_count = 3
                 A = rand(T, 4, 4, batch_count)
                 B = rand(T, 4, 4, batch_count)
                 RA = ROCArray(A)
@@ -164,15 +164,35 @@ end
     end
 
     @testset "2D * 3D batched gemm" begin
-        A = ROCArray(rand(Float32, 4, 4))
-        B = ROCArray(rand(Float32, 4, 16, 5))
-        C = rocBLAS.gemm_batched('N', 'N', A, B)
-        @test size(C) == (4, 16, 5)
+        batch_count = 5
 
-        A = ROCArray(rand(Float32, 4, 4, 5))
-        B = ROCArray(rand(Float32, 4, 16))
-        C = rocBLAS.gemm_batched('N', 'N', A, B)
-        @test size(C) == (4, 16, 5)
+        for at in ('N', 'T'), bt in ('N', 'T')
+            hA = rand(Float32, 4, 4)
+            hB = rand(Float32, 4, 4, batch_count)
+            A, B = ROCArray(hA), ROCArray(hB)
+            C = rocBLAS.gemm_batched(at, bt, A, B)
+            @test size(C) == (4, 4, 5)
+            hC = Array(C)
+            for i in 1:batch_count
+                c =
+                    (at == 'T' ? transpose(hA) : hA) *
+                    (bt == 'T' ? transpose(hB[:, :, i]) : hB[:, :, i])
+                @test hC[:, :, i] ≈ c
+            end
+
+            hA = rand(Float32, 4, 4, batch_count)
+            hB = rand(Float32, 4, 4)
+            A, B = ROCArray(hA), ROCArray(hB)
+            C = rocBLAS.gemm_batched(at, bt, A, B)
+            @test size(C) == (4, 4, 5)
+            hC = Array(C)
+            for i in 1:batch_count
+                c =
+                    (at == 'T' ? transpose(hA[:, :, i]) : hA[:, :, i]) *
+                    (bt == 'T' ? transpose(hB) : hB)
+                @test hC[:, :, i] ≈ c
+            end
+        end
     end
 end
 
