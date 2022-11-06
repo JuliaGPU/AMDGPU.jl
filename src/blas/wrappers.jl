@@ -945,29 +945,35 @@ end
 # helper function to get a device array of device pointers
 function device_batch(batch::Array{T}) where {T<:ROCArray}
     E = eltype(T)
-    ptrs = [Base.unsafe_convert(Ptr{E}, arr.buf) for arr in batch]
-    ROCArray(ptrs)
+    ROCArray([Base.unsafe_convert(Ptr{E}, arr.buf) for arr in batch])
 end
 
 function device_batch(x::ROCArray{T, 3}) where T
-    batch_count = size(x, 3)
     shift = size(x, 1) * size(x, 2) * sizeof(T)
-    ptrs = [
+    ROCArray([
         Base.unsafe_convert(Ptr{T}, AMDGPU.Mem.view(x.buf, shift * (i - 1)))
-        for i in 1:batch_count]
-    ROCArray(ptrs)
+        for i in 1:size(x, 3)])
+end
+
+function device_batch(x::ROCMatrix{T}, batch_count::Int) where T
+    ptr = Base.unsafe_convert(Ptr{T}, x.buf)
+    ROCArray([ptr for i in 1:batch_count])
 end
 
 @inline function check_gemm_batched_dims(
     transA::Char, transB::Char, A::ROCArray, B::ROCArray, C::ROCArray,
 )
-    if (size(A, 3) != size(B, 3)) || (size(A, 3) != size(C, 3))
+    a_batch_valid = ndims(A) == 2 ? true : size(A, 3) == size(C, 3)
+    b_batch_valid = ndims(B) == 2 ? true : size(B, 3) == size(C, 3)
+    if !a_batch_valid || !b_batch_valid
         throw(DimensionMismatch(
-            "Last dimension (batch count) must be the same " *
-            "for `A`, `B` and `C`, instead:\n" *
-            "- size(A, 3)=$(size(A, 3))\n" *
-            "- size(B, 3)=$(size(B, 3))\n" *
-            "- size(C, 3)=$(size(C, 3))\n"))
+            "`A`, `B`, `C` must be either:\n" *
+            "- All 3D with last dimension (batch count) equal.\n" *
+            "- `A` or `B` can be 2D matrix.\n" *
+            "Instead:\n" *
+            "- size(A)=$(size(A))\n" *
+            "- size(B)=$(size(B))\n" *
+            "- size(C)=$(size(C))\n"))
     end
     m, k = size(A, transA == 'N' ? 1 : 2), size(A, transA == 'N' ? 2 : 1)
     n, g = size(B, transB == 'N' ? 2 : 1), size(B, transB == 'N' ? 1 : 2)
@@ -994,12 +1000,9 @@ end
             "- length(B)=$(length(B))\n" *
             "- length(C)=$(length(C))\n"))
     end
-    m, n, k = 0, 0, 0
     for (i, (As, Bs, Cs)) in enumerate(zip(A, B, C))
-        m = size(As, transA == 'N' ? 1 : 2)
-        k = size(As, transA == 'N' ? 2 : 1)
-        n = size(Bs, transB == 'N' ? 2 : 1)
-        g = size(Bs, transB == 'N' ? 1 : 2)
+        m, k = size(As, transA == 'N' ? 1 : 2), size(As, transA == 'N' ? 2 : 1)
+        n, g = size(Bs, transB == 'N' ? 2 : 1), size(Bs, transB == 'N' ? 1 : 2)
         if m != size(Cs, 1) || n != size(Cs, 2) || k != g
             throw(DimensionMismatch(
                 "Invalid dimensions for $i-th entry in `A`, `B` and `C`.\n" *
@@ -1024,44 +1027,60 @@ for (fname, elty) in
     @eval begin
         function gemm_batched!(
             transA::Char, transB::Char, alpha::($elty),
-            A::T, B::T, beta::($elty), C::T,
-        ) where T <: Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}}
+            A, B, beta::($elty), C,
+        )
             m, k, n, lda, ldb, ldc = check_gemm_batched_dims(
                 transA, transB, A, B, C)
             wait!(A)
             wait!(B)
             wait!(C)
+
+            batch_count = size(C, 3)
+            Ab = A isa ROCMatrix ? device_batch(A, batch_count) : device_batch(A)
+            Bb = B isa ROCMatrix ? device_batch(B, batch_count) : device_batch(B)
+            Cb = device_batch(C)
+
             $(fname)(
                 handle(), rocblasop(transA), rocblasop(transB),
-                m, n, k, Ref(alpha),
-                device_batch(A), lda, device_batch(B), ldb, Ref(beta),
-                device_batch(C), ldc, size(A, 3))
+                m, n, k, Ref(alpha), Ab, lda, Bb, ldb, Ref(beta),
+                Cb, ldc, batch_count)
             mark!(A, rocblas_get_stream(handle()))
             mark!(B, rocblas_get_stream(handle()))
             mark!(C, rocblas_get_stream(handle()))
             C
         end
         function gemm_batched(
-            transA::Char, transB::Char, alpha::($elty), A::T, B::T,
-        ) where T <: Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}}
+            transA::Char, transB::Char, alpha::($elty), A::T, B::K,
+        ) where {
+            T <: Union{ROCArray{$elty, 3}, ROCMatrix{$elty}, Vector{ROCMatrix{$elty}}},
+            K <: Union{ROCArray{$elty, 3}, ROCMatrix{$elty}, Vector{ROCMatrix{$elty}}},
+        }
+            if T <: ROCMatrix && K <: ROCMatrix
+                throw(ArgumentError(
+                    "Either `A` or `B` can be a 2D-matrix, not both."))
+            end
+            is_avec, is_bvec = T <: Vector, K <: Vector
+            if (is_avec && !is_bvec) || (!is_avec && is_bvec)
+                throw(ArgumentError(
+                    "If `A` is a `Vector{ROCMatrix}`, then `B` must be too."))
+            end
+
             if T isa Vector
-                C = ROCMatrix{$elty}[
-                    similar(B[i], $elty, (
-                        size(A[i], transA == 'N' ? 1 : 2),
-                        size(B[i], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
+                C = ROCMatrix{$elty}[similar(B[i], $elty, (
+                    size(A[i], transA == 'N' ? 1 : 2),
+                    size(B[i], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
             else
                 m = size(A, transA == 'N' ? 1 : 2)
                 k = size(B, transB == 'N' ? 2 : 1)
-                batch_count = size(A, 3)
+                batch_count = ndims(A) == 3 ? size(A, 3) : size(B, 3)
                 C = similar(A, $elty, (m, k, batch_count))
             end
             gemm_batched!(transA, transB, alpha, A, B, zero($elty), C)
         end
-        function gemm_batched(
-            transA::Char, transB::Char,
-            A::Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
-            B::Union{ROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
-        )
+        function gemm_batched(transA::Char, transB::Char, A::T, B::K) where {
+            T <: Union{ROCArray{$elty, 3}, ROCMatrix{$elty}, Vector{ROCMatrix{$elty}}},
+            K <: Union{ROCArray{$elty, 3}, ROCMatrix{$elty}, Vector{ROCMatrix{$elty}}},
+        }
             gemm_batched(transA, transB, one($elty), A, B)
         end
     end
