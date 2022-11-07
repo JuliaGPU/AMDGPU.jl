@@ -167,7 +167,7 @@ end
         batch_count = 5
 
         for at in ('N', 'T'), bt in ('N', 'T')
-            hA = rand(Float32, 4, 4)
+            hA = rand(Float32, 4, 4, 1)
             hB = rand(Float32, 4, 4, batch_count)
             A, B = ROCArray(hA), ROCArray(hB)
             C = rocBLAS.gemm_batched(at, bt, A, B)
@@ -175,13 +175,13 @@ end
             hC = Array(C)
             for i in 1:batch_count
                 c =
-                    (at == 'T' ? transpose(hA) : hA) *
+                    (at == 'T' ? transpose(hA[:, :, 1]) : hA[:, :, 1]) *
                     (bt == 'T' ? transpose(hB[:, :, i]) : hB[:, :, i])
                 @test hC[:, :, i] ≈ c
             end
 
             hA = rand(Float32, 4, 4, batch_count)
-            hB = rand(Float32, 4, 4)
+            hB = rand(Float32, 4, 4, 1)
             A, B = ROCArray(hA), ROCArray(hB)
             C = rocBLAS.gemm_batched(at, bt, A, B)
             @test size(C) == (4, 4, 5)
@@ -189,7 +189,7 @@ end
             for i in 1:batch_count
                 c =
                     (at == 'T' ? transpose(hA[:, :, i]) : hA[:, :, i]) *
-                    (bt == 'T' ? transpose(hB) : hB)
+                    (bt == 'T' ? transpose(hB[:, :, 1]) : hB[:, :, 1])
                 @test hC[:, :, i] ≈ c
             end
         end
