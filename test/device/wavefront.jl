@@ -1,5 +1,5 @@
 @testset "Wavefront Operations" begin
-    wavefrontsize = AMDGPU.Runtime.wavefrontsize(AMDGPU.default_device())
+    wavefrontsize = AMDGPU.wavefrontsize(AMDGPU.default_device())
 
     function reduce_kernel(op,X,Y)
         idx = workitemIdx().x
@@ -57,7 +57,7 @@
 end
 
 @testset "Wavefront Information" begin
-    wavefrontsize = AMDGPU.Runtime.wavefrontsize(AMDGPU.default_device())
+    wavefrontsize = AMDGPU.wavefrontsize(AMDGPU.default_device())
 
     @test wavefrontsize == 32 || wavefrontsize == 64
 

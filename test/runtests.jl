@@ -49,6 +49,7 @@ push!(tests, "Core" => ()->include("pointer.jl"))
 push!(tests, "HSA" => ()->begin
     include("hsa/error.jl")
     include("hsa/utils.jl")
+    include("hsa/getinfo.jl")
     include("hsa/device.jl")
     include("hsa/queue.jl")
     include("hsa/memory.jl")
