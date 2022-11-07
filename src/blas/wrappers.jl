@@ -1058,6 +1058,9 @@ for (fname, elty) in
             T <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
             K <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
         }
+            is_ab_vec = Int(T <: Vector) + Int(K <: Vector)
+            (is_ab_vec != 0) && (is_ab_vec != 2) && throw(ArgumentError(
+                "If `A` is a `Vector{ROCMatrix}`, then `B` must be too."))
             if T isa Vector
                 C = ROCMatrix{$elty}[similar(B[i], $elty, (
                     size(A[i], transA == 'N' ? 1 : 2),
