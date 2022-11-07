@@ -431,10 +431,10 @@ macro roc(ex...)
                         $kernel_f, $kernel_tt;
                         $(device_kwargs...), $(compiler_kwargs...))
 
-                    if $wait
-                        foreach($wait!, ($(var_exprs...),))
-                    end
                     if $launch
+                        if $wait
+                            foreach($wait!, ($(var_exprs...),))
+                        end
                         local $kernel_instance = $create_kernel(
                             $kernel, $kernel_f, $kernel_args; $(kernel_kwargs...))
                         local $signal = $create_event(
