@@ -29,14 +29,18 @@ function queue_error_handler(
     nothing
 end
 
-function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
-    queue_size = Ref{UInt32}(0)
-    getinfo(device.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
-    @assert queue_size[] > 0
+device_queue_max_size(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_QUEUE_MAX_SIZE)
 
-    queue_type = Ref{HSA.QueueType}()
-    getinfo(device.agent, HSA.AGENT_INFO_QUEUE_TYPE, queue_type) |> check
-    @assert queue_type[] == HSA.QUEUE_TYPE_MULTI
+device_queue_type(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_QUEUE_TYPE)
+
+function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
+    queue_size = device_queue_max_size(device)
+    @assert queue_size > 0
+
+    queue_type = device_queue_type(device)
+    @assert queue_type == HSA.QUEUE_TYPE_MULTI
 
     r_queue = Ref{Ptr{HSA.Queue}}()
     queue = ROCQueue(device, Ptr{HSA.Queue}(0), HSA.STATUS_SUCCESS, true)

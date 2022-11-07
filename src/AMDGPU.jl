@@ -61,6 +61,7 @@ module Runtime
     using ..GPUCompiler
 
     import ..AMDGPU
+    import ..AMDGPU: getinfo, getinfo_map
 
     struct Adaptor end
 

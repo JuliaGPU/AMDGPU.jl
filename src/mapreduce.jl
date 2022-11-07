@@ -137,7 +137,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
         pool = first(pools)
         max_lmem_elements = Runtime.pool_size(pool) ÷ sizeof(T)
         isa = first(Runtime.isas(device))
-        Base.min(Runtime.max_group_size(isa), compute_items(max_lmem_elements ÷ 2))
+        Base.min(Runtime.isa_workgroup_max_size(isa), compute_items(max_lmem_elements ÷ 2))
     else
         @warn "No group segment detected for device $device; assuming 64 elements\nThis message will not be shown again" maxlog=1
         64
