@@ -75,51 +75,41 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
     device = exe.device
     symbol = kernel.fun.entry
     agent_func = @cfunction(iterate_exec_agent_syms_cb, HSA.Status,
-                           (HSA.Executable, HSA.Agent, HSA.ExecutableSymbol, Ptr{Cvoid}))
-    exec_symbol = Ref{HSA.ExecutableSymbol}()
-    exec_ptr = Base.unsafe_convert(Ref{Cvoid}, exec_symbol)
-    HSA.executable_iterate_agent_symbols(exe.executable[], device.agent,
-                                         agent_func, exec_ptr) |> check
+                            (HSA.Executable, HSA.Agent, HSA.ExecutableSymbol, Ptr{HSA.ExecutableSymbol}))
+    exec_symbol_ref = Ref{HSA.ExecutableSymbol}()
+    ret = HSA.executable_iterate_agent_symbols(exe.executable[], device.agent,
+                                               agent_func, exec_symbol_ref)
+    @assert ret == HSA.STATUS_SUCCESS || ret == HSA.STATUS_INFO_BREAK
 
     # TODO: Conditionally disable once ROCR is fixed
-    if !isassigned(exec_symbol)
+    if !isassigned(exec_symbol_ref)
         agent_ref = Ref(device.agent)
         GC.@preserve agent_ref begin
             HSA.executable_get_symbol_by_name(exe.executable[], symbol,
-                                              agent_ref, exec_symbol) |> check
+                                              agent_ref, exec_symbol_ref) |> check
         end
     end
+    exec_symbol = exec_symbol_ref[]
 
-    kernel_object = Ref{UInt64}(0)
-    getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT,
-            kernel_object) |> check
-
-    kernarg_segment_size = Ref{UInt32}(0)
-    getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE,
-            kernarg_segment_size) |> check
-
-    if kernarg_segment_size[] == 0
+    kernel_object = executable_symbol_kernel_object(exec_symbol)
+    kernarg_segment_size = executable_symbol_kernel_kernarg_segment_size(exec_symbol)
+    if kernarg_segment_size == 0
         # FIXME: Hidden arguments!
         if length(args) > 0
-            kernarg_segment_size[] = sum(sizeof(typeof(arg)) for arg in args)
+            kernarg_segment_size = UInt32(sum(sizeof(typeof(arg)) for arg in args))
         else
             # Allocate some memory anyway, #10
-            kernarg_segment_size[] = max(kernarg_segment_size[], 8)
+            kernarg_segment_size = UInt32(max(kernarg_segment_size, 8))
         end
     end
 
-    group_segment_size = Ref{UInt32}(0)
-    getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE,
-            group_segment_size) |> check
-    group_segment_size[] = max(group_segment_size[], localmem)
-
-    private_segment_size = Ref{UInt32}(0)
-    getinfo(exec_symbol[], HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE,
-            private_segment_size) |> check
+    group_segment_size = executable_symbol_kernel_group_segment_size(exec_symbol)
+    group_segment_size = UInt32(max(group_segment_size, localmem))
+    private_segment_size = executable_symbol_kernel_private_segment_size(exec_symbol)
 
     # Allocate the kernel argument buffer
     key = khash(f, khash(args))
-    kernarg_address, do_write = Mem.alloc_pooled(device, key, :kernarg, kernarg_segment_size[])
+    kernarg_address, do_write = Mem.alloc_pooled(device, key, :kernarg, kernarg_segment_size)
 
     if do_write
         # Fill kernel argument buffer
@@ -140,9 +130,9 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
         end
     end
 
-    kernel = ROCKernel(device, exe, symbol, f, args, kernel_object[],
-                       kernarg_segment_size[], group_segment_size[],
-                               private_segment_size[], kernarg_address)
+    kernel = ROCKernel(device, exe, symbol, f, args, kernel_object,
+                       kernarg_segment_size, group_segment_size,
+                       private_segment_size, kernarg_address)
     AMDGPU.hsaref!()
     finalizer(kernel) do k
         Mem.free_pooled(device, key, :kernarg, k.kernarg_address)

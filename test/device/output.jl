@@ -112,7 +112,7 @@ end
 
 @testset "Per-wavefront" begin
     kernel() = @rocprintf :wave "[%d] " workitemIdx().x
-    wsize::Int64 = AMDGPU.Runtime.wavefrontsize(ROCDevice())
+    wsize::Int64 = AMDGPU.wavefrontsize(ROCDevice())
 
     # One group, one wavefront
     exp = "[1] "

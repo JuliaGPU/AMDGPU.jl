@@ -3,7 +3,7 @@
 import AMDGPU: Runtime, Compiler
 import .Runtime: ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal, ROCKernelSignal, HSAError
 import .Runtime: ROCDim, ROCDim3
-import .Runtime: getinfo, wait!, mark!
+import .Runtime: wait!, mark!
 import .Compiler: rocfunction
 
 export @roc, rocconvert, rocfunction
@@ -65,6 +65,8 @@ function device_type(device::ROCDevice)
         return :unknown
     end
 end
+
+wavefrontsize(device::ROCDevice) = Runtime.device_wavefront_size(device)
 
 # Queues
 
