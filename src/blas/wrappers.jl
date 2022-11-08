@@ -948,24 +948,26 @@ function device_batch(batch::Array{T}) where {T<:ROCArray}
     ROCArray([Base.unsafe_convert(Ptr{E}, arr.buf) for arr in batch])
 end
 
-function device_batch(x::ROCArray{T, 3}) where T
+function device_batch(x::AnyROCArray{T, 3}) where T
     shift = size(x, 1) * size(x, 2) * sizeof(T)
     ROCArray([
         Base.unsafe_convert(Ptr{T}, AMDGPU.Mem.view(x.buf, shift * (i - 1)))
         for i in 1:size(x, 3)])
 end
 
-function device_batch(x::ROCMatrix{T}, batch_count::Int) where T
+function device_batch(x::AnyROCArray{T, 3}, batch_count::Int) where T
     ptr = Base.unsafe_convert(Ptr{T}, x.buf)
     ROCArray([ptr for i in 1:batch_count])
 end
 
-@inline function check_gemm_batched_dims(
-    transA::Char, transB::Char, A::ROCArray, B::ROCArray, C::ROCArray,
-)
-    a_batch_valid = ndims(A) == 2 ? true : size(A, 3) == size(C, 3)
-    b_batch_valid = ndims(B) == 2 ? true : size(B, 3) == size(C, 3)
-    if !a_batch_valid || !b_batch_valid
+@inline function _check_gemm_batched_dims(transA::Char, transB::Char, A, B, C)
+    a_broadcast = (size(A, 3) == 1) && (size(C, 3) > 1)
+    b_broadcast = (size(B, 3) == 1) && (size(C, 3) > 1)
+    is_valid =
+        !(a_broadcast && b_broadcast) && # Either `A` or `B` can have size(X, 3) == 1
+        ((size(A, 3) == 1) || (size(A, 3) == size(C, 3))) &&
+        ((size(B, 3) == 1) || (size(B, 3) == size(C, 3)))
+    if !is_valid
         throw(DimensionMismatch(
             "`A`, `B`, `C` must be either:\n" *
             "- All 3D with last dimension (batch count) equal.\n" *
@@ -990,7 +992,7 @@ end
     m, k, n, lda, ldb, ldc
 end
 
-@inline function check_gemm_batched_dims(
+@inline function _check_gemm_batched_dims(
     transA::Char, transB::Char, A::Array, B::Array, C::Array,
 )
     if length(A) != length(B) || length(A) != length(C)
@@ -1026,18 +1028,19 @@ for (fname, elty) in
          (:rocblas_cgemm_batched,:ComplexF32))
     @eval begin
         function gemm_batched!(
-            transA::Char, transB::Char, alpha::($elty),
-            A, B, beta::($elty), C,
+            transA::Char, transB::Char, alpha::($elty), A, B, beta::($elty), C,
         )
-            m, k, n, lda, ldb, ldc = check_gemm_batched_dims(
+            m, k, n, lda, ldb, ldc = _check_gemm_batched_dims(
                 transA, transB, A, B, C)
             wait!(A)
             wait!(B)
             wait!(C)
 
             batch_count = size(C, 3)
-            Ab = A isa ROCMatrix ? device_batch(A, batch_count) : device_batch(A)
-            Bb = B isa ROCMatrix ? device_batch(B, batch_count) : device_batch(B)
+            a_broadcast = (size(A, 3) == 1) && (batch_count > 1)
+            b_broadcast = (size(B, 3) == 1) && (batch_count > 1)
+            Ab = a_broadcast ? device_batch(A, batch_count) : device_batch(A)
+            Bb = b_broadcast ? device_batch(B, batch_count) : device_batch(B)
             Cb = device_batch(C)
 
             $(fname)(
@@ -1052,19 +1055,12 @@ for (fname, elty) in
         function gemm_batched(
             transA::Char, transB::Char, alpha::($elty), A::T, B::K,
         ) where {
-            T <: Union{ROCArray{$elty, 3}, ROCMatrix{$elty}, Vector{ROCMatrix{$elty}}},
-            K <: Union{ROCArray{$elty, 3}, ROCMatrix{$elty}, Vector{ROCMatrix{$elty}}},
+            T <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
+            K <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
         }
-            if T <: ROCMatrix && K <: ROCMatrix
-                throw(ArgumentError(
-                    "Either `A` or `B` can be a 2D-matrix, not both."))
-            end
-            is_avec, is_bvec = T <: Vector, K <: Vector
-            if (is_avec && !is_bvec) || (!is_avec && is_bvec)
-                throw(ArgumentError(
-                    "If `A` is a `Vector{ROCMatrix}`, then `B` must be too."))
-            end
-
+            is_ab_vec = Int(T <: Vector) + Int(K <: Vector)
+            (is_ab_vec != 0) && (is_ab_vec != 2) && throw(ArgumentError(
+                "If `A` is a `Vector{ROCMatrix}`, then `B` must be too."))
             if T isa Vector
                 C = ROCMatrix{$elty}[similar(B[i], $elty, (
                     size(A[i], transA == 'N' ? 1 : 2),
@@ -1072,14 +1068,13 @@ for (fname, elty) in
             else
                 m = size(A, transA == 'N' ? 1 : 2)
                 k = size(B, transB == 'N' ? 2 : 1)
-                batch_count = ndims(A) == 3 ? size(A, 3) : size(B, 3)
-                C = similar(A, $elty, (m, k, batch_count))
+                C = similar(A, $elty, (m, k, max(size(A, 3), size(B, 3))))
             end
             gemm_batched!(transA, transB, alpha, A, B, zero($elty), C)
         end
         function gemm_batched(transA::Char, transB::Char, A::T, B::K) where {
-            T <: Union{ROCArray{$elty, 3}, ROCMatrix{$elty}, Vector{ROCMatrix{$elty}}},
-            K <: Union{ROCArray{$elty, 3}, ROCMatrix{$elty}, Vector{ROCMatrix{$elty}}},
+            T <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
+            K <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
         }
             gemm_batched(transA, transB, one($elty), A, B)
         end
