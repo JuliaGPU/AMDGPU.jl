@@ -111,3 +111,11 @@ end
 @inline function device_sethalt(code::Int32 = Int32(1))
     ccall("llvm.amdgcn.s.sethalt", llvmcall, Cvoid, (Int32,), code)
 end
+
+@inline function device_time()
+    ccall("llvm.amdgcn.s.memtime", llvmcall, UInt64, ())
+end
+
+@inline function device_realtime()
+    ccall("llvm.amdgcn.s.memrealtime", llvmcall, UInt64, ())
+end
