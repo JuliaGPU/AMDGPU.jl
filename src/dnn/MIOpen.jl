@@ -2,8 +2,8 @@ module MIOpen
 
 import AMDGPU
 import AMDGPU.Runtime.Mem
+import AMDGPU: ROCArray, ROCDevice
 
-using AMDGPU: ROCArray, ROCDevice
 using CEnum
 using GPUArrays
 using MIOpen_jll
@@ -12,39 +12,69 @@ const libMIOpen_path = MIOpen_jll.libMIOpen_path
 
 include("low_level.jl")
 
-const HANDLE = Ref{miopenHandle_t}(C_NULL)
+struct LockedObject{T}
+    lock::ReentrantLock
+    payload::T
+end
 
-function get_status_string(status)
-    if     status == miopenStatusSuccess return "Success"
-    elseif status == miopenStatusNotInitialized return "Not initialized"
-    elseif status == miopenStatusInvalidValue return "Invalid value"
-    elseif status == miopenStatusBadParm return "Bad parameter"
-    elseif status == miopenStatusAllocFailed return "Allocation failed"
-    elseif status == miopenStatusInternalError return "Internal error"
-    elseif status == miopenStatusNotImplemented return "Not implemented"
-    elseif status == miopenStatusUnknownError return "Unknown error"
-    elseif status == miopenStatusUnsupportedOp return "Unsupported operation"
-    elseif status == miopenStatusGpuOperationsSkipped return "GPU operations skipped" end
-    error("Invalid status code: $status")
+LockedObject(payload) = LockedObject(ReentrantLock(), payload)
+
+function Base.lock(f, x::LockedObject)
+    lock(x.lock)
+    try
+        return f(x.payload)
+    finally
+        unlock(x.lock)
+    end
+end
+
+const HANDLE = LockedObject(Ref{miopenHandle_t}(C_NULL))
+
+const STATUS_DESCRIPTORS = Dict(
+    miopenStatusSuccess => "Success",
+    miopenStatusNotInitialized => "Not initialized",
+    miopenStatusInvalidValue => "Invalid value",
+    miopenStatusBadParm => "Bad parameter",
+    miopenStatusAllocFailed => "Allocation failed",
+    miopenStatusInternalError => "Internal error",
+    miopenStatusNotImplemented => "Not implemented",
+    miopenStatusUnknownError => "Unknown error",
+    miopenStatusUnsupportedOp => "Unsupported operation",
+    miopenStatusGpuOperationsSkipped => "GPU operations skipped")
+
+const DATA_TYPES = Dict(
+    Float16 => miopenHalf,
+    Float32 => miopenFloat,
+    Float64 => miopenDouble,
+    Int8 => miopenInt8,
+    Int32 => miopenInt32)
+
+function status_string(status)
+    s = get(STATUS_DESCRIPTORS, status, nothing)
+    isnothing(s) ? "Unknown error code `$status`" : s
+end
+
+struct MIOpenException <: Exception
+    status::miopenStatus_t
+end
+
+function Base.showerror(io::IO, exception::MIOpenException)
+    print(io, """
+    MIOpenException:
+    - status: $(exception.status)
+    - description: $(status_string(exception.status))
+    """)
 end
 
 function check(status)
     if status != miopenStatusSuccess
-        status_string = get_status_string(status)
-        error("MIOpen return status [code=$status]: $status_string")
+        throw(MIOpenException(status))
     end
 end
 
-function get_miopen_data_type(t)
-    if     t == Float16 return miopenHalf
-    elseif t == Float32 return miopenFloat
-    elseif t == Float64 return miopenDouble
-    elseif t == Int8    return miopenInt8
-    elseif t == Int32   return miopenInt32 end
-    error("Unsupported data type: $t")
-end
+miopen_data_type(t) = DATA_TYPES[t]
 
-function get_version()
+function version()
     major, minor, patch = Ref{Csize_t}(0), Ref{Csize_t}(0), Ref{Csize_t}(0)
     miopenGetVersion(major, minor, patch) |> check
     VersionNumber(major[], minor[], patch[])
@@ -61,14 +91,15 @@ function destroy_handle!(handle::miopenHandle_t)
     nothing
 end
 
-function get_handle()
-    global HANDLE
-    if HANDLE[] == C_NULL
-        handle = create_handle()
-        atexit(() -> destroy_handle!(handle))
-        HANDLE[] = handle
+function handle()
+    lock(HANDLE) do hdl
+        if hdl[] == C_NULL
+            new_handle = create_handle()
+            atexit(() -> destroy_handle!(new_handle))
+            hdl[] = new_handle
+        end
+        hdl[]
     end
-    HANDLE[]
 end
 
 include("descriptors.jl")

@@ -9,6 +9,7 @@ using LLVM, LLVM.Interop
 using InteractiveUtils
 using SpecialFunctions
 using Test
+import NNlib
 
 using Random
 Random.seed!(1)

@@ -2,9 +2,9 @@ const MIOPEN_DIM_MAX = 5
 
 function check_ndims(x)
     if ndims(x) > MIOPEN_DIM_MAX
-        error(
+        throw(DimensionMismatch(
             "MIOpen supports only up to `$MIOPEN_DIM_MAX` dimensions.\n" *
-            "Tensor has `$(ndims(x))` dimensions.")
+            "Tensor has `$(ndims(x))` dimensions."))
     end
 end
 
@@ -32,7 +32,7 @@ end
 
 function TensorDescriptor(x::ROCArray{T}) where T
     check_ndims(x)
-    dtype = get_miopen_data_type(T)
+    dtype = miopen_data_type(T)
     # NOTE: Dims and strides are reversed to support WHCN convolutions.
     sizes = Int32[reverse(size(x))...]
     strides_ = Int32[reverse(strides(x))...]
@@ -45,7 +45,7 @@ function Base.ndims(desc::TensorDescriptor)
     Int64(nd[])
 end
 
-function get(desc::TensorDescriptor)
+function unpack(desc::TensorDescriptor)
     nd = ndims(desc)
     dtype = Ref{miopenDataType_t}()
     dims, stride = Vector{Int32}(undef, nd), Vector{Int32}(undef, nd)

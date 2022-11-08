@@ -21,7 +21,7 @@ function ConvolutionArgs(
     handle, padding, stride, dilation, groups,
 ) where {T, N}
     expand(v, ndims) = ntuple(i -> (i ≤ length(v)) ? v[i] : 0, Val{ndims}())
-    dtype = get_miopen_data_type(T)
+    dtype = miopen_data_type(T)
     x_size = expand(size(x), MIOPEN_DIM_MAX)
     w_size = expand(size(w), MIOPEN_DIM_MAX)
     ConvolutionArgs(
@@ -29,28 +29,27 @@ function ConvolutionArgs(
         expand(stride, 3), expand(dilation, 3), groups)
 end
 
-const CONV_FWD_BENCHMARK_CACHE = Dict{ConvolutionArgs, miopenConvAlgoPerf_t}()
-const CONV_BWD_WEIGHT_BENCHMARK_CACHE = Dict{ConvolutionArgs, miopenConvAlgoPerf_t}()
-const CONV_BWD_DATA_BENCHMARK_CACHE = Dict{ConvolutionArgs, miopenConvAlgoPerf_t}()
+const CONV_FWD_BENCHMARK_CACHE = LockedObject(Dict{ConvolutionArgs, miopenConvAlgoPerf_t}())
+const CONV_BWD_WEIGHT_BENCHMARK_CACHE = LockedObject(Dict{ConvolutionArgs, miopenConvAlgoPerf_t}())
+const CONV_BWD_DATA_BENCHMARK_CACHE = LockedObject(Dict{ConvolutionArgs, miopenConvAlgoPerf_t}())
 
 get_conv_cache_type(::Type{miopenConvFwdAlgorithm_t}) = CONV_FWD_BENCHMARK_CACHE
 get_conv_cache_type(::Type{miopenConvBwdDataAlgorithm_t}) = CONV_BWD_DATA_BENCHMARK_CACHE
 get_conv_cache_type(::Type{miopenConvBwdWeightsAlgorithm_t}) = CONV_BWD_WEIGHT_BENCHMARK_CACHE
 
 function get_benchmark_cache(conv_type::C, conv_args, dev) where C <: CONV_ALGOS
-    # TODO lock
-    cache = get_conv_cache_type(conv_type)
-    conv_args in keys(cache) || return nothing
-
-    perf_results = cache[conv_args]
+    perf_results = lock(get_conv_cache_type(conv_type)) do cache
+        get(cache, conv_args, nothing)
+    end
+    isnothing(perf_results) && return nothing
     workspace = Workspace(dev, perf_results.memory)
     perf_results, workspace
 end
 
 function set_benchmark_cache!(conv_type::C, conv_args, perf_results) where C <: CONV_ALGOS
-    # TODO lock
-    cache = get_conv_cache_type(conv_type)
-    cache[conv_args] = perf_results
+    lock(get_conv_cache_type(conv_type)) do cache
+        cache[conv_args] = perf_results
+    end
     nothing
 end
 
@@ -141,16 +140,16 @@ function convolution!(
     w::ROCArray{T, N}, wdesc::TensorDescriptor, cdesc::ConvolutionDescriptor;
     padding, stride, dilation, groups,
 ) where {T, N}
-    handle = get_handle()
-    conv_args = ConvolutionArgs(x, w; handle, groups, padding, stride, dilation)
+    hdl = handle()
+    conv_args = ConvolutionArgs(x, w; handle=hdl, groups, padding, stride, dilation)
     perf_results, workspace = find_algorithm(
-        miopenConvFwdAlgorithm_t, handle, conv_args,
+        miopenConvFwdAlgorithm_t, hdl, conv_args,
         x, xdesc, w, wdesc, cdesc, y, ydesc)
 
     # alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
     alpha, beta = Ref{Float32}(one(Float32)), Ref{Float32}(zero(Float32))
     miopenConvolutionForward(
-        handle, alpha, xdesc.handle, x, wdesc.handle, w, cdesc.handle,
+        hdl, alpha, xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, beta, ydesc.handle, y,
         workspace.data.ptr, perf_results.memory) |> check
     y
@@ -189,17 +188,17 @@ function ∇convolution_weight!(
     x::ROCArray{T, N}, xdesc::TensorDescriptor, cdesc::ConvolutionDescriptor;
     padding, stride, dilation, groups,
 ) where {T, N}
-    handle = get_handle()
+    hdl = handle()
     conv_args = ConvolutionArgs(
-        x, ∇w; handle, groups, padding, stride, dilation)
+        x, ∇w; handle=hdl, groups, padding, stride, dilation)
     perf_algo, workspace = find_algorithm(
-        miopenConvBwdWeightsAlgorithm_t, handle, conv_args,
+        miopenConvBwdWeightsAlgorithm_t, hdl, conv_args,
         dy, dydesc, x, xdesc, cdesc, ∇w, ∇wdesc)
 
     # alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
     alpha, beta = Ref{Float32}(one(Float32)), Ref{Float32}(zero(Float32))
     miopenConvolutionBackwardWeights(
-        handle, alpha, dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
+        hdl, alpha, dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, beta, ∇wdesc.handle, ∇w,
         workspace.data.ptr, perf_algo.memory) |> check
     ∇w
@@ -238,17 +237,17 @@ function ∇convolution_data!(
     w::ROCArray{T, N}, wdesc::TensorDescriptor, cdesc::ConvolutionDescriptor;
     padding, stride, dilation, groups,
 ) where {T, N}
-    handle = get_handle()
+    hdl = handle()
     conv_args = ConvolutionArgs(
-        ∇x, w; handle, groups, padding, stride, dilation)
+        ∇x, w; handle=hdl, groups, padding, stride, dilation)
     perf_algo, workspace = find_algorithm(
-        miopenConvBwdDataAlgorithm_t, handle, conv_args,
+        miopenConvBwdDataAlgorithm_t, hdl, conv_args,
         dy, dydesc, w, wdesc, cdesc, ∇x, ∇xdesc)
 
     # alpha, beta = Ref{T}(one(T)), Ref{T}(zero(T))
     alpha, beta = Ref{Float32}(one(Float32)), Ref{Float32}(zero(Float32))
     miopenConvolutionBackwardData(
-        handle, alpha, dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
+        hdl, alpha, dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, beta, ∇xdesc.handle, ∇x,
         workspace.data.ptr, perf_algo.memory) |> check
     ∇x
@@ -280,3 +279,11 @@ function ∇convolution_data(
         ∇x, TensorDescriptor(∇x), dy, dydesc, w, wdesc, cdesc;
         padding=pi32, stride=si32, dilation=di32, groups)
 end
+
+# Non-unicode stubs.
+
+convolution_bwd_weight!(args...; kwargs...) = ∇convolution_weight!(args...; kwargs...)
+convolution_bwd_weight(args...; kwargs...) = ∇convolution_weight(args...; kwargs...)
+
+convolution_bwd_data!(args...; kwargs...) = ∇convolution_data!(args...; kwargs...)
+convolution_bwd_data(args...; kwargs...) = ∇convolution_data(args...; kwargs...)
