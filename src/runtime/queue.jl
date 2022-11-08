@@ -14,6 +14,7 @@ mutable struct ROCQueue
     status::HSA.Status
     @atomic active::Bool
 end
+get_handle(queue::ROCQueue) = reinterpret(Ptr{Cvoid}, queue.queue)
 
 const QUEUES = Dict{Ptr{HSA.Queue}, WeakRef}()
 
@@ -30,6 +31,9 @@ function queue_error_handler(
 end
 
 function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
+    alloc_id = rand(UInt64)
+    @log_start(:alloc_queue, (;alloc_id), (;device=get_handle(device), priority))
+
     queue_size = Ref{UInt32}(0)
     getinfo(device.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
     @assert queue_size[] > 0
@@ -71,6 +75,7 @@ function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
         end
         HSA.amd_queue_set_priority(queue.queue, hsa_priority) |> check
     end
+    @log_finish(:alloc_queue, (;alloc_id), (;queue=reinterpret(UInt64, queue.queue)))
 
     AMDGPU.hsaref!()
     finalizer(queue) do q
@@ -109,6 +114,8 @@ function kill_queue!(queue::ROCQueue)
     _, succ = @atomicreplace queue.active true => false
     succ || return
 
+    @log_start(:kill_queue!, (;queue=reinterpret(UInt64, queue.queue)), nothing)
+
     lock(RT_LOCK) do
         if get(DEFAULT_QUEUES, queue.device, nothing) == queue
             delete!(DEFAULT_QUEUES, queue.device)
@@ -128,5 +135,8 @@ function kill_queue!(queue::ROCQueue)
     end
 
     HSA.queue_destroy(queue.queue) |> check
-    nothing
+
+    @log_finish(:kill_queue!, (;queue=reinterpret(UInt64, queue.queue)), nothing)
+
+    return
 end

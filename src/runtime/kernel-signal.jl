@@ -34,6 +34,7 @@ const _active_kernels = WeakKeyDict{ROCQueue, Vector{ROCKernelSignal}}()
 function Base.wait(
     kersig::ROCKernelSignal; check_exceptions::Bool = true, signal_kwargs...,
 )
+    @log_start(:wait, (;f=typeof(kersig.kernel.f), tt=typeof(kersig.kernel.args), signal=get_handle(kersig.signal)), nothing)
     finished = try
         wait(kersig.signal; signal_kwargs...)
         true
@@ -44,6 +45,7 @@ function Base.wait(
         isnothing(kersig.exception) && (kersig.exception = err;)
         false
     finally
+        @log_finish(:wait, (;f=typeof(kersig.kernel.f), tt=typeof(kersig.kernel.args), signal=get_handle(kersig.signal)), nothing)
         queue_error = kersig.queue.status != HSA.STATUS_SUCCESS
         # If it is QueueError, `kill_queue!` will fill `exception` field.
         queue_error && kill_queue!(kersig.queue)

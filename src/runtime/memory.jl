@@ -8,7 +8,7 @@ import AMDGPU: HIP
 end
 import AMDGPU: Runtime
 import .Runtime: ROCDevice, ROCSignal, ROCMemoryRegion, ROCMemoryPool, ROCDim, ROCDim3
-import .Runtime: DEVICES, check, get_region, get_memory_pool
+import .Runtime: DEVICES, check, get_region, get_memory_pool, get_handle
 using Preferences
 
 ## buffer type
@@ -273,6 +273,9 @@ Allocate `bytesize` bytes of HSA-managed memory on the region `region` or
 memory pool `pool`.
 """
 function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallback=!coherent && USE_SLOW_ALLOCATION_FALLBACK)
+    alloc_id = rand(UInt64)
+    Runtime.@log_start(:alloc, (;alloc_id), (;device=get_handle(device), size=bytesize, coherent))
+
     bytesize == 0 && return Buffer(C_NULL, C_NULL, C_NULL, 0, device, coherent, false)
 
     region_kind = if coherent
@@ -281,21 +284,24 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallba
         :coarsegrained
     end
 
+    buf = nothing
+    region = nothing
     try
         if region_kind != :coarsegrained
             region = get_region(device, region_kind)
             @debug "Allocating $(Base.format_bytes(bytesize)) from $region"
-            return alloc(device, region, bytesize)
+            buf = alloc(device, region, bytesize)
         else
             if USE_HIP_MALLOC_OVERRIDE
                 @debug "Allocating $(Base.format_bytes(bytesize)) from HIP"
-                return alloc_hip(bytesize)
+                buf = alloc_hip(bytesize)
+            else
+                region = get_memory_pool(device, region_kind)
+                @debug "Allocating $(Base.format_bytes(bytesize)) from $region"
+                buf = alloc(device, region, bytesize)
+                # This is a no-op and we need to make sure that we use the right region instead
+                # check(HSA.memory_assign_agent(buf.ptr, device.agent, HSA.ACCESS_PERMISSION_RW))
             end
-            pool = get_memory_pool(device, region_kind)
-            @debug "Allocating $(Base.format_bytes(bytesize)) from $pool"
-            return alloc(device, pool, bytesize)
-            # This is a no-op and we need to make sure that we use the right region instead
-            # check(HSA.memory_assign_agent(buf.ptr, device.agent, HSA.ACCESS_PERMISSION_RW))
         end
     catch err
         if slow_fallback &&
@@ -303,11 +309,17 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallba
            err isa Runtime.HSAError &&
            (err.code == HSA.STATUS_ERROR_OUT_OF_RESOURCES ||
             err.code == HSA.STATUS_ERROR_INVALID_ALLOCATION)
-            return alloc(device, bytesize; coherent=true)
+            # TODO: How to handle this with logging?
+            buf = alloc(device, bytesize; coherent=true)
         else
             rethrow(err)
         end
+    finally
+        ptr = buf !== nothing ? buf.ptr : C_NULL
+        region = region !== nothing ? get_handle(region) : C_NULL
+        Runtime.@log_finish(:alloc, (;alloc_id), (;ptr, region))
     end
+    return buf
 end
 function alloc_or_retry!(f)
     for phase in 1:3
@@ -366,6 +378,7 @@ end # if AMDGPU.hip_configured
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
+        Runtime.@log_start(:free, (;ptr=buf.ptr), nothing)
         if buf.host_ptr == C_NULL
             # HSA-backed
             if buf.pool_alloc
@@ -385,6 +398,7 @@ function free(buf::Buffer)
             unlock(buf.ptr)
         end
         untrack(buf)
+        Runtime.@log_finish(:free, (;ptr=buf.ptr), nothing)
     end
     return
 end
@@ -516,6 +530,7 @@ end
 Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
 function upload!(dst::Buffer, src::Ptr{T}, nbytes::Integer) where T
+    Runtime.@log_start(:upload!, (;dest=dst.ptr, src=reinterpret(Ptr{Cvoid}, src)), (;nbytes))
     nbytes > 0 || return
     if dst.host_ptr == C_NULL
         HSA.memory_copy(Ptr{T}(dst.ptr), src, nbytes) |> check
@@ -524,6 +539,7 @@ function upload!(dst::Buffer, src::Ptr{T}, nbytes::Integer) where T
                             reinterpret(Ptr{UInt8}, src),
                             nbytes)
     end
+    Runtime.@log_finish(:upload!, (;dest=dst.ptr, src=reinterpret(Ptr{Cvoid}, src)), (;nbytes))
 end
 
 """
@@ -532,6 +548,7 @@ end
 Download `nbytes` memory from `src` on the device to `dst` on the host.
 """
 function download!(dst::Ptr{T}, src::Buffer, nbytes::Integer) where T
+    Runtime.@log_start(:download!, (;dest=reinterpret(Ptr{Cvoid}, dst), src=src.ptr), (;nbytes))
     nbytes > 0 || return
     if src.host_ptr == C_NULL
         HSA.memory_copy(dst, Ptr{T}(src.ptr), nbytes) |> check
@@ -540,6 +557,7 @@ function download!(dst::Ptr{T}, src::Buffer, nbytes::Integer) where T
                             reinterpret(Ptr{UInt8}, src.host_ptr),
                             nbytes)
     end
+    Runtime.@log_finish(:download!, (;dest=reinterpret(Ptr{Cvoid}, dst), src=src.ptr), (;nbytes))
 end
 
 """
@@ -548,6 +566,7 @@ end
 Transfer `nbytes` of device memory from `src` to `dst`.
 """
 function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
+    Runtime.@log_start(:transfer!, (;dest=dst.ptr, src=src.ptr), (;nbytes))
     nbytes > 0 || return
     if dst.host_ptr != C_NULL && src.host_ptr != C_NULL
         Base.unsafe_copyto!(reinterpret(Ptr{UInt8}, dst.host_ptr),
@@ -560,6 +579,7 @@ function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
     else
         HSA.memory_copy(dst.ptr, src.ptr, nbytes) |> check
     end
+    Runtime.@log_finish(:transfer!, (;dest=dst.ptr, src=src.ptr), (;nbytes))
 end
 
 """
