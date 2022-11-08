@@ -295,6 +295,20 @@ end
 
 end
 
+@testset "FFT with view" begin
+    for T in (ComplexF32, ComplexF64)
+        X = rand(T, 128, 128, 2)
+        X_d = ROCArray(X)
+
+        # Perform fft with contiguous view with non-zero offsets
+        # This ensures that the offsets are properly being passed to rocFFT
+        fft!(view(X, :, :, 2))
+        fft!(view(X_d, :, :, 2))
+
+        @test isapprox(X, Array(X_d))
+    end
+end
+
 @testset "Promoted types" begin
     @testset for T in (Float32, Float64)
         X = rand(T, 10, 10)

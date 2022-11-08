@@ -85,6 +85,8 @@ function unsafe_free!(xs::ROCArray)
     return
 end
 
+Base.pointer(x::ROCArray) = x.buf.ptr + x.offset
+
 wait!(x::ROCArray) = wait!(x.syncstate)
 mark!(x::ROCArray, s) = mark!(x.syncstate, s)
 wait!(xs::Vector{<:ROCArray}) = foreach(wait!, xs)
