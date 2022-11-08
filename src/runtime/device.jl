@@ -20,6 +20,7 @@ mutable struct ROCDevice
     end
 end
 ROCDevice() = get_default_device()
+get_handle(device::ROCDevice) = device.agent.handle
 
 Base.:(==)(device1::ROCDevice, device2::ROCDevice) =
     device1.agent == device2.agent
@@ -221,6 +222,7 @@ end
 struct ROCMemoryRegion
     region::HSA.Region
 end
+get_handle(region::ROCMemoryRegion) = region.region.handle
 
 function iterate_regions_cb(region::HSA.Region, regions)
     push!(regions, region)
@@ -353,6 +355,7 @@ end
 struct ROCMemoryPool
     pool::HSA.AMDMemoryPool
 end
+get_handle(pool::ROCMemoryPool) = pool.pool.handle
 
 function iterate_pools_cb(pool::HSA.AMDMemoryPool, pools)
     push!(pools, pool)

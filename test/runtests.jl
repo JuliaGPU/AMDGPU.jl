@@ -58,7 +58,7 @@ push!(tests, "Codegen" => ()->begin
     include("codegen/synchronization.jl")
     include("codegen/trap.jl")
 end)
-
+push!(tests, "Logging" => ()->include("logging.jl"))
 push!(tests, "Device Functions" => ()->begin
     include("device/launch.jl")
     include("device/array.jl")

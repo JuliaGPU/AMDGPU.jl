@@ -23,6 +23,8 @@ between the host and device.
 """
 function ROCSignal(init::Integer = 1; ipc::Bool = true)
     signal = ROCSignal(Ref{HSA.Signal}())
+    alloc_id = rand(UInt64)
+    @log_start(:alloc_signal, (;alloc_id), nothing)
     if ipc
         attrs = UInt32(0)
         ipc && (attrs |= HSA.AMD_SIGNAL_IPC;)
@@ -32,10 +34,13 @@ function ROCSignal(init::Integer = 1; ipc::Bool = true)
     else
         HSA.signal_create(Int64(init), 0, C_NULL, signal.signal) |> check
     end
+    @log_finish(:alloc_signal, (;alloc_id), (;signal=get_handle(signal)))
 
     AMDGPU.hsaref!()
     finalizer(signal) do s
+        @log_start(:free_signal, (;signal=get_handle(s)), nothing)
         HSA.signal_destroy(s.signal[]) |> check
+        @log_finish(:free_signal, (;signal=get_handle(s)), nothing)
         AMDGPU.hsaunref!()
     end
     signal
