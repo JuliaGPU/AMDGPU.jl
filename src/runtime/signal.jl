@@ -50,7 +50,7 @@ load_acquire(signal::ROCSignal) = HSA.signal_load_scacquire(signal.signal[])
 Base.isdone(signal::ROCSignal) = load_acquire(signal) < 1
 
 Base.show(io::IO, signal::ROCSignal) =
-    print(io, "ROCSignal($(signal.signal[]))")
+    print(io, "ROCSignal($(repr(get_handle(signal))))")
 
 function Base.wait(
     signal::ROCSignal; timeout::Union{Real, Nothing} = DEFAULT_SIGNAL_TIMEOUT[],
