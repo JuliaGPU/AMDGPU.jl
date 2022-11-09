@@ -94,44 +94,44 @@ steps:
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
-  - label: "Julia nightly - GPUArrays 8"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: nightly
-      - JuliaCI/julia-test#v1:
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-    agents:
-      queue: "juliagpu"
-      rocm: "*"
-      rocmgpu: "*"
-    if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
-    soft_fail: true
-    timeout_in_minutes: 180
-    env:
-      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
-      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+  # - label: "Julia nightly - GPUArrays 8"
+  #   plugins:
+  #     - JuliaCI/julia#v1:
+  #         version: nightly
+  #     - JuliaCI/julia-test#v1:
+  #     - JuliaCI/julia-coverage#v1:
+  #         codecov: true
+  #   agents:
+  #     queue: "juliagpu"
+  #     rocm: "*"
+  #     rocmgpu: "*"
+  #   if: build.message !~ /\[skip tests\]/
+  #   command: "julia --project -e 'using Pkg; Pkg.update()'"
+  #   soft_fail: true
+  #   timeout_in_minutes: 180
+  #   env:
+  #     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
 
-  - label: "Julia nightly - GPUArrays 8 - No Artifacts"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: nightly
-      - JuliaCI/julia-test#v1:
-      - JuliaCI/julia-coverage#v1:
-          codecov: true
-    agents:
-      queue: "juliagpu"
-      rocm: "*"
-      rocmgpu: "*"
-    if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
-    soft_fail: true
-    timeout_in_minutes: 180
-    env:
-      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
-      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+  # - label: "Julia nightly - GPUArrays 8 - No Artifacts"
+  #   plugins:
+  #     - JuliaCI/julia#v1:
+  #         version: nightly
+  #     - JuliaCI/julia-test#v1:
+  #     - JuliaCI/julia-coverage#v1:
+  #         codecov: true
+  #   agents:
+  #     queue: "juliagpu"
+  #     rocm: "*"
+  #     rocmgpu: "*"
+  #   if: build.message !~ /\[skip tests\]/
+  #   command: "julia --project -e 'using Pkg; Pkg.update()'"
+  #   soft_fail: true
+  #   timeout_in_minutes: 180
+  #   env:
+  #     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
   - label: "Documentation"
     plugins:
