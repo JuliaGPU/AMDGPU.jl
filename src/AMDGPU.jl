@@ -20,6 +20,22 @@ export has_rocm_gpu
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc
 
+struct LockedObject{T}
+    lock::ReentrantLock
+    payload::T
+end
+
+LockedObject(payload) = LockedObject(ReentrantLock(), payload)
+
+function Base.lock(f, x::LockedObject)
+    lock(x.lock)
+    try
+        return f(x.payload)
+    finally
+        unlock(x.lock)
+    end
+end
+
 # Load HSA Runtime
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath(@__DIR__, "hsa", "HSA.jl"))

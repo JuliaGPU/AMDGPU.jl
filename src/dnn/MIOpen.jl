@@ -2,7 +2,7 @@ module MIOpen
 
 import AMDGPU
 import AMDGPU.Runtime.Mem
-import AMDGPU: ROCArray, ROCDevice
+import AMDGPU: ROCArray, ROCDevice, LockedObject
 
 using CEnum
 using GPUArrays
@@ -11,22 +11,6 @@ using MIOpen_jll
 const libMIOpen_path = MIOpen_jll.libMIOpen_path
 
 include("low_level.jl")
-
-struct LockedObject{T}
-    lock::ReentrantLock
-    payload::T
-end
-
-LockedObject(payload) = LockedObject(ReentrantLock(), payload)
-
-function Base.lock(f, x::LockedObject)
-    lock(x.lock)
-    try
-        return f(x.payload)
-    finally
-        unlock(x.lock)
-    end
-end
 
 const HANDLE = LockedObject(Ref{miopenHandle_t}(C_NULL))
 
