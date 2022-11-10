@@ -20,6 +20,7 @@ end
 # FIXME: support more types
 @testset "Simple Convolution" begin
     for T in (Float16, Float32), nd in 2:3
+        @show T, nd
         ndims = Val{nd}()
         spatial_size = ntuple(i -> 3, ndims)
         target_size = ntuple(i -> 1, ndims)
@@ -57,26 +58,31 @@ end
     wh2 = rand(Float32, 3, 4, 3, 16)
     x, w1, w2 = ROCArray.((xh, wh1, wh2))
 
+    @show 1
     yh = NNlib.conv(xh, wh1; pad=(0, 0), stride=(1, 1), dilation=(1, 1), flipped=true)
     y = MIOpen.convolution(x, w1; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
     @test y ≈ ROCArray(yh)
     @test size(y) == (9, 9, 16, 10)
 
+    @show 2
     yh = NNlib.conv(xh, wh1; pad=(2, 2), stride=(2, 2), dilation=(1, 1), flipped=true)
     y = MIOpen.convolution(x, w1; padding=(2, 2), stride=(2, 2), dilation=(1, 1), groups=1)
     @test y ≈ ROCArray(yh)
     @test size(y) == (7, 7, 16, 10)
 
+    @show 3
     yh = NNlib.conv(xh, wh2; pad=(2, 3), stride=(1, 2), dilation=(1, 1), flipped=true)
     y = MIOpen.convolution(x, w2; padding=(2, 3), stride=(1, 2), dilation=(1, 1), groups=1)
     @test y ≈ ROCArray(yh)
     @test size(y) == (12, 7, 16, 10)
 
+    @show 4
     yh = NNlib.conv(xh, wh1; pad=(2, 3), stride=(1, 2), dilation=(2, 2), flipped=true)
     y = MIOpen.convolution(x, w1; padding=(2, 3), stride=(1, 2), dilation=(2, 2), groups=1)
     @test y ≈ ROCArray(yh)
     @test size(y) == (12, 7, 16, 10)
 
+    @show 5
     # Depthwise convolution.
     wdh1 = rand(Float32, 2, 2, 1, 3)
     wd1 = ROCArray(wdh1)
@@ -85,6 +91,7 @@ end
     @test y ≈ ROCArray(yh)
     @test size(y) == (9, 9, 3, 10)
 
+    @show 6
     # Grouped convolution.
     xh = ones(Float32, 10, 10, 4, 10)
     wdh2 = ones(Float32, 2, 2, 2, 4)
