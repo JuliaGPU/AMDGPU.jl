@@ -83,7 +83,7 @@ get_conv_algo_finder(::Type{miopenConvBwdDataAlgorithm_t}) = miopenFindConvoluti
 function find_conv_algo(
     conv_type::C;
     handle, workspace, a, a_desc, b, b_desc, conv_desc, c, c_desc,
-    n_algos = 5, exhaustive_search::Bool = true,
+    n_algos = 1, exhaustive_search::Bool = false,
 ) where C <: CONV_ALGOS
     perf_count_ref = Ref{Int32}(0)
     perf_results_ref = Ref{miopenConvAlgoPerf_t}()
@@ -97,18 +97,13 @@ function find_conv_algo(
     perf_results_ref[]
 end
 
-function select_gemm_algo(perf_results_ref, perf_count)
-    @show perf_count
-    @show perf_results_ref[].fwd_algo
-end
-
 function find_algorithm(
     conv_type::C, handle::miopenHandle_t, conv_args::ConvolutionArgs,
     a, a_desc, b, b_desc, conv_desc, c, c_desc,
 ) where C <: CONV_ALGOS
     dev = GPUArrays.device(a)
-    # cache = get_benchmark_cache(conv_type, conv_args, dev)
-    # isnothing(cache) || return cache
+    cache = get_benchmark_cache(conv_type, conv_args, dev)
+    isnothing(cache) || return cache
 
     is_fwd = conv_type == Type{miopenConvFwdAlgorithm_t}
     workspace_size = get_workspace_size(conv_type;
