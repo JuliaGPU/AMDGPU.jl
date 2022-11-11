@@ -345,7 +345,8 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
                     if isassigned(ret_buf)
                         Mem.free(ret_buf[])
                     end
-                    Mem.free(Mem.Buffer(reinterpret(Ptr{Cvoid}, hc.buf_ptr), C_NULL, 0, device, true, false))
+                    buf_ptr = reinterpret(Ptr{Cvoid}, hc.buf_ptr)
+                    Mem.free(Mem.Buffer(buf_ptr, C_NULL, buf_ptr, 0, device, true, false))
                     break
                 end
             end
