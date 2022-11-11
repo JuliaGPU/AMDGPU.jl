@@ -13,6 +13,7 @@ end
 
 @testset "Highlevel" begin
     for T in (Float32, Float64)
+        # Regular array
         A = rand(T, 8, 8)
         x = rand(T, 8)
         RA = ROCArray(A)
@@ -20,6 +21,17 @@ end
         Rb = RA*Rx
         _b = Array(Rb)
         @test isapprox(A*x, _b)
+
+        # View into array
+        A = rand(T, 8, 8, 2)
+        x = rand(T, 8, 2)
+        A_d = ROCArray(A)
+        x_d = ROCArray(x)
+        # Perform multiplication with contiguous view with non-zero offsets
+        # This ensures that the offsets are properly being passed to rocBLAS
+        Ax = view(A, :, :, 2) * view(x, :, 2)
+        Ax_d = view(A_d, :, :, 2) * view(x_d, :, 2)
+        @test isapprox(Ax, Array(Ax_d))
     end
     @testset "norm" begin
         for T in (Float32, Float64, ComplexF32, ComplexF64)

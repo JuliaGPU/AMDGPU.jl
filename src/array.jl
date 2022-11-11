@@ -387,7 +387,7 @@ roc(xs) = adapt(Float32Adaptor(), xs)
 
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::ROCArray{T}) where T =
-    Base.unsafe_convert(Ptr{T}, x.buf)
+    Base.unsafe_convert(Ptr{T}, x.buf) + x.offset
 
 # some nice utilities
 
