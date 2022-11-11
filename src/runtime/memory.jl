@@ -344,7 +344,7 @@ struct PoolAllocation
     refs::Threads.Atomic{Int}
 end
 PoolAllocation(addr) =
-    PoolAllocation(addr, Threads.Atomic{Int}(0))
+    PoolAllocation(addr, Threads.Atomic{Int}(1))
 Base.hash(p::PoolAllocation) = hash(p.addr, hash(PoolAllocation))
 Base.isequal(p1::P, p2::P) where P<:PoolAllocation = p1.addr == p2.addr
 
@@ -428,14 +428,14 @@ function free_pooled(device::ROCDevice, key::UInt64, kind::Symbol, ptr::Ptr{Cvoi
                 # TODO: Don't delete unless we're out of space
                 delete!(device_dict_shared, key)
                 # TODO: Consider putting into a bin if power-of-two bytesize
-                HSA.memory_free(ptr)
+                check(HSA.memory_free(ptr))
             end
             return
         end
         # Check if this pointer is a binned allocation
         if !haskey(ALLOC_POOL_PTR_BIN_MAP, ptr)
             # Not binned or shared
-            HSA.memory_free(ptr)
+            check(HSA.memory_free(ptr))
             return
         end
         bin = ALLOC_POOL_PTR_BIN_MAP[ptr]
@@ -445,7 +445,7 @@ function free_pooled(device::ROCDevice, key::UInt64, kind::Symbol, ptr::Ptr{Cvoi
             push!(allocs, ptr)
         else
             # No free space
-            HSA.memory_free(ptr)
+            check(HSA.memory_free(ptr))
         end
         return
     end
