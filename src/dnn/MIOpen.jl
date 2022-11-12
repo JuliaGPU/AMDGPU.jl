@@ -9,9 +9,11 @@ using GPUArrays
 
 @static if AMDGPU.use_artifacts
     using MIOpen_jll
+    const libMIOpen_path = MIOpen_jll.libMIOpen_path
+else
+    const libMIOpen_path = AMDGPU.libMIOpen
 end
 
-const libMIOpen_path = MIOpen_jll.libMIOpen_path
 
 include("low_level.jl")
 
