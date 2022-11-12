@@ -93,7 +93,6 @@ function find_conv_algo(
         perf_count_ref, perf_results_ref,
         workspace.data.ptr, workspace.data.bytesize,
         exhaustive_search) |> check
-    select_gemm_algo(perf_results_ref, perf_count_ref[])
     perf_results_ref[]
 end
 
