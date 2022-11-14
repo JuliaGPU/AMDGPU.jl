@@ -20,6 +20,22 @@ export has_rocm_gpu
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc
 
+struct LockedObject{T}
+    lock::ReentrantLock
+    payload::T
+end
+
+LockedObject(payload) = LockedObject(ReentrantLock(), payload)
+
+function Base.lock(f, x::LockedObject)
+    lock(x.lock)
+    try
+        return f(x.payload)
+    finally
+        unlock(x.lock)
+    end
+end
+
 # Load HSA Runtime
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath(@__DIR__, "hsa", "HSA.jl"))
@@ -168,8 +184,8 @@ if functional(:hip)
     if functional(:rocrand)
         include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
     end
-    functional(:rocfft)      && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-    #functional(:miopen)     && include("dnn/MIOpen.jl")
+    functional(:rocfft) && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
+    functional(:MIOpen) && include("dnn/MIOpen.jl")
 end
 
 include("random.jl")

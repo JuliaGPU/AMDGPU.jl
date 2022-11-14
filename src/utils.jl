@@ -56,9 +56,9 @@ function versioninfo(io::IO=stdout)
     if functional(:rocfft)
         println("- Path: $(Libdl.dlpath(librocfft))")
     end
-    println("MIOpen ($(functional(:miopen) ? "ready" : "MISSING"))")
-    if functional(:miopen)
-        println("- Path: $(Libdl.dlpath(libmiopen))")
+    println("MIOpen ($(functional(:MIOpen) ? "ready" : "MISSING"))")
+    if functional(:MIOpen)
+        println("- Path: $(Libdl.dlpath(libMIOpen))")
     end
 
     if functional(:hsa)
@@ -140,11 +140,11 @@ function functional(component::Symbol)
         return librocrand !== nothing
     elseif component == :rocfft
         return librocfft !== nothing
-    elseif component == :miopen
-        return libmiopen !== nothing
+    elseif component == :MIOpen
+        return libMIOpen !== nothing
     elseif component == :all
         for component in (:hsa, :hip, :lld, :device_libs, :rocblas, :rocsolver,
-                          :rocalution, :rocsparse, :rocrand, :rocfft, :miopen)
+                          :rocalution, :rocsparse, :rocrand, :rocfft, :MIOpen)
             functional(component) || return false
         end
         return true

@@ -116,6 +116,13 @@ push!(tests, "NMF" => ()->begin
         @test_skip "NMF"
     end
 end)
+push!(tests, "MIOpen" => ()->begin
+    if AMDGPU.functional(:MIOpen)
+        include("dnn/miopen.jl")
+    else
+        @test_skip "MIOpen"
+    end
+end)
 push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
 for name in keys(TestSuite.tests)
     push!(tests, "GPUArrays TestSuite - $name" =>
