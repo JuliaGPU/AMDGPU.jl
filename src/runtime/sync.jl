@@ -17,9 +17,11 @@ function wait!(ss::SyncState)
     foreach(wait, ss.signals)
     empty!(ss.signals)
     @static if hip_configured
-        foreach(AMDGPU.HIP.hipStreamSynchronize, ss.streams)
+        for s in ss.streams
+            AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(s)
+        end
         empty!(ss.streams)
-        AMDGPU.HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
+        AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
     end
     nothing
 end

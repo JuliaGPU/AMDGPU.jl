@@ -142,7 +142,6 @@ function status_message(status)
     end
 end
 
-
 macro check(hip_func)
     quote
         local err::hipError_t
