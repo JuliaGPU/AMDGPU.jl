@@ -332,7 +332,7 @@ Keyword arguments that control signal creation via [`AMDGPU.create_event`](@ref)
 - `timeout::Union{Float64, Nothing} = nothing`: How long to wait for the signal to complete before throwing an `AMDGPU.Runtime.SignalTimeoutException`, in seconds. If `nothing`, then timeouts are disabled and the `wait` call may hang forever if the kernel never completes.
 
 Keyword arguments that control kernel creation via [`AMDGPU.create_kernel`](@ref):
-- `localmem::Int = 0`: The minimum amount of local memory to allocate for the kernel. This value is lower-bounded by the amount of static local memory required by the kernel (as reported by the compiler).
+- `localmem::Int = 0`: The amount of dynamic local memory to allocate for the kernel. This value is separate from the amount of static local memory required by the kernel (as reported by the compiler).
 
 Keyword arguments that control kernel launch via [`AMDGPU.HostKernel`](@ref) and [`AMDGPU.DeviceKernel`](@ref):
 - `groupsize::Union{Tuple,Integer} = 1`: The size of the groups to execute over the grid. If an `Integer` or `Tuple{<:Integer}`, only activate the X dimension of the group. If `Tuple{<:Integer,<:Integer}`, activate the X and Y dimensions of the group. If `Tuple{<:Integer,<:Integer,<:Integer}`, activate the X, Y, and Z dimensions of the group. All sizes must be greater than 0.
@@ -452,4 +452,13 @@ macro roc(ex...)
             end)
         end
     return esc(code)
+end
+
+# launch config
+
+launch_configuration(kern::Runtime.HostKernel; kwargs...) =
+    launch_configuration(kern.fun)
+function launch_configuration(fun::Runtime.ROCFunction; input_block_size=1, localmem=0)
+    occ = Compiler.calculate_occupancy(fun; input_block_size, localmem)
+    return (;groupsize=occ.best_block_size)
 end

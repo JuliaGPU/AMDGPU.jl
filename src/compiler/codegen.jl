@@ -189,6 +189,7 @@ function rocfunction_compile(@nospecialize(job::CompilerJob))
         globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
                       filter(x->isextinit(x), collect(LLVM.globals(ir))))
         entry = LLVM.name(kernel)
+
         dispose(ir)
 
         Runtime.@log_finish(:compile, (;f=job.source.f, tt=job.source.tt), nothing)
@@ -200,13 +201,14 @@ function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
     Runtime.@log_start(:link, (;f=job.source.f, tt=job.source.tt), nothing)
     device = job.params.device
     global_hooks = job.params.global_hooks
-    obj, entry, globals = compiled.obj, compiled.entry, compiled.globals
+    (;obj, entry, globals) = compiled
 
     # create executable and kernel
     obj = codeunits(obj)
     exe = AMDGPU.create_executable(device, entry, obj; globals=globals)
     mod = ROCModule(exe)
-    fun = ROCFunction(mod, entry)
+    key = hash(job, GPUCompiler.specialization_id(job))
+    fun = ROCFunction(mod, entry, key)
 
     # initialize globals from hooks
     for gname in first.(globals)

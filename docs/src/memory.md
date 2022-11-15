@@ -114,10 +114,13 @@ Local memory may be allocated within a kernel by calling either
 `@ROCStaticLocalArray(T, dims)` or `@ROCDynamicLocalArray(T, dims)` - use the
 former if `dims` is passed as a constant value, and otherwise use the latter.
 Local memory does not need to be freed, as it is automatically freed by the
-hardware. If `@ROCDynamicLocalArray` is used, then local memory is dynamically
-allocated at kernel execution time; therefore, the `localmem` option to `@roc`
-must be set appropriately to ensure that enough local memory is allocated by
-the hardware.
+hardware.
+
+If `@ROCDynamicLocalArray` is used, then local memory is dynamically allocated
+at kernel execution time; the `localmem` option to `@roc` must be set
+appropriately to ensure that enough local memory is allocated by the hardware.
+It is allocated in addition to the local memory that is statically allocated by
+the kernel.
 
 ```julia
 function kernel(C, A, B)
