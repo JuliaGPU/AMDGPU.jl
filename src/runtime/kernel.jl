@@ -104,7 +104,7 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
     end
 
     group_segment_size = executable_symbol_kernel_group_segment_size(exec_symbol)
-    group_segment_size = UInt32(max(group_segment_size, localmem))
+    group_segment_size = UInt32(group_segment_size + localmem)
     private_segment_size = executable_symbol_kernel_private_segment_size(exec_symbol)
 
     # Allocate the kernel argument buffer

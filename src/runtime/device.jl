@@ -126,6 +126,7 @@ const AGENT_INFO_MAP = Dict(
     HSA.AGENT_INFO_QUEUE_MAX_SIZE => UInt32,
     HSA.AGENT_INFO_QUEUE_TYPE => HSA.QueueType,
 
+    HSA.AGENT_INFO_WAVEFRONT_SIZE => UInt32, # TODO: Deprecated
     HSA.AGENT_INFO_WORKGROUP_MAX_SIZE => UInt32,
     HSA.AMD_AGENT_INFO_COMPUTE_UNIT_COUNT => UInt32,
     HSA.AMD_AGENT_INFO_NUM_SIMDS_PER_CU => UInt32,
@@ -150,6 +151,9 @@ profile(device::AnyROCDevice) =
 
 device_type(device::AnyROCDevice) =
     getinfo(device, HSA.AGENT_INFO_DEVICE)
+
+device_wavefront_size(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_WAVEFRONT_SIZE)
 
 device_workgroup_max_size(device::AnyROCDevice) =
     getinfo(device, HSA.AGENT_INFO_WORKGROUP_MAX_SIZE)

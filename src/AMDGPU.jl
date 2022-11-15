@@ -148,6 +148,7 @@ module Compiler
     include("compiler/utils.jl")
     include("compiler/global-hooks.jl")
     include("compiler/codegen.jl")
+    include("compiler/occupancy.jl")
 end # module Compiler
 
 include("highlevel.jl")

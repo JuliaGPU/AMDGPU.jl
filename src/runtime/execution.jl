@@ -65,11 +65,12 @@ end
 
 @doc (@doc AbstractKernel) HostKernel
 
-@inline function roccall(kernel::HostKernel, tt, args...; signal::ROCKernelSignal, config=nothing, kwargs...)
-    if config !== nothing
-        roccall(signal, tt, args...; config(kernel)..., kwargs...)
+@inline function roccall(kernel::HostKernel, tt, args...; signal::ROCKernelSignal, groupsize=1, kwargs...)
+    if groupsize == :auto
+        config = AMDGPU.launch_configuration(kernel; dynamic_localmem=localmem)
+        roccall(signal, tt, args...; config..., kwargs...)
     else
-        roccall(signal, tt, args...; kwargs...)
+        roccall(signal, tt, args...; kwargs..., groupsize)
     end
 end
 
