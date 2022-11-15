@@ -13,6 +13,7 @@ function main()
             "Devices/Agents" => "devices.md",
             "Queues and Signals" => "queues_signals.md",
             "Kernel Dependencies" => "kernel_deps.md",
+            "Kernel Launch" => "kernel_launch.md",
             "Global Variables" => "globals.md",
             "Exceptions" => "exceptions.md",
             "Printing" => "printing.md",

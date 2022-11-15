@@ -1,4 +1,4 @@
-@testset "Launch Configuration" begin
+@testset "Launch Options" begin
     kernel() = nothing
 
     device = AMDGPU.default_device()
@@ -124,4 +124,63 @@ if length(AMDGPU.devices()) > 1
 else
     @warn "Only 1 GPU detected; skipping multi-GPU tests"
     @test_broken "Multi-GPU"
+end
+
+@testset "Launch Configuration" begin
+    kern = @roc launch=false identity(nothing)
+    occ = AMDGPU.launch_configuration(kern)
+    @test occ isa NamedTuple
+    @test haskey(occ, :groupsize)
+    # This kernel has no occupancy constraints
+    @test occ.groupsize == AMDGPU.Device._max_group_size
+
+    @testset "Automatic groupsize selection" begin
+        function groupsize_kernel(A)
+            A[1] = workgroupDim().x
+            nothing
+        end
+        A = AMDGPU.ones(Int, 1)
+        kern = @roc launch=false groupsize_kernel(A)
+        # Verify first that there are no occupancy constraints
+        @test AMDGPU.launch_configuration(kern).groupsize == AMDGPU.Device._max_group_size
+        # Then check that this value was used
+        wait(@roc groupsize=:auto groupsize_kernel(A))
+        @test Array(A)[1] == AMDGPU.Device._max_group_size
+    end
+
+    @testset "Function redefinition" begin
+        RX = ROCArray(rand(Float32, 1))
+        function f(X)
+            Y = @ROCStaticLocalArray(Float32, 1)
+            X[1] = Y[1]
+            return
+        end
+        occ1 = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX))
+        function f(X)
+            Y = @ROCStaticLocalArray(Float32, 1024)
+            X[1] = Y[1]
+            return
+        end
+        occ2 = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX))
+        @test occ1 != occ2
+    end
+
+    @testset "Local memory" begin
+        function f(X)
+            Y = @ROCStaticLocalArray(Float32, 16)
+            @inbounds X[1] = Y[1]
+            return
+        end
+        RX = ROCArray(rand(Float32, 1))
+        @testset "Static" begin
+            occ = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX))
+            @test occ.LDS_size == sizeof(Float32) * 16
+        end
+        @testset "Dynamic" begin
+            # Test that localmem is properly accounted for
+            occ1 = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX))
+            occ2 = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX); localmem=65536÷2)
+            @test occ1 != occ2
+        end
+    end
 end
