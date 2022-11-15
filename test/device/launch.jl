@@ -1,4 +1,4 @@
-@testset "Launch Configuration" begin
+@testset "Launch Options" begin
     kernel() = nothing
 
     device = AMDGPU.default_device()
@@ -124,4 +124,27 @@ if length(AMDGPU.devices()) > 1
 else
     @warn "Only 1 GPU detected; skipping multi-GPU tests"
     @test_broken "Multi-GPU"
+end
+
+@testset "Launch Configuration" begin
+    kern = @roc launch=false identity(nothing)
+    occ = AMDGPU.launch_configuration(kern)
+    @test occ isa NamedTuple
+    @test haskey(occ, :groupsize)
+    # This kernel has no occupancy constraints
+    @test occ.groupsize == AMDGPU.Device._max_group_size
+
+    @testset "Automatic groupsize selection" begin
+        function groupsize_kernel(A)
+            A[1] = workgroupDim().x
+            nothing
+        end
+        A = AMDGPU.ones(Int, 1)
+        kern = @roc launch=false groupsize_kernel(A)
+        # Verify first that there are no occupancy constraints
+        @test AMDGPU.launch_configuration(kern).groupsize == AMDGPU.Device._max_group_size
+        # Then check that this value was used
+        wait(@roc groupsize=:auto identity(nothing))
+        @test Array(A)[1] == AMDGPU.Device._max_group_size
+    end
 end

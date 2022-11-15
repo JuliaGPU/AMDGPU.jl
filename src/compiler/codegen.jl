@@ -116,7 +116,7 @@ function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default
     target = GCNCompilerTarget(; dev_isa, features)
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
-    @debug "Compiling $f ($tt)"
+    @debug "Compiling $f ($(tt.parameters...))"
     fun = GPUCompiler.cached_compilation(cache, job,
                                          rocfunction_compile,
                                          rocfunction_link)::ROCFunction
@@ -141,6 +141,7 @@ function rocfunction_compile(@nospecialize(job::CompilerJob))
         globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
                       filter(x->isextinit(x), collect(LLVM.globals(ir))))
         entry = LLVM.name(kernel)
+
         dispose(ir)
 
         return (;obj, entry, globals)
@@ -149,7 +150,7 @@ end
 function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
     device = job.params.device
     global_hooks = job.params.global_hooks
-    obj, entry, globals = compiled.obj, compiled.entry, compiled.globals
+    (;obj, entry, globals) = compiled
 
     # create executable and kernel
     obj = codeunits(obj)
