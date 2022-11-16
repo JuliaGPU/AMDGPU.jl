@@ -3,6 +3,9 @@
 
 import AMDGPU
 import AMDGPU: HSA
+if AMDGPU.hip_configured
+import AMDGPU: HIP
+end
 import AMDGPU: Runtime
 import .Runtime: ROCDevice, ROCSignal, ROCMemoryRegion, ROCMemoryPool, ROCDim, ROCDim3
 import .Runtime: DEVICES, check, get_region, get_memory_pool
@@ -222,9 +225,29 @@ function transfer end
 
 ## pointer-based
 
-const USE_SLOW_ALLOCATION_FALLBACK = @load_preference("use_slow_allocation_fallback", true)
 "Enables or disables the slow allocation fallback for non-coherent allocations."
-enable_slow_allocation_fallback(flag::Bool) = @set_preferences!("use_slow_allocation_fallback" => flag)
+enable_slow_allocation_fallback!(flag::Bool) = @set_preferences!("use_slow_allocation_fallback" => flag)
+const USE_SLOW_ALLOCATION_FALLBACK = let
+    if haskey(ENV, "JULIA_AMDGPU_USE_SLOW_ALLOCATION_FALLBACK")
+        flag = parse(Bool, ENV["JULIA_AMDGPU_USE_SLOW_ALLOCATION_FALLBACK"])
+        enable_slow_allocation_fallback!(flag)
+        flag
+    else
+        @load_preference("use_slow_allocation_fallback", true)
+    end
+end
+
+"Enables or disables using hipMalloc/hipFree for non-coherent allocations."
+enable_hip_malloc_override!(flag::Bool) = @set_preferences!("use_hip_malloc_override" => flag)
+const USE_HIP_MALLOC_OVERRIDE = let
+    if haskey(ENV, "JULIA_AMDGPU_USE_HIP_MALLOC_OVERRIDE")
+        flag = parse(Bool, ENV["JULIA_AMDGPU_USE_HIP_MALLOC_OVERRIDE"])
+        enable_hip_malloc_override!(flag)
+        flag
+    else
+        @load_preference("use_hip_malloc_override", false)
+    end
+end
 
 """
     alloc(bytesize::Integer; coherent=false) -> Buffer
@@ -264,6 +287,10 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallba
             @debug "Allocating $(Base.format_bytes(bytesize)) from $region"
             return alloc(device, region, bytesize)
         else
+            if USE_HIP_MALLOC_OVERRIDE
+                @debug "Allocating $(Base.format_bytes(bytesize)) from HIP"
+                return alloc_hip(bytesize)
+            end
             pool = get_memory_pool(device, region_kind)
             @debug "Allocating $(Base.format_bytes(bytesize)) from $pool"
             return alloc(device, pool, bytesize)
@@ -320,13 +347,36 @@ function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
 end
 alloc(bytesize; kwargs...) =
     alloc(Runtime.get_default_device(), bytesize; kwargs...)
+@static if AMDGPU.hip_configured
+function alloc_hip(bytesize::Integer)
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    # FIXME: Set HIP device
+    alloc_or_retry!() do
+        try
+            HIP.@check HIP.hipMalloc(ptr_ref, Csize_t(bytesize))
+            HSA.STATUS_SUCCESS
+        catch
+            # FIXME: Actually check error code
+            HSA.STATUS_ERROR_OUT_OF_RESOURCES
+        end
+    end
+    return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, Runtime.get_default_device(), false, true)
+end
+end # if AMDGPU.hip_configured
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
         if buf.host_ptr == C_NULL
             # HSA-backed
             if buf.pool_alloc
-                check(HSA.amd_memory_pool_free(buf.ptr))
+                if USE_HIP_MALLOC_OVERRIDE
+                    @static if AMDGPU.hip_configured
+                        # Actually HIP-backed
+                        HIP.@check HIP.hipFree(buf.ptr)
+                    end
+                else
+                    check(HSA.amd_memory_pool_free(buf.ptr))
+                end
             else
                 check(HSA.memory_free(buf.ptr))
             end
