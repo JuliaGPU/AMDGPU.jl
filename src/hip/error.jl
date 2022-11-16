@@ -26,7 +26,7 @@ function status_message(status)
         return "profiler not initialized"
     elseif status == hipErrorProfilerAlreadyStarted
         return "profiler already started"
-    elseif statps == hipErrorProfilerAlreadyStopped
+    elseif status == hipErrorProfilerAlreadyStopped
         return "profiler already stopped"
     elseif status == hipErrorInsufficientDriver
         return "insufficient driver"
@@ -113,7 +113,7 @@ function status_message(status)
         return "invalid device pointer"
     elseif status == hipErrorInvalidMemcpyDirection
         return "invalid memory copy direction"
-    elseif hipErrorInvalidResourceHandle
+    elseif status == hipErrorInvalidResourceHandle
         return "resource handle (hipEvent_t or hipStream_t) invalid"
     elseif status == hipErrorNotReady # not actually an error
         return "asynchronous operations not completed"
@@ -133,7 +133,7 @@ function status_message(status)
         return "tried to unlock a non-page-locked memory"
     elseif status == hipErrorMapBufferObjectFailed
         return "IPC memory attach failed from ROCr"
-    elseif status == hipAssert
+    elseif status == hipErrorAssert
         return "kernel calls produced assert"
     elseif status == hipErrorNotSupported
         return "hip API is not supported/implemented"
