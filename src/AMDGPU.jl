@@ -144,9 +144,10 @@ module Compiler
     import .Runtime: Adaptor
     import .Runtime: Mem
 
-    include("devlibs.jl")
-    include("compiler_utils.jl")
-    include("compiler.jl")
+    include("compiler/device-libs.jl")
+    include("compiler/utils.jl")
+    include("compiler/global-hooks.jl")
+    include("compiler/codegen.jl")
 end # module Compiler
 
 include("highlevel.jl")
