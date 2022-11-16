@@ -11,9 +11,7 @@ function gbl_init(gbl, mod, dev)
     gbl_ptr = Base.unsafe_convert(Ptr{Float32}, gbl.ptr)
     mygbl_ptr[] = gbl_ptr
 
-    @test Base.unsafe_load(gbl_ptr) == 0f0
     Base.unsafe_store!(gbl_ptr, 2f0)
-    @test Base.unsafe_load(gbl_ptr) == 2f0
 end
 
 wait(@roc groupsize=1 global_hooks=(myglobal=gbl_init,) kernel(Int32(1)))
