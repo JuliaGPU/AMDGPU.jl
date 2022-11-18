@@ -117,11 +117,13 @@ function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default
     params = ROCCompilerParams(device, global_hooks)
     job = CompilerJob(target, source, params)
     @debug "Compiling $f ($tt)"
+    Runtime.@log_start(:cached_compile, (;f=F, tt), nothing)
     fun = GPUCompiler.cached_compilation(cache, job,
                                          rocfunction_compile,
                                          rocfunction_link)::ROCFunction
     kernel = Runtime.HostKernel{F,tt}(f, fun.mod, fun)
     # FIXME: Add caching level
+    Runtime.@log_finish(:cached_compile, (;f=F, tt), nothing)
     return kernel
 end
 
@@ -130,6 +132,8 @@ const rocfunction_cache = Dict{ROCDevice,Dict{UInt,Any}}()
 # compile to GCN
 function rocfunction_compile(@nospecialize(job::CompilerJob))
     # compile
+    Runtime.@log_start(:compile, (;f=job.source.f, tt=job.source.tt), nothing)
+
     method_instance, mi_meta = GPUCompiler.emit_julia(job)
     JuliaContext() do ctx
         ir, ir_meta = GPUCompiler.emit_llvm(job, method_instance; ctx)
@@ -143,10 +147,13 @@ function rocfunction_compile(@nospecialize(job::CompilerJob))
         entry = LLVM.name(kernel)
         dispose(ir)
 
+        Runtime.@log_finish(:compile, (;f=job.source.f, tt=job.source.tt), nothing)
+
         return (;obj, entry, globals)
     end
 end
 function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
+    Runtime.@log_start(:link, (;f=job.source.f, tt=job.source.tt), nothing)
     device = job.params.device
     global_hooks = job.params.global_hooks
     obj, entry, globals = compiled.obj, compiled.entry, compiled.globals
@@ -167,13 +174,17 @@ function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
         end
         if hook !== nothing
             @debug "Initializing global $gname"
+            Runtime.@log_start(:global_init, (;f=job.source.f, tt=job.source.tt, gname), nothing)
             gbl = Runtime.get_global(exe, gname)
             hook(gbl, mod, device)
+            Runtime.@log_finish(:global_init, (;f=job.source.f, tt=job.source.tt, gname), nothing)
         else
             @debug "Uninitialized global $gname"
             continue
         end
     end
+
+    Runtime.@log_finish(:link, (;f=job.source.f, tt=job.source.tt), nothing)
 
     return fun
 end

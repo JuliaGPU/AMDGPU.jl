@@ -58,7 +58,7 @@ push!(tests, "Codegen" => ()->begin
     include("codegen/synchronization.jl")
     include("codegen/trap.jl")
 end)
-
+push!(tests, "Logging" => ()->include("logging.jl"))
 push!(tests, "Device Functions" => ()->begin
     include("device/launch.jl")
     include("device/array.jl")
@@ -141,6 +141,13 @@ function run_worker(w)
                 end
             end
         catch err
+            while err isa RemoteException || err isa CapturedException
+                if err isa RemoteException
+                    err = err.captured
+                elseif err isa CapturedException
+                    err = err.ex
+                end
+            end
             if err isa TestSetException
                 failed[] = true
                 continue
@@ -168,6 +175,7 @@ function handle_worker(w, pid)
             printstyled("Worker $w ($pid) died\n"; color=:red)
             start_worker!()
         else
+            failed[] = true
             rethrow(err)
         end
     end
@@ -191,10 +199,10 @@ try
         sleep(1)
     end
 catch err
+    failed[] = true
     if !(err isa InterruptException)
         rethrow(err)
     end
-    failed[] = true
 end
 
 if failed[]
