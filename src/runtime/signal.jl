@@ -68,22 +68,27 @@ function Base.wait(
     start_time = time_ns()
     finished = false
 
-    while !finished
-        v = HSA.signal_wait_scacquire(
-            signal.signal[], HSA.SIGNAL_CONDITION_LT, 1,
-            min_latency, HSA.WAIT_STATE_BLOCKED)
-        finished = v == 0
+    GC.@preserve signal begin
+        handle = signal.signal[]::HSA.Signal
 
-        if has_timeout && !finished
-            diff_time = (time_ns() - start_time) / 1e9
-            (diff_time > timeout) && throw(SignalTimeoutException(signal))
+        while !finished
+            finished = 0 == HSA.signal_wait_scacquire(
+                handle, HSA.SIGNAL_CONDITION_LT, 1,
+                min_latency, HSA.WAIT_STATE_BLOCKED)
+
+            if has_timeout && !finished
+                diff_time = (time_ns() - start_time) / 1e9
+                (diff_time > timeout) && throw(SignalTimeoutException(signal))
+            end
+
+            # Allow another scheduled task to run.
+            # This is especially needed in the case
+            # when kernels need to perform HostCalls.
+            yield()
         end
-
-        # Allow another scheduled task to run.
-        # This is especially needed in the case
-        # when kernels need to perform HostCalls.
-        yield()
     end
+
+    return
 end
 
 function Base.wait(signal::HSA.Signal; timeout = DEFAULT_SIGNAL_TIMEOUT[])
