@@ -115,7 +115,7 @@ function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default
     dev_isa, features = Runtime.llvm_arch_features(isa)
     target = GCNCompilerTarget(; dev_isa, features)
     params = ROCCompilerParams(device, global_hooks)
-    job = CompilerJob(target, source, params)
+    job = CompilerJob(target, source, params; always_inline=true)
     @debug "Compiling $f ($(tt.parameters...))"
     Runtime.@log_start(:cached_compile, (;f=F, tt), nothing)
     fun = GPUCompiler.cached_compilation(cache, job,
