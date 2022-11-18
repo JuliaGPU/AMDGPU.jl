@@ -64,6 +64,7 @@ module Runtime
     import TimespanLogging: timespan_start, timespan_finish
 
     import ..AMDGPU
+    import ..AMDGPU: getinfo, getinfo_map
 
     struct Adaptor end
 
@@ -143,9 +144,11 @@ module Compiler
     import .Runtime: Adaptor
     import .Runtime: Mem
 
-    include("devlibs.jl")
-    include("compiler_utils.jl")
-    include("compiler.jl")
+    include("compiler/device-libs.jl")
+    include("compiler/utils.jl")
+    include("compiler/global-hooks.jl")
+    include("compiler/codegen.jl")
+    include("compiler/occupancy.jl")
 end # module Compiler
 
 include("highlevel.jl")

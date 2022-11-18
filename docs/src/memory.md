@@ -114,14 +114,12 @@ Local memory may be allocated within a kernel by calling
 `AMDGPU.Device.alloc_local(id, T, len)`, where `id` is some sort of bitstype ID
 for the local allocation, `T` is the Julia element type, and `len` is the
 number of elements of type `T` to allocate. Local memory does not need to be
-freed, as it is automatically freed by the hardware. If `len == 0`, then local
-memory is dynamically allocated at kernel runtime; the `localmem` option to
-`@roc` must be set appropriately to ensure that enough local memory is
-allocated by the hardware.
+freed, as it is automatically freed by the hardware.
 
-```julia
-
-```
+If `len == 0`, then local memory is dynamically allocated at kernel runtime;
+the `localmem` option to `@roc` must be set appropriately to ensure that enough
+local memory is allocated by the hardware. It is allocated in addition to the
+local memory that is statically allocated by the kernel.
 
 ```julia
 function kernel(C, A, B)

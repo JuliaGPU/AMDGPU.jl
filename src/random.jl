@@ -6,12 +6,8 @@ const GPUARRAY_RNG = Ref{Union{Nothing,GPUArrays.RNG}}(nothing)
 
 function GPUArrays.default_rng(::Type{<:ROCArray})
     if GPUARRAY_RNG[] == nothing
-        device = AMDGPU.default_device().agent
-        p = Ref{UInt32}()
-        GC.@preserve p begin
-            AMDGPU.getinfo(device, HSA.AGENT_INFO_WORKGROUP_MAX_SIZE, p) |> Runtime.check
-            N = Int(p[])
-        end
+        device = AMDGPU.default_device()
+        N = Int(Runtime.device_workgroup_max_size(device))
         state = ROCArray{NTuple{4, UInt32}}(undef, N)
         GPUARRAY_RNG[] = GPUArrays.RNG(state)
         Random.seed!(GPUARRAY_RNG[])

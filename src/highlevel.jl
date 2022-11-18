@@ -3,7 +3,7 @@
 import AMDGPU: Runtime, Compiler
 import .Runtime: ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal, ROCKernelSignal, HSAError
 import .Runtime: ROCDim, ROCDim3
-import .Runtime: getinfo, wait!, mark!
+import .Runtime: wait!, mark!
 import .Compiler: rocfunction
 
 export @roc, rocconvert, rocfunction
@@ -65,6 +65,8 @@ function device_type(device::ROCDevice)
         return :unknown
     end
 end
+
+wavefrontsize(device::ROCDevice) = Runtime.device_wavefront_size(device)
 
 # Queues
 
@@ -330,7 +332,7 @@ Keyword arguments that control signal creation via [`AMDGPU.create_event`](@ref)
 - `timeout::Union{Float64, Nothing} = nothing`: How long to wait for the signal to complete before throwing an `AMDGPU.Runtime.SignalTimeoutException`, in seconds. If `nothing`, then timeouts are disabled and the `wait` call may hang forever if the kernel never completes.
 
 Keyword arguments that control kernel creation via [`AMDGPU.create_kernel`](@ref):
-- `localmem::Int = 0`: The minimum amount of local memory to allocate for the kernel. This value is lower-bounded by the amount of static local memory required by the kernel (as reported by the compiler).
+- `localmem::Int = 0`: The amount of dynamic local memory to allocate for the kernel. This value is separate from the amount of static local memory required by the kernel (as reported by the compiler).
 
 Keyword arguments that control kernel launch via [`AMDGPU.HostKernel`](@ref) and [`AMDGPU.DeviceKernel`](@ref):
 - `groupsize::Union{Tuple,Integer} = 1`: The size of the groups to execute over the grid. If an `Integer` or `Tuple{<:Integer}`, only activate the X dimension of the group. If `Tuple{<:Integer,<:Integer}`, activate the X and Y dimensions of the group. If `Tuple{<:Integer,<:Integer,<:Integer}`, activate the X, Y, and Z dimensions of the group. All sizes must be greater than 0.
@@ -431,10 +433,10 @@ macro roc(ex...)
                         $kernel_f, $kernel_tt;
                         $(device_kwargs...), $(compiler_kwargs...))
 
-                    if $wait
-                        foreach($wait!, ($(var_exprs...),))
-                    end
                     if $launch
+                        if $wait
+                            foreach($wait!, ($(var_exprs...),))
+                        end
                         local $kernel_instance = $create_kernel(
                             $kernel, $kernel_f, $kernel_args; $(kernel_kwargs...))
                         local $signal = $create_event(
@@ -452,3 +454,12 @@ macro roc(ex...)
         end
     return esc(code)
 end
+
+# launch config
+
+function launch_configuration(fun::Runtime.ROCFunction, device::ROCDevice; input_block_size=1, dynamic_localmem=0)
+    occ = Compiler.calculate_occupancy(fun, device; input_block_size, dynamic_localmem)
+    return (;groupsize=occ.best_block_size)
+end
+launch_configuration(kernel::Runtime.HostKernel; kwargs...) =
+    launch_configuration(kernel.fun, kernel.mod.exe.device; kwargs...)
