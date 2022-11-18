@@ -68,23 +68,32 @@ function Base.wait(
     start_time = time_ns()
     finished = false
 
-    while !finished
+    GC.@preserve signal while !finished
         @assert AMDGPU.HSA_REFCOUNT[] > 0
+        handle = signal.signal[]::HSA.Signal
         v = HSA.signal_wait_scacquire(
-            signal.signal[], HSA.SIGNAL_CONDITION_LT, 1,
+            handle, HSA.SIGNAL_CONDITION_LT, 1,
             min_latency, HSA.WAIT_STATE_BLOCKED)
         finished = v == 0
 
-        if has_timeout && !finished
-            diff_time = (time_ns() - start_time) / 1e9
-            (diff_time > timeout) && throw(SignalTimeoutException(signal))
-        end
+        while !finished
+            finished = 0 == HSA.signal_wait_scacquire(
+                handle, HSA.SIGNAL_CONDITION_LT, 1,
+                min_latency, HSA.WAIT_STATE_BLOCKED)
 
-        # Allow another scheduled task to run.
-        # This is especially needed in the case
-        # when kernels need to perform HostCalls.
-        yield()
+            if has_timeout && !finished
+                diff_time = (time_ns() - start_time) / 1e9
+                (diff_time > timeout) && throw(SignalTimeoutException(signal))
+            end
+
+            # Allow another scheduled task to run.
+            # This is especially needed in the case
+            # when kernels need to perform HostCalls.
+            yield()
+        end
     end
+
+    return
 end
 
 function Base.wait(signal::HSA.Signal; timeout = DEFAULT_SIGNAL_TIMEOUT[])
