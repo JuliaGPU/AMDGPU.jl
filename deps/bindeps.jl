@@ -21,26 +21,18 @@ function find_roc_paths()
     if haskey(ENV, "ROCM_PATH")
         push!(paths, joinpath(ENV["ROCM_PATH"], "lib"))
     end
-    paths = filter(isdir, paths)
-    @debug "bindeps: ROCm library search paths:"
-    for path in paths
-        @debug "bindeps: - " * path
-    end
-    return paths
+    return filter(isdir, paths)
 end
 
 function find_rocm_library(lib, dirs, ext=dlext)
-    @debug "bindeps: Searching for $lib.$ext"
     path = Libdl.find_library(lib)
     if path != ""
-        @debug "bindeps: - $path: true"
         return Libdl.dlpath(path)
     end
     for dir in dirs
         files = readdir(dir)
         for file in files
             matched = startswith(basename(file), lib*".$ext")
-            @debug "bindeps: - $file: $matched"
             if matched
                 return joinpath(dir, file)
             end
@@ -80,7 +72,6 @@ function find_ld_lld()
                 vstr = replace(vstr, "AMD " => "")
                 vstr_splits = split(vstr, ' ')
                 if VersionNumber(vstr_splits[2]) >= v"6.0.0"
-                    @debug "bindeps: Found useable ld.lld at $exp_ld_path"
                     return exp_ld_path
                 end
             catch
