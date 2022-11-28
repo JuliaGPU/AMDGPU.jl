@@ -36,7 +36,7 @@ function Base.wait(
 )
     @log_start(:wait, (;f=typeof(kersig.kernel.f), tt=typeof(kersig.kernel.args), signal=get_handle(kersig.signal)), nothing)
     finished = try
-        wait(kersig.signal; signal_kwargs...)
+        wait(kersig.signal; queue=kersig.queue, signal_kwargs...)
         true
     catch err
         if isa(err, SignalTimeoutException) && SIGNAL_TIMEOUT_KILL_QUEUE[]
