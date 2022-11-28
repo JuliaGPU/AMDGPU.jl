@@ -60,6 +60,7 @@ Base.show(io::IO, signal::ROCSignal) =
 function Base.wait(
     signal::ROCSignal; timeout::Union{Real, Nothing} = DEFAULT_SIGNAL_TIMEOUT[],
     min_latency::Int64 = 1_000, # 1 micro-second
+    queue = nothing,
 )
     has_timeout = !isnothing(timeout)
     has_timeout && (timeout < 0) && error(
@@ -79,6 +80,10 @@ function Base.wait(
             if has_timeout && !finished
                 diff_time = (time_ns() - start_time) / 1e9
                 (diff_time > timeout) && throw(SignalTimeoutException(signal))
+            end
+
+            if queue !== nothing && queue.status !== HSA.STATUS_SUCCESS
+                throw(QueueError(queue))
             end
 
             # Allow another scheduled task to run.
