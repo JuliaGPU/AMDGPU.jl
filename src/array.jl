@@ -347,7 +347,7 @@ GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
 
 function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) where {T,N}
     ptr = Base.unsafe_convert(Ptr{T}, a.buf)
-    ROCDeviceArray{T,N,AS.Global}(a.dims, AMDGPU.LLVMPtr{T,AS.Global}(ptr+a.offset))
+    ROCDeviceArray{T,N,AS.Global}(a.dims, AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset))
 end
 Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
@@ -359,11 +359,11 @@ Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
 # considered GPU-compatible.
 
 Adapt.adapt_storage(::Type{ROCArray}, xs::AT) where {AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(ROCArray, xs)
+    isbitstype(AT) ? xs : convert(ROCArray, xs)
 
 # if an element type is specified, convert to it
 Adapt.adapt_storage(::Type{<:ROCArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(ROCArray{T}, xs)
+    isbitstype(AT) ? xs : convert(ROCArray{T}, xs)
 
 Adapt.adapt_storage(::Type{Array}, xs::ROCArray) = convert(Array, xs)
 
@@ -373,17 +373,17 @@ Adapt.adapt_storage(::Type{Array}, xs::ROCArray) = convert(Array, xs)
 struct Float32Adaptor end
 
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray) =
-  isbits(xs) ? xs : convert(ROCArray, xs)
+    isbits(xs) ? xs : convert(ROCArray, xs)
 
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
-  isbits(xs) ? xs : convert(ROCArray{Float32}, xs)
+    isbits(xs) ? xs : convert(ROCArray{Float32}, xs)
 
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
-  isbits(xs) ? xs : convert(ROCArray{ComplexF32}, xs)
+    isbits(xs) ? xs : convert(ROCArray{ComplexF32}, xs)
 
 # not for Float16
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
-  isbits(xs) ? xs : convert(ROCArray, xs)
+    isbits(xs) ? xs : convert(ROCArray, xs)
 
 roc(xs) = adapt(Float32Adaptor(), xs)
 
@@ -401,121 +401,158 @@ zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
 @inline function _derived_array(::Type{T}, N::Int, a::ROCArray, osize::Dims) where {T}
-  Mem.retain(a.buf)
-  b = ROCArray{T,N}(a.buf, osize, offset=a.offset, own=false)
-  finalizer(unsafe_free!, b)
-  return b
+    Mem.retain(a.buf)
+    b = ROCArray{T,N}(a.buf, osize, offset=a.offset, own=false)
+    finalizer(unsafe_free!, b)
+    return b
 end
 
 ## reinterpret
 
 function Base.reinterpret(::Type{T}, a::ROCArray{S,N}) where {T,S,N}
-  err = _reinterpret_exception(T, a)
-  err === nothing || throw(err)
+    err = _reinterpret_exception(T, a)
+    err === nothing || throw(err)
 
-  if sizeof(T) == sizeof(S) # for N == 0
-    osize = size(a)
-  else
-    isize = size(a)
-    size1 = div(isize[1]*sizeof(S), sizeof(T))
-    osize = tuple(size1, Base.tail(isize)...)
-  end
+    if sizeof(T) == sizeof(S) # for N == 0
+        osize = size(a)
+    else
+        isize = size(a)
+        size1 = div(isize[1] * sizeof(S), sizeof(T))
+        osize = tuple(size1, Base.tail(isize)...)
+    end
 
-  return _derived_array(T, N, a, osize)
+    return _derived_array(T, N, a, osize)
 end
 
 function _reinterpret_exception(::Type{T}, a::AbstractArray{S,N}) where {T,S,N}
-  if !isbitstype(T) || !isbitstype(S)
-    return _ROCReinterpretBitsTypeError{T,typeof(a)}()
-  end
-  if N == 0 && sizeof(T) != sizeof(S)
-    return _ROCReinterpretZeroDimError{T,typeof(a)}()
-  end
-  if N != 0 && sizeof(S) != sizeof(T)
-      ax1 = axes(a)[1]
-      dim = length(ax1)
-      if Base.rem(dim*sizeof(S),sizeof(T)) != 0
-        return _ROCReinterpretDivisibilityError{T,typeof(a)}(dim)
-      end
-      if first(ax1) != 1
-        return _ROCReinterpretFirstIndexError{T,typeof(a),typeof(ax1)}(ax1)
-      end
-  end
-  return nothing
+    if !isbitstype(T) || !isbitstype(S)
+        return _ROCReinterpretBitsTypeError{T,typeof(a)}()
+    end
+    if N == 0 && sizeof(T) != sizeof(S)
+        return _ROCReinterpretZeroDimError{T,typeof(a)}()
+    end
+    if N != 0 && sizeof(S) != sizeof(T)
+        ax1 = axes(a)[1]
+        dim = length(ax1)
+        if Base.rem(dim*sizeof(S),sizeof(T)) != 0
+            return _ROCReinterpretDivisibilityError{T,typeof(a)}(dim)
+        end
+        if first(ax1) != 1
+            return _ROCReinterpretFirstIndexError{T,typeof(a),typeof(ax1)}(ax1)
+        end
+    end
+    return nothing
 end
 
 struct _ROCReinterpretBitsTypeError{T,A} <: Exception end
-function Base.showerror(io::IO, ::_ROCReinterpretBitsTypeError{T, <:AbstractArray{S}}) where {T, S}
-  print(io, "cannot reinterpret an `$(S)` array to `$(T)`, because not all types are bitstypes")
+function Base.showerror(io::IO, ::_ROCReinterpretBitsTypeError{T,<:AbstractArray{S}}) where {T, S}
+    print(io, "cannot reinterpret an `$(S)` array to `$(T)`, because not all types are bitstypes")
 end
 
 struct _ROCReinterpretZeroDimError{T,A} <: Exception end
-function Base.showerror(io::IO, ::_ROCReinterpretZeroDimError{T, <:AbstractArray{S,N}}) where {T, S, N}
-  print(io, "cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a different size")
+function Base.showerror(io::IO, ::_ROCReinterpretZeroDimError{T,<:AbstractArray{S,N}}) where {T, S, N}
+    print(io, "cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a different size")
 end
 
 struct _ROCReinterpretDivisibilityError{T,A} <: Exception
-  dim::Int
+    dim::Int
 end
-function Base.showerror(io::IO, err::_ROCReinterpretDivisibilityError{T, <:AbstractArray{S,N}}) where {T, S, N}
-  dim = err.dim
-  print(io, """
-      cannot reinterpret an `$(S)` array to `$(T)` whose first dimension has size `$(dim)`.
-      The resulting array would have non-integral first dimension.
-      """)
+function Base.showerror(io::IO, err::_ROCReinterpretDivisibilityError{T,<:AbstractArray{S,N}}) where {T, S, N}
+    dim = err.dim
+    print(io, """
+          cannot reinterpret an `$(S)` array to `$(T)` whose first dimension has size `$(dim)`.
+          The resulting array would have non-integral first dimension.
+          """)
 end
 
 struct _ROCReinterpretFirstIndexError{T,A,Ax1} <: Exception
-  ax1::Ax1
+    ax1::Ax1
 end
-function Base.showerror(io::IO, err::_ROCReinterpretFirstIndexError{T, <:AbstractArray{S,N}}) where {T, S, N}
-  ax1 = err.ax1
-  print(io, "cannot reinterpret a `$(S)` array to `$(T)` when the first axis is $ax1. Try reshaping first.")
+function Base.showerror(io::IO, err::_ROCReinterpretFirstIndexError{T,<:AbstractArray{S,N}}) where {T, S, N}
+    ax1 = err.ax1
+    print(io, "cannot reinterpret a `$(S)` array to `$(T)` when the first axis is $ax1. Try reshaping first.")
 end
 
 ## reinterpret(reshape)
 
 function Base.reinterpret(::typeof(reshape), ::Type{T}, a::ROCArray) where {T}
-  N, osize = _base_check_reshape_reinterpret(T, a)
-  return _derived_array(T, N, a, osize)
+    N, osize = _base_check_reshape_reinterpret(T, a)
+    return _derived_array(T, N, a, osize)
 end
 
 # taken from reinterpretarray.jl
 # TODO: move these Base definitions out of the ReinterpretArray struct for reuse
 function _base_check_reshape_reinterpret(::Type{T}, a::ROCArray{S}) where {T,S}
-  isbitstype(T) || throwbits(S, T, T)
-  isbitstype(S) || throwbits(S, T, S)
-  if sizeof(S) == sizeof(T)
-      N = ndims(a)
-      osize = size(a)
-  elseif sizeof(S) > sizeof(T)
-      d, r = divrem(sizeof(S), sizeof(T))
-      r == 0 || throwintmult(S, T)
-      N = ndims(a) + 1
-      osize = (d, size(a)...)
-  else
-      d, r = divrem(sizeof(T), sizeof(S))
-      r == 0 || throwintmult(S, T)
-      N = ndims(a) - 1
-      N > -1 || throwsize0(S, T, "larger")
-      axes(a, 1) == Base.OneTo(sizeof(T) ÷ sizeof(S)) || throwsize1(a, T)
-      osize = size(a)[2:end]
-  end
-  return N, osize
+    isbitstype(T) || throwbits(S, T, T)
+    isbitstype(S) || throwbits(S, T, S)
+    if sizeof(S) == sizeof(T)
+        N = ndims(a)
+        osize = size(a)
+    elseif sizeof(S) > sizeof(T)
+        d, r = divrem(sizeof(S), sizeof(T))
+        r == 0 || throwintmult(S, T)
+        N = ndims(a) + 1
+        osize = (d, size(a)...)
+    else
+        d, r = divrem(sizeof(T), sizeof(S))
+        r == 0 || throwintmult(S, T)
+        N = ndims(a) - 1
+        N > -1 || throwsize0(S, T, "larger")
+        axes(a, 1) == Base.OneTo(sizeof(T) ÷ sizeof(S)) || throwsize1(a, T)
+        osize = size(a)[2:end]
+    end
+    return N, osize
 end
 
 @noinline function throwbits(S::Type, T::Type, U::Type)
-  throw(ArgumentError("cannot reinterpret `$(S)` as `$(T)`, type `$(U)` is not a bits type"))
+    throw(ArgumentError("cannot reinterpret `$(S)` as `$(T)`, type `$(U)` is not a bits type"))
 end
 
 @noinline function throwintmult(S::Type, T::Type)
-  throw(ArgumentError("`reinterpret(reshape, T, a)` requires that one of `sizeof(T)` (got $(sizeof(T))) and `sizeof(eltype(a))` (got $(sizeof(S))) be an integer multiple of the other"))
+    throw(ArgumentError("`reinterpret(reshape, T, a)` requires that one of `sizeof(T)` (got $(sizeof(T))) and `sizeof(eltype(a))` (got $(sizeof(S))) be an integer multiple of the other"))
 end
 
 @noinline function throwsize0(S::Type, T::Type, msg)
-  throw(ArgumentError("cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a $msg size"))
+    throw(ArgumentError("cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a $msg size"))
 end
 
 @noinline function throwsize1(a::AbstractArray, T::Type)
     throw(ArgumentError("`reinterpret(reshape, $T, a)` where `eltype(a)` is $(eltype(a)) requires that `axes(a, 1)` (got $(axes(a, 1))) be equal to 1:$(sizeof(T) ÷ sizeof(eltype(a))) (from the ratio of element sizes)"))
+end
+
+"""
+    resize!(a::ROCVector, n::Integer)
+
+Resize `a` to contain `n` elements. If `n` is smaller than the current collection length,
+the first `n` elements will be retained. If `n` is larger, the new elements are not
+guaranteed to be initialized.
+
+Note that this operation is only supported on managed buffers, i.e., not on arrays that are
+created by `unsafe_wrap` with `own=false`.
+"""
+function Base.resize!(A::ROCVector{T}, n::Integer) where T
+    # TODO: add additional space to allow for quicker resizing
+    if n == length(A)
+        return A
+    end
+    maxsize = n * sizeof(T)
+    bufsize = if Base.isbitsunion(T)
+        # type tag array past the data
+        maxsize + n
+    else
+        maxsize
+    end
+    new_buf = Mem.alloc(A.buf.device, bufsize)
+    copy_size = min(length(A), n) * sizeof(T)
+    if copy_size > 0
+        Mem.transfer!(new_buf, A.buf, copy_size)
+    end
+    Mem.retain(new_buf)
+    if Mem.release(A.buf)
+        Mem.free(A.buf)
+    end
+    A.buf = new_buf
+    A.dims = (n,)
+    A.offset = 0
+    return A
 end
