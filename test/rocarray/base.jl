@@ -27,6 +27,35 @@ end
     @test collect(c) == 3:4
 end
 
+@testset "resize!" begin
+    a_h = Array(range(1, 10))
+    a_d = a_h |> roc
+    # Resize up
+    resize!(a_h, 15)
+    resize!(a_d, 15)
+    # Set the appended bytes to the same value on both host and device
+    a_h[10:15] .= 15
+    a_d[10:15] .= 15
+    @allowscalar begin
+        @test a_h == a_d
+        length(a_h) == length(a_d)
+    end
+    # Keep the size as is
+    resize!(a_h, 15)
+    resize!(a_d, 15)
+    @allowscalar begin
+        @test a_h == a_d
+        length(a_h) == length(a_d)
+    end
+    # Resize down
+    resize!(a_h, 3)
+    resize!(a_d, 3)
+    @allowscalar begin
+        @test a_h == a_d
+        length(a_h) == length(a_d)
+    end
+end
+
 @testset "unsafe_wrap" begin
     A = rand(4, 3)
     A_orig = copy(A)
