@@ -50,13 +50,31 @@ for jltype in (Float16, Float32, Float64)
     # Multi-argument functions
     push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pow; inp_args=(jltype,jltype), out_arg=jltype))
     push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
-    # TODO: :sincos, :frexp, :ldexp, :copysign,
-    #push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,), out_arg=(jltype, Int32), isinverted=true))
+    # TODO: :copysign,
+    push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
+    @eval @device_override function Base.frexp(x::$jltype)
+        ref = Ref{Int32}()
+        ret = ccall($("extern __ocml_frexp_$(fntypes[jltype])"), llvmcall,
+                    $jltype, ($jltype, Ptr{Int32}),
+                    x, ref)
+        return (ret, Base.unsafe_trunc(Int64, ref[]))
+    end
+    @eval @device_override function Base.sincos(x::$jltype)
+        ref = Ref{$jltype}()
+        ret = ccall($("extern __ocml_sincos_$(fntypes[jltype])"), llvmcall,
+                    $jltype, ($jltype, Ptr{$jltype}),
+                    x, ref)
+        return (ret, ref[])
+    end
+    @eval @device_override function Base.sincospi(x::$jltype)
+        ref = Ref{$jltype}()
+        ret = ccall($("extern __ocml_sincospi_$(fntypes[jltype])"), llvmcall,
+                    $jltype, ($jltype, Ptr{$jltype}),
+                    x, ref)
+        return (ret, ref[])
+    end
 
     push!(MATH_INTRINSICS, GCNIntrinsic(:hypot; inp_args=(jltype,jltype), out_arg=jltype))
-
-    # Multi-output functions
-    push!(MATH_INTRINSICS, GCNIntrinsic(:sincospi; inp_args=(jltype,), out_arg=jltype, isbroken=true))
 end
 
 for jltype in (Float32, Float64)
@@ -95,6 +113,8 @@ for intr in MATH_INTRINSICS
         end
     end
 end
+
+## non-trivial intrinsics
 
 # ocml_sin seems broken for F16 (see #177)
 @device_override Base.sin(x::Float16) = sin(Float32(x))
