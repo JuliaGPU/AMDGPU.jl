@@ -66,6 +66,7 @@ mutable struct ROCKernel
     group_segment_size::UInt32
     private_segment_size::UInt32
     kernarg_address::Ptr{Cvoid}
+    state::AMDGPU.KernelState
 end
 
 function ROCKernel(kernel #= ::HostKernel =#; localmem::Int=0)
@@ -105,9 +106,18 @@ function ROCKernel(kernel #= ::HostKernel =#; localmem::Int=0)
         private_segment_size = MAXIMUM_SCRATCH_ALLOCATION
     end
 
+    # Allocate KernelState object
+    # N.B. Freed in ROCKernelSignal `cleanup!`
+    exception_flag_ptr = reinterpret(Core.LLVMPtr{Int64,1},
+                                     Base.unsafe_convert(Ptr{Cvoid},
+                                                         Mem.alloc(device, sizeof(Ptr{Cvoid}); coherent=true)))
+    unsafe_store!(exception_flag_ptr, 0)
+    state = AMDGPU.KernelState(exception_flag_ptr)
+
     kernel = ROCKernel(device, exe, symbol, kernel_object,
                        kernarg_segment_size, group_segment_size,
-                       private_segment_size, Ptr{Cvoid}(0))
+                       private_segment_size, Ptr{Cvoid}(0),
+                       state)
     return kernel
 end
 
