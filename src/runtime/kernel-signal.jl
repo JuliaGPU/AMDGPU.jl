@@ -67,7 +67,7 @@ function cleanup!(
     mod::ROCModule = EXE_TO_MODULE_MAP[exe].value
     signal_handle::UInt64 = get_handle(kersig.signal)
     if finished
-        ex = get_exception(exe; signal_handle, check_exceptions)
+        ex = get_exception(exe, kersig.kernel.state; signal_handle, check_exceptions)
         isnothing(ex) || (kersig.exception = ex;)
     end
 
@@ -78,6 +78,11 @@ function cleanup!(
             deleteat!(q_kernels, findall(x -> x == kersig, q_kernels))
         end
     end
+
+    # Free KernelState buffers
+    Mem.free(Mem.Buffer(reinterpret(Ptr{Cvoid},
+                                    kersig.kernel.state.exception_flag_ptr),
+                        kersig.queue.device, sizeof(Ptr{Cvoid}); coherent=true))
 
     isnothing(kersig.exception) || throw(kersig.exception)
     nothing

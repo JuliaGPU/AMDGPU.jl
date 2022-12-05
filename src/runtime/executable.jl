@@ -102,17 +102,15 @@ function get_global(exe::ROCExecutable, symbol::Symbol)
     return exe.globals[symbol]
 end
 
-has_exception(e::ROCExecutable) = haskey(e.globals, :__global_exception_flag)
+has_exception(e::ROCExecutable) = true # all kernels have a KernelState object
 
 function get_exception(
-    exe::ROCExecutable; check_exceptions::Bool = true, signal_handle::UInt64,
+    exe::ROCExecutable, state::AMDGPU.KernelState; check_exceptions::Bool = true, signal_handle::UInt64,
 )
     has_exception(exe) || return nothing
 
     # Check if any wavefront for this kernel threw an exception
-    ex_flag = get_global(exe, :__global_exception_flag)
-    ex_flag_ptr = Base.unsafe_convert(Ptr{Int64}, ex_flag)
-    ex_flag_value = Base.unsafe_load(ex_flag_ptr)
+    ex_flag_value = Base.unsafe_load(state.exception_flag_ptr)
     ex_flag_value == 0 && return nothing
 
     ex_string = nothing
@@ -128,10 +126,12 @@ function get_exception(
         ex_ring_ptr = unsafe_load(ex_ring_ptr_ptr)
 
         while (ex_ring_value = unsafe_load(ex_ring_ptr)).kern != 1
-            if ex_ring_value.kern == signal_handle && reinterpret(Ptr{UInt8}, ex_ring_value.ptr) != C_NULL
-                ex_ring_value_str = unsafe_string(
-                    reinterpret(Ptr{UInt8}, ex_ring_value.ptr))
-                push!(ex_strings, ex_ring_value_str)
+            if ex_ring_value.kern == signal_handle
+                if reinterpret(Ptr{Cvoid}, ex_ring_value.ptr) != C_NULL
+                    ex_ring_value_str = unsafe_string(
+                        reinterpret(Ptr{UInt8}, ex_ring_value.ptr))
+                    push!(ex_strings, ex_ring_value_str)
+                end
 
                 # FIXME: Write rest of entry first, then CAS 0 to kern field
                 entry = AMDGPU.Device.ExceptionEntry(

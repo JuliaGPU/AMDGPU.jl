@@ -97,6 +97,8 @@ GPUCompiler.ci_cache(::ROCCompilerJob) = AMDGPU.ci_cache
 
 GPUCompiler.method_table(::ROCCompilerJob) = AMDGPU.method_table
 
+GPUCompiler.kernel_state_type(::ROCCompilerJob) = AMDGPU.KernelState
+
 function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     if LLVM.callconv(entry) != LLVM.API.LLVMAMDGPUKERNELCallConv
         return entry

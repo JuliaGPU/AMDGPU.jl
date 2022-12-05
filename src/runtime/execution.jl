@@ -44,6 +44,9 @@ AbstractKernel
         end
     end
 
+    # add the kernel type (the object will be added later)
+    pushfirst!(call_t, AMDGPU.KernelState)
+
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
 
@@ -66,11 +69,12 @@ end
 @doc (@doc AbstractKernel) HostKernel
 
 @inline function roccall(kernel::HostKernel, tt, args...; signal::ROCKernelSignal, groupsize=1, kwargs...)
+    state = signal.kernel.state
     if groupsize == :auto
         config = AMDGPU.launch_configuration(kernel; signal.kernel.localmem)
-        roccall(signal, tt, args...; config..., kwargs...)
+        roccall(signal, tt, state, args...; config..., kwargs...)
     else
-        roccall(signal, tt, args...; kwargs..., groupsize)
+        roccall(signal, tt, state, args...; kwargs..., groupsize)
     end
 end
 
