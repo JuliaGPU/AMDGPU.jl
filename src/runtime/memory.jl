@@ -32,6 +32,9 @@ struct Buffer
         new(ptr, host_ptr, base_ptr, bytesize, device, coherent, pool_alloc, _id)
     end
 end
+Buffer(ptr::Ptr{Cvoid}, device::ROCDevice, bytesize::Int; host_ptr=C_NULL, base_ptr=ptr,
+       coherent::Bool=false, pool_alloc::Bool=!coherent) =
+    Buffer(ptr, host_ptr, base_ptr, bytesize, device, coherent, pool_alloc)
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf.ptr)
 
