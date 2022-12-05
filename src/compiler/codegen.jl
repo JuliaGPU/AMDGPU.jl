@@ -90,6 +90,8 @@ GPUCompiler.ci_cache(::ROCCompilerJob) = AMDGPU.ci_cache
 
 GPUCompiler.method_table(::ROCCompilerJob) = AMDGPU.method_table
 
+GPUCompiler.kernel_state_type(::ROCCompilerJob) = AMDGPU.KernelState
+
 """
     rocfunction(f, tt=Tuple{}; kwargs...)
 
@@ -121,7 +123,19 @@ function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default
     fun = GPUCompiler.cached_compilation(cache, job,
                                          rocfunction_compile,
                                          rocfunction_link)::ROCFunction
-    kernel = Runtime.HostKernel{F,tt}(f, fun.mod, fun)
+    function allocate_kernel_state(device)
+        exception_flag_ptr = reinterpret(LLVMPtr{Int64,1},
+                                         Base.unsafe_convert(Ptr{Cvoid},
+                                                             Mem.alloc(device, sizeof(Ptr{Cvoid}))))
+        unsafe_store!(exception_flag_ptr, 0)
+        exception_dropped_ptr = reinterpret(LLVMPtr{Int64,1},
+                                            Base.unsafe_convert(Ptr{Cvoid},
+                                                                Mem.alloc(device, sizeof(Ptr{Cvoid}))))
+        unsafe_store!(exception_dropped_ptr, 0)
+        return AMDGPU.KernelState(exception_flag_ptr, exception_dropped_ptr)
+    end
+    state = allocate_kernel_state(device)
+    kernel = Runtime.HostKernel{F,tt}(f, fun.mod, fun, state)
     # FIXME: Add caching level
     Runtime.@log_finish(:cached_compile, (;f=F, tt), nothing)
     return kernel

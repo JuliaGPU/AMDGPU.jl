@@ -53,6 +53,8 @@ if functional(:hip)
     include(joinpath(@__DIR__, "hip", "HIP.jl"))
 end
 
+include("common.jl")
+
 module Runtime
     using ..CEnum
     using Setfield

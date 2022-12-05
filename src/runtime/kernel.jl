@@ -68,6 +68,7 @@ mutable struct ROCKernel{F,T<:Tuple}
     group_segment_size::UInt32
     private_segment_size::UInt32
     kernarg_address::Ptr{Nothing}
+    state::AMDGPU.KernelState
 end
 
 function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; localmem::Int=0)
@@ -119,7 +120,7 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
         # Fill kernel argument buffer
         # FIXME: Query kernarg segment alignment
         ctr = 0x0
-        for arg in (f, args...)
+        for arg in (kernel.state, f, args...)
             rarg = Ref(arg)
             align = Base.datatype_alignment(typeof(arg))
             rem = mod(ctr, align)
@@ -136,7 +137,8 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
 
     kernel = ROCKernel(device, exe, symbol, f, args, kernel_object,
                        kernarg_segment_size, group_segment_size,
-                       private_segment_size, kernarg_address)
+                       private_segment_size, kernarg_address,
+                       kernel.state)
     AMDGPU.hsaref!()
     finalizer(kernel) do k
         Mem.free_pooled(device, key, :kernarg, k.kernarg_address)

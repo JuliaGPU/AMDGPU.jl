@@ -44,6 +44,10 @@ AbstractKernel
         end
     end
 
+    # add the kernel state
+    pushfirst!(call_t, AMDGPU.KernelState)
+    pushfirst!(call_args, :(kernel.state))
+
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
 
@@ -61,6 +65,7 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     f::F
     mod::ROCModule
     fun::ROCFunction
+    state::AMDGPU.KernelState
 end
 
 @doc (@doc AbstractKernel) HostKernel
