@@ -10,6 +10,13 @@
 
 ## LLVM
 
+# basic load and store
+
+atomic_load(ptr::LLVMPtr, order=Val{:acquire}()) =
+    LLVM.Interop.atomic_pointerref(ptr, order)
+atomic_store!(ptr::LLVMPtr, val, order=Val{:release}()) =
+    LLVM.Interop.atomic_pointerset(ptr, val, order)
+
 # common arithmetic operations on integers using LLVM instructions
 #
 # > 8.6.6. atomicrmw Instruction
@@ -104,8 +111,8 @@ end
             typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
 
             res = atomic_cmpxchg!(builder, typed_ptr, parameters(llvm_f)[2],
-                                parameters(llvm_f)[3], atomic_acquire_release, atomic_acquire,
-                                #=single threaded=# false)
+                                  parameters(llvm_f)[3], atomic_acquire_release, atomic_acquire,
+                                  #=single threaded=# false)
 
             rv = extract_value!(builder, res, 0)
 
