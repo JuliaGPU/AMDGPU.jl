@@ -105,6 +105,7 @@ module Device
     using ..GPUCompiler
     using ..LLVM
     using ..LLVM.Interop
+    using ..CEnum
     import ..LinearAlgebra
     import ..AMDGPU
     import .AMDGPU: method_table
@@ -114,8 +115,8 @@ module Device
     include(joinpath("device", "addrspaces.jl"))
     include(joinpath("device", "globals.jl"))
     include(joinpath("device", "strings.jl"))
-    include(joinpath("device", "exceptions.jl"))
     include(joinpath("device", "gcn.jl"))
+    include(joinpath("device", "exceptions.jl"))
     include(joinpath("device", "runtime.jl"))
     include(joinpath("device", "quirks.jl"))
 end

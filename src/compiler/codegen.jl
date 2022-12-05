@@ -70,6 +70,8 @@ function GPUCompiler.process_module!(job::ROCCompilerJob, mod::LLVM.Module)
            job, mod)
     # Run this early (before optimization) to ensure we link OCKL
     emit_exception_user!(mod)
+    # Emit exception frames for `amdgpu.emit_exception_frames` calls
+    emit_exception_frames!(mod)
 end
 function GPUCompiler.process_entry!(job::ROCCompilerJob, mod::LLVM.Module, entry::LLVM.Function)
     invoke(GPUCompiler.process_entry!,
@@ -98,6 +100,41 @@ GPUCompiler.ci_cache(::ROCCompilerJob) = AMDGPU.ci_cache
 GPUCompiler.method_table(::ROCCompilerJob) = AMDGPU.method_table
 
 GPUCompiler.kernel_state_type(::ROCCompilerJob) = AMDGPU.KernelState
+
+function emit_exception_frames!(mod::LLVM.Module)
+    to_insert = []
+    for fn in LLVM.functions(mod)
+        for bb in LLVM.blocks(fn)
+            for inst in LLVM.instructions(bb)
+                if inst isa LLVM.CallInst && LLVM.name(LLVM.called_value(inst)) == "amdgpu.emit_exception_frames"
+                    push!(to_insert, (fn, inst))
+                end
+            end
+        end
+    end
+    for (fn, inst) in to_insert
+        ctx = LLVM.context(fn)
+        T_void = LLVM.VoidType(ctx)
+        Builder(ctx) do builder
+            position!(builder, inst)
+            mod = LLVM.parent(fn)
+            # From GPUCompiler.jl/src/irgen.jl `emit_exception!`
+            rt = GPUCompiler.Runtime.get(:report_exception_frame)
+            ft = convert(LLVM.FunctionType, rt; ctx)
+            bt = GPUCompiler.backtrace(inst)
+            for (i,frame) in enumerate(bt)
+                idx = ConstantInt(parameters(ft)[1], i)
+                func = globalstring_ptr!(builder, String(frame.func), "di_func")
+                file = globalstring_ptr!(builder, String(frame.file), "di_file")
+                line = ConstantInt(parameters(ft)[4], frame.line)
+                call!(builder, rt, [idx, func, file, line])
+            end
+            unsafe_delete!(LLVM.parent(inst), inst)
+        end
+    end
+
+    return
+end
 
 function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     if LLVM.callconv(entry) != LLVM.API.LLVMAMDGPUKERNELCallConv

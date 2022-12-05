@@ -13,10 +13,11 @@ exception_dropped() = kernel_state().exception_dropped_ptr
 
 signal_exception() = device_signal_exception()
 function device_signal_exception()
-    flag_ptr = get_global_pointer(Val(:__global_exception_flag), Int64)
+    flag_ptr = exception_flag()
     unsafe_store!(flag_ptr, 1)
 
     # stop this wavefront
+    # TODO: want divergent thread exit
     endpgm()
     trap()
 end
@@ -37,53 +38,13 @@ function device_string_to_host(ex)
 end
 
 report_exception(ex) = device_report_exception(ex)
-function device_report_exception(ex::Ptr{Cchar})
-    # Add kernel ID and exception string to exception ring buffer
-    ring_ptr = get_global_pointer(Val(:__global_exception_ring), LLVMPtr{ExceptionEntry,AS.Global})
-    ring_ptr = unsafe_load(ring_ptr)
-    our_signal = _completion_signal()
-    prev = UInt64(1)
-    while prev != UInt64(0)
-        # Try to write to this slot, and skip if we fail (because another wavefront wrote first)
-        prev = atomic_cas!(reinterpret(LLVMPtr{UInt64,AS.Global}, ring_ptr), UInt64(0), our_signal)
-        if prev == UInt64(0)
-            ex_str = device_string_to_host(ex)
-            Base.unsafe_store!(reinterpret(LLVMPtr{UInt64,AS.Global}, ring_ptr+sizeof(UInt64)), reinterpret(UInt64, ex_str))
-            break
-        elseif prev == UInt64(1)
-            # Tail slot, give up
-            break
-        end
-        ring_ptr += sizeof(ExceptionEntry)
-    end
-    return
-end
 
 report_oom(sz) = device_report_oom(sz)
 device_report_oom(sz::Csize_t) =
     @rocprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
 
-report_exception_name(ex) = device_report_exception_name(ex)
-function device_report_exception_name(ex::Ptr{Cchar})
-    device_report_exception(ex)
-    # Pass argument in host buffer
-    ex_str = device_string_to_host(ex)
-    @rocprintf("""
-        ERROR: a %s was thrown during kernel execution.
-        Stacktrace:
-        """, ex_str)
-    device_free(reinterpret(Ptr{Cvoid}, ex_str))
-    return
-end
+# Forward to report_exception
+report_exception_name(ex) = device_report_exception(ex)
 
-report_exception_frame(idx, func, file, line) =
+@inline report_exception_frame(idx, func, file, line) =
     device_report_exception_frame(idx, func, file, line)
-function device_report_exception_frame(idx::Cint, func::Ptr{Cchar}, file::Ptr{Cchar}, line::Cint)
-    # Pass arguments in host buffers
-    func_str = device_string_to_host(func)
-    file_str = device_string_to_host(file)
-    @rocprintf(" [%i] %s at %s:%i\n", idx, func_str, file_str, line)
-    device_free(reinterpret(Ptr{Cvoid}, func_str))
-    device_free(reinterpret(Ptr{Cvoid}, file_str))
-    return
-end

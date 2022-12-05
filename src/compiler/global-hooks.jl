@@ -44,11 +44,11 @@ default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
 
     # setup initial slots
     for i in 1:Runtime.MAX_EXCEPTIONS-1
-        unsafe_store!(ex_ptr, ExceptionEntry(0, LLVMPtr{UInt8,1}(0)))
+        unsafe_store!(ex_ptr, ExceptionEntry(0))
         ex_ptr += sizeof(ExceptionEntry)
     end
     # setup tail slot
-    unsafe_store!(ex_ptr, ExceptionEntry(1, LLVMPtr{UInt8,1}(0)))
+    unsafe_store!(ex_ptr, ExceptionEntry(1))
 end
 default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
     # initialize malloc hostcall
@@ -88,6 +88,47 @@ default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
                 end
             end
             return nothing
+        end
+    end
+    Base.unsafe_store!(gbl_ptr, hc)
+end
+default_global_hooks[:__global_debug_machine_hostcall] = (gbl, mod, device) -> begin
+    # initialize hostcall
+    args_type = Tuple{Ptr{Cvoid}, UInt64, Csize_t}
+    # Dummy type here
+    ret_type = Device.MultiStateMachine{Device.HostCallState,UInt64}
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type, UInt64}}, gbl)
+
+    hc = Device.named_perdevice_hostcall(device, :__global_debug_machine) do
+        HostCall(ret_type, args_type; device, continuous=true, timeout=nothing) do T_ptr, kern, sz
+            T = Base.unsafe_pointer_to_objref(T_ptr)::Type
+            buf = Mem.alloc(device, sz * sizeof(UInt32))
+            state = Device.MultiStateMachine(T, buf, 0)
+            #= TODO: How to handle the background task accessing the buffer?
+            lock(Runtime.RT_LOCK) do
+                push!(mod.metadata, Runtime.KernelMetadata(kern, buf))
+            end
+            =#
+            @debug "Allocated debug machine ($sz waves, type $(nameof(T))) for kernel $kern on device $device"
+            prev = state[]
+            println("Initial Wave States (type $(nameof(T)), $(state.buffer.ptr)):")
+            for (idx,s) in enumerate(state[])
+                println("  $idx: $s")
+            end
+            errormonitor(Threads.@spawn begin
+                while true
+                    next = state[]
+                    if next != prev
+                        println("Updated Wave States (type $(nameof(T)), $(state.buffer.ptr)):")
+                        for (idx,s) in enumerate(state[])
+                            println("  $idx: $s")
+                        end
+                    end
+                    prev = next
+                    sleep(0.01)
+                end
+            end)
+            return ret_type(AMDGPU.rocconvert(state).buffer)
         end
     end
     Base.unsafe_store!(gbl_ptr, hc)

@@ -1,13 +1,53 @@
+struct ExceptionFrame
+    idx::Cint
+    func::String
+    file::String
+    line::Cint
+end
+struct WorkgroupException <: Exception
+    str::Union{String, Nothing}
+    workgroup::Int
+    indices::Vector{Bool}
+    frames::Vector{ExceptionFrame}
+end
 struct KernelException <: Exception
     device::ROCDevice
-    exstr::Union{String, Nothing}
+    exceptions::Vector{WorkgroupException}
+    dropped::Bool
 end
 
 function Base.showerror(io::IO, err::KernelException)
-    print(io, "KernelException: exception(s) thrown during kernel execution on device $(err.device)")
-    if err.exstr !== nothing
-        println(io, ":")
-        print(io, err.exstr)
+    println(io, "KernelException: exception(s) thrown during kernel execution on device $(err.device):")
+    if length(err.exceptions) == 0
+        println(io, "... no details were recorded")
+    else
+        for wgerr in err.exceptions
+            if wgerr.str !== nothing
+                println(io, wgerr.str)
+                for frame in wgerr.frames
+                    println(io, ">  [$(frame.idx)] $(frame.func) at $(frame.file):$(frame.line)")
+                end
+                println(io, "at workgroup: ", wgerr.workgroup)
+                println(io, "at workitems:")
+                for (idx, status) in enumerate(wgerr.indices)
+                    if status
+                        printstyled(io, lpad("$idx", 5); color=:red)
+                    else
+                        print(io, "     ")
+                    end
+                    if idx % 8 == 0
+                        println(io)
+                    end
+                    if idx % 64 == 0
+                        println(io)
+                    end
+                end
+                println(io)
+            end
+        end
+    end
+    if err.dropped
+        println(io, "... some exceptions weren't recorded")
     end
 end
 
@@ -69,7 +109,7 @@ function cleanup!(
     mod::ROCModule = EXE_TO_MODULE_MAP[exe].value
     signal_handle::UInt64 = get_handle(kersig.signal)
     if finished
-        ex = get_exception(exe; signal_handle, check_exceptions)
+        ex = get_exception(exe, kersig.kernel.state; signal_handle, check_exceptions)
         isnothing(ex) || (kersig.exception = ex;)
     end
 

@@ -102,25 +102,18 @@ function get_global(exe::ROCExecutable, symbol::Symbol)
     return exe.globals[symbol]
 end
 
-has_exception(e::ROCExecutable) = haskey(e.globals, :__global_exception_flag)
-
 function get_exception(
-    exe::ROCExecutable; check_exceptions::Bool = true, signal_handle::UInt64,
+    exe::ROCExecutable, state::AMDGPU.KernelState; check_exceptions::Bool = true, signal_handle::UInt64,
 )
-    has_exception(exe) || return nothing
-
     # Check if any wavefront for this kernel threw an exception
-    ex_flag = get_global(exe, :__global_exception_flag)
-    ex_flag_ptr = Base.unsafe_convert(Ptr{Int64}, ex_flag)
-    ex_flag_value = Base.unsafe_load(ex_flag_ptr)
+    ex_flag_value = Base.unsafe_load(state.exception_flag_ptr)
     ex_flag_value == 0 && return nothing
 
-    ex_string = nothing
     fetch_ex_strings =
         check_exceptions && haskey(exe.globals, :__global_exception_ring)
 
+    exceptions = WorkgroupException[]
     if fetch_ex_strings
-        ex_strings = String[]
         # Check for and collect any exceptions, and clear their slots
         ex_ring = get_global(exe, :__global_exception_ring)
         ex_ring_ptr_ptr = Base.unsafe_convert(
@@ -128,21 +121,47 @@ function get_exception(
         ex_ring_ptr = unsafe_load(ex_ring_ptr_ptr)
 
         while (ex_ring_value = unsafe_load(ex_ring_ptr)).kern != 1
-            if ex_ring_value.kern == signal_handle && ex_ring_value.ptr != C_NULL
+            if ex_ring_value.kern == signal_handle
+                @assert ex_ring_value.string_ptr != C_NULL
+                workgroup = ex_ring_value.workgroup
+                workgroup_size = ex_ring_value.workgroup_size
                 ex_ring_value_str = unsafe_string(
-                    reinterpret(Ptr{UInt8}, ex_ring_value.ptr))
-                push!(ex_strings, ex_ring_value_str)
+                    reinterpret(Ptr{UInt8}, ex_ring_value.string_ptr))
+                indices = Vector{UInt32}(undef, workgroup_size)
+                ccall(:memcpy, Cvoid, (Ptr{UInt32}, Ptr{UInt32}, Csize_t),
+                      reinterpret(Ptr{UInt32}, pointer(indices)),
+                      reinterpret(Ptr{UInt32}, ex_ring_value.indices_ptr),
+                      workgroup_size * sizeof(UInt32))
+                frames = ExceptionFrame[]
+                ex_frame = reinterpret(Ptr{AMDGPU.Device.ExceptionFrame},
+                                       ex_ring_value.frame)
+                # Walk the linked-list of frames
+                while reinterpret(UInt64, ex_frame) != 0
+                    # Copy the device frame to a host frame
+                    device_frame = unsafe_load(ex_frame)
+                    frame = ExceptionFrame(device_frame.idx,
+                                           unsafe_string(device_frame.func),
+                                           unsafe_string(device_frame.file),
+                                           device_frame.line)
+                    push!(frames, frame)
+                    ex_frame = reinterpret(Ptr{AMDGPU.Device.ExceptionFrame},
+                                           device_frame.next)
+                end
+                push!(exceptions, WorkgroupException(ex_ring_value_str,
+                                                     workgroup,
+                                                     map(i->i>0, indices),
+                                                     frames))
 
-                # FIXME: Write rest of entry first, then CAS 0 to kern field
-                entry = AMDGPU.Device.ExceptionEntry(
-                    UInt64(0), Core.LLVMPtr{UInt8,1}(0))
-                unsafe_store!(ex_ring_ptr, entry)
+                # FIXME: Clear fields
+
+                # Clear entry
+                # FIXME: CAS kern to 0
+                unsafe_store!(ex_ring_ptr, AMDGPU.Device.ExceptionEntry())
             end
             ex_ring_ptr += sizeof(AMDGPU.Device.ExceptionEntry)
         end
-        unique!(ex_strings)
-        ex_string = join(ex_strings, '\n')
     end
+    dropped = unsafe_load(state.exception_dropped_ptr) == 1
 
-    KernelException(exe.device, ex_string)
+    return KernelException(exe.device, exceptions, dropped)
 end
