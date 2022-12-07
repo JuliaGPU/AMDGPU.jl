@@ -346,18 +346,27 @@ function alloc_or_retry!(f)
         end
     end
 end
+const ALL_ALLOCS = Threads.Atomic{Int}(0)
 function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
+        if ALL_ALLOCS[] >= 2^32
+            return HSA.STATUS_ERROR_OUT_OF_RESOURCES
+        end
         HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
     end
+    Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
     return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, device, Runtime.pool_accessible_by_all(pool), true)
 end
 function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
+        if ALL_ALLOCS[] >= 2^32
+            return HSA.STATUS_ERROR_OUT_OF_RESOURCES
+        end
         HSA.memory_allocate(region.region, bytesize, ptr_ref)
     end
+    Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
     return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, device, Runtime.region_host_accessible(region), false)
 end
 alloc(bytesize; kwargs...) =
@@ -396,6 +405,7 @@ function free(buf::Buffer)
             else
                 check(HSA.memory_free(buf.ptr))
             end
+            Threads.atomic_sub!(ALL_ALLOCS, Int64(buf.bytesize))
         else
             # Wrapped
             unlock(buf.ptr)
