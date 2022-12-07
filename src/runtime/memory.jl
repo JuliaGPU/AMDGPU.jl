@@ -294,6 +294,19 @@ const USE_HIP_MALLOC_OVERRIDE = let
     end
 end
 
+"Sets a limit for total GPU memory allocations."
+set_memory_alloc_limit!(limit::Integer) =
+    @set_preferences!("memory_alloc_limit" => limit)
+const MEMORY_ALLOC_LIMIT = let
+    if haskey(ENV, "JULIA_AMDGPU_MEMORY_ALLOC_LIMIT")
+        limit = parse(Int, ENV["JULIA_AMDGPU_MEMORY_ALLOC_LIMIT"])
+        set_memory_alloc_limit!(limit)
+        limit
+    else
+        @load_preference("memory_alloc_limit", typemax(Int))
+    end
+end
+
 """
     alloc(bytesize::Integer; coherent=false) -> Buffer
 
@@ -388,20 +401,29 @@ function alloc_or_retry!(f)
         end
     end
 end
+const ALL_ALLOCS = Threads.Atomic{Int64}(0)
 function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
+    if ALL_ALLOCS[] + bytesize > MEMORY_ALLOC_LIMIT
+        check(HSA.STATUS_ERROR_OUT_OF_RESOURCES)
+    end
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
         HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
     end
+    Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
     AMDGPU.hsaref!()
     ptr = ptr_ref[]
     return Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, Runtime.pool_accessible_by_all(pool), true)
 end
 function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
+    if ALL_ALLOCS[] + bytesize > MEMORY_ALLOC_LIMIT
+        check(HSA.STATUS_ERROR_OUT_OF_RESOURCES)
+    end
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
         HSA.memory_allocate(region.region, bytesize, ptr_ref)
     end
+    Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
     AMDGPU.hsaref!()
     ptr = ptr_ref[]
     return Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, Runtime.region_host_accessible(region), false)
@@ -442,6 +464,7 @@ function free(buf::Buffer)
             else
                 memory_check(HSA.amd_memory_pool_free(buf.base_ptr), buf.base_ptr)
             end
+            Threads.atomic_sub!(ALL_ALLOCS, Int64(buf.bytesize))
         else
             memory_check(HSA.memory_free(buf.base_ptr), buf.base_ptr)
         end
