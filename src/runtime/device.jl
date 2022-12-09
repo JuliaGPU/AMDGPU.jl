@@ -137,8 +137,14 @@ getinfo(device::ROCDevice, query) = getinfo(device.agent, query)
 
 const AnyROCDevice = Union{ROCDevice,HSA.Agent}
 
-name(device::AnyROCDevice) =
-    getinfo(device, HSA.AGENT_INFO_NAME)
+function name(device::AnyROCDevice)
+    _name = getinfo(device, HSA.AGENT_INFO_NAME)
+    null = findfirst(x->x=='\0', _name)
+    if null !== nothing
+        _name = _name[1:null]
+    end
+    return _name
+end
 
 product_name(device::AnyROCDevice) =
     getinfo(device, HSA.AMD_AGENT_INFO_PRODUCT_NAME)
