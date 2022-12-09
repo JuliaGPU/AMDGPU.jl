@@ -1,30 +1,3 @@
-## Sentinels in order of execution
-
-### Ready/lock/message sentinels
-
-"Signal is ready for accessing by host or device."
-const READY_SENTINEL = 0
-
-"Device has locked the signal."
-const DEVICE_LOCK_SENTINEL = 1
-
-"Device-sourced message is available."
-const DEVICE_MSG_SENTINEL = 2
-
-"Host has locked the signal."
-const HOST_LOCK_SENTINEL = 3
-
-"Host-sourced message is available."
-const HOST_MSG_SENTINEL = 4
-
-### Error sentinels
-
-"Fatal error on device wavefront accessing the signal."
-const DEVICE_ERR_SENTINEL = 5
-
-"Fatal error on host thread accessing the signal."
-const HOST_ERR_SENTINEL = 6
-
 const DEFAULT_HOSTCALL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
 const DEFAULT_HOSTCALL_LATENCY = Ref{Float64}(0.01)
 
@@ -35,13 +8,13 @@ include("hostcall_signal_helpers.jl")
 
 GPU-compatible struct for making hostcalls.
 """
-struct HostCall{RT,AT}
-    signal_handle::UInt64
+struct HostCall{RT,AT,S}
+    state::StateMachine{HostCallState,S}
     buf_ptr::LLVMPtr{UInt8,AS.Global}
     buf_len::UInt
 end
 
-function HostCall(RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
+function HostCall(RT::Type, AT::Type{<:Tuple}, state::StateMachine{HostCallState,ROCSignal};
                   device=AMDGPU.default_device(), buf_len=nothing)
     if isnothing(buf_len)
         buf_len = 0
@@ -54,9 +27,13 @@ function HostCall(RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.alloc(device, buf_len; coherent=true)
     buf_ptr = LLVMPtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
-    host_signal_store!(HSA.Signal(signal_handle), READY_SENTINEL)
-    HostCall{RT,AT}(signal_handle, buf_ptr, buf_len)
+    state = StateMachine{HostCallState,UInt64}(state.signal.signal[].handle)
+    return HostCall{RT,AT,UInt64}(state, buf_ptr, buf_len)
 end
+
+Adapt.adapt_storage(::AMDGPU.Runtime.Adaptor, hc::HostCall{RT,AT,ROCSignal}) where {RT,AT} =
+    HostCall{RT,AT,UInt64}(StateMachine{HostCallState,UInt64}(hc.state.signal.signal[].handle),
+                           hc.buf_ptr, hc.buf_len)
 
 "Calls the host function stored in `hc` with arguments `args`."
 @inline function hostcall!(hc::HostCall, args...)
@@ -150,7 +127,7 @@ end
     return quote
         @device_execution_gate $mode begin
             # Acquire lock on hostcall buffer
-            hostcall_device_signal_wait_cas!(hc.signal_handle, READY_SENTINEL, DEVICE_LOCK_SENTINEL)
+            hostcall_transition_wait!(hc.state, READY_SENTINEL, DEVICE_LOCK_SENTINEL)
         end
     end
 end
@@ -201,21 +178,21 @@ end
 
         @device_execution_gate $mode begin
             # Ensure arguments are written
-            $hostcall_device_signal_wait_cas!(hc.signal_handle, $DEVICE_LOCK_SENTINEL, $DEVICE_MSG_SENTINEL)
+            $hostcall_transition_wait!(hc.state, $DEVICE_LOCK_SENTINEL, $DEVICE_MSG_SENTINEL)
             # Wait on host message
-            $hostcall_device_signal_wait(hc.signal_handle, $HOST_MSG_SENTINEL)
+            $hostcall_waitfor(hc.state, $HOST_MSG_SENTINEL)
             # Get return buffer and load first value
             if $RT !== Nothing
                 $buf_ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global},hc.buf_ptr)
                 $ret_ptr = unsafe_load($buf_ptr)
                 if UInt64($ret_ptr) == 0
-                    $device_signal_store!(hc.signal_handle, $DEVICE_ERR_SENTINEL)
+                    hc.state[] = $DEVICE_ERR_SENTINEL
                     $signal_exception()
                     $trap()
                 end
                 unsafe_store!($shmem, unsafe_load($ret_ptr)::$RT)
             end
-            $device_signal_store!(hc.signal_handle, $READY_SENTINEL)
+            hc.state[] = $READY_SENTINEL
         end
         if $RT !== Nothing
             return unsafe_load($shmem)
@@ -299,7 +276,8 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
                   device=AMDGPU.default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
                   timeout=nothing, continuous=false, buf_len=nothing)
     signal = Runtime.ROCSignal()
-    hc = HostCall(rettype, argtypes, Runtime.get_handle(signal); device, buf_len)
+    state = StateMachine(HostCallState, signal, READY_SENTINEL)
+    hc = HostCall(rettype, argtypes, state; device, buf_len)
 
     tsk = Threads.@spawn begin
         ret_buf = Ref{Mem.Buffer}()

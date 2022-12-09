@@ -27,7 +27,7 @@ function create_output_context_hostcall(io; buf_len, kwargs...)
     return hc
 end
 
-const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{Int64,Tuple{LLVMPtr{DeviceStaticString{2^16},AS.Global}}}}
+const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{Int64,Tuple{LLVMPtr{DeviceStaticString{2^16},AS.Global}},UInt64}}
 
 ### macros
 
@@ -271,7 +271,7 @@ macro rocprintf(args...)
 
     # Load HostCall object
     push!(ex.args, :($printf_hc = unsafe_load($get_global_pointer(Val(:__global_printf_context),
-                                                                        HostCall{Int64,Tuple{LLVMPtr{ROCPrintfBuffer,AS.Global}}}))))
+                                                                        HostCall{Int64,Tuple{LLVMPtr{ROCPrintfBuffer,AS.Global}},UInt64}))))
     push!(ex.args, :($device_ptr = reinterpret($(LLVMPtr{UInt64,AS.Global}), $printf_hc.buf_ptr)))
 
     # Lock hostcall buffer

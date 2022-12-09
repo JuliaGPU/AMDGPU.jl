@@ -11,7 +11,7 @@ default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     # Return type of Int to force synchronizing behavior
     args_type = Tuple{LLVMPtr{UInt8, AS.Global}}
     ret_type = Int
-    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type}}, gbl)
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type, UInt64}}, gbl)
 
     hc = Device.named_perdevice_hostcall(device, :__global_printf) do
         HostCall(ret_type, args_type; device, continuous=true, buf_len=2^16, timeout=nothing) do _
@@ -54,7 +54,7 @@ default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
     # initialize malloc hostcall
     args_type = Tuple{UInt64, Csize_t}
     ret_type = Ptr{Cvoid}
-    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type}}, gbl)
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type, UInt64}}, gbl)
 
     hc = Device.named_perdevice_hostcall(device, :__global_malloc) do
         HostCall(ret_type, args_type; device, continuous=true, timeout=nothing) do kern, sz
@@ -71,7 +71,7 @@ default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
     # initialize free hostcall
     args_type = Tuple{UInt64, Ptr{Cvoid}}
     ret_type = Nothing
-    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type}}, gbl)
+    gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type, UInt64}}, gbl)
 
     hc = Device.named_perdevice_hostcall(device, :__global_free) do
         HostCall(ret_type, args_type; device, continuous=true, timeout=nothing) do kern, ptr

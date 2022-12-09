@@ -1,20 +1,43 @@
-const ATOMIC_MONOTONIC = Int32(1)
-const ATOMIC_ACQUIRE = Int32(2)
-const ATOMIC_RELEASE = Int32(3)
-const ATOMIC_ACQ_REL = Int32(4)
-const ATOMIC_SEQ_CST = Int32(5)
+## Sentinels in order of execution
+
+CEnum.@cenum HostCallState::UInt32 begin
+    ### Ready/lock/message sentinels
+
+    # Signal is ready for accessing by host or device
+    READY_SENTINEL
+
+    # Device has locked the signal
+    DEVICE_LOCK_SENTINEL
+
+    # Device-sourced message is available
+    DEVICE_MSG_SENTINEL
+
+    # Host has locked the signal
+    HOST_LOCK_SENTINEL
+
+    # Host-sourced message is available
+    HOST_MSG_SENTINEL
+
+    ### Error sentinels
+
+    # Fatal error on device wavefront accessing the signal
+    DEVICE_ERR_SENTINEL
+
+    # Fatal error on host thread accessing the signal
+    HOST_ERR_SENTINEL
+end
 
 # Hostcall signal helpers.
 
 @inline function device_signal_load(
-    signal_handle::UInt64, order::Int32 = ATOMIC_ACQUIRE,
+    signal_handle::UInt64, order=Val{:acquire}(),
 )
     ccall("extern __ockl_hsa_signal_load", llvmcall,
         Int64, (UInt64, Int32), signal_handle, order)
 end
 
 @inline function device_signal_store!(
-    signal_handle::UInt64, value::Int64, order::Int32 = ATOMIC_RELEASE,
+    signal_handle::UInt64, value::Int64, order=Val{:release}(),
 )
     ccall("extern __ockl_hsa_signal_store", llvmcall,
         Int64, (UInt64, Int64, Int32), signal_handle, value, order)
@@ -22,19 +45,19 @@ end
 
 @inline function device_signal_cas!(
     signal_handle::UInt64, expected::Int64, value::Int64,
-    order::Int32 = ATOMIC_ACQ_REL,
+    order=Val{:acquire_release}(),
 )
     ccall("extern __ockl_hsa_signal_cas", llvmcall,
         Int64, (UInt64, Int64, Int64, Int32),
         signal_handle, expected, value, order)
 end
 
-@inline function hostcall_device_signal_wait_cas!(
-    signal_handle::UInt64, expected::Int64,
-    value::Int64, order::Int32 = ATOMIC_ACQ_REL,
+@inline function hostcall_transition_wait!(
+    state::StateMachine{HostCallState,UInt64}, expected, value,
+    order=Val{:acquire_release}(),
 )
     while true
-        loaded = device_signal_cas!(signal_handle, expected, value, order)
+        loaded = transition!(state, expected, value, order)
         loaded == expected && return nothing
 
         if (loaded == DEVICE_ERR_SENTINEL) || (loaded == HOST_ERR_SENTINEL)
@@ -47,18 +70,11 @@ end
     end
 end
 
-@inline function hostcall_device_signal_wait_cas!(
-    signal::HSA.Signal, expected::Int64,
-    value::Int64, order::Int32 = ATOMIC_ACQ_REL,
-)
-    hostcall_device_signal_wait_cas!(signal.handle, expected, value, order)
-end
-
-@inline function hostcall_device_signal_wait(
-    signal_handle::UInt64, value::Int64, order::Int32 = ATOMIC_ACQUIRE,
+@inline function hostcall_waitfor(
+    state::StateMachine{HostCallState,UInt64}, value, order=Val{:acquire}()
 )
     while true
-        loaded = device_signal_load(signal_handle, order)
+        loaded = get_value(state, order)
         loaded == value && return nothing
 
         if (loaded == DEVICE_ERR_SENTINEL) || (loaded == HOST_ERR_SENTINEL)
@@ -69,12 +85,6 @@ end
         # device_sethalt(Int32(1))
         device_sleep(Int32(5))
     end
-end
-
-@inline function hostcall_device_signal_wait(
-    signal::HSA.Signal, value::Int64, order::Int32 = ATOMIC_ACQUIRE,
-)
-    hostcall_device_signal_wait(signal.handle, value, order)
 end
 
 @inline function host_signal_store!(
