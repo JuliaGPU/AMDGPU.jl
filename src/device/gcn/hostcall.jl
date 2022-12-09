@@ -71,40 +71,72 @@ end
     return hostcall_device_trigger_and_return!(Val{mode}(), hc)
 end
 
+#= TODO: Requires some dynamically-allocated per-kernel memory
+macro elect_grid_lane()
+    @gensym lock_name
+    quote
+        election_lock = alloc_local_zeroinit($(QuoteNode(lock_name)), Int64, 1)
+        atomic_cas!(election_lock, 0, workitemIdx().x)
+    end
+end
+=#
+macro elect_workgroup_lane()
+    @gensym idx lock_name lock_prev election_lock
+    quote
+        $idx = workitemIdx().x
+        $election_lock = alloc_local($(QuoteNode(lock_name)), Int64, 1, true)
+        $lock_prev = atomic_cas!($election_lock, 0, $idx)
+        (;is_leader=($lock_prev == 0), prev=$lock_prev, lock=$election_lock)
+    end
+end
+function reset_election!(lock)
+    leader = unsafe_load(lock)
+    atomic_store!(lock, 0)
+end
 macro device_execution_gate(mode, exec_ex)
     if mode isa QuoteNode
         mode = mode.value::Symbol
     end
     @assert mode in (:grid, :group, :wave, :lane) "Invalid mode: $mode"
     ex = Expr(:block)
+    @gensym election
     if mode == :grid
         push!(ex.args, quote
             # Must be on first item of first group
+            # FIXME: Elect one lane out of the grid
+            # FIXME: if !@elect_grid_lane()
             if $workgroupIdx().x != 1 || $workitemIdx().x != 1
                 @goto gated_done
             end
         end)
     elseif mode == :group
         push!(ex.args, quote
-            # Must be on first item of each group
-            if $workitemIdx().x != 1
+            # Must be on first active item of each group
+            $election = AMDGPU.Device.@elect_workgroup_lane()
+            if !$election.is_leader
                 @goto gated_done
             end
         end)
     elseif mode == :wave
         push!(ex.args, quote
             # Must be on first lane of each wavefront of each group
-            if Core.Intrinsics.urem_int(reinterpret(UInt64, $workitemIdx().x-1),
-                                        Base.unsafe_trunc(UInt64, $wavefrontsize())) != 0
-                @goto gated_done
+            let idx = $workitemIdx().x
+                if idx != $readfirstlane(Base.unsafe_trunc(Int32, idx))
+                    @goto gated_done
+                end
             end
         end)
     end
     push!(ex.args, quote
         $(esc(exec_ex))
         @label gated_done
-        $sync_workgroup()
     end)
+    if mode == :group
+        push!(ex.args, quote
+            # Reset election lock
+            $reset_election!($election.lock)
+        end)
+    end
     return ex
 end
 
