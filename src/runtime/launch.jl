@@ -130,6 +130,11 @@ function launch_kernel!(
     end
 
     @log_finish(:launch_kernel!, (;f=typeof(kernel.f), tt=typeof(kernel.args), signal=get_handle(signal), queue=get_handle(queue)), nothing)
+
+    # Update the queue running counter
+    @atomic :monotonic queue.running += 1
+
+    return
 end
 
 function launch_barrier!(T, queue::ROCQueue, signals::Vector{ROCSignal})
@@ -204,4 +209,6 @@ function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue)
 
     # Ring the doorbell to dispatch the kernel
     HSA.signal_store_relaxed(_queue.doorbell_signal, Int64(write_index))
+
+    return
 end

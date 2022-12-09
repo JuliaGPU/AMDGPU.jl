@@ -3,6 +3,7 @@ mutable struct ROCQueue
     @atomic queue::Ptr{HSA.Queue}
     status::HSA.Status
     @atomic active::Bool
+    @atomic running::Int
 end
 get_handle(queue::ROCQueue) = reinterpret(Ptr{Cvoid}, queue.queue)
 
@@ -48,7 +49,7 @@ function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
     @assert queue_type == HSA.QUEUE_TYPE_MULTI
 
     r_queue = Ref{Ptr{HSA.Queue}}()
-    queue = ROCQueue(device, Ptr{HSA.Queue}(0), HSA.STATUS_SUCCESS, true)
+    queue = ROCQueue(device, Ptr{HSA.Queue}(0), HSA.STATUS_SUCCESS, true, 0)
     c_queue_error_handler = @cfunction(
         queue_error_handler, Cvoid, (HSA.Status, Ptr{HSA.Queue}, Ptr{Cvoid}))
 
