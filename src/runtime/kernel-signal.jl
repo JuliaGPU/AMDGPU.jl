@@ -61,6 +61,8 @@ function cleanup!(
     _, succ = @atomicreplace kersig.active true => false
     succ || return
 
+    @atomic :monotonic kersig.queue.running -= 1
+
     unpreserve!(kersig)
 
     exe::ROCExecutable = kersig.kernel.exe
