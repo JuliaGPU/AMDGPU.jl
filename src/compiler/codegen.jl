@@ -71,6 +71,13 @@ function GPUCompiler.process_module!(job::ROCCompilerJob, mod::LLVM.Module)
     # Run this early (before optimization) to ensure we link OCKL
     emit_exception_user!(mod)
 end
+function GPUCompiler.process_entry!(job::ROCCompilerJob, mod::LLVM.Module, entry::LLVM.Function)
+    invoke(GPUCompiler.process_entry!,
+           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+           job, mod, entry)
+    # Workaround for the lack of zeroinitializer support for LDS
+    zeroinit_lds!(mod, entry)
+end
 function GPUCompiler.finish_module!(job::ROCCompilerJob, mod::LLVM.Module)
     invoke(GPUCompiler.finish_module!,
            Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)},
@@ -89,6 +96,38 @@ end
 GPUCompiler.ci_cache(::ROCCompilerJob) = AMDGPU.ci_cache
 
 GPUCompiler.method_table(::ROCCompilerJob) = AMDGPU.method_table
+
+function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
+    if LLVM.callconv(entry) != LLVM.API.LLVMAMDGPUKERNELCallConv
+        return entry
+    end
+    to_init = []
+    for gbl in LLVM.globals(mod)
+        if startswith(LLVM.name(gbl), "__zeroinit") &&
+           LLVM.addrspace(llvmtype(gbl)) == AMDGPU.Device.AS.Local
+            push!(to_init, gbl)
+        end
+    end
+    if length(to_init) > 0
+        ctx = LLVM.context(mod)
+        T_void = LLVM.VoidType(ctx)
+        LLVM.@dispose builder=LLVM.Builder(ctx) begin
+            # Make these the first operations we do
+            position!(builder, first(LLVM.instructions(first(LLVM.blocks(entry)))))
+
+            # Use memset to clear all values to 0
+            for gbl in to_init
+                LLVM.memset!(builder, gbl, ConstantInt(UInt8(0); ctx), ConstantInt(llvmsize(llvmtype(gbl)); ctx), LLVM.alignment(gbl))
+            end
+
+            # Synchronize the workgroup to prevent races
+            sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
+            call!(builder, sync_f)
+        end
+    end
+
+    return entry
+end
 
 """
     rocfunction(f, tt=Tuple{}; kwargs...)

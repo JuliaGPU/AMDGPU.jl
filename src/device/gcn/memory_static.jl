@@ -1,11 +1,14 @@
 "Allocates on-device memory statically from the specified address space."
-@generated function alloc_special(::Val{id}, ::Type{T}, ::Val{as}, ::Val{len}) where {id,T,as,len}
+@generated function alloc_special(::Val{id}, ::Type{T}, ::Val{as}, ::Val{len}, ::Val{zeroinit}=Val{false}()) where {id,T,as,len,zeroinit}
     Context() do ctx
         eltyp = convert(LLVMType, T; ctx)
 
         # old versions of GPUArrays invoke _shmem with an integer id; make sure those are unique
         if !isa(id, String) || !isa(id, Symbol)
             id = "alloc_special_$id"
+        end
+        if zeroinit
+            id = "__zeroinit_" * id
         end
 
         T_ptr_i8 = convert(LLVMType, LLVMPtr{T,as}; ctx)
@@ -18,8 +21,13 @@
         gv_typ = LLVM.ArrayType(eltyp, len)
         gv = GlobalVariable(mod, gv_typ, string(id), as)
         if len > 0
-            linkage!(gv, LLVM.API.LLVMExternalLinkage)
-            # NOTE: Backend doesn't support initializer for local AS
+            if as == AS.Local
+                linkage!(gv, LLVM.API.LLVMExternalLinkage)
+                # NOTE: Backend doesn't support initializer for local AS
+            elseif as == AS.Private
+                linkage!(gv, LLVM.API.LLVMInternalLinkage)
+                initializer!(gv, null(gv_typ))
+            end
         end
 
         # by requesting a larger-than-datatype alignment, we might be able to vectorize.
@@ -41,7 +49,8 @@
     end
 end
 
-@inline alloc_local(id, T, len) = alloc_special(Val(id), T, Val(AS.Local), Val(len))
+@inline alloc_local(id, T, len, zeroinit=false) = alloc_special(Val{id}(), T, Val{AS.Local}(), Val{len}(), Val{zeroinit}())
+@inline alloc_scratch(id, T, len) = alloc_special(Val{id}(), T, Val{AS.Private}(), Val{len}(), Val{false}())
 
 @inline @generated function alloc_string(::Val{str}) where str
     Context() do ctx
