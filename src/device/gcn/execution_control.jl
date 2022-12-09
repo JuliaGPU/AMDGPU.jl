@@ -50,3 +50,4 @@ signal_completion(value::Int64) = device_signal_store!(_completion_signal(), val
 @inline sendmsg(x1, x2=Int32(0)) = ccall("llvm.amdgcn.s.sendmsg", llvmcall, Cvoid, (Int32, Int32), x1, x2)
 @inline sendmsghalt(x1, x2=Int32(0)) = ccall("llvm.amdgcn.s.sendmsghalt", llvmcall, Cvoid, (Int32, Int32), x1, x2)
 @inline endpgm() = ccall("llvm.amdgcn.endpgm", llvmcall, Cvoid, ())
+@inline readfirstlane(x::Int32) = ccall("llvm.amdgcn.readfirstlane", llvmcall, Int32, (Int32,), x)
