@@ -110,28 +110,22 @@ wait(@roc groupsize=4 kernel(RC, RA, RB))
 @assert Array(RC) ≈ Array(RA) .+ Array(RB) .+ RC_elem
 ```
 
-Local memory may be allocated within a kernel by calling
-`AMDGPU.Device.alloc_local(id, T, len)`, where `id` is some sort of bitstype ID
-for the local allocation, `T` is the Julia element type, and `len` is the
-number of elements of type `T` to allocate. Local memory does not need to be
-freed, as it is automatically freed by the hardware. If `len == 0`, then local
-memory is dynamically allocated at kernel runtime; the `localmem` option to
-`@roc` must be set appropriately to ensure that enough local memory is
-allocated by the hardware.
-
-```julia
-
-```
+Local memory may be allocated within a kernel by calling either
+`@ROCStaticLocalArray(T, dims)` or `@ROCDynamicLocalArray(T, dims)` - use the
+former if `dims` is passed as a constant value, and otherwise use the latter.
+Local memory does not need to be freed, as it is automatically freed by the
+hardware. If `@ROCDynamicLocalArray` is used, then local memory is dynamically
+allocated at kernel execution time; therefore, the `localmem` option to `@roc`
+must be set appropriately to ensure that enough local memory is allocated by
+the hardware.
 
 ```julia
 function kernel(C, A, B)
-    # Allocate local memory dynamically (0 means dynamic)
-    Ctmp_ptr = AMDGPU.Device.alloc_local(:localmem, Float64, 0)
-    # Or, allocate local memory statically
-    # Ctmp_ptr = AMDGPU.Device.alloc_local(:localmem, Float64, 4)
+    # Allocate local memory dynamically
+    Ctmp = @ROCDynamicLocalArray(Float64, length(C))
+    # Or, allocate local memory statically if the size is known ahead-of-time
+    # Ctmp = @ROCStaticLocalArray(Float64, 8) # if we want 8 elements
 
-    # Turn it (a pointer to Float64 elements in Local memory) into a device-side array
-    Ctmp = ROCDeviceArray(length(C), Ctmp_ptr)
     # Use it
     idx = AMDGPU.workitemIdx().x
     Ctmp[idx] = A[idx] + B[idx] + C[1]
@@ -140,9 +134,15 @@ function kernel(C, A, B)
     nothing
 end
 # ...
-# The `localmem` option isn't necessary if memory is statically allocated
+# Note: The `localmem` option isn't necessary if `@ROCStaticLocalArray` is used
 wait(@roc groupsize=4 localmem=sizeof(Float64)*length(RC) kernel(RC, RA, RB))
 ```
+
+Note that like CUDA's shared memory, AMDGPU's local memory is zero-initialized
+automatically. If this behavior is unnecessary (and undesired for performance
+reasons), zero-initialization can be disabled with `@ROCDynamicLocalArray(T,
+dims, false)` or `@ROCStaticLocalArray(T, dims, false)` (the last argument
+is `zeroinit`).
 
 ## Memory Modification Intrinsics
 

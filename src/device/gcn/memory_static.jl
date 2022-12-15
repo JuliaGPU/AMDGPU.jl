@@ -52,6 +52,44 @@ end
 @inline alloc_local(id, T, len, zeroinit=false) = alloc_special(Val{id}(), T, Val{AS.Local}(), Val{len}(), Val{zeroinit}())
 @inline alloc_scratch(id, T, len) = alloc_special(Val{id}(), T, Val{AS.Private}(), Val{len}(), Val{false}())
 
+macro ROCStaticLocalArray(T, dims, zeroinit=true)
+    dims = dims isa Expr ? dims.args[1] : dims
+    @assert dims isa Integer || dims isa Tuple "@ROCStaticLocalArray requires a constant `dims` argument"
+
+    zeroinit = zeroinit isa Expr ? zeroinit.args[1] : zeroinit
+    @assert zeroinit isa Bool "@ROCStaticLocalArray requires a constant `zeroinit` argument"
+
+    @gensym id
+    len = prod(dims)
+    quote
+        $ROCDeviceArray($dims, $alloc_local($(QuoteNode(Symbol(:ROCStaticLocalArray_, id))), $T, $len, $zeroinit))
+    end
+end
+macro ROCDynamicLocalArray(T, dims, zeroinit=true)
+    if Base.libllvm_version < v"14"
+        @warn "@ROCDynamicLocalArray is unsupported on LLVM <14\nUndefined behavior may result"
+    end
+
+    zeroinit = zeroinit isa Expr ? zeroinit.args[1] : zeroinit
+    @assert zeroinit isa Bool "@ROCDynamicLocalArray requires a constant `zeroinit` argument"
+
+    @gensym id DA
+    quote
+        let
+            $DA = $ROCDeviceArray($(esc(dims)), $alloc_local($(QuoteNode(Symbol(:ROCDynamicLocalArray_, id))), $T, 0, $zeroinit))
+            if $zeroinit
+                # Zeroinit doesn't work at the compiler level for dynamic LDS
+                # allocations, so zero it here
+                for idx in 1:prod($(esc(dims)))
+                    @inbounds $DA[idx] = zero($T)
+                end
+                $sync_workgroup()
+            end
+            $DA
+        end
+    end
+end
+
 @inline @generated function alloc_string(::Val{str}) where str
     Context() do ctx
         T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx), AS.Global)

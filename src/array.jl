@@ -40,7 +40,7 @@ end
 # memory
 
 @inline function GPUArrays.LocalMemory(::ROCKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}) where {T,dims,id}
-    ptr = AMDGPU.Device.alloc_special(Val(id), T, AMDGPU.AS.Local, Val(prod(dims)))
+    ptr = AMDGPU.Device.alloc_special(Val{id}(), T, Val{AMDGPU.AS.Local}(), Val{prod(dims)}())
     ROCDeviceArray(dims, ptr)
 end
 
