@@ -371,10 +371,12 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
 end
 
 function hostcall_host_wait(signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_LATENCY[], timeout=DEFAULT_HOSTCALL_TIMEOUT[])
-    @debug "Hostcall: Waiting on signal $signal_handle"
+    prev = HostCallState(host_signal_load(signal_handle))
+    @debug "Hostcall: Waiting on signal $signal_handle in initial state $prev"
     start_time = time_ns()
     while !Runtime.RT_EXITING[]
-        prev = host_signal_load(signal_handle)
+        last_prev = prev
+        prev = HostCallState(host_signal_load(signal_handle))
         if prev == DEVICE_MSG_SENTINEL
             prev = host_signal_cmpxchg!(
                 signal_handle, DEVICE_MSG_SENTINEL, HOST_LOCK_SENTINEL)
@@ -385,6 +387,8 @@ function hostcall_host_wait(signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_L
         elseif prev == DEVICE_ERR_SENTINEL
             @debug "Hostcall: Device error on signal $signal_handle"
             throw(HostCallException("Device error on signal $signal_handle"))
+        elseif last_prev != prev
+            @debug "Hostcall: Transition from $last_prev to $prev on signal $signal_handle"
         end
 
         if timeout !== nothing
