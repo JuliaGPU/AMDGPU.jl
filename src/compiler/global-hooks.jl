@@ -52,16 +52,20 @@ default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
 end
 default_global_hooks[:__global_malloc_hostcall] = (gbl, mod, device) -> begin
     # initialize malloc hostcall
-    args_type = Tuple{UInt64, Csize_t}
+    args_type = Tuple{UInt64, Csize_t, Bool, Bool}
     ret_type = Ptr{Cvoid}
     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type, UInt64}}, gbl)
 
     hc = Device.named_perdevice_hostcall(device, :__global_malloc) do
-        HostCall(ret_type, args_type; device, continuous=true, timeout=nothing) do kern, sz
-            buf = Mem.alloc(device, sz; coherent=true)
-            # FIXME: Lock
-            push!(mod.metadata, Runtime.KernelMetadata(kern, buf))
-            @debug "Allocated $(buf.ptr) ($sz bytes) for kernel $kern on device $device"
+        HostCall(ret_type, args_type; device, continuous=true, timeout=nothing) do kern, sz, coherent, zeroed
+            buf = Mem.alloc(device, sz; coherent)
+            if zeroed
+                Mem.set!(buf, UInt32(0), cld(sz, sizeof(UInt32)))
+            end
+            lock(Runtime.RT_LOCK) do
+                push!(mod.metadata, Runtime.KernelMetadata(kern, buf))
+            end
+            @debug "Allocated $(buf.ptr) ($sz bytes, coherent? $coherent, zero'd? $zeroed) for kernel $kern on device $device"
             return buf.ptr
         end
     end
@@ -75,16 +79,17 @@ default_global_hooks[:__global_free_hostcall] = (gbl, mod, device) -> begin
 
     hc = Device.named_perdevice_hostcall(device, :__global_free) do
         HostCall(ret_type, args_type; device, continuous=true, timeout=nothing) do kern, ptr
-            # FIXME: Lock
-            for idx in length(mod.metadata):-1:1
-                meta = mod.metadata[idx]
-                same_kern = meta.kern == kern
-                same_ptr = meta.buf.ptr == ptr
-                if same_kern && same_ptr
-                    Mem.free(meta.buf)
-                    deleteat!(mod.metadata, idx)
-                    @debug "Freed $ptr ($(meta.buf.bytesize) bytes) for kernel $kern on device $device."
-                    break
+            lock(Runtime.RT_LOCK) do
+                for idx in length(mod.metadata):-1:1
+                    meta = mod.metadata[idx]
+                    same_kern = meta.kern == kern
+                    same_ptr = meta.buf.ptr == ptr
+                    if same_kern && same_ptr
+                        Mem.free(meta.buf)
+                        deleteat!(mod.metadata, idx)
+                        @debug "Freed $ptr ($(meta.buf.bytesize) bytes) for kernel $kern on device $device."
+                        break
+                    end
                 end
             end
             return nothing
