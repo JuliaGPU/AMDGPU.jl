@@ -134,12 +134,50 @@ roccall
     end
 
     append!(ex.args, (quote
+        write_args!(signal.kernel, $(arg_ptrs...))
         #GC.@preserve $(converted_args...) begin
             launch_kernel!(signal, groupsize, gridsize, ($(arg_ptrs...),))
         #end
     end).args)
 
     return ex
+end
+
+function write_args!(kernel::ROCKernel, args...)
+    # Allocate the kernel argument buffer
+    key = khash(args)
+    kernarg_address, do_write = Mem.alloc_pooled(kernel.device, key, :kernarg,
+                                                 kernel.kernarg_segment_size)
+
+    if do_write
+        # Fill kernel argument buffer
+        # FIXME: Query kernarg segment alignment
+        ctr = 0
+        for arg in args
+            sz = sizeof(typeof(arg))
+            if sz == 0
+                continue
+            end
+            rarg = Ref(arg)
+            align = Base.datatype_alignment(typeof(arg))
+            rem = mod(ctr, align)
+            if rem > 0
+                ctr += align-rem
+            end
+            ccall(:memcpy, Cvoid,
+                  (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+                  kernarg_address+ctr, rarg, sz)
+            ctr += sz
+        end
+    end
+
+    # Register kernarg buffer
+    kernel.kernarg_address = kernarg_address
+    AMDGPU.hsaref!()
+    finalizer(kernel) do k
+        Mem.free_pooled(kernel.device, key, :kernarg, kernarg_address)
+        AMDGPU.hsaunref!()
+    end
 end
 
 ## device-side kernels

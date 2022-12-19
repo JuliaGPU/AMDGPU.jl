@@ -57,20 +57,18 @@ end
 
 ## Kernel instance
 
-mutable struct ROCKernel{F,T<:Tuple}
+mutable struct ROCKernel
     device::ROCDevice
     exe::ROCExecutable
     sym::String
-    f::F
-    args::T
     kernel_object::UInt64
     kernarg_segment_size::UInt32
     group_segment_size::UInt32
     private_segment_size::UInt32
-    kernarg_address::Ptr{Nothing}
+    kernarg_address::Ptr{Cvoid}
 end
 
-function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; localmem::Int=0)
+function ROCKernel(kernel #= ::HostKernel =#; localmem::Int=0)
     exe = kernel.mod.exe
     device = exe.device
     symbol = kernel.fun.entry
@@ -95,12 +93,8 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
     kernarg_segment_size = executable_symbol_kernel_kernarg_segment_size(exec_symbol)
     if kernarg_segment_size == 0
         # FIXME: Hidden arguments!
-        if length(args) > 0
-            kernarg_segment_size = UInt32(sum(sizeof(typeof(arg)) for arg in args))
-        else
-            # Allocate some memory anyway, #10
-            kernarg_segment_size = UInt32(max(kernarg_segment_size, 8))
-        end
+        # Allocate some memory anyway, #10
+        kernarg_segment_size = UInt32(max(kernarg_segment_size, 8))
     end
 
     group_segment_size = executable_symbol_kernel_group_segment_size(exec_symbol)
@@ -111,37 +105,9 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
         private_segment_size = MAXIMUM_SCRATCH_ALLOCATION
     end
 
-    # Allocate the kernel argument buffer
-    key = khash(f, khash(args))
-    kernarg_address, do_write = Mem.alloc_pooled(device, key, :kernarg, kernarg_segment_size)
-
-    if do_write
-        # Fill kernel argument buffer
-        # FIXME: Query kernarg segment alignment
-        ctr = 0x0
-        for arg in (f, args...)
-            rarg = Ref(arg)
-            align = Base.datatype_alignment(typeof(arg))
-            rem = mod(ctr, align)
-            if rem > 0
-                ctr += align-rem
-            end
-            sz = sizeof(typeof(arg))
-            ccall(:memcpy, Cvoid,
-                  (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-                  kernarg_address+ctr, rarg, sz)
-            ctr += sz
-        end
-    end
-
-    kernel = ROCKernel(device, exe, symbol, f, args, kernel_object,
+    kernel = ROCKernel(device, exe, symbol, kernel_object,
                        kernarg_segment_size, group_segment_size,
-                       private_segment_size, kernarg_address)
-    AMDGPU.hsaref!()
-    finalizer(kernel) do k
-        Mem.free_pooled(device, key, :kernarg, k.kernarg_address)
-        AMDGPU.hsaunref!()
-    end
+                       private_segment_size, Ptr{Cvoid}(0))
     return kernel
 end
 
