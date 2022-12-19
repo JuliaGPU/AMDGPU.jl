@@ -146,8 +146,8 @@ Constructs a `ROCKernel` object from a compiled kernel described by `kernel`.
 
 See [`@roc`](@ref) for the list of available keyword arguments.
 """
-create_kernel(kernel::Runtime.HostKernel, f, args; kwargs...) =
-    ROCKernel(kernel, f, args; kwargs...)
+create_kernel(kernel::Runtime.HostKernel; kwargs...) =
+    ROCKernel(kernel; kwargs...)
 
 ## Kernel launch and barriers
 
@@ -437,8 +437,7 @@ macro roc(ex...)
                         if $wait
                             foreach($wait!, ($(var_exprs...),))
                         end
-                        local $kernel_instance = $create_kernel(
-                            $kernel, $kernel_f, $kernel_args; $(kernel_kwargs...))
+                        local $kernel_instance = $create_kernel($kernel; $(kernel_kwargs...))
                         local $signal = $create_event(
                             $kernel_instance; $(device_kwargs...), $(signal_kwargs...))
                         $kernel($kernel_args...; signal=$signal, $(call_kwargs...))
