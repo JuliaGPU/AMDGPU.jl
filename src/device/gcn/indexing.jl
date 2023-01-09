@@ -1,8 +1,6 @@
 # Indexing and dimensions
 
-@generated function _index(
-    ::Val{fname}, ::Val{name}, ::Val{range},
-) where {fname, name, range}
+@generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
     Context() do ctx
         T_int32 = LLVM.Int32Type(ctx)
 
@@ -22,7 +20,8 @@
 
             # attach range metadata
             range_metadata = MDNode([ConstantInt(UInt32(range.start); ctx),
-                                     ConstantInt(UInt32(range.stop); ctx)]; ctx)
+                                     ConstantInt(UInt32(range.stop); ctx)];
+                                    ctx)
             metadata(idx)[LLVM.MD_range] = range_metadata
             ret!(builder, idx)
         end
@@ -31,9 +30,7 @@
     end
 end
 
-@generated function _dim(
-    ::Val{base}, ::Val{off}, ::Val{range}, ::Type{T},
-) where {base, off, range, T}
+@generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
     Context() do ctx
         T_int8 = LLVM.Int8Type(ctx)
         T_int32 = LLVM.Int32Type(ctx)
@@ -57,7 +54,7 @@ end
             ptr = call!(builder, intr)
 
             # load the index
-            offset = base + ((off - 1) * sizeof(T))
+            offset = base+((off-1)*sizeof(T))
             idx_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(offset; ctx)])
             idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
             idx_T = load!(builder, idx_ptr_T)
@@ -65,7 +62,8 @@ end
 
             # attach range metadata
             range_metadata = MDNode([ConstantInt(T(range.start); ctx),
-                                     ConstantInt(T(range.stop); ctx)]; ctx)
+                                     ConstantInt(T(range.stop); ctx)];
+                                    ctx)
             metadata(idx_T)[LLVM.MD_range] = range_metadata
             ret!(builder, idx)
         end
@@ -85,33 +83,28 @@ for dim in (:x, :y, :z)
 
     # Workitem index
     fname, fn = Symbol("workitem"), Symbol("workitemIdx_$dim")
-    @eval @inline $fn() = _index(
-        $(Val(fname)), $(Val(intr)), $(Val(0:(_max_group_size - 1)))) + 0x1
+    @eval @inline $fn() = _index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_group_size - 1)))) + 0x1
     cufn = Symbol("threadIdx_$dim")
     @eval @inline $cufn() = $fn()
 
     # Workgroup index
     fname, fn = Symbol("workgroup"), Symbol("workgroupIdx_$dim")
-    @eval @inline $fn() = _index(
-        $(Val(fname)), $(Val(intr)), $(Val(0:(_max_groups[dim] - 1)))) + 0x1
+    @eval @inline $fn() = _index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_groups[dim] - 1)))) + 0x1
     cufn = Symbol("blockIdx_$dim")
     @eval @inline $cufn() = $fn()
 end
-
-for (dim, off) in ((:x, 1), (:y, 2), (:z, 3))
+for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # Workgroup dimension (in workitems)
     fn = Symbol("workgroupDim_$dim")
-    base = _packet_offsets[findfirst(x -> x == :workgroup_size_x,_packet_names)]
-    @eval @inline $fn() = _dim(
-        $(Val(base)), $(Val(off)), $(Val(0:(_max_group_size - 1))), UInt16)
+    base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
+    @eval @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_group_size - 1))), UInt16)
     cufn = Symbol("blockDim_$dim")
     @eval @inline $cufn() = $fn()
 
     # Grid dimension (in workitems)
     fn = Symbol("gridItemDim_$dim")
-    base = _packet_offsets[findfirst(x -> x == :grid_size_x,_packet_names)]
-    @eval @inline $fn() = _dim(
-        $(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim] - 1))), UInt32)
+    base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
+    @eval @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim] - 1))), UInt32)
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridGroupDim_$dim")
     fn_wg_dim = Symbol("workgroupDim_$dim")
