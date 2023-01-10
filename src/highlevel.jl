@@ -11,7 +11,15 @@ export @roc, rocconvert, rocfunction
 ## Devices
 
 default_device() = Runtime.get_default_device()
-default_device!(device::ROCDevice) = Runtime.set_default_device!(device)
+default_device!(device::ROCDevice) =
+    Runtime.set_default_device!(device)
+
+device() = task_local_state().device
+function device!(device::ROCDevice)
+    task_local_state!(; device)
+    return device
+end
+device!(f::Base.Callable, device::ROCDevice) = task_local_state!(f; device)
 
 devices(kind::Symbol=:gpu) =
     filter!(d -> device_type(d) == kind, copy(Runtime.ALL_DEVICES))
@@ -68,16 +76,48 @@ end
 
 wavefrontsize(device::ROCDevice) = Runtime.device_wavefront_size(device)
 
-HIPContext(device::ROCDevice) = HIPContext(HIPDevice(device))
+# Contexts
+
+context() = task_local_state().context
+function device(context::HIPContext)
+    return HIP.context!(context) do
+        HIP.device()
+    end
+end
+
+device_id(device::HIPDevice) = device.device_id
 HIPDevice(device::ROCDevice) = HIPDevice(device_id(device))
+HIPContext(device::ROCDevice) = HIPContext(HIPDevice(device))
 
 # Queues/Streams
 
-default_queue() = default_queue(default_device())
-default_queue(device::ROCDevice) = Runtime.get_default_queue(device)
+queue() = task_local_state().queue::ROCQueue
+@deprecate default_queue() queue()
+function queue(device::ROCDevice)
+    tls = task_local_state()
+    return get!(()->ROCQueue(device), tls.queues, device_id(device))
+end
+queue!(f::Base.Callable, queue::ROCQueue) = task_local_state!(f; queue)
 device(queue::ROCQueue) = queue.device
+
+stream() = task_local_state().stream::HIPStream
+function stream!(stream::HIPStream)
+    task_local_state!(;stream)
+    return stream
+end
+stream!(f::Base.Callable, stream::HIPStream) = task_local_state!(f; stream)
 device(stream::HIPStream) = stream.device
+
+priority() = task_local_state().priority
+function priority!(priority::Symbol)
+    task_local_state!(;priority)
+    return priority
+end
+priority!(f::Base.Callable, priority::Symbol) = task_local_state!(f; priority)
+
 HIPStream(device::ROCDevice; kwargs...) = HIPStream(HIPDevice(device); kwargs...)
+
+# Device ISAs
 
 default_isa(device::ROCDevice) = Runtime.default_isa(device)
 default_isa_architecture(device::ROCDevice) = Runtime.architecture(default_isa(device))
@@ -169,24 +209,32 @@ barrier_or!(queue::ROCQueue, signals::Vector{ROCSignal}) =
     Runtime.launch_barrier!(HSA.BarrierOrPacket, queue, signals)
 
 """
-    active_kernels(queue) -> Vector{ROCKernelSignal}
+    active_kernels() -> Vector{ROCKernelSignal}
+    active_kernels(queue::ROCQueue) -> Vector{ROCKernelSignal}
 
 Returns the set of actively-executing kernels on `queue`.
 """
 function active_kernels(queue::ROCQueue=default_queue())
-    lock(Runtime.RT_LOCK) do
-        copy(Runtime._active_kernels[queue])
+    lock(queue.lock) do
+        copy(queue.active_kernels)
     end
 end
 
 """
     synchronize()
+
+Blocks until all kernels currently executing on the default queue and stream have completed.
+"""
+function synchronize()
+    synchronize(default_queue())
+    synchronize(stream())
+end
+"""
     synchronize(queue::ROCQueue)
 
-Blocks until all kernels currently executing on `queue` have completed. When
-`queue` is unspecified, the default queue is used.
+Blocks until all kernels currently executing on `queue` have completed.
 """
-function synchronize(queue::ROCQueue=default_queue())
+function synchronize(queue::ROCQueue)
     sig = lock(queue.lock) do
         kerns = queue.active_kernels
         length(kerns) == 0 && return nothing

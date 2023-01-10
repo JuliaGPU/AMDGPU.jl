@@ -86,6 +86,7 @@ push!(tests, "Device Functions" => ()->begin
     # include("device/deps.jl")
     include("device/queries.jl")
 end)
+push!(tests, "Multitasking" => ()->include("tls.jl"))
 push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
 push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
 if CI

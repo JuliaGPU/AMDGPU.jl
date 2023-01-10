@@ -29,8 +29,6 @@ mutable struct ROCKernelSignal
     end
 end
 
-const _active_kernels = WeakKeyDict{ROCQueue, Vector{ROCKernelSignal}}()
-
 function Base.wait(
     kersig::ROCKernelSignal; check_exceptions::Bool = true, signal_kwargs...,
 )
@@ -73,10 +71,12 @@ function cleanup!(
 
     lock(RT_LOCK) do
         delete_metadata!(mod; signal_handle)
-        if haskey(_active_kernels, kersig.queue) # The queue might be dead
-            q_kernels = _active_kernels[kersig.queue]
-            deleteat!(q_kernels, findall(x -> x == kersig, q_kernels))
-        end
+    end
+
+    queue = kersig.queue
+    lock(queue.lock) do
+        sig_idxs = findall(x->x===kersig, queue.active_kernels)
+        deleteat!(queue.active_kernels, sig_idxs)
     end
 
     isnothing(kersig.exception) || throw(kersig.exception)

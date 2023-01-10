@@ -39,11 +39,11 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             groupsize, gridsize = normalize_launch_dimensions(groupsize, gridsize)
 
             # launch kernel
-            lock($RT_LOCK)
+            lock(signal.queue.lock)
             try
-                push!($_active_kernels[signal.queue], signal)
+                push!(signal.queue.active_kernels, signal)
             finally
-                unlock($RT_LOCK)
+                unlock(signal.queue.lock)
             end
             launch_kernel!(signal.queue, signal.kernel, signal.signal, groupsize, gridsize)
 
@@ -52,6 +52,8 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             for arg in args
                 $preserve!(signal, arg)
             end
+
+            notify(signal.queue.running)
         end
     end).args)
 

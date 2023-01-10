@@ -88,6 +88,7 @@ module Runtime
     include("runtime/fault.jl")
 end # module Runtime
 import .Runtime: Mem
+import .Runtime: ROCDevice, ROCQueue
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
@@ -149,6 +150,7 @@ module Compiler
     include("compiler/occupancy.jl")
 end # module Compiler
 
+include("tls.jl")
 include("highlevel.jl")
 include("reflection.jl")
 
