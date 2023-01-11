@@ -57,7 +57,7 @@ end
 # Create a set of signals
 sigs = [ROCSignal() for i in 1:10]
 # Get the device-safe signal handles
-_sigs = ROCArray(map(sig->sig.signal[], sigs))
+_sigs = ROCArray(map(sig->sig.signal, sigs))
 
 # Launch multi-waiter ahead of time; this will block on the device
 final_sig = @roc multi_wait(_sigs)
