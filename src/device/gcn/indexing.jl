@@ -79,19 +79,17 @@ const _max_groups     = (x=typemax(UInt32), y=typemax(UInt32), z=typemax(UInt32)
 const _max_grid_size  = (x=typemax(UInt32), y=typemax(UInt32), z=typemax(UInt32))
 
 for dim in (:x, :y, :z)
-    # Workitem index
-    fname = Symbol("workitem")
-    fn = Symbol("workitemIdx_$dim")
     intr = Symbol("$dim")
-    @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_group_size-1))))) + 1
+
+    # Workitem index
+    fname, fn = Symbol("workitem"), Symbol("workitemIdx_$dim")
+    @eval @inline $fn() = _index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_group_size - 1)))) + 0x1
     cufn = Symbol("threadIdx_$dim")
     @eval @inline $cufn() = $fn()
 
     # Workgroup index
-    fname = Symbol("workgroup")
-    fn = Symbol("workgroupIdx_$dim")
-    intr = Symbol("$dim")
-    @eval @inline $fn() = Int(_index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_groups[dim]-1))))) + 1
+    fname, fn = Symbol("workgroup"), Symbol("workgroupIdx_$dim")
+    @eval @inline $fn() = _index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_groups[dim] - 1)))) + 0x1
     cufn = Symbol("blockIdx_$dim")
     @eval @inline $cufn() = $fn()
 end
@@ -99,14 +97,14 @@ for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # Workgroup dimension (in workitems)
     fn = Symbol("workgroupDim_$dim")
     base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
-    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:(_max_group_size-1))), UInt16))
+    @eval @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_group_size - 1))), UInt16)
     cufn = Symbol("blockDim_$dim")
     @eval @inline $cufn() = $fn()
 
     # Grid dimension (in workitems)
     fn = Symbol("gridItemDim_$dim")
     base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
-    @eval @inline $fn() = Int(_dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim]-1))), UInt32))
+    @eval @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim] - 1))), UInt32)
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridGroupDim_$dim")
     fn_wg_dim = Symbol("workgroupDim_$dim")
