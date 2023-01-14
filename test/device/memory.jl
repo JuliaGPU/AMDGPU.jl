@@ -1,17 +1,13 @@
 @testset "Memory: Static" begin
 @testset "Fixed-size Allocation" begin
-    function memory_static_kernel(a,b)
-        # Local
-        ptr_local = AMDGPU.Device.alloc_local(:local, Float32, 1)
-        unsafe_store!(ptr_local, a[1])
-        b[1] = unsafe_load(ptr_local)
+    function memory_static_kernel(A, B, C)
+        idx = workitemIdx().x
 
-        # Region
-        #= TODO: AMDGPU target cannot select
-        ptr_region = alloc_special(Val(:region), Float32, Val(AS.Region), Val(1))
-        unsafe_store!(ptr_region, a[2])
-        b[2] = unsafe_load(ptr_region)
-        =#
+        # Local
+        arr_local = @ROCStaticLocalArray(Float32, 8)
+        C[idx] = arr_local[idx]
+        arr_local[idx] = A[idx]
+        B[idx] = arr_local[idx]
 
         # Private
         #= TODO
@@ -23,38 +19,41 @@
         nothing
     end
 
-    A = ones(Float32, 1)
-    B = zeros(Float32, 1)
+    RA = ROCArray(ones(Float32, 8))
+    RB = ROCArray(zeros(Float32, 8))
+    RC = ROCArray(ones(Float32, 8))
 
-    RA = ROCArray(A)
-    RB = ROCArray(B)
-
-    wait(@roc memory_static_kernel(RA, RB))
+    wait(@roc groupsize=8 memory_static_kernel(RA, RB, RC))
 
     @test Array(RA) ≈ Array(RB)
+    # Test zero-initialization
+    @test all(iszero, Array(RC))
 end
 
 # https://reviews.llvm.org/D82496
 if Base.libllvm_version.major >= 14
 @testset "Dynamic-size Local Allocation" begin
-    function dynamic_localmem_kernel(RA)
-        ptr = AMDGPU.Device.alloc_local(:local, Float32, 0)
-        RB = ROCDeviceArray(length(RA), ptr)
-        for i in 1:length(RA)
-            RB[i] = RA[i] + 1f0
+    function dynamic_localmem_kernel(A, C)
+        B = @ROCDynamicLocalArray(Float32, length(A))
+        for i in 1:length(A)
+            @inbounds C[i] = B[i]
+            @inbounds B[i] = A[i] + 1f0
         end
-        for i in 1:length(RA)
-            RA[i] = RB[i]
+        for i in 1:length(A)
+            @inbounds A[i] = B[i]
         end
     end
 
     N = 2^10
     A = rand(Float32, N)
     RA = ROCArray(A)
+    RC = ROCArray(ones(Float32, N))
 
-    wait(@roc localmem=N*sizeof(Float32) dynamic_localmem_kernel(RA))
+    wait(@roc localmem=N*sizeof(Float32) dynamic_localmem_kernel(RA, RC))
 
     @test Array(RA) ≈ A .+ 1f0
+    # Test zero-initialization
+    @test all(iszero, Array(RC))
 end
 end
 
