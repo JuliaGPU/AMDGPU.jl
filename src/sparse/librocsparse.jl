@@ -10,8 +10,10 @@ function rocsparse_set_stream(handle, stream)
     @check ccall((:rocsparse_set_stream, librocsparse), rocsparse_status, (rocsparse_handle, hipStream_t), handle, stream)
 end
 
-function rocsparse_get_stream(handle, stream)
+function rocsparse_get_stream(handle)
+    stream = Ref{hipStream_t}()
     @check ccall((:rocsparse_get_stream, librocsparse), rocsparse_status, (rocsparse_handle, Ptr{hipStream_t}), handle, stream)
+    return stream[]
 end
 
 function rocsparse_set_pointer_mode(handle, pointer_mode)

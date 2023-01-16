@@ -12,9 +12,7 @@ end
 
 const rocsparse_int = Int32
 
-mutable struct ihipStream_t end
-
-const hipStream_t = Ptr{ihipStream_t}
+const hipStream_t = Ptr{Cvoid}
 
 mutable struct _rocsparse_handle end
 

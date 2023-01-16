@@ -42,10 +42,13 @@ for (fname,elty) in ((:rocsparse_sbsrmm, :Float32),
             end
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
+
+            wait!((A, B, C))
             $fname(handle(), A.dir,
                    transa, transb, mb, n, kb, A.nnzb,
                    alpha, desc, nonzeros(A),A.rowPtr, A.colVal,
                    A.blockDim, B, ldb, beta, C, ldc)
+            mark!((A, B, C), rocsparse_get_stream(handle()))
             C
         end
     end
@@ -83,9 +86,12 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
             end
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
+
+            wait!((A, B, C))
             $fname(handle(),
                    transa, transb, m, n, k, nnz(A), alpha, desc,
                    nonzeros(A), A.rowPtr, A.colVal, B, ldb, beta, C, ldc)
+            mark!((A, B, C), rocsparse_get_stream(handle()))
             C
         end
         function mm2!(transa::SparseChar,
@@ -119,9 +125,12 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
             end
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
+
+            wait!((A, B, C))
             $fname(handle(),
                    ctransa, transb, m, n, k, nnz(A), alpha, desc,
                    nonzeros(A), A.colPtr, rowvals(A), B, ldb, beta, C, ldc)
+            mark!((A, B, C), rocsparse_get_stream(handle()))
             C
         end
     end
@@ -176,6 +185,8 @@ for (bname,aname,sname,elty) in ((:rocsparse_sbsrsm_buffer_size, :rocsparse_sbsr
                        out)
                 return out[]
             end
+
+            wait!((A, X))
             with_workspace(bufferSize) do buffer
                 $aname(handle(), A.dir, transa, transxy,
                         mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
@@ -191,6 +202,7 @@ for (bname,aname,sname,elty) in ((:rocsparse_sbsrsm_buffer_size, :rocsparse_sbsr
                         nX, A.nnzb, alpha, desc, nonzeros(A), A.rowPtr,
                         A.colVal, A.blockDim, info_ref[], X, ldx, X, ldx,
                         rocsparse_solve_policy_auto, buffer)
+                mark!((A, X, buffer), rocsparse_get_stream(handle()))
             end
             rocsparse_destroy_mat_info(info_ref[])
             X
@@ -237,6 +249,8 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsm_buffer_size, :rocsparse_scsr
                         out)
                 return out[]
             end
+
+            wait!((A, X))
             with_workspace(bufferSize) do buffer
                 $aname(handle(), 0, transa, transxy,
                         m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
@@ -252,6 +266,7 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsm_buffer_size, :rocsparse_scsr
                         nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                         A.colVal, X, ldx, info_ref[],
                         rocsparse_solve_policy_auto, buffer)
+                mark!((A, X, buffer), rocsparse_get_stream(handle()))
             end
             rocsparse_destroy_mat_info(info_ref[])
             X
@@ -306,6 +321,8 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsm_buffer_size, :rocsparse_scsr
                        out)
                 return out[]
             end
+
+            wait!((A, X))
             with_workspace(bufferSize) do buffer
                 $aname(handle(), 0, ctransa, transxy,
                         m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
@@ -321,6 +338,7 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsm_buffer_size, :rocsparse_scsr
                         nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
                         rowvals(A), X, ldx, info_ref[],
                         rocsparse_solve_policy_auto, buffer)
+                mark!((A, X, buffer), rocsparse_get_stream(handle()))
             end
             rocsparse_destroy_mat_info(info_ref[])
             X
