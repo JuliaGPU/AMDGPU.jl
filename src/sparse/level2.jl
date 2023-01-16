@@ -34,9 +34,11 @@ for (fname,elty) in ((:rocsparse_sbsrmv, :Float32),
             if transa == 'T' || transa == 'C'
                 chkmvdims(X,m,Y,n)
             end
+            wait!((A, X, Y))
             $fname(handle(), A.dir, transa, mb, nb,
                    nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                    A.colVal, A.blockDim, X, beta, Y)
+            mark!((A, X, Y), rocsparse_get_stream(handle()))
             Y
         end
     end
@@ -79,12 +81,14 @@ for (bname,aname,sname,elty) in ((:rocsparse_sbsrsv_buffer_size, :rocsparse_sbsr
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Cint}()
                 $bname(handle(), A.dir, transa, mb, A.nnzb,
                        desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
                        info_ref[], out)
                 return out[]
             end
+
+            wait!((A, X))
             with_workspace(bufferSize) do buffer
                 $aname(handle(), A.dir, transa, mb, A.nnzb,
                         desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
@@ -99,6 +103,7 @@ for (bname,aname,sname,elty) in ((:rocsparse_sbsrsv_buffer_size, :rocsparse_sbsr
                         alpha, desc, nonzeros(A), A.rowPtr, A.colVal,
                         A.blockDim, info_ref[], X, X,
                         rocsparse_solve_policy_auto, buffer)
+                mark!((A, X, buffer), rocsparse_get_stream(handle()))
             end
             rocsparse_destroy_mat_info(info_ref[])
             X
@@ -138,6 +143,8 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsv_buffer_size, :rocsparse_scsr
                        out)
                 return out[]
             end
+
+            wait!((A, X))
             with_workspace(bufferSize) do buffer
                 $aname(handle(), transa, m, nnz(A),
                         desc, nonzeros(A), A.rowPtr, A.colVal, info_ref[],
@@ -152,7 +159,9 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsv_buffer_size, :rocsparse_scsr
                         nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                         A.colVal, info_ref[], X, X,
                         rocsparse_solve_policy_auto, buffer)
+                mark!((A, X, buffer), rocsparse_get_stream(handle()))
             end
+            wait!((A, X))
             rocsparse_destroy_mat_info(info_ref[])
             X
         end
@@ -200,6 +209,8 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsv_buffer_size, :rocsparse_scsr
                        out)
                 return out[]
             end
+
+            wait!((A, X))
             with_workspace(bufferSize) do buffer
                 $aname(handle(), ctransa, m, nnz(A),
                         desc, nonzeros(A), A.colPtr, rowvals(A), info_ref[],
@@ -214,6 +225,7 @@ for (bname,aname,sname,elty) in ((:rocsparse_scsrsv_buffer_size, :rocsparse_scsr
                         nnz(A), alpha, desc, nonzeros(A), A.colPtr,
                         rowvals(A), info[1], X, X,
                         rocsparse_solve_policy_auto, buffer)
+                mark!((A, X, buffer), rocsparse_get_stream(handle()))
             end
             rocsparse_destroy_mat_info(info_ref[])
             X

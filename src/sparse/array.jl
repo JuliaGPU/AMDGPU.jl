@@ -28,6 +28,7 @@ mutable struct ROCSparseVector{Tv, Ti} <: AbstractROCSparseVector{Tv, Ti}
 end
 
 function AMDGPU.unsafe_free!(xs::ROCSparseVector)
+    wait!(xs)
     unsafe_free!(nonzeroinds(xs))
     unsafe_free!(nonzeros(xs))
     return
@@ -41,7 +42,7 @@ mutable struct ROCSparseMatrixCSC{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
     nnz::Ti
 
     function ROCSparseMatrixCSC{Tv, Ti}(colPtr::ROCVector{<:Integer}, rowVal::ROCVector{<:Integer},
-                                   nzVal::ROCVector, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
+                                        nzVal::ROCVector, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
         new{Tv, Ti}(colPtr, rowVal, nzVal, dims, length(nzVal))
     end
 end
@@ -49,6 +50,7 @@ end
 ROCSparseMatrixCSC(A::ROCSparseMatrixCSC) = A
 
 function AMDGPU.unsafe_free!(xs::ROCSparseMatrixCSC)
+    wait!(xs)
     unsafe_free!(xs.colPtr)
     unsafe_free!(rowvals(xs))
     unsafe_free!(nonzeros(xs))
@@ -81,6 +83,7 @@ end
 ROCSparseMatrixCSR(A::ROCSparseMatrixCSR) = A
 
 function AMDGPU.unsafe_free!(xs::ROCSparseMatrixCSR)
+    wait!(xs)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
     unsafe_free!(nonzeros(xs))
@@ -111,6 +114,7 @@ end
 ROCSparseMatrixBSR(A::ROCSparseMatrixBSR) = A
 
 function AMDGPU.unsafe_free!(xs::ROCSparseMatrixBSR)
+    wait!(xs)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
     unsafe_free!(nonzeros(xs))
@@ -386,8 +390,16 @@ ROCSparseMatrixCSC(x::Transpose{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 ROCSparseMatrixCSC(x::Adjoint{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 
 # gpu to cpu
-SparseVector(x::ROCSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
-SparseMatrixCSC(x::ROCSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
+function SparseVector(x::ROCSparseVector) 
+    wait!(x)
+    SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
+end
+
+function SparseMatrixCSC(x::ROCSparseMatrixCSC)
+    wait!(x)
+    SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
+end
+
 SparseMatrixCSC(x::ROCSparseMatrixCSR) = SparseMatrixCSC(ROCSparseMatrixCSC(x))  # no direct conversion
 SparseMatrixCSC(x::ROCSparseMatrixBSR) = SparseMatrixCSC(ROCSparseMatrixCSR(x))  # no direct conversion
 SparseMatrixCSC(x::ROCSparseMatrixCOO) = SparseMatrixCSC(ROCSparseMatrixCSR(x))  # no direct conversion
@@ -527,6 +539,18 @@ function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseVector)
     )
 end
 
+function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseVector)
+    Adapt.adapt_storage(ma, x.iPtr)
+    Adapt.adapt_storage(ma, x.nzVal)
+    x
+end
+
+function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseVector)
+    Adapt.adapt_storage(wa, x.iPtr)
+    Adapt.adapt_storage(wa, x.nzVal)
+    x
+end
+
 function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCSR)
     return ROCSparseDeviceMatrixCSR(
         adapt(to, x.rowPtr),
@@ -536,6 +560,20 @@ function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCSR)
     )
 end
 
+function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseMatrixCSR)
+    Adapt.adapt_storage(ma, x.rowPtr)
+    Adapt.adapt_storage(ma, x.colVal)
+    Adapt.adapt_storage(ma, x.nzVal)
+    x
+end
+
+function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixCSR)
+    Adapt.adapt_storage(wa, x.rowPtr)
+    Adapt.adapt_storage(wa, x.colVal)
+    Adapt.adapt_storage(wa, x.nzVal)
+    x
+end
+
 function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCSC)
     return ROCSparseDeviceMatrixCSC(
         adapt(to, x.colPtr),
@@ -543,6 +581,20 @@ function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCSC)
         adapt(to, x.nzVal),
         size(x), x.nnz
     )
+end
+
+function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseMatrixCSC)
+    Adapt.adapt_storage(ma, x.colPtr)
+    Adapt.adapt_storage(ma, x.rowVal)
+    Adapt.adapt_storage(ma, x.nzVal)
+    x
+end
+
+function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixCSC)
+    Adapt.adapt_storage(wa, x.colPtr)
+    Adapt.adapt_storage(wa, x.rowVal)
+    Adapt.adapt_storage(wa, x.nzVal)
+    x
 end
 
 function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixBSR)
@@ -555,6 +607,20 @@ function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixBSR)
     )
 end
 
+function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseMatrixBSR)
+    Adapt.adapt_storage(ma, x.rowPtr)
+    Adapt.adapt_storage(ma, x.colVal)
+    Adapt.adapt_storage(ma, x.nzVal)
+    x
+end
+
+function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixBSR)
+    Adapt.adapt_storage(wa, x.rowPtr)
+    Adapt.adapt_storage(wa, x.colVal)
+    Adapt.adapt_storage(wa, x.nzVal)
+    x
+end
+
 function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCOO)
     return ROCSparseDeviceMatrixCOO(
         adapt(to, x.rowInd),
@@ -562,4 +628,18 @@ function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCOO)
         adapt(to, x.nzVal),
         size(x), x.nnz
     )
+end
+
+function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseMatrixCOO)
+    Adapt.adapt_storage(ma, x.rowInd)
+    Adapt.adapt_storage(ma, x.colInd)
+    Adapt.adapt_storage(ma, x.nzVal)
+    x
+end
+
+function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixCOO)
+    Adapt.adapt_storage(wa, x.rowInd)
+    Adapt.adapt_storage(wa, x.colInd)
+    Adapt.adapt_storage(wa, x.nzVal)
+    x
 end

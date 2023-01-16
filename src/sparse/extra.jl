@@ -18,22 +18,27 @@ for (fname, elty) in ((:rocsparse_scsrgeam, :Float32),
             descrA = ROCMatrixDescriptor('G', 'L', 'N', index)
             descrB = ROCMatrixDescriptor('G', 'L', 'N', index)
             descrC = ROCMatrixDescriptor('G', 'L', 'N', index)
+            stream = rocsparse_get_stream(handle())
 
             rowPtrC = ROCArray{Int32,1}(undef, m+1)
 
             nnzcount_C = Ref{Cint}()
+            wait!((A, B, rowPtrC))
             rocsparse_csrgeam_nnz(handle(), m, n, descrA, nnz(A), A.rowPtr, A.colVal,
                                   descrB, nnz(B), B.rowPtr, B.colVal,
                                   descrC, rowPtrC, nnzcount_C)
+            mark!((A, B, rowPtrC), stream)
+            # sleep(1)
 
             nnz_C = ROCArray{$elty}(undef, nnzcount_C[])
             colValC = ROCArray{Int32}(undef, nnzcount_C[])
 
-
+            wait!((A, B, nnz_C, colValC))
             $fname(handle(), m, n,
                 Ref(alpha), descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
                 Ref(beta), descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
                 descrC, pointer(nnz_C), rowPtrC, colValC)
+            mark!((A, B, nnz_C, colValC), stream)
             return ROCSparseMatrixCSR(rowPtrC, colValC, nnz_C, (m, n))
         end
     end
