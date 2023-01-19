@@ -35,13 +35,14 @@ end
 
 ## refcounting
 
-const refcounts = Dict{Ptr{Cvoid}, Threads.Atomic{Int}}()
+const refcounts = Dict{Ptr{Cvoid}, Int}()
+const liveness = Dict{Ptr{Cvoid}, Bool}()
 const refcounts_lock = Threads.ReentrantLock()
 
 function refcount(buf::Buffer)
     Base.lock(refcounts_lock) do
-        get(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
-    end[]
+        get(refcounts, buf.base_ptr, 0)
+    end
 end
 
 """
@@ -50,10 +51,11 @@ end
 Increase the refcount of a buffer.
 """
 function retain(buf::Buffer)
-    count = Base.lock(refcounts_lock) do
-        get!(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
+    Base.lock(refcounts_lock) do
+        get!(liveness, buf.base_ptr, true)
+        count = get!(refcounts, buf.base_ptr, 0)
+        refcounts[buf.base_ptr] = count + 1
     end
-    Threads.atomic_add!(count, 1)
     return
 end
 
@@ -65,23 +67,50 @@ to 0, and some action needs to be taken.
 """
 function release(buf::Buffer)
     while !Base.trylock(refcounts_lock) end
-    count = try
-        get(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
+    try
+        count = refcounts[buf.base_ptr]
+        @assert count >= 1 "Buffer refcount dropping below 0!"
+        refcounts[buf.base_ptr] = count - 1
+        done = count == 1
+
+        live = liveness[buf.base_ptr]
+
+        if done
+            if live
+                free(buf)
+            end
+            untrack(buf)
+        end
+        return done
     finally
         Base.unlock(refcounts_lock)
     end
-    old = Threads.atomic_sub!(count, 1)
-    return (old == 1)
+end
+
+"""
+    free_if_live(buf::Buffer)
+
+Frees the base pointer for `buf` if it is still live (not yet freed). Does not
+update refcounts.
+"""
+function free_if_live(buf::Buffer)
+    Base.lock(refcounts_lock) do
+        if liveness[buf.base_ptr]
+            liveness[buf.base_ptr] = false
+            free(buf)
+        end
+    end
 end
 
 """
     untrack(buf::Buffer)
 
-Removing refcount tracking information for a buffer.
+Removes refcount tracking information for a buffer.
 """
 function untrack(buf::Buffer)
     while !Base.trylock(refcounts_lock) end
     try
+        delete!(liveness, buf.base_ptr)
         delete!(refcounts, buf.base_ptr)
     finally
         Base.unlock(refcounts_lock)
@@ -336,6 +365,7 @@ function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     alloc_or_retry!() do
         HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
     end
+    AMDGPU.hsaref!()
     return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, device, Runtime.pool_accessible_by_all(pool), true)
 end
 function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
@@ -343,6 +373,7 @@ function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     alloc_or_retry!() do
         HSA.memory_allocate(region.region, bytesize, ptr_ref)
     end
+    AMDGPU.hsaref!()
     return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, device, Runtime.region_host_accessible(region), false)
 end
 alloc(bytesize; kwargs...) =
@@ -360,6 +391,7 @@ function alloc_hip(bytesize::Integer)
             HSA.STATUS_ERROR_OUT_OF_RESOURCES
         end
     end
+    AMDGPU.hsaref!()
     return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, Runtime.get_default_device(), false, true)
 end
 end # if AMDGPU.hip_configured
@@ -372,21 +404,33 @@ function free(buf::Buffer)
                 if USE_HIP_MALLOC_OVERRIDE
                     @static if AMDGPU.hip_configured
                         # Actually HIP-backed
-                        HIP.@check HIP.hipFree(buf.ptr)
+                        HIP.@check HIP.hipFree(buf.base_ptr)
                     end
                 else
-                    check(HSA.amd_memory_pool_free(buf.ptr))
+                    memory_check(HSA.amd_memory_pool_free(buf.base_ptr), buf.base_ptr)
                 end
             else
-                check(HSA.memory_free(buf.ptr))
+                memory_check(HSA.memory_free(buf.base_ptr), buf.base_ptr)
             end
+            AMDGPU.hsaunref!()
         else
             # Wrapped
             unlock(buf.ptr)
         end
-        untrack(buf)
     end
     return
+end
+# N.B. We try to keep this from yielding or throwing, since this usually runs
+# in a finalizer
+function memory_check(status::HSA.Status, ptr::Ptr{Cvoid})
+    if status != HSA.STATUS_SUCCESS
+        err_str = Runtime.description(status)
+        Core.println("Error when attempting to free an HSA buffer:\n  $err_str")
+        pinfo = pointerinfo(ptr)
+        Core.println(sprint(io->Base.show(io, pinfo)))
+        return false
+    end
+    return true
 end
 
 struct PoolAllocation

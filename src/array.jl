@@ -68,24 +68,19 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
         xs = new{T,N}(buf, own, dims, offset, Runtime.SyncState())
-        if own
-            hsaref!()
-        end
         Mem.retain(buf)
-        finalizer(unsafe_free!, xs)
+        finalizer(_safe_free!, xs)
         return xs
     end
 end
 
-function unsafe_free!(xs::ROCArray)
-    if Mem.release(xs.buf)
-        Mem.free(xs.buf)
-        if xs.own
-            hsaunref!()
-        end
-    end
+_safe_free!(xs::ROCArray) = _safe_free!(xs.buf)
+function _safe_free!(buf::Mem.Buffer)
+    Mem.release(buf)
     return
 end
+
+unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf)
 
 wait!(x::ROCArray) = wait!(x.syncstate)
 mark!(x::ROCArray, s) = mark!(x.syncstate, s)
@@ -281,9 +276,7 @@ end
 @inline function unsafe_contiguous_view(a::ROCArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
 
-    Mem.retain(a.buf)
     b = ROCArray{T,M}(a.buf, dims, offset=a.offset+offset, own=false)
-    finalizer(unsafe_free!, b)
     return b
 end
 
@@ -306,9 +299,7 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
         return a
     end
 
-    Mem.retain(a.buf)
     b = ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
-    finalizer(unsafe_free!, b)
     return b
 end
 
@@ -401,10 +392,7 @@ zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
 @inline function _derived_array(::Type{T}, N::Int, a::ROCArray, osize::Dims) where {T}
-    Mem.retain(a.buf)
-    b = ROCArray{T,N}(a.buf, osize, offset=a.offset, own=false)
-    finalizer(unsafe_free!, b)
-    return b
+    return ROCArray{T,N}(a.buf, osize, offset=a.offset, own=false)
 end
 
 ## reinterpret
@@ -523,14 +511,18 @@ end
 """
     resize!(a::ROCVector, n::Integer)
 
-Resize `a` to contain `n` elements. If `n` is smaller than the current collection length,
-the first `n` elements will be retained. If `n` is larger, the new elements are not
-guaranteed to be initialized.
+Resize `a` to contain `n` elements. If `n` is smaller than the current
+collection length, the first `n` elements will be retained. If `n` is larger,
+the new elements are not guaranteed to be initialized.
 
-Note that this operation is only supported on managed buffers, i.e., not on arrays that are
-created by `unsafe_wrap` with `own=false`.
+Note that this operation is only supported on managed buffers, i.e., not on
+arrays that are created by `unsafe_wrap` with `own=false`.
 """
 function Base.resize!(A::ROCVector{T}, n::Integer) where T
+    if !A.own
+        throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
+    end
+
     # TODO: add additional space to allow for quicker resizing
     if n == length(A)
         return A
@@ -547,10 +539,12 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     if copy_size > 0
         Mem.transfer!(new_buf, A.buf, copy_size)
     end
+
+    # Release old buffer
+    _safe_free!(A.buf)
+    # N.B. Manually retain new buffer (this is normally done in ROCArray ctor)
     Mem.retain(new_buf)
-    if Mem.release(A.buf)
-        Mem.free(A.buf)
-    end
+
     A.buf = new_buf
     A.dims = (n,)
     A.offset = 0
