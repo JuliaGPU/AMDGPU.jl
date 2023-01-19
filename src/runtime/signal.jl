@@ -64,6 +64,7 @@ function Base.wait(
     finished = false
 
     while !finished
+        @assert AMDGPU.HSA_REFCOUNT[] > 0
         v = HSA.signal_wait_scacquire(
             signal.signal[], HSA.SIGNAL_CONDITION_LT, 1,
             min_latency, HSA.WAIT_STATE_BLOCKED)
