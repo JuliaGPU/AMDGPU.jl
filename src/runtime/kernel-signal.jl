@@ -83,7 +83,7 @@ end
 
 function Base.show(io::IO, kersig::ROCKernelSignal)
     ex = kersig.exception
-    print(io, "ROCKernelSignal(signal=$(kersig.signal), $(ex !== nothing ? ", exception=$ex" : ""))")
+    print(io, "ROCKernelSignal(signal=$(kersig.signal)$(ex !== nothing ? ", exception=$ex" : ""))")
 end
 
 Base.notify(kersig::ROCKernelSignal) = notify(kersig.signal)
