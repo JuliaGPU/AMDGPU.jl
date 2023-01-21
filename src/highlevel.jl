@@ -313,7 +313,7 @@ Keyword arguments that control general `@roc` behavior:
 - `dynamic::Bool = false`: Use dynamic parallelism to launch as a device-side kernel
 - `launch::Bool = true`: Whether to launch the kernel
 - `wait::Bool = true`: Whether to wait on all arguments' dependencies
-- `mark::Bool = true`: Whether to mark this kernel as a dependency for all arguments
+- `mark::Bool = false`: Whether to mark this kernel as a dependency for all arguments
 
 Keyword arguments that affect various parts of `@roc`:
 - `device::ROCDevice = AMDGPU.default_device()`: The device to compile code for, and launch the kernel on.
@@ -379,7 +379,7 @@ macro roc(ex...)
     dynamic = false
     launch = true
     wait = true
-    mark = true
+    mark = false
     for kwarg in macro_kwargs
         key,val = kwarg.args
         if key == :dynamic
