@@ -226,7 +226,7 @@ function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Inte
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
     device_ptr = lock ? Mem.lock(ptr, sz, device) : ptr
-    buf = Mem.Buffer(device_ptr, ptr, device_ptr, sz, device, false, false)
+    buf = Mem.Buffer(device_ptr, Ptr{Cvoid}(ptr), device_ptr, sz, device, false, false)
     return ROCArray{T, N}(buf, dims; own=false)
 end
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
@@ -275,9 +275,7 @@ end
 end
 @inline function unsafe_contiguous_view(a::ROCArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
-
-    b = ROCArray{T,M}(a.buf, dims, offset=a.offset+offset, own=false)
-    return b
+    ROCArray{T,M}(a.buf, dims, offset=a.offset+offset, own=false)
 end
 
 @inline function unsafe_view(A, I, ::NonContiguous)
@@ -299,8 +297,7 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
         return a
     end
 
-    b = ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
-    return b
+    ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
 end
 
 

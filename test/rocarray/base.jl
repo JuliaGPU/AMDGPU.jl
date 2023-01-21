@@ -97,8 +97,8 @@ end
 end
 
 @testset "Refcounting" begin
-    refcount_live(A) = (get(AMDGPU.Mem.refcounts, A.buf.base_ptr, 0),
-                        get(AMDGPU.Mem.liveness, A.buf.base_ptr, false))
+    refcount_live(A) = (get(AMDGPU.Mem.refcounts, A.buf._id, 0),
+                        get(AMDGPU.Mem.liveness, A.buf._id, false))
 
     for (f, switch) in [(A->view(A, 2:4), false),
                         (A->resize!(A, 8), true),
