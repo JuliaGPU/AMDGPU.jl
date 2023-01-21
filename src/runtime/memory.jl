@@ -4,7 +4,7 @@
 import AMDGPU
 import AMDGPU: HSA
 if AMDGPU.hip_configured
-import AMDGPU: HIP
+    import AMDGPU: HIP
 end
 import AMDGPU: Runtime
 import .Runtime: ROCDevice, ROCSignal, ROCMemoryRegion, ROCMemoryPool, ROCDim, ROCDim3
@@ -21,6 +21,16 @@ struct Buffer
     device::ROCDevice
     coherent::Bool
     pool_alloc::Bool
+    # Unique ID used for refcounting.
+    _id::UInt64
+
+    function Buffer(
+        ptr::Ptr{Cvoid}, host_ptr::Ptr{Cvoid}, base_ptr::Ptr{Cvoid},
+        bytesize::Int, device::ROCDevice, coherent::Bool, pool_alloc::Bool,
+    )
+        _id = _buffer_id!()
+        new(ptr, host_ptr, base_ptr, bytesize, device, coherent, pool_alloc, _id)
+    end
 end
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf.ptr)
@@ -35,13 +45,19 @@ end
 
 ## refcounting
 
-const refcounts = Dict{Ptr{Cvoid}, Threads.Atomic{Int}}()
+const _ID_COUNTER = Threads.Atomic{UInt64}(0)
+const refcounts = Dict{UInt64, Int}()
+const liveness = Dict{UInt64, Bool}()
 const refcounts_lock = Threads.ReentrantLock()
+
+function _buffer_id!()::UInt64
+    return Threads.atomic_add!(_ID_COUNTER, UInt64(1))
+end
 
 function refcount(buf::Buffer)
     Base.lock(refcounts_lock) do
-        get(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
-    end[]
+        get(refcounts, buf._id, 0)
+    end
 end
 
 """
@@ -50,10 +66,12 @@ end
 Increase the refcount of a buffer.
 """
 function retain(buf::Buffer)
-    count = Base.lock(refcounts_lock) do
-        get!(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
+    Base.lock(refcounts_lock) do
+        live = get!(liveness, buf._id, true)
+        @assert live "Trying to retain dead buffer!"
+        count = get!(refcounts, buf._id, 0)
+        refcounts[buf._id] = count + 1
     end
-    Threads.atomic_add!(count, 1)
     return
 end
 
@@ -65,24 +83,51 @@ to 0, and some action needs to be taken.
 """
 function release(buf::Buffer)
     while !Base.trylock(refcounts_lock) end
-    count = try
-        get(refcounts, buf.base_ptr, Threads.Atomic{Int}(0))
+    try
+        count = refcounts[buf._id]
+        @assert count >= 1 "Buffer refcount dropping below 0!"
+        refcounts[buf._id] = count - 1
+        done = count == 1
+
+        live = liveness[buf._id]
+
+        if done
+            if live
+                free(buf)
+            end
+            untrack(buf)
+        end
+        return done
     finally
         Base.unlock(refcounts_lock)
     end
-    old = Threads.atomic_sub!(count, 1)
-    return (old == 1)
+end
+
+"""
+    free_if_live(buf::Buffer)
+
+Frees the base pointer for `buf` if it is still live (not yet freed). Does not
+update refcounts.
+"""
+function free_if_live(buf::Buffer)
+    Base.lock(refcounts_lock) do
+        if liveness[buf._id]
+            liveness[buf._id] = false
+            free(buf)
+        end
+    end
 end
 
 """
     untrack(buf::Buffer)
 
-Removing refcount tracking information for a buffer.
+Removes refcount tracking information for a buffer.
 """
 function untrack(buf::Buffer)
     while !Base.trylock(refcounts_lock) end
     try
-        delete!(refcounts, buf.base_ptr)
+        delete!(liveness, buf._id)
+        delete!(refcounts, buf._id)
     finally
         Base.unlock(refcounts_lock)
     end
@@ -336,14 +381,18 @@ function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     alloc_or_retry!() do
         HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
     end
-    return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, device, Runtime.pool_accessible_by_all(pool), true)
+    AMDGPU.hsaref!()
+    ptr = ptr_ref[]
+    return Buffer(ptr, C_NULL, ptr, bytesize, device, Runtime.pool_accessible_by_all(pool), true)
 end
 function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
         HSA.memory_allocate(region.region, bytesize, ptr_ref)
     end
-    return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, device, Runtime.region_host_accessible(region), false)
+    AMDGPU.hsaref!()
+    ptr = ptr_ref[]
+    return Buffer(ptr, C_NULL, ptr, bytesize, device, Runtime.region_host_accessible(region), false)
 end
 alloc(bytesize; kwargs...) =
     alloc(Runtime.get_default_device(), bytesize; kwargs...)
@@ -360,33 +409,47 @@ function alloc_hip(bytesize::Integer)
             HSA.STATUS_ERROR_OUT_OF_RESOURCES
         end
     end
-    return Buffer(ptr_ref[], C_NULL, ptr_ref[], bytesize, Runtime.get_default_device(), false, true)
+    AMDGPU.hsaref!()
+    ptr = ptr_ref[]
+    return Buffer(ptr, C_NULL, ptr, bytesize, Runtime.get_default_device(), false, true)
 end
 end # if AMDGPU.hip_configured
 
 function free(buf::Buffer)
-    if buf.ptr != C_NULL
-        if buf.host_ptr == C_NULL
-            # HSA-backed
-            if buf.pool_alloc
-                if USE_HIP_MALLOC_OVERRIDE
-                    @static if AMDGPU.hip_configured
-                        # Actually HIP-backed
-                        HIP.@check HIP.hipFree(buf.ptr)
-                    end
-                else
-                    check(HSA.amd_memory_pool_free(buf.ptr))
+    buf.ptr == C_NULL && return
+
+    if buf.host_ptr == C_NULL
+        # HSA-backed
+        if buf.pool_alloc
+            if USE_HIP_MALLOC_OVERRIDE
+                @static if AMDGPU.hip_configured
+                    # Actually HIP-backed
+                    HIP.@check HIP.hipFree(buf.base_ptr)
                 end
             else
-                check(HSA.memory_free(buf.ptr))
+                memory_check(HSA.amd_memory_pool_free(buf.base_ptr), buf.base_ptr)
             end
         else
-            # Wrapped
-            unlock(buf.ptr)
+            memory_check(HSA.memory_free(buf.base_ptr), buf.base_ptr)
         end
-        untrack(buf)
+        AMDGPU.hsaunref!()
+    else
+        # Wrapped
+        unlock(buf.ptr)
     end
     return
+end
+# N.B. We try to keep this from yielding or throwing, since this usually runs
+# in a finalizer
+function memory_check(status::HSA.Status, ptr::Ptr{Cvoid})
+    if status != HSA.STATUS_SUCCESS
+        err_str = Runtime.description(status)
+        Core.println("Error when attempting to free an HSA buffer:\n  $err_str")
+        pinfo = pointerinfo(ptr)
+        Core.println(sprint(io->Base.show(io, pinfo)))
+        return false
+    end
+    return true
 end
 
 struct PoolAllocation

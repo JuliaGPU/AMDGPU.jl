@@ -11,9 +11,10 @@ end
 
 Gets the string description of an error code.
 """
-function description(err::HSAError)
+description(err::HSAError) = description(err.code)
+function description(status::HSA.Status)
     str_ref = Ref{Ptr{Int8}}()
-    HSA.status_string(err.code, str_ref)
+    HSA.status_string(status, str_ref)
     unsafe_string(reinterpret(Cstring, str_ref[]))
 end
 

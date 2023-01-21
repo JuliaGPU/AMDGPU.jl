@@ -96,4 +96,88 @@ end
     finalize(A)
 end
 
+@testset "Refcounting" begin
+    refcount_live(A) = (get(AMDGPU.Mem.refcounts, A.buf._id, 0),
+                        get(AMDGPU.Mem.liveness, A.buf._id, false))
+
+    for (f, switch) in [(A->view(A, 2:4), false),
+                        (A->resize!(A, 8), true),
+                        (A->reinterpret(UInt8, A), false),
+                        (A->reshape(A, 4, 4), false)]
+
+        # Safe free
+        A = AMDGPU.ones(16)
+        @test refcount_live(A) == (1, true)
+        B = f(A)
+        @test A.buf.base_ptr == B.buf.base_ptr
+        @test refcount_live(A) == refcount_live(B)
+        @test refcount_live(B) == (2-switch, true)
+        finalize(B)
+        @test refcount_live(B) == (1-switch, !switch)
+        finalize(A)
+        @test refcount_live(B) == (0, false)
+
+        # Unsafe free original
+        A = AMDGPU.ones(16)
+        B = f(A)
+        AMDGPU.unsafe_free!(A)
+        @test refcount_live(B) == (2-switch, false)
+        finalize(B)
+        @test refcount_live(B) == (1-switch, false)
+        finalize(A)
+        @test refcount_live(B) == (0, false)
+
+        # Unsafe free derived
+        A = AMDGPU.ones(16)
+        B = f(A)
+        AMDGPU.unsafe_free!(B)
+        @test refcount_live(B) == (2-switch, false)
+        finalize(A)
+        @test refcount_live(B) == (1-switch, false)
+        finalize(B)
+        @test refcount_live(B) == (0, false)
+
+        # Unsafe free original and derived
+        A = AMDGPU.ones(16)
+        B = f(A)
+        AMDGPU.unsafe_free!(A)
+        AMDGPU.unsafe_free!(B)
+        @test refcount_live(B) == (2-switch, false)
+        finalize(A)
+        @test refcount_live(B) == (1-switch, false)
+        finalize(B)
+        @test refcount_live(B) == (0, false)
+    end
+
+    # Chained Safe free
+    A = AMDGPU.ones(16)
+    @test refcount_live(A) == (1, true)
+    B = reshape(A, 4, 4)
+    @test refcount_live(A) == (2, true)
+    C = reshape(B, 2, 8)
+    @test refcount_live(A) == (3, true)
+    finalize(B)
+    @test refcount_live(A) == (2, true)
+    finalize(A)
+    @test refcount_live(A) == (1, true)
+    finalize(C)
+    @test refcount_live(A) == (0, false)
+
+    # Chained Unsafe free
+    A = AMDGPU.ones(16)
+    @test refcount_live(A) == (1, true)
+    B = reshape(A, 4, 4)
+    @test refcount_live(A) == (2, true)
+    C = reshape(B, 2, 8)
+    @test refcount_live(A) == (3, true)
+    AMDGPU.unsafe_free!(A)
+    @test refcount_live(A) == (3, false)
+    finalize(B)
+    @test refcount_live(A) == (2, false)
+    finalize(A)
+    @test refcount_live(A) == (1, false)
+    finalize(C)
+    @test refcount_live(A) == (0, false)
+end
+
 end

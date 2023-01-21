@@ -4,8 +4,12 @@ import ..AMDGPU: hip_configured
 struct SyncState
     signals::Vector{ROCKernelSignal}
     streams::Vector{Ptr{Cvoid}}
+    lock::Threads.ReentrantLock
 end
-SyncState() = SyncState(ROCKernelSignal[], Ptr{Cvoid}[])
+SyncState() =
+    SyncState(ROCKernelSignal[],
+              Ptr{Cvoid}[],
+              Threads.ReentrantLock())
 
 struct WaitAdaptor end
 struct MarkAdaptor{S}
@@ -13,20 +17,24 @@ struct MarkAdaptor{S}
 end
 
 function wait!(ss::SyncState)
-    # FIXME: Use barrier_and on dedicated queue
-    foreach(wait, ss.signals)
-    empty!(ss.signals)
-    @static if hip_configured
-        for s in ss.streams
-            AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(s)
+    lock(ss.lock) do
+        # FIXME: Use barrier_and on dedicated queue
+        foreach(wait, ss.signals)
+        empty!(ss.signals)
+        @static if hip_configured
+            for s in ss.streams
+                AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(s)
+            end
+            empty!(ss.streams)
+            AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
         end
-        empty!(ss.streams)
-        AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
     end
-    nothing
+    return
 end
-mark!(ss::SyncState, signal::ROCKernelSignal) = push!(ss.signals, signal)
-mark!(ss::SyncState, stream::Ptr{Cvoid}) = push!(ss.streams, stream)
+mark!(ss::SyncState, signal::ROCKernelSignal) =
+    lock(()->push!(ss.signals, signal), ss.lock)
+mark!(ss::SyncState, stream::Ptr{Cvoid}) =
+    lock(()->push!(ss.streams, stream), ss.lock)
 
 wait!(x) = Adapt.adapt(WaitAdaptor(), x)
 mark!(x, s) = Adapt.adapt(MarkAdaptor(s), x)
