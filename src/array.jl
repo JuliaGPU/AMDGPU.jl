@@ -58,16 +58,13 @@ end
 
 mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     buf::Mem.Buffer
-    own::Bool
-
     dims::Dims{N}
     offset::Int
-
     syncstate::Runtime.SyncState
 
-    function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
+    function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        xs = new{T,N}(buf, own, dims, offset, Runtime.SyncState())
+        xs = new{T,N}(buf, dims, offset, Runtime.SyncState())
         Mem.retain(buf)
         finalizer(_safe_free!, xs)
         return xs
@@ -227,7 +224,7 @@ function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Inte
     sz = prod(dims) * sizeof(T)
     device_ptr = lock ? Mem.lock(ptr, sz, device) : ptr
     buf = Mem.Buffer(device_ptr, Ptr{Cvoid}(ptr), device_ptr, sz, device, false, false)
-    return ROCArray{T, N}(buf, dims; own=false)
+    return ROCArray{T, N}(buf, dims)
 end
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
@@ -275,7 +272,7 @@ end
 end
 @inline function unsafe_contiguous_view(a::ROCArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
-    ROCArray{T,M}(a.buf, dims, offset=a.offset+offset, own=false)
+    ROCArray{T,M}(a.buf, dims, offset=a.offset+offset)
 end
 
 @inline function unsafe_view(A, I, ::NonContiguous)
@@ -297,7 +294,7 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
         return a
     end
 
-    ROCArray{T,N}(a.buf, dims, offset=a.offset, own=false)
+    ROCArray{T,N}(a.buf, dims, offset=a.offset)
 end
 
 
@@ -389,7 +386,7 @@ zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
 @inline function _derived_array(::Type{T}, N::Int, a::ROCArray, osize::Dims) where {T}
-    return ROCArray{T,N}(a.buf, osize, offset=a.offset, own=false)
+    return ROCArray{T,N}(a.buf, osize, offset=a.offset)
 end
 
 ## reinterpret
@@ -513,10 +510,10 @@ collection length, the first `n` elements will be retained. If `n` is larger,
 the new elements are not guaranteed to be initialized.
 
 Note that this operation is only supported on managed buffers, i.e., not on
-arrays that are created by `unsafe_wrap` with `own=false`.
+arrays that are created by `unsafe_wrap`.
 """
 function Base.resize!(A::ROCVector{T}, n::Integer) where T
-    if !A.own
+    if A.buf.host_ptr != C_NULL
         throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
     end
 
