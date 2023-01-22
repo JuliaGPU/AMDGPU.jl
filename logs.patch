@@ -1,0 +1,132 @@
+diff --git a/src/runtime/executable.jl b/src/runtime/executable.jl
+index e93d69c..d16b742 100644
+--- a/src/runtime/executable.jl
++++ b/src/runtime/executable.jl
+@@ -55,6 +55,8 @@ function ROCExecutable(device::ROCDevice, data::Vector{UInt8}, symbol::String; g
+ 
+     # TODO: Ensure no derived kernels are in flight during finalization
+     AMDGPU.hsaref!()
++    ref = Int(AMDGPU.HSA_REFCOUNT[])
++    Core.println("ref +++ ROCExecutable +++ $ref")
+     finalizer(exe) do e
+         HSA.executable_destroy(e.executable[]) |> check
+         for buf in values(e.globals)
+@@ -62,6 +64,7 @@ function ROCExecutable(device::ROCDevice, data::Vector{UInt8}, symbol::String; g
+         end
+         HSA.code_object_reader_destroy(code_object_reader[]) |> check
+         AMDGPU.hsaunref!()
++        Core.println("unref +++ ROCExecutable +++ $ref")
+     end
+ 
+     return exe
+diff --git a/src/runtime/kernel.jl b/src/runtime/kernel.jl
+index 96091e2..8eadbfc 100644
+--- a/src/runtime/kernel.jl
++++ b/src/runtime/kernel.jl
+@@ -43,11 +43,14 @@ function ROCModule(exe::ROCExecutable)
+     EXE_TO_MODULE_MAP[exe] = WeakRef(mod)
+ 
+     AMDGPU.hsaref!()
++    ref = Int(AMDGPU.HSA_REFCOUNT[])
++    Core.println("ref +++ ROCModule +++ $ref")
+     return finalizer(mod) do m
+         delete_metadata!(m)
+         Mem.free(m.exceptions)
+         delete!(EXE_TO_MODULE_MAP, m.exe)
+         AMDGPU.hsaunref!()
++        Core.println("unref +++ ROCModule +++ $ref")
+     end
+ end
+ mutable struct ROCFunction
+@@ -143,9 +146,12 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
+                                kernarg_segment_size[], group_segment_size[],
+                                private_segment_size[], kernarg_address)
+     AMDGPU.hsaref!()
++    ref = Int(AMDGPU.HSA_REFCOUNT[])
++    Core.println("ref +++ ROCKernel +++ $ref")
+     finalizer(kernel) do k
+         Mem.free_pooled(device, key, :kernarg, k.kernarg_address)
+         AMDGPU.hsaunref!()
++        Core.println("unref +++ ROCKernel +++ $ref")
+     end
+     return kernel
+ end
+diff --git a/src/runtime/memory.jl b/src/runtime/memory.jl
+index 26dd62b..eacd2b4 100644
+--- a/src/runtime/memory.jl
++++ b/src/runtime/memory.jl
+@@ -383,7 +383,9 @@ function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
+     end
+     AMDGPU.hsaref!()
+     ptr = ptr_ref[]
+-    return Buffer(ptr, C_NULL, ptr, bytesize, device, Runtime.pool_accessible_by_all(pool), true)
++    buff = Buffer(ptr, C_NULL, ptr, bytesize, device, Runtime.pool_accessible_by_all(pool), true)
++    Core.println("ref +++ Buffer +++ $(Int(buff._id))")
++    return buff
+ end
+ function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
+     ptr_ref = Ref{Ptr{Cvoid}}()
+@@ -392,7 +394,9 @@ function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
+     end
+     AMDGPU.hsaref!()
+     ptr = ptr_ref[]
+-    return Buffer(ptr, C_NULL, ptr, bytesize, device, Runtime.region_host_accessible(region), false)
++    buff = Buffer(ptr, C_NULL, ptr, bytesize, device, Runtime.region_host_accessible(region), false)
++    Core.println("ref +++ Buffer +++ $(Int(buff._id))")
++    return buff
+ end
+ alloc(bytesize; kwargs...) =
+     alloc(Runtime.get_default_device(), bytesize; kwargs...)
+@@ -411,7 +415,9 @@ function alloc_hip(bytesize::Integer)
+     end
+     AMDGPU.hsaref!()
+     ptr = ptr_ref[]
+-    return Buffer(ptr, C_NULL, ptr, bytesize, Runtime.get_default_device(), false, true)
++    buff = Buffer(ptr, C_NULL, ptr, bytesize, Runtime.get_default_device(), false, true)
++    Core.println("ref +++ Buffer +++ $(Int(buff._id))")
++    return buff
+ end
+ end # if AMDGPU.hip_configured
+ 
+@@ -433,6 +439,7 @@ function free(buf::Buffer)
+             memory_check(HSA.memory_free(buf.base_ptr), buf.base_ptr)
+         end
+         AMDGPU.hsaunref!()
++        Core.println("unref +++ Buffer +++ $(Int(buf._id))")
+     else
+         # Wrapped
+         unlock(buf.ptr)
+diff --git a/src/runtime/queue.jl b/src/runtime/queue.jl
+index c65eb7d..a4c65ae 100644
+--- a/src/runtime/queue.jl
++++ b/src/runtime/queue.jl
+@@ -73,9 +73,12 @@ function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
+     end
+ 
+     AMDGPU.hsaref!()
++    ref = Int(AMDGPU.HSA_REFCOUNT[])
++    Core.println("ref +++ ROCQueue +++ $ref")
+     finalizer(queue) do q
+         kill_queue!(q)
+         AMDGPU.hsaunref!()
++        Core.println("unref +++ ROCQueue +++ $ref")
+     end
+     queue
+ end
+diff --git a/src/runtime/signal.jl b/src/runtime/signal.jl
+index 558c240..1bb0d4d 100644
+--- a/src/runtime/signal.jl
++++ b/src/runtime/signal.jl
+@@ -34,9 +34,12 @@ function ROCSignal(init::Integer = 1; ipc::Bool = true)
+     end
+ 
+     AMDGPU.hsaref!()
++    ref = Int(AMDGPU.HSA_REFCOUNT[])
++    Core.println("ref +++ ROCSignal +++ $ref")
+     finalizer(signal) do s
+         HSA.signal_destroy(s.signal[]) |> check
+         AMDGPU.hsaunref!()
++        Core.println("unref +++ ROCSignal +++ $ref")
+     end
+     signal
+ end

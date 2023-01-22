@@ -187,6 +187,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
             f, op, init, Val(items), Rreduce, Rother, partial, A))
 
         GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
+        unsafe_free!(partial)
     end
 
     return R
