@@ -26,7 +26,6 @@ function wait!(ss::SyncState)
                 AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(s)
             end
             empty!(ss.streams)
-            AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(C_NULL) # FIXME: This shouldn't be necessary
         end
     end
     return
