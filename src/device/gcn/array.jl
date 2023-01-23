@@ -71,18 +71,14 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N
 
 # indexing
 
-@inline alignment(::ROCDeviceArray{T}) where T = Base.datatype_alignment(T)
-
 @device_function @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
-    align = alignment(A)
-    Base.unsafe_load(pointer(A), index, Val(align))::T
+    Base.unsafe_load(pointer(A), index)::T
 end
 
 @device_function @inline function Base.setindex!(A::ROCDeviceArray{T}, x, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
-    align = alignment(A)
-    Base.unsafe_store!(pointer(A), x, index, Val(align))
+    Base.unsafe_store!(pointer(A), x, index)
     return A
 end
 
