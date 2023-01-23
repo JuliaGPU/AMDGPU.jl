@@ -71,7 +71,9 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N
 
 # indexing
 
-@inline alignment(::ROCDeviceArray{T}) where T = Base.datatype_alignment(T)
+@generated function alignment(::ROCDeviceArray{T}) where T
+    Base.datatype_alignment(T)
+end
 
 @device_function @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
