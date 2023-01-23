@@ -56,6 +56,7 @@ end
 
 # some functions need pow2 lengths: use a padded array and copy back to the original one
 function inplace_pow2(A, f)
+    wait!(A)
     len = length(A)
     if len > 1 && ispow2(len)
         f(A)
