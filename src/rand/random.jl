@@ -48,7 +48,7 @@ for (f,T) in ((:rocrand_generate, :UInt32), (:rocrand_generate_char,:Cuchar),
         function Random.rand!(rng::RNG, A::ROCArray{$(T)})
             wait!(A)
             $(f)(rng, A, length(A))
-            mark!(C_NULL, A)
+            mark!(A, C_NULL)
             return A
         end
     end
@@ -59,14 +59,15 @@ function inplace_pow2(A, f)
     len = length(A)
     if len > 1 && ispow2(len)
         f(A)
+        mark!(A, C_NULL)
     else
         padlen = max(2, nextpow(2, len))
         B = similar(A, padlen)
         f(B)
+        mark!(B, C_NULL)
+        wait!(B) # Wait, before copying to A.
         copyto!(A, 1, B, 1, len)
-        # TODO: why is unsafe_free used in CUDA?
-        # here it causes "Release of dead AMDGPU.Mem.Buffer" error
-        #AMDGPU.unsafe_free!(B)
+        AMDGPU.unsafe_free!(B)
     end
     A
 end
