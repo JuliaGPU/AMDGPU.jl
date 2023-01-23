@@ -65,7 +65,6 @@ function inplace_pow2(A, f)
         B = similar(A, padlen)
         f(B)
         mark!(B, C_NULL)
-        wait!(B) # Wait, before copying to A.
         copyto!(A, 1, B, 1, len)
         AMDGPU.unsafe_free!(B)
     end

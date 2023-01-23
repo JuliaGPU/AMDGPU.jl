@@ -320,15 +320,15 @@ end
 function unsafe_execute!(plan::cROCFFTPlan{T,K,true,N}, X::ROCArray{T,N}) where {T,K,N}
     wait!(X)
     rocfft_execute(plan, [pointer(X),], C_NULL, plan.execution_info)
-    mark!(C_NULL, X)
+    mark!(X, C_NULL)
 end
 
 function unsafe_execute!(plan::cROCFFTPlan{T,K,false,N}, X::ROCArray{T,N}, Y::ROCArray{T}) where {T,N,K}
     Xcopy = copy(X) # since input array can also be modified
     wait!(Y)
     rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
-    mark!(C_NULL, Xcopy)
-    mark!(C_NULL, Y)
+    mark!(Xcopy, C_NULL)
+    mark!(Y, C_NULL)
 end
 
 function unsafe_execute!(plan::rROCFFTPlan{T,ROCFFT_FORWARD,false,N}, X::ROCArray{T,N}, Y::ROCArray{<:rocfftComplexes,N}) where {T<:rocfftReals,N}
@@ -336,8 +336,8 @@ function unsafe_execute!(plan::rROCFFTPlan{T,ROCFFT_FORWARD,false,N}, X::ROCArra
     Xcopy = copy(X)
     wait!(Y)
     rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
-    mark!(C_NULL, Xcopy)
-    mark!(C_NULL, Y)
+    mark!(Xcopy, C_NULL)
+    mark!(Y, C_NULL)
 end
 
 function unsafe_execute!(plan::rROCFFTPlan{T,ROCFFT_INVERSE,false,N}, X::ROCArray{T,N}, Y::ROCArray{<:rocfftReals,N}) where {T<:rocfftComplexes,N}
@@ -345,8 +345,8 @@ function unsafe_execute!(plan::rROCFFTPlan{T,ROCFFT_INVERSE,false,N}, X::ROCArra
     Xcopy = copy(X)
     wait!(Y)
     rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
-    mark!(C_NULL, Xcopy)
-    mark!(C_NULL, Y)
+    mark!(Xcopy, C_NULL)
+    mark!(Y, C_NULL)
 end
 
 
