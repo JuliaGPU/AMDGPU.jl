@@ -122,7 +122,7 @@ end
 ## non-trivial intrinsics
 
 # ocml_sin seems broken for F16 (see #177)
-@device_override Base.sin(x::Float16) = sin(Float32(x))
+# @device_override Base.sin(x::Float16) = sin(Float32(x))
 
 @device_override Base.hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
 
