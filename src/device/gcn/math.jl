@@ -18,78 +18,41 @@ for jltype in (Float64, Float32, Float16)
         (:Base, :floor), (:Base, :ceil), (:Base, :trunc),
         (nothing, :nearbyint), (nothing, :nextafter),
     )
+        jltype == Float16 && intrinsic == :sin && continue # sin(Float16) is broken
+
         fname = "extern __ocml_$(intrinsic)_$(type_suffix)"
         if isnothing(mod)
-            @eval @device_function function $intrinsic(x::$jltype)
-                ccall($fname, llvmcall, $jltype, ($jltype,), x)
-            end
+            @eval @device_function $intrinsic(x::$jltype) = ccall($fname, llvmcall, $jltype, ($jltype,), x)
         else
-            @eval @device_override function $mod.$intrinsic(x::$jltype)
-                ccall($fname, llvmcall, $jltype, ($jltype,), x)
-            end
+            @eval @device_override $mod.$intrinsic(x::$jltype) = ccall($fname, llvmcall, $jltype, ($jltype,), x)
         end
     end
 
-    fname = "extern __ocml_fabs_$(type_suffix)"
-    @eval @device_override function Base.abs(x::$jltype)
-        ccall($fname, llvmcall, $jltype, ($jltype,), x)
-    end
-
-    # Return boolean value.
+    @eval @device_override Base.abs(x::$jltype) = ccall($("extern __ocml_fabs_$(type_suffix)"), llvmcall, $jltype, ($jltype,), x)
 
     for intrinsic in (:isnan, :isfinite, :isinf, :signbit)
-        fname = "extern __ocml_$(intrinsic)_$(fntypes[jltype])"
-        @eval @device_override function Base.$intrinsic(x::$jltype)
-            ccall($fname, llvmcall, Int32, ($jltype,), x) != zero($jltype)
-        end
+        @eval @device_override Base.$intrinsic(x::$jltype) = ccall($("extern __ocml_$(intrinsic)_$(fntypes[jltype])"), llvmcall, Int32, ($jltype,), x) != zero($jltype)
     end
 
     # Multi-argument functions.
 
-    fname = "extern __ocml_ldexp_$(fntypes[jltype])"
-    @eval @device_override function Base.ldexp(x::$jltype, y::Int32)
-        ccall($fname, llvmcall, $jltype, ($jltype, Int32), x, y)
-    end
+    @eval @device_override Base.ldexp(x::$jltype, y::Int32) = ccall($("extern __ocml_ldexp_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Int32), x, y)
 
-    fname = "extern __ocml_scalbn_$(fntypes[jltype])"
-    @eval @device_function function scalbn(x::$jltype, y::Int32)
-        ccall($fname, llvmcall, $jltype, ($jltype, Int32), x, y)
-    end
+    @eval @device_function scalbn(x::$jltype, y::Int32) = ccall($("extern __ocml_scalbn_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Int32), x, y)
 
-    fname = "extern __ocml_hypot_$(fntypes[jltype])"
-    @eval @device_override function Base.hypot(x::$jltype, y::$jltype)
-        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
-    end
+    @eval @device_override Base.hypot(x::$jltype, y::$jltype) = ccall($("extern __ocml_hypot_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
 
-    fname = "extern __ocml_fma_$(fntypes[jltype])"
-    @eval @device_override function Base.fma(x::$jltype, y::$jltype, z::$jltype)
-        ccall($fname, llvmcall, $jltype, ($jltype, $jltype, $jltype), x, y, z)
-    end
+    @eval @device_override Base.fma(x::$jltype, y::$jltype, z::$jltype) = ccall($("extern __ocml_fma_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype, $jltype), x, y, z)
 
-    fname = "extern __ocml_min_$(fntypes[jltype])"
-    @eval @device_override function Base.min(x::$jltype, y::$jltype)
-        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
-    end
+    @eval @device_override Base.min(x::$jltype, y::$jltype) = ccall($("extern __ocml_min_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
 
-    fname = "extern __ocml_max_$(fntypes[jltype])"
-    @eval @device_override function Base.max(x::$jltype, y::$jltype)
-        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
-    end
+    @eval @device_override Base.max(x::$jltype, y::$jltype) = ccall($("extern __ocml_max_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
 
-    fname = "extern __ocml_copysign_$(fntypes[jltype])"
-    @eval @device_override function Base.copysign(x::$jltype, y::$jltype)
-        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
-    end
+    @eval @device_override Base.copysign(x::$jltype, y::$jltype) = ccall($("extern __ocml_copysign_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
 
-    fname = "extern __ocml_pow_$(fntypes[jltype])"
-    @eval @device_override function Base.:(^)(x::$jltype, y::$jltype)
-        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
-    end
+    @eval @device_override Base.:(^)(x::$jltype, y::$jltype) = ccall($("extern __ocml_pow_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
 
-    fname = "extern __ocml_pown_$(fntypes[jltype])"
-    @eval @device_override function Base.:(^)(x::$jltype, y::Int32)
-        ccall($fname, llvmcall, $jltype, ($jltype, Int32), x, y)
-    end
+    @eval @device_override Base.:(^)(x::$jltype, y::Int32) = ccall($("extern __ocml_pown_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Int32), x, y)
 end
 
 @device_override @inline function Base.:(^)(x::Float32, y::Int64)
@@ -109,6 +72,8 @@ end
     y == 3 && return x*x*x
     x ^ Float64(y)
 end
+
+@device_override Base.sin(x::Float16) = sin(Float32(x))
 
 const MATH_INTRINSICS = GCNIntrinsic[]
 
