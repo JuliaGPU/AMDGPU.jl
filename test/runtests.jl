@@ -10,6 +10,7 @@ np = Threads.nthreads()
 ws = Int[]
 ws_pids = Int[]
 if np == 1
+    include("setup.jl")
     push!(ws, 1)
     push!(ws_pids, getpid())
 else
