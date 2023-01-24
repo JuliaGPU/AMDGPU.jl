@@ -2,14 +2,112 @@ import Base: FastMath
 
 import SpecialFunctions
 
-# Missing from Base.:
-# :tanpi
-for jltype in (Float64, Float32, Float16), intrinsic in (
-    :cos, :cosh, :cospi, :sin, :sinh, :sinpi, :tan, :tanh,
-)
-    @eval @device_override function Base.$(intrinsic)(x::$jltype)
-        ccall($("extern __ocml_$(intrinsic)_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype,), x)
+for jltype in (Float64, Float32, Float16)
+    type_suffix = fntypes[jltype]
+
+    # Single-argument functions.
+
+    for (mod, intrinsic) in (
+        (:Base, :acos), (:Base, :acosh), (nothing, :acospi), (:Base, :cos), (:Base, :cosh), (:Base, :cospi),
+        (:Base, :asin), (:Base, :asinh), (nothing, :asinpi), (:Base, :sin), (:Base, :sinh), (:Base, :sinpi),
+        (:Base, :atan), (:Base, :atanh), (nothing, :atanpi), (:Base, :tan), (:Base, :tanh), (nothing, :tanpi),
+        (:Base, :log), (:Base, :log2), (:Base, :log10), (:Base, :log1p), (nothing, :logb), (nothing, :ilogb),
+        (:Base, :exp), (:Base, :exp2), (:Base, :exp10),
+        (:Base, :sqrt), (:Base, :cbrt), (nothing, :rsqrt),
+        (nothing, :lgamma), (nothing, :lgamma_r),
+        (:Base, :floor), (:Base, :ceil), (:Base, :trunc),
+        (nothing, :nearbyint), (nothing, :nextafter),
+    )
+        fname = "extern __ocml_$(intrinsic)_$(type_suffix)"
+        if isnothing(mod)
+            @eval @device_function function $intrinsic(x::$jltype)
+                ccall($fname, llvmcall, $jltype, ($jltype,), x)
+            end
+        else
+            @eval @device_override function $mod.$intrinsic(x::$jltype)
+                ccall($fname, llvmcall, $jltype, ($jltype,), x)
+            end
+        end
     end
+
+    fname = "extern __ocml_fabs_$(type_suffix)"
+    @eval @device_override function Base.abs(x::$jltype)
+        ccall($fname, llvmcall, $jltype, ($jltype,), x)
+    end
+
+    # Return boolean value.
+
+    for intrinsic in (:isnan, :isfinite, :isinf, :signbit)
+        fname = "extern __ocml_$(intrinsic)_$(fntypes[jltype])"
+        @eval @device_override function Base.$intrinsic(x::$jltype)
+            ccall($fname, llvmcall, Int32, ($jltype,), x) != zero($jltype)
+        end
+    end
+
+    # Multi-argument functions.
+
+    fname = "extern __ocml_ldexp_$(fntypes[jltype])"
+    @eval @device_override function Base.ldexp(x::$jltype, y::Int32)
+        ccall($fname, llvmcall, $jltype, ($jltype, Int32), x, y)
+    end
+
+    fname = "extern __ocml_scalbn_$(fntypes[jltype])"
+    @eval @device_function function scalbn(x::$jltype, y::Int32)
+        ccall($fname, llvmcall, $jltype, ($jltype, Int32), x, y)
+    end
+
+    fname = "extern __ocml_hypot_$(fntypes[jltype])"
+    @eval @device_override function Base.hypot(x::$jltype, y::$jltype)
+        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
+    end
+
+    fname = "extern __ocml_fma_$(fntypes[jltype])"
+    @eval @device_override function Base.fma(x::$jltype, y::$jltype, z::$jltype)
+        ccall($fname, llvmcall, $jltype, ($jltype, $jltype, $jltype), x, y, z)
+    end
+
+    fname = "extern __ocml_min_$(fntypes[jltype])"
+    @eval @device_override function Base.min(x::$jltype, y::$jltype)
+        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
+    end
+
+    fname = "extern __ocml_max_$(fntypes[jltype])"
+    @eval @device_override function Base.max(x::$jltype, y::$jltype)
+        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
+    end
+
+    fname = "extern __ocml_copysign_$(fntypes[jltype])"
+    @eval @device_override function Base.copysign(x::$jltype, y::$jltype)
+        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
+    end
+
+    fname = "extern __ocml_pow_$(fntypes[jltype])"
+    @eval @device_override function Base.:(^)(x::$jltype, y::$jltype)
+        ccall($fname, llvmcall, $jltype, ($jltype, $jltype), x, y)
+    end
+
+    fname = "extern __ocml_pown_$(fntypes[jltype])"
+    @eval @device_override function Base.:(^)(x::$jltype, y::Int32)
+        ccall($fname, llvmcall, $jltype, ($jltype, Int32), x, y)
+    end
+end
+
+@device_override @inline function Base.:(^)(x::Float32, y::Int64)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    x ^ Float32(y)
+end
+
+@device_override @inline function Base.:(^)(x::Float64, y::Int64)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    x ^ Float64(y)
 end
 
 const MATH_INTRINSICS = GCNIntrinsic[]
@@ -124,44 +222,44 @@ end
 # ocml_sin seems broken for F16 (see #177)
 # @device_override Base.sin(x::Float16) = sin(Float32(x))
 
-@device_override Base.hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
+# @device_override Base.hypot(x::T, y::T) where T <: Integer = hypot(float(x), float(y))
 
 # Non-matching types
-@device_override @inline function Base.:(^)(x::T, y::S) where {T<:Union{Float16, Float32,Float64}, S<:Union{Int64,UInt64}}
-    y == -1 && return inv(x)
-    y == 0 && return one(x)
-    y == 1 && return x
-    y == 2 && return x*x
-    y == 3 && return x*x*x
-    if S === Int64 && typemin(Int32) <= y <= typemax(Int32)
-        return x ^ unsafe_trunc(Int32, y)
-    elseif S === UInt64 && typemin(UInt32) <= y <= typemax(UInt32)
-        return x ^ unsafe_trunc(UInt32, y)
-    end
-    x ^ T(y)
-end
-@device_override Base.:(^)(x::Integer, p::T) where T<:Union{Float16, Float32, Float64} = T(x) ^ p
+# @device_override @inline function Base.:(^)(x::T, y::S) where {T<:Union{Float16, Float32,Float64}, S<:Union{Int64,UInt64}}
+#     y == -1 && return inv(x)
+#     y == 0 && return one(x)
+#     y == 1 && return x
+#     y == 2 && return x*x
+#     y == 3 && return x*x*x
+#     if S === Int64 && typemin(Int32) <= y <= typemax(Int32)
+#         return x ^ unsafe_trunc(Int32, y)
+#     elseif S === UInt64 && typemin(UInt32) <= y <= typemax(UInt32)
+#         return x ^ unsafe_trunc(UInt32, y)
+#     end
+#     x ^ T(y)
+# end
+# @device_override Base.:(^)(x::Integer, p::T) where T<:Union{Float16, Float32, Float64} = T(x) ^ p
 
-@device_override @inline function Base.:(^)(x::Integer, p::Integer)
-    p < 0 && throw("Negative integer power not supported")
-    p == 0 && return one(x)
-    p == 1 && return x
-    p == 2 && return x*x
-    p == 3 && return x*x*x
+# @device_override @inline function Base.:(^)(x::Integer, p::Integer)
+#     p < 0 && throw("Negative integer power not supported")
+#     p == 0 && return one(x)
+#     p == 1 && return x
+#     p == 2 && return x*x
+#     p == 3 && return x*x*x
 
-    t = trailing_zeros(p) + 1
-    p >>= t
-    while (t -= 1) > 0
-        x *= x
-    end
-    y = x
-    while p > 0
-        t = trailing_zeros(p) + 1
-        p >>= t
-        while (t -= 1) >= 0
-            x *= x
-        end
-        y *= x
-    end
-    return y
-end
+#     t = trailing_zeros(p) + 1
+#     p >>= t
+#     while (t -= 1) > 0
+#         x *= x
+#     end
+#     y = x
+#     while p > 0
+#         t = trailing_zeros(p) + 1
+#         p >>= t
+#         while (t -= 1) >= 0
+#             x *= x
+#         end
+#         y *= x
+#     end
+#     return y
+# end
