@@ -284,11 +284,11 @@ macro rocprintf(args...)
     elseif mode == :group
         push!(ex.args, :(unsafe_store!($device_ptr, UInt64(1))))
     elseif mode == :wave
-        waves_per_group = :($unsafe_ceil(reinterpret(UInt64, $workgroupDim().x),
-                                         Base.unsafe_trunc(UInt64, $wavefrontsize())))
-        push!(ex.args, :(unsafe_store!($device_ptr, $waves_per_group)))
+        waves_per_group = :($unsafe_ceil($workgroupDim().x,
+                                         $wavefrontsize()))
+        push!(ex.args, :(unsafe_store!($device_ptr, Base.unsafe_trunc(UInt64, $waves_per_group))))
     elseif mode == :lane
-        push!(ex.args, :(unsafe_store!($device_ptr, reinterpret(UInt64, $workgroupDim().x))))
+        push!(ex.args, :(unsafe_store!($device_ptr, Base.unsafe_trunc(UInt64, $workgroupDim().x))))
     end
     push!(ex.args, :($device_ptr += sizeof(UInt64)))
 
@@ -307,8 +307,8 @@ macro rocprintf(args...)
     elseif mode == :group
         :(0)
     elseif mode == :wave
-        wave_idx = :(Core.Intrinsics.udiv_int(reinterpret(UInt64, $workitemIdx().x - 1),
-                                              Base.unsafe_trunc(UInt64, $wavefrontsize())))
+        wave_idx = :(Core.Intrinsics.udiv_int($workitemIdx().x - UInt32(1),
+                                              $wavefrontsize()))
         :($wave_idx * $write_size)
     elseif mode == :lane
         lane_idx = :(workitemIdx().x - 1)

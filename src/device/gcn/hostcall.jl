@@ -94,8 +94,8 @@ macro device_execution_gate(mode, exec_ex)
     elseif mode == :wave
         push!(ex.args, quote
             # Must be on first lane of each wavefront of each group
-            if Core.Intrinsics.urem_int(reinterpret(UInt64, $workitemIdx().x-1),
-                                        Base.unsafe_trunc(UInt64, $wavefrontsize())) != 0
+            if Core.Intrinsics.urem_int($workitemIdx().x - UInt32(1),
+                                        $wavefrontsize()) != 0
                 @goto gated_done
             end
         end)
