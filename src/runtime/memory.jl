@@ -395,7 +395,7 @@ function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     end
     AMDGPU.hsaref!()
     ptr = ptr_ref[]
-    return Buffer(ptr, C_NULL, ptr, bytesize, device, Runtime.pool_accessible_by_all(pool), true)
+    return Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, Runtime.pool_accessible_by_all(pool), true)
 end
 function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
@@ -404,7 +404,7 @@ function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     end
     AMDGPU.hsaref!()
     ptr = ptr_ref[]
-    return Buffer(ptr, C_NULL, ptr, bytesize, device, Runtime.region_host_accessible(region), false)
+    return Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, Runtime.region_host_accessible(region), false)
 end
 alloc(bytesize; kwargs...) =
     alloc(Runtime.get_default_device(), bytesize; kwargs...)
@@ -423,7 +423,7 @@ function alloc_hip(bytesize::Integer)
     end
     AMDGPU.hsaref!()
     ptr = ptr_ref[]
-    return Buffer(ptr, C_NULL, ptr, bytesize, Runtime.get_default_device(), false, true)
+    return Buffer(ptr, C_NULL, ptr, Int64(bytesize), Runtime.get_default_device(), false, true)
 end
 end # if AMDGPU.hip_configured
 
