@@ -2,87 +2,92 @@ import Base: FastMath
 
 import SpecialFunctions
 
+# Missing from Base.:
+# :tanpi
+for jltype in (Float64, Float32, Float16), intrinsic in (
+    :cos, :cosh, :cospi, :sin, :sinh, :sinpi, :tan, :tanh,
+)
+    @eval @device_override function Base.$(intrinsic)(x::$jltype)
+        ccall($("extern __ocml_$(intrinsic)_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype,), x)
+    end
+end
+
 const MATH_INTRINSICS = GCNIntrinsic[]
 
-for jltype in (Float16, Float32, Float64)
-    for intrinsic in (
-        :sin, :cos, :tan, :asin, :acos, :atan, :atan2,
-        :sinh, :cosh, :tanh, :asinh, :acosh, :atanh,
-        :sinpi, :cospi, :tanpi,
-        :asinpi, :acospi, :atanpi, :atan2pi,
-        :sqrt, :rsqrt, :cbrt, :rcbrt, :recip,
-        :log, :log2, :log10, :log1p, :logb, :ilogb,
-        :exp, :exp2, :exp10, :expm1,
-        :erf, :erfinv, :erfc, :erfcinv, :erfcx,
-        # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
-        :isnormal, :nearbyint, :nextafter,
-        :lgamma)
-        # FIXME: :lgamma_r segfaults on GPU
+# for jltype in (Float16, Float32, Float64)
+#     for intrinsic in (
+#         :sin, :cos, :tan, :asin, :acos, :atan, :atan2,
+#         :sinh, :cosh, :tanh, :asinh, :acosh, :atanh,
+#         :sinpi, :cospi, :tanpi,
+#         :asinpi, :acospi, :atanpi, :atan2pi,
+#         :sqrt, :rsqrt, :cbrt, :rcbrt, :recip,
+#         :log, :log2, :log10, :log1p, :logb, :ilogb,
+#         :exp, :exp2, :exp10, :expm1,
+#         :erf, :erfinv, :erfc, :erfcinv, :erfcx,
+#         # TODO: :brev, :clz, :ffs, :byte_perm, :popc,
+#         :isnormal, :nearbyint, :nextafter,
+#         :lgamma)
+#         # FIXME: :lgamma_r segfaults on GPU
 
-        if intrinsic == :sin && jltype == Float16
-            continue # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/177
-            push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype, isbroken=true))
-        end
+#         if intrinsic == :sin && jltype == Float16
+#             continue # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/177
+#             push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype, isbroken=true))
+#         end
 
-        push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype))
-    end
+#         push!(MATH_INTRINSICS, GCNIntrinsic(intrinsic, inp_args=(jltype,), out_arg=jltype))
+#     end
 
-    push!(MATH_INTRINSICS, GCNIntrinsic(:besselj0, :j0; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:besselj1, :j1; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:bessely0, :y0; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:bessely1, :y1; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:besselj0, :j0; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:besselj1, :j1; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:bessely0, :y0; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:bessely1, :y1; inp_args=(jltype,), out_arg=jltype))
 
-    push!(MATH_INTRINSICS, GCNIntrinsic(:sin_fast, :native_sin; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:cos_fast, :native_cos; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:sqrt_fast, :native_sqrt; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:rsqrt_fast, :native_rsqrt; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:recip_fast, :native_recip; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:log_fast, :native_log; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:log2_fast, :native_log2; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:log10_fast, :native_log10; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:exp_fast, :native_exp; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:exp2_fast, :native_exp2; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:exp10_fast, :native_exp10; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:abs, :fabs; inp_args=(jltype,), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:gamma, :tgamma; inp_args=(jltype,), out_arg=jltype))
-    # TODO: abs(::Union{Int32,Int64})
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:sin_fast, :native_sin; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:cos_fast, :native_cos; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:sqrt_fast, :native_sqrt; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:rsqrt_fast, :native_rsqrt; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:recip_fast, :native_recip; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:log_fast, :native_log; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:log2_fast, :native_log2; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:log10_fast, :native_log10; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:exp_fast, :native_exp; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:exp2_fast, :native_exp2; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:exp10_fast, :native_exp10; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:abs, :fabs; inp_args=(jltype,), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:gamma, :tgamma; inp_args=(jltype,), out_arg=jltype))
+#     # TODO: abs(::Union{Int32,Int64})
 
-    # Multi-argument functions
-    push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pow; inp_args=(jltype,jltype), out_arg=jltype))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
-    # TODO: :copysign,
-    push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
-    @eval @device_override function Base.frexp(x::$jltype)
-        ref = Ref{Int32}()
-        ret = ccall($("extern __ocml_frexp_$(fntypes[jltype])"), llvmcall,
-                    $jltype, ($jltype, Ptr{Int32}),
-                    x, ref)
-        return (ret, Base.unsafe_trunc(Int64, ref[]))
-    end
-    @eval @device_override function Base.sincos(x::$jltype)
-        ref = Ref{$jltype}()
-        ret = ccall($("extern __ocml_sincos_$(fntypes[jltype])"), llvmcall,
-                    $jltype, ($jltype, Ptr{$jltype}),
-                    x, ref)
-        return (ret, ref[])
-    end
-    @eval @device_override function Base.sincospi(x::$jltype)
-        ref = Ref{$jltype}()
-        ret = ccall($("extern __ocml_sincospi_$(fntypes[jltype])"), llvmcall,
-                    $jltype, ($jltype, Ptr{$jltype}),
-                    x, ref)
-        return (ret, ref[])
-    end
+#     # Multi-argument functions
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pow; inp_args=(jltype,jltype), out_arg=jltype))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:^, :pown; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
+#     # TODO: :copysign,
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:ldexp; inp_args=(jltype,Union{UInt32,Int32}), out_arg=jltype))
 
-    push!(MATH_INTRINSICS, GCNIntrinsic(:hypot; inp_args=(jltype,jltype), out_arg=jltype))
-end
+#     @eval @device_override function Base.frexp(x::$jltype)
+#         ref = Ref{Int32}()
+#         ret = ccall($("extern __ocml_frexp_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ptr{Int32}), x, ref)
+#         return (ret, Base.unsafe_trunc(Int64, ref[]))
+#     end
+#     @eval @device_override function Base.sincos(x::$jltype)
+#         ref = Ref{$jltype}()
+#         ret = ccall($("extern __ocml_sincos_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ptr{$jltype}), x, ref)
+#         return (ret, ref[])
+#     end
+#     @eval @device_override function Base.sincospi(x::$jltype)
+#         ref = Ref{$jltype}()
+#         ret = ccall($("extern __ocml_sincospi_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ptr{$jltype}), x, ref)
+#         return (ret, ref[])
+#     end
 
-for jltype in (Float32, Float64)
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isfinite; inp_args=(jltype,), out_arg=Int32, tobool=true))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isinf; inp_args=(jltype,), out_arg=Int32, tobool=true))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:isnan; inp_args=(jltype,), out_arg=Int32, tobool=true))
-    push!(MATH_INTRINSICS, GCNIntrinsic(:signbit; inp_args=(jltype,), out_arg=Int32, tobool=true))
-end
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:hypot; inp_args=(jltype,jltype), out_arg=jltype))
+# end
+
+# for jltype in (Float32, Float64)
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:isfinite; inp_args=(jltype,), out_arg=Int32, tobool=true))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:isinf; inp_args=(jltype,), out_arg=Int32, tobool=true))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:isnan; inp_args=(jltype,), out_arg=Int32, tobool=true))
+#     push!(MATH_INTRINSICS, GCNIntrinsic(:signbit; inp_args=(jltype,), out_arg=Int32, tobool=true))
+# end
 
 for intr in MATH_INTRINSICS
     inp_vars = [gensym() for _ in 1:length(intr.inp_args)]
