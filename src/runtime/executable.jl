@@ -1,29 +1,59 @@
-mutable struct ROCExecutable
-    device::ROCDevice
-    executable::Ref{HSA.Executable}
-    data::Vector{UInt8}
-    globals::Dict{Symbol, Mem.Buffer}
-end
+getinfo(exsym::HSA.ExecutableSymbol, attribute::HSA.ExecutableSymbolInfo,
+        value::Union{Vector, Base.RefValue}) =
+    HSA.executable_symbol_get_info(exsym, attribute, value)
+
+const EXECUTABLE_SYMBOL_INFO_MAP = Dict(
+    HSA.EXECUTABLE_SYMBOL_INFO_TYPE => HSA.SymbolKind,
+    HSA.EXECUTABLE_SYMBOL_INFO_NAME_LENGTH => Int,
+    HSA.EXECUTABLE_SYMBOL_INFO_NAME => Vector{UInt8},
+
+    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT => UInt64,
+    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE => UInt32,
+    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE => UInt32,
+    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE => UInt32,
+)
+getinfo_map(::HSA.ExecutableSymbol) = EXECUTABLE_SYMBOL_INFO_MAP
+
+executable_symbol_type(sym::HSA.ExecutableSymbol) =
+    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE)
+
+# TODO: Symbol name length
+
+executable_symbol_name(sym::HSA.ExecutableSymbol) =
+    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME)
+
+executable_symbol_kernel_object(sym::HSA.ExecutableSymbol) =
+    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT)
+
+executable_symbol_kernel_kernarg_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE)
+
+executable_symbol_kernel_group_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE)
+
+executable_symbol_kernel_private_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE)
 
 ### @cfunction Callbacks ###
 
 function iterate_exec_agent_syms_cb(exe::HSA.Executable, agent::HSA.Agent,
                                     sym::HSA.ExecutableSymbol,
-                                    sym_ref::Ptr{Cvoid})
-
-    sym_ref = Base.unsafe_convert(Ptr{HSA.ExecutableSymbol}, sym_ref)
-    sym_type = Ref{HSA.SymbolKind}()
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE, sym_type) |> check
-
-    if sym_type[] == HSA.SYMBOL_KIND_KERNEL
-        len = Ref(0)
-        getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, len) |> check
-        name = Vector{UInt8}(undef, len[])
-        getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME, name) |> check
+                                    sym_ref::Ptr{HSA.ExecutableSymbol})
+    if executable_symbol_type(sym) == HSA.SYMBOL_KIND_KERNEL
+        # FIXME: Ensure name matches
+        #name = executable_symbol_name(sym)
         Base.unsafe_store!(sym_ref, sym)
+        return HSA.STATUS_INFO_BREAK
     end
 
     return HSA.STATUS_SUCCESS
+end
+
+mutable struct ROCExecutable
+    device::ROCDevice
+    executable::Ref{HSA.Executable}
+    data::Vector{UInt8}
+    globals::Dict{Symbol, Mem.Buffer}
 end
 
 # TODO Docstring
@@ -70,11 +100,6 @@ end
 function get_global(exe::ROCExecutable, symbol::Symbol)
     @assert symbol in keys(exe.globals) "No such global in executable: $symbol"
     return exe.globals[symbol]
-end
-
-function getinfo(exsym::HSA.ExecutableSymbol, attribute::HSA.ExecutableSymbolInfo,
-                 value::Union{Vector,Base.RefValue,String})
-    HSA.executable_symbol_get_info(exsym, attribute, value)
 end
 
 has_exception(e::ROCExecutable) = haskey(e.globals, :__global_exception_flag)

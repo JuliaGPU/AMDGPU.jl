@@ -77,7 +77,7 @@ when one is not explicitly specified. May be changed with
 """
 function get_default_device()
     if !isassigned(DEFAULT_DEVICE)
-        error("No GPU devices detected!\nPlease consider rebuilding AMDGPU")
+        error("No GPU devices detected!")
     end
     DEFAULT_DEVICE[]
 end
@@ -91,17 +91,7 @@ function set_default_device!(device::ROCDevice)
     DEFAULT_DEVICE[] = device
 end
 
-function name(device::ROCDevice)
-    #len = Ref(0)
-    #hsa_agent_get_info(agent.agent, HSA.AGENT_INFO_NAME_LENGTH, len) |> check
-    name = Vector{UInt8}(undef, 64)
-    getinfo(device.agent, HSA.AGENT_INFO_NAME, name) |> check
-    return GC.@preserve name unsafe_string(pointer(name))
-end
-
-"""
-Return all devices available to the runtime.
-"""
+"Return all devices available to the runtime."
 devices() = copy(ALL_DEVICES)
 
 # Pretty-printing
@@ -117,51 +107,68 @@ function Base.show(io::IO, device::ROCDevice)
     print(io, name)
 end
 
-### Agent details
+### Device details
 
-product_name(device::ROCDevice) = product_name(device.agent)
-function product_name(agent::HSA.Agent)
-    name = Vector{UInt8}(undef, 64)
-    getinfo(agent, HSA.AMD_AGENT_INFO_PRODUCT_NAME, name) |> check
-    rstrip(String(name), '\0')
-end
-
-uuid(device::ROCDevice) = uuid(device.agent)
-function uuid(agent::HSA.Agent)
-    uuid = Base.zeros(UInt8, 64) # Doesn't appear to write zero-terminator
-    getinfo(agent, HSA.AMD_AGENT_INFO_UUID, uuid) |> check
-    rstrip(String(uuid), '\0')
-end
-
-profile(device::ROCDevice) = profile(device.agent)
-function profile(agent::HSA.Agent)
-    profile = Ref{HSA.Profile}()
-    getinfo(agent, HSA.AGENT_INFO_PROFILE, profile) |> check
-    return profile[]
-end
-
-device_type(device::ROCDevice) = device_type(device.agent)
-function device_type(agent::HSA.Agent)
-    devtype = Ref{HSA.DeviceType}()
-    getinfo(agent, HSA.AGENT_INFO_DEVICE, devtype) |> check
-    return devtype[]
-end
-
-wavefrontsize(device::ROCDevice) = wavefrontsize(device.agent)
-function wavefrontsize(agent::HSA.Agent)
-    wfsize = Ref{UInt32}()
-    getinfo(agent, HSA.AGENT_INFO_WAVEFRONT_SIZE, wfsize) |> check
-    return wfsize[]
-end
-
-function getinfo(agent::HSA.Agent, attribute::HSA.AgentInfo,
-                 value::Union{Vector,Base.RefValue,String})
-    # TODO: allocation/create Refs here
-    # based on value of AgentInfo
+getinfo(agent::HSA.Agent, attribute::HSA.AgentInfo,
+        value::Union{Vector, Base.RefValue}) =
     HSA.agent_get_info(agent, attribute, value)
+getinfo(agent::HSA.Agent, info::HSA.AMDAgentInfo,
+        value::Union{Vector, Base.RefValue}) =
+    getinfo(agent, reinterpret(HSA.AgentInfo, info), value)
+
+const AGENT_INFO_MAP = Dict(
+    HSA.AGENT_INFO_NAME => Vector{UInt8},
+    HSA.AMD_AGENT_INFO_PRODUCT_NAME => Vector{UInt8},
+    HSA.AMD_AGENT_INFO_UUID => Vector{UInt8},
+    HSA.AGENT_INFO_PROFILE => HSA.Profile,
+    HSA.AGENT_INFO_DEVICE => HSA.DeviceType,
+
+    HSA.AGENT_INFO_QUEUE_MAX_SIZE => UInt32,
+    HSA.AGENT_INFO_QUEUE_TYPE => HSA.QueueType,
+
+    HSA.AGENT_INFO_WORKGROUP_MAX_SIZE => UInt32,
+    HSA.AMD_AGENT_INFO_COMPUTE_UNIT_COUNT => UInt32,
+    HSA.AMD_AGENT_INFO_NUM_SIMDS_PER_CU => UInt32,
+)
+getinfo_map(::HSA.Agent) = AGENT_INFO_MAP
+
+getinfo(device::ROCDevice, query) = getinfo(device.agent, query)
+
+const AnyROCDevice = Union{ROCDevice,HSA.Agent}
+
+name(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_NAME)
+
+product_name(device::AnyROCDevice) =
+    getinfo(device, HSA.AMD_AGENT_INFO_PRODUCT_NAME)
+
+uuid(device::AnyROCDevice) =
+    getinfo(device, HSA.AMD_AGENT_INFO_UUID)
+
+profile(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_PROFILE)
+
+device_type(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_DEVICE)
+
+device_workgroup_max_size(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_WORKGROUP_MAX_SIZE)
+
+device_num_compute_units(device::AnyROCDevice) =
+    getinfo(device, HSA.AMD_AGENT_INFO_COMPUTE_UNIT_COUNT)
+
+device_num_simds_per_compute_unit(device::AnyROCDevice) =
+    getinfo(device, HSA.AMD_AGENT_INFO_NUM_SIMDS_PER_CU)
+
+function device_local_memory_size(device::AnyROCDevice)
+    _regions = regions(device)
+    for region in _regions
+        if region_segment(region) == HSA.REGION_SEGMENT_GROUP
+            return region_size(region)
+        end
+    end
+    error("Failed to find local memory region for $device")
 end
-getinfo(agent::HSA.Agent, info::HSA.AMDAgentInfo, ret::Union{String, Base.RefValue, Vector}) =
-    getinfo(agent, reinterpret(HSA.AgentInfo, info), ret)
 
 ### ISAs
 
@@ -206,16 +213,17 @@ end
 architecture(isa::HSA.ISA) = llvm_arch_features(isa)[1]
 features(isa::HSA.ISA) = llvm_arch_features(isa)[2]
 
-function max_group_size(isa::HSA.ISA)
-    size = Ref{UInt32}(0)
-    getinfo(isa, HSA.ISA_INFO_WORKGROUP_MAX_SIZE, size)
-    size[]
-end
-
-function getinfo(isa::HSA.ISA, attribute::HSA.ISAInfo,
-                 value::Union{Vector,Base.RefValue,String})
+getinfo(isa::HSA.ISA, attribute::HSA.ISAInfo,
+        value::Union{Vector, Base.RefValue}) =
     HSA.isa_get_info_alt(isa, attribute, value)
-end
+
+const ISA_INFO_MAP = Dict(
+    HSA.ISA_INFO_WORKGROUP_MAX_SIZE => UInt32,
+)
+getinfo_map(::HSA.ISA) = ISA_INFO_MAP
+
+isa_workgroup_max_size(isa::HSA.ISA) =
+    getinfo(isa, HSA.ISA_INFO_WORKGROUP_MAX_SIZE)
 
 ### Regions
 
@@ -229,65 +237,56 @@ function iterate_regions_cb(region::HSA.Region, regions)
     return HSA.STATUS_SUCCESS
 end
 
-function regions(device::ROCDevice)
+function regions(agent::HSA.Agent)
     regions = Ref(HSA.Region[])
     func = @cfunction(iterate_regions_cb, HSA.Status, (HSA.Region, Ref{Vector{HSA.Region}}))
-    HSA.agent_iterate_regions(device.agent, func, regions) |> check
-    map(ROCMemoryRegion, regions[])
+    HSA.agent_iterate_regions(agent, func, regions) |> check
+    return map(ROCMemoryRegion, regions[])
 end
+regions(device::ROCDevice) = regions(device.agent)
 
-function getinfo(region::HSA.Region, attribute::HSA.RegionInfo,
-                 value::Union{Vector,Base.RefValue,String})
-    HSA.region_get_info(region, attribute, value) |> check
-end
+getinfo(region::HSA.Region, attribute::HSA.RegionInfo,
+        value::Union{Vector,Base.RefValue}) =
+    HSA.region_get_info(region, attribute, value)
+getinfo(region::HSA.Region, attribute::HSA.AMDRegionInfo,
+        value::Union{Vector,Base.RefValue}) =
+            getinfo(region, reinterpret(HSA.RegionInfo, attribute), value)
 
-function region_segment(region::ROCMemoryRegion)
-    segment = Ref{HSA.RegionSegment}()
-    getinfo(region.region, HSA.REGION_INFO_SEGMENT, segment)
-    segment[]
-end
-function region_global_flags(region::ROCMemoryRegion)
-    flags = Ref{HSA.RegionGlobalFlag}()
-    getinfo(region.region, HSA.REGION_INFO_GLOBAL_FLAGS, flags)
-    flags[]
-end
-function region_size(region::ROCMemoryRegion)
-    size = Ref{Csize_t}(0)
-    getinfo(region.region, HSA.REGION_INFO_SIZE, size)
-    size[]
-end
-function region_alloc_max_size(region::ROCMemoryRegion)
-    size = Ref{Csize_t}(0)
-    getinfo(region.region, HSA.REGION_INFO_ALLOC_MAX_SIZE, size)
-    size[]
-end
-function region_alloc_max_private_workgroup_size(region::ROCMemoryRegion)
-    size = Ref{Csize_t}(0)
-    getinfo(region.region, HSA.REGION_INFO_ALLOC_MAX_PRIVATE_WORKGROUP_SIZE, size)
-    size[]
-end
-function region_runtime_alloc_allowed(region::ROCMemoryRegion)
-    runtime_alloc = Ref{Bool}(false)
-    getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_ALLOWED, runtime_alloc)
-    runtime_alloc[]
-end
-function region_runtime_alloc_granule(region::ROCMemoryRegion)
-    runtime_alloc_granule = Ref{Csize_t}(0)
-    getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_GRANULE, runtime_alloc_granule)
-    runtime_alloc_granule[]
-end
-function region_runtime_alloc_alignment(region::ROCMemoryRegion)
-    runtime_alloc_align = Ref{Csize_t}(0)
-    getinfo(region.region, HSA.REGION_INFO_RUNTIME_ALLOC_ALIGNMENT, runtime_alloc_align)
-    runtime_alloc_align[]
-end
-function region_host_accessible(region::ROCMemoryRegion)
-    host_accessible = Ref(false)
-    getinfo(region.region,
-            reinterpret(HSA.RegionInfo, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE),
-            host_accessible)
-    host_accessible[]
-end
+const REGION_INFO_MAP = Dict(
+    HSA.REGION_INFO_SEGMENT => HSA.RegionSegment,
+    HSA.REGION_INFO_GLOBAL_FLAGS => HSA.RegionGlobalFlag,
+    HSA.REGION_INFO_SIZE => Csize_t,
+    HSA.REGION_INFO_ALLOC_MAX_SIZE => Csize_t,
+    HSA.REGION_INFO_ALLOC_MAX_PRIVATE_WORKGROUP_SIZE => Csize_t,
+    HSA.REGION_INFO_RUNTIME_ALLOC_ALLOWED => Bool,
+    HSA.REGION_INFO_RUNTIME_ALLOC_GRANULE => Csize_t,
+    HSA.REGION_INFO_RUNTIME_ALLOC_ALIGNMENT => Csize_t,
+    HSA.AMD_REGION_INFO_HOST_ACCESSIBLE => Bool,
+)
+getinfo_map(::HSA.Region) = REGION_INFO_MAP
+
+getinfo(region::ROCMemoryRegion, query) = getinfo(region.region, query)
+
+const AnyROCMemoryRegion = Union{ROCMemoryRegion,HSA.Region}
+
+region_segment(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.REGION_INFO_SEGMENT)
+region_global_flags(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.REGION_INFO_GLOBAL_FLAGS)
+region_size(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.REGION_INFO_SIZE)
+region_alloc_max_size(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.REGION_INFO_ALLOC_MAX_SIZE)
+region_alloc_max_private_workgroup_size(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.REGION_INFO_ALLOC_MAX_PRIVATE_WORKGROUP_SIZE)
+region_runtime_alloc_allowed(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.REGION_INFO_RUNTIME_ALLOC_ALLOWED)
+region_runtime_alloc_granule(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.REGION_INFO_RUNTIME_ALLOC_GRANULE)
+region_runtime_alloc_alignment(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.REGION_INFO_RUNTIME_ALLOC_ALIGNMENT)
+region_host_accessible(region::AnyROCMemoryRegion) =
+    getinfo(region, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE)
 
 function get_region(device::ROCDevice, kind::Symbol)
     _regions = regions(device)
@@ -362,58 +361,50 @@ function iterate_pools_cb(pool::HSA.AMDMemoryPool, pools)
     return HSA.STATUS_SUCCESS
 end
 
-function memory_pools(device::ROCDevice)
+function memory_pools(agent::HSA.Agent)
     pools = Ref(HSA.AMDMemoryPool[])
     func = @cfunction(iterate_pools_cb, HSA.Status, (HSA.AMDMemoryPool, Ref{Vector{HSA.AMDMemoryPool}}))
-    HSA.amd_agent_iterate_memory_pools(device.agent, func, pools) |> check
-    map(ROCMemoryPool, pools[])
+    HSA.amd_agent_iterate_memory_pools(agent, func, pools) |> check
+    return map(ROCMemoryPool, pools[])
 end
+memory_pools(device::ROCDevice) = memory_pools(device.agent)
 
-function getinfo(pool::HSA.AMDMemoryPool, attribute::HSA.AMDMemoryPoolInfo,
-                 value::Union{Vector,Base.RefValue,String})
-    HSA.amd_memory_pool_get_info(pool, attribute, value) |> check
-end
+getinfo(pool::HSA.AMDMemoryPool, attribute::HSA.AMDMemoryPoolInfo,
+        value::Union{Vector,Base.RefValue}) =
+    HSA.amd_memory_pool_get_info(pool, attribute, value)
 
-function pool_segment(pool::ROCMemoryPool)
-    segment = Ref{HSA.AMDSegment}()
-    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_SEGMENT, segment)
-    segment[]
-end
-function pool_global_flags(pool::ROCMemoryPool)
-    flags = Ref{HSA.AMDMemoryPoolGlobalFlag}()
-    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS, flags)
-    flags[]
-end
-function pool_size(pool::ROCMemoryPool)
-    size = Ref{Csize_t}(0)
-    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_SIZE, size)
-    size[]
-end
-function pool_runtime_alloc_allowed(pool::ROCMemoryPool)
-    runtime_alloc = Ref{Bool}(false)
-    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALLOWED, runtime_alloc)
-    runtime_alloc[]
-end
-function pool_runtime_alloc_granule(pool::ROCMemoryPool)
-    runtime_alloc_granule = Ref{Csize_t}(0)
-    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_GRANULE, runtime_alloc_granule)
-    runtime_alloc_granule[]
-end
-function pool_runtime_alloc_alignment(pool::ROCMemoryPool)
-    runtime_alloc_align = Ref{Csize_t}(0)
-    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALIGNMENT, runtime_alloc_align)
-    runtime_alloc_align[]
-end
-function pool_accessible_by_all(pool::ROCMemoryPool)
-    accessible_all = Ref{Bool}(false)
-    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_ACCESSIBLE_BY_ALL, accessible_all)
-    accessible_all[]
-end
-function pool_alloc_max_size(pool::ROCMemoryPool)
-    size = Ref{Csize_t}(0)
-    getinfo(pool.pool, HSA.AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE, size)
-    size[]
-end
+const POOL_INFO_MAP = Dict(
+    HSA.AMD_MEMORY_POOL_INFO_SEGMENT => HSA.AMDSegment,
+    HSA.AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS => HSA.AMDMemoryPoolGlobalFlag,
+    HSA.AMD_MEMORY_POOL_INFO_SIZE => Csize_t,
+    HSA.AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE => Csize_t,
+    HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALLOWED => Bool,
+    HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_GRANULE => Csize_t,
+    HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALIGNMENT => Csize_t,
+    HSA.AMD_MEMORY_POOL_INFO_ACCESSIBLE_BY_ALL => Bool,
+)
+getinfo_map(::HSA.AMDMemoryPool) = POOL_INFO_MAP
+
+getinfo(pool::ROCMemoryPool, query) = getinfo(pool.pool, query)
+
+const AnyROCMemoryPool = Union{ROCMemoryPool, HSA.AMDMemoryPool}
+
+pool_segment(pool::AnyROCMemoryPool) =
+    getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_SEGMENT)
+pool_global_flags(pool::AnyROCMemoryPool) =
+    getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS)
+pool_size(pool::AnyROCMemoryPool) =
+    getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_SIZE)
+pool_alloc_max_size(pool::AnyROCMemoryPool) =
+    getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE)
+pool_runtime_alloc_allowed(pool::AnyROCMemoryPool) =
+    getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALLOWED)
+pool_runtime_alloc_granule(pool::AnyROCMemoryPool) =
+    getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_GRANULE)
+pool_runtime_alloc_alignment(pool::AnyROCMemoryPool) =
+    getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALIGNMENT)
+pool_accessible_by_all(pool::AnyROCMemoryPool) =
+    getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_ACCESSIBLE_BY_ALL)
 
 function Base.show(io::IO, pool::ROCMemoryPool)
     segment_map = Dict(HSA.AMD_SEGMENT_GLOBAL   => :global,

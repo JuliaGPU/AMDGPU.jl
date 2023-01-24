@@ -30,17 +30,21 @@ function queue_error_handler(
     nothing
 end
 
+device_queue_max_size(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_QUEUE_MAX_SIZE)
+
+device_queue_type(device::AnyROCDevice) =
+    getinfo(device, HSA.AGENT_INFO_QUEUE_TYPE)
+
 function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
     alloc_id = rand(UInt64)
     @log_start(:alloc_queue, (;alloc_id), (;device=get_handle(device), priority))
 
-    queue_size = Ref{UInt32}(0)
-    getinfo(device.agent, HSA.AGENT_INFO_QUEUE_MAX_SIZE, queue_size) |> check
-    @assert queue_size[] > 0
+    queue_size = device_queue_max_size(device)
+    @assert queue_size > 0
 
-    queue_type = Ref{HSA.QueueType}()
-    getinfo(device.agent, HSA.AGENT_INFO_QUEUE_TYPE, queue_type) |> check
-    @assert queue_type[] == HSA.QUEUE_TYPE_MULTI
+    queue_type = device_queue_type(device)
+    @assert queue_type == HSA.QUEUE_TYPE_MULTI
 
     r_queue = Ref{Ptr{HSA.Queue}}()
     queue = ROCQueue(device, Ptr{HSA.Queue}(0), HSA.STATUS_SUCCESS, true)

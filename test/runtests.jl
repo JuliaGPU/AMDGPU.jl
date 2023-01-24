@@ -10,6 +10,7 @@ np = Threads.nthreads()
 ws = Int[]
 ws_pids = Int[]
 if np == 1
+    include("setup.jl")
     push!(ws, 1)
     push!(ws_pids, getpid())
 else
@@ -49,6 +50,7 @@ push!(tests, "Core" => ()->include("pointer.jl"))
 push!(tests, "HSA" => ()->begin
     include("hsa/error.jl")
     include("hsa/utils.jl")
+    include("hsa/getinfo.jl")
     include("hsa/device.jl")
     include("hsa/queue.jl")
     include("hsa/memory.jl")
