@@ -57,10 +57,11 @@ end
 
 ## Kernel instance
 
-mutable struct ROCKernel{T<:Tuple}
+mutable struct ROCKernel{F,T<:Tuple}
     device::ROCDevice
     exe::ROCExecutable
     sym::String
+    f::F
     args::T
     kernel_object::UInt64
     kernarg_segment_size::UInt32
@@ -139,8 +140,8 @@ function ROCKernel(kernel #= ::HostKernel =#, f::Core.Function, args::Tuple; loc
         end
     end
 
-    kernel = ROCKernel(device, exe, symbol, args, kernel_object[],
-                               kernarg_segment_size[], group_segment_size[],
+    kernel = ROCKernel(device, exe, symbol, f, args, kernel_object[],
+                       kernarg_segment_size[], group_segment_size[],
                                private_segment_size[], kernarg_address)
     AMDGPU.hsaref!()
     finalizer(kernel) do k

@@ -59,6 +59,9 @@ module Runtime
     import ..HSA
     import ..Adapt
     using ..GPUCompiler
+    import Preferences: @load_preference, @set_preferences!
+    import TimespanLogging
+    import TimespanLogging: timespan_start, timespan_finish
 
     import ..AMDGPU
 
@@ -67,6 +70,7 @@ module Runtime
     const RT_LOCK = Threads.ReentrantLock()
     const RT_EXITING = Ref{Bool}(false)
 
+    include("runtime/logging.jl")
     include("runtime/error.jl")
     include("runtime/thread-utils.jl")
     include("runtime/device.jl")

@@ -21,6 +21,7 @@ function main()
                 "Execution Control" => "execution_control.md",
                 "Wavefront Operations" => "wavefront_ops.md",
             ],
+            "Logging" => "logging.md",
             "API Reference" => "api.md"
         ]
     )
