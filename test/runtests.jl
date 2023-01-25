@@ -45,89 +45,89 @@ AMDGPU.versioninfo()
 
 @info "Running tests with $(length(ws)) workers"
 
-# push!(tests, "Core" => ()->include("pointer.jl"))
-# push!(tests, "HSA" => ()->begin
-#     include("hsa/error.jl")
-#     include("hsa/utils.jl")
-#     include("hsa/device.jl")
-#     include("hsa/queue.jl")
-#     include("hsa/memory.jl")
-#     include("hsa/hashing.jl")
-# end)
-# push!(tests, "Codegen" => ()->begin
-#     include("codegen/synchronization.jl")
-#     include("codegen/trap.jl")
-# end)
-# push!(tests, "Logging" => ()->include("logging.jl"))
-# push!(tests, "Device Functions" => ()->begin
-#     include("device/launch.jl")
-#     include("device/array.jl")
-#     include("device/vadd.jl")
-#     include("device/memory.jl")
-#     include("device/indexing.jl")
-#     include("device/hostcall.jl")
-#     include("device/output.jl")
-#     include("device/globals.jl")
-#     include("device/math.jl")
-#     include("device/wavefront.jl")
-#     include("device/execution_control.jl")
-#     include("device/exceptions.jl")
-#     # FIXME segfaults in a weird way (on check_ir)
-#     # include("device/deps.jl")
-#     include("device/queries.jl")
-# end)
-# push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
-# push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
-# if CI
-#     push!(tests, "ROCm libraries are functional" => ()->begin
-#         @test AMDGPU.functional(:rocblas)
-#         @test AMDGPU.functional(:rocrand)
-#         if !AMDGPU.use_artifacts
-#             # We don't have artifacts for these
-#             @test AMDGPU.functional(:rocfft)
-#         end
-#     end)
-# end
-# push!(tests, "rocBLAS" => ()->begin
-#     if AMDGPU.functional(:rocblas)
-#         include("rocarray/blas.jl")
-#     else
-#         @test_skip "rocBLAS"
-#     end
-# end)
-# push!(tests, "rocRAND" => ()->begin
-#     if AMDGPU.functional(:rocrand)
-#         include("rocarray/random.jl")
-#     else
-#         @test_skip "rocRAND"
-#     end
-# end)
-# push!(tests, "rocFFT" => ()->begin
-#     if AMDGPU.functional(:rocfft)
-#         include("rocarray/fft.jl")
-#     else
-#         @test_skip "rocFFT"
-#     end
-# end)
-# push!(tests, "NMF" => ()->begin
-#     if AMDGPU.functional(:rocblas)
-#         include("rocarray/nmf.jl")
-#     else
-#         @test_skip "NMF"
-#     end
-# end)
-# push!(tests, "MIOpen" => ()->begin
-#     if AMDGPU.functional(:MIOpen)
-#         include("dnn/miopen.jl")
-#     else
-#         @test_skip "MIOpen"
-#     end
-# end)
+push!(tests, "Core" => ()->include("pointer.jl"))
+push!(tests, "HSA" => ()->begin
+    include("hsa/error.jl")
+    include("hsa/utils.jl")
+    include("hsa/device.jl")
+    include("hsa/queue.jl")
+    include("hsa/memory.jl")
+    include("hsa/hashing.jl")
+end)
+push!(tests, "Codegen" => ()->begin
+    include("codegen/synchronization.jl")
+    include("codegen/trap.jl")
+end)
+push!(tests, "Logging" => ()->include("logging.jl"))
+push!(tests, "Device Functions" => ()->begin
+    include("device/launch.jl")
+    include("device/array.jl")
+    include("device/vadd.jl")
+    include("device/memory.jl")
+    include("device/indexing.jl")
+    include("device/hostcall.jl")
+    include("device/output.jl")
+    include("device/globals.jl")
+    include("device/math.jl")
+    include("device/wavefront.jl")
+    include("device/execution_control.jl")
+    include("device/exceptions.jl")
+    # FIXME segfaults in a weird way (on check_ir)
+    # include("device/deps.jl")
+    include("device/queries.jl")
+end)
+push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
+push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
+if CI
+    push!(tests, "ROCm libraries are functional" => ()->begin
+        @test AMDGPU.functional(:rocblas)
+        @test AMDGPU.functional(:rocrand)
+        if !AMDGPU.use_artifacts
+            # We don't have artifacts for these
+            @test AMDGPU.functional(:rocfft)
+        end
+    end)
+end
+push!(tests, "rocBLAS" => ()->begin
+    if AMDGPU.functional(:rocblas)
+        include("rocarray/blas.jl")
+    else
+        @test_skip "rocBLAS"
+    end
+end)
+push!(tests, "rocRAND" => ()->begin
+    if AMDGPU.functional(:rocrand)
+        include("rocarray/random.jl")
+    else
+        @test_skip "rocRAND"
+    end
+end)
+push!(tests, "rocFFT" => ()->begin
+    if AMDGPU.functional(:rocfft)
+        include("rocarray/fft.jl")
+    else
+        @test_skip "rocFFT"
+    end
+end)
+push!(tests, "NMF" => ()->begin
+    if AMDGPU.functional(:rocblas)
+        include("rocarray/nmf.jl")
+    else
+        @test_skip "NMF"
+    end
+end)
+push!(tests, "MIOpen" => ()->begin
+    if AMDGPU.functional(:MIOpen)
+        include("dnn/miopen.jl")
+    else
+        @test_skip "MIOpen"
+    end
+end)
 push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
-# for name in keys(TestSuite.tests)
-#     push!(tests, "GPUArrays TestSuite - $name" =>
-#                  ()->TestSuite.tests[name](ROCArray))
-# end
+for name in keys(TestSuite.tests)
+    push!(tests, "GPUArrays TestSuite - $name" =>
+                 ()->TestSuite.tests[name](ROCArray))
+end
 
 function run_worker(w)
     while !isempty(tests)

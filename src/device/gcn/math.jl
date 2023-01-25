@@ -2,22 +2,27 @@ import Base: FastMath
 
 import SpecialFunctions
 
+const DEFINED_UNARY_INTRNISICS = [
+    (:Base, :acos), (:Base, :acosh), (nothing, :acospi), (:Base, :cos), (:Base, :cosh), (:Base, :cospi),
+    (:Base, :asin), (:Base, :asinh), (nothing, :asinpi), (:Base, :sin), (:Base, :sinh), (:Base, :sinpi),
+    (:Base, :atan), (:Base, :atanh), (nothing, :atanpi), (:Base, :tan), (:Base, :tanh), (nothing, :tanpi),
+    (:Base, :log), (:Base, :log2), (:Base, :log10), (:Base, :log1p), (nothing, :logb), (nothing, :ilogb),
+    (:Base, :exp), (:Base, :exp2), (:Base, :exp10),
+    (:Base, :sqrt), (:Base, :cbrt), (nothing, :rsqrt),
+    (:Base, :floor), (:Base, :ceil), (:Base, :trunc),
+    (nothing, :nearbyint), (nothing, :nextafter),
+]
+# SpecialFunctions (SF.fname, OCML intrinsic).
+const DEFINED_SF_INTRINSICS = [
+    (:loggamma, :lgamma), (:gamma, :tgamma),
+    (:bessely0, :y0), (:bessely1, :y1), (:besselj0, :j0), (:besselj1, :j1),
+    (:erf, :erf), (:erfc, :erfc), (:erfcx, :erfcx), (:erfinv, :erfinv), (:erfcinv, :erfcinv),
+]
+
 for jltype in (Float64, Float32, Float16)
     type_suffix = fntypes[jltype]
 
-    # Single-argument functions.
-
-    for (mod, intrinsic) in (
-        (:Base, :acos), (:Base, :acosh), (nothing, :acospi), (:Base, :cos), (:Base, :cosh), (:Base, :cospi),
-        (:Base, :acos), (:Base, :acosh), (nothing, :acospi), (:Base, :cos), (:Base, :cosh), (:Base, :cospi),
-        (:Base, :asin), (:Base, :asinh), (nothing, :asinpi), (:Base, :sin), (:Base, :sinh), (:Base, :sinpi),
-        (:Base, :atan), (:Base, :atanh), (nothing, :atanpi), (:Base, :tan), (:Base, :tanh), (nothing, :tanpi),
-        (:Base, :log), (:Base, :log2), (:Base, :log10), (:Base, :log1p), (nothing, :logb), (nothing, :ilogb),
-        (:Base, :exp), (:Base, :exp2), (:Base, :exp10),
-        (:Base, :sqrt), (:Base, :cbrt), (nothing, :rsqrt),
-        (:Base, :floor), (:Base, :ceil), (:Base, :trunc),
-        (nothing, :nearbyint), (nothing, :nextafter),
-    )
+    for (mod, intrinsic) in DEFINED_UNARY_INTRNISICS
         # sin(Float16) is broken, we override it manually at the very bottom.
         jltype == Float16 && intrinsic == :sin && continue
 
@@ -29,12 +34,7 @@ for jltype in (Float64, Float32, Float16)
         end
     end
 
-    # SpecialFunctions (SF.fname, OCML intrinsic).
-    for (fname, intrinsic) in (
-        (:loggamma, :lgamma), (:gamma, :tgamma),
-        (:bessely0, :y0), (:bessely1, :y1), (:besselj0, :j0), (:besselj1, :j1),
-        (:erf, :erf), (:erfc, :erfc), (:erfcx, :erfcx), (:erfinv, :erfinv), (:erfcinv, :erfcinv),
-    )
+    for (fname, intrinsic) in DEFINED_SF_INTRINSICS
         @eval @device_override SpecialFunctions.$(fname)(x::$jltype) = ccall(
             $("extern __ocml_$(intrinsic)_$(type_suffix)"), llvmcall, $jltype, ($jltype,), x)
     end

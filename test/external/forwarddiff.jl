@@ -16,15 +16,20 @@ end
 testf(rocf, f, x) = test_derivative(rocf, x) ≈ ForwardDiff.derivative(f, x)
 
 @testset "UNARY" begin
-    fs = filter(x->x[3] == 1, keys(ForwardDiff.DiffRules.DEFINED_DIFFRULES))
-    nonneg = [
-        :log, :log1p, :log10, :log2, :sqrt, :asin, :acosh, :erfcinv,
-        :gamma]
+    function is_defined(intr)
+        for (mod, intrinsic) in AMDGPU.Device.DEFINED_UNARY_INTRNISICS
+            intr == intrinsic && return true
+        end
+        for (fname, intrinsic) in AMDGPU.Device.DEFINED_SF_INTRINSICS
+            intr == fname && return true
+        end
+        return false
+    end
+
+    nonneg = [:log, :log1p, :log10, :log2, :sqrt, :asin, :acosh, :erfcinv]
+    fs = filter(x -> (x[3] == 1) && is_defined(x), keys(ForwardDiff.DiffRules.DEFINED_DIFFRULES))
 
     for (m, fn, _) ∈ fs
-        fn == :abs && continue # FIXME
-        startswith(string(fn), "bessel") && continue # need besselj/bessely
-        startswith(string(fn), "loggamma") && continue # throws
         rocf = @eval $fn
         f = @eval $fn
 
@@ -38,7 +43,6 @@ testf(rocf, f, x) = test_derivative(rocf, x) ≈ ForwardDiff.derivative(f, x)
             x64 += 1
         end
 
-        @show fn, f, rocf, x32, x64
         @test testf(rocf, f, x32)
         @test testf(rocf, f, x64)
 
