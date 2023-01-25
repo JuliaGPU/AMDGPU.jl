@@ -1,5 +1,4 @@
 import Base: FastMath
-
 import SpecialFunctions
 
 const DEFINED_UNARY_INTRNISICS = [

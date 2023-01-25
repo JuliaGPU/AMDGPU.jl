@@ -31,7 +31,7 @@
             @test Array(RY) == accumulate(op,X)
         end
     end
-    for T in (Float32, Float64)
+    for T in (Float16, Float32, Float64)
         X = rand(T, wavefrontsize)
         for op in (Base.:+, max, min)
             RX, RY = ROCArray(X), ROCArray(zeros(T,1))
