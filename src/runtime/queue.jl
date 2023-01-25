@@ -1,13 +1,3 @@
-struct QueueError <: Exception
-    queue::Ptr{HSA.Queue}
-    err::HSAError
-end
-
-function Base.showerror(io::IO, err::QueueError)
-    println(io, "QueueError(Queue at $(err.queue)) due to:")
-    Base.showerror(io, err.err)
-end
-
 mutable struct ROCQueue
     device::ROCDevice
     @atomic queue::Ptr{HSA.Queue}
@@ -28,6 +18,17 @@ function queue_error_handler(
         queue.status = status
     end
     nothing
+end
+
+struct QueueError <: Exception
+    queue::Ptr{HSA.Queue}
+    err::HSAError
+end
+QueueError(queue::ROCQueue) = QueueError(queue.queue, HSAError(queue.status))
+
+function Base.showerror(io::IO, err::QueueError)
+    println(io, "QueueError(Queue at $(err.queue)) due to:")
+    Base.showerror(io, err.err)
 end
 
 device_queue_max_size(device::AnyROCDevice) =
