@@ -17,15 +17,14 @@ testf(rocf, f, x) = test_derivative(rocf, x) ≈ ForwardDiff.derivative(f, x)
 
 @testset "UNARY" begin
     fs = filter(x->x[3] == 1, keys(ForwardDiff.DiffRules.DEFINED_DIFFRULES))
-
-
-    nonneg = [:log, :log1p, :log10, :log2, :sqrt, :asin, :acosh, :erfcinv]
+    nonneg = [
+        :log, :log1p, :log10, :log2, :sqrt, :asin, :acosh, :erfcinv,
+        :gamma]
 
     for (m, fn, _) ∈ fs
         fn == :abs && continue # FIXME
         startswith(string(fn), "bessel") && continue # need besselj/bessely
-        startswith(string(fn), "lgamma") && continue # throws
-        any(intr->intr.jlname==fn, AMDGPU.Device.MATH_INTRINSICS) || continue
+        startswith(string(fn), "loggamma") && continue # throws
         rocf = @eval $fn
         f = @eval $fn
 
@@ -39,6 +38,7 @@ testf(rocf, f, x) = test_derivative(rocf, x) ≈ ForwardDiff.derivative(f, x)
             x64 += 1
         end
 
+        @show fn, f, rocf, x32, x64
         @test testf(rocf, f, x32)
         @test testf(rocf, f, x64)
 

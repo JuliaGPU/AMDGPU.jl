@@ -9,6 +9,7 @@ for jltype in (Float64, Float32, Float16)
 
     for (mod, intrinsic) in (
         (:Base, :acos), (:Base, :acosh), (nothing, :acospi), (:Base, :cos), (:Base, :cosh), (:Base, :cospi),
+        (:Base, :acos), (:Base, :acosh), (nothing, :acospi), (:Base, :cos), (:Base, :cosh), (:Base, :cospi),
         (:Base, :asin), (:Base, :asinh), (nothing, :asinpi), (:Base, :sin), (:Base, :sinh), (:Base, :sinpi),
         (:Base, :atan), (:Base, :atanh), (nothing, :atanpi), (:Base, :tan), (:Base, :tanh), (nothing, :tanpi),
         (:Base, :log), (:Base, :log2), (:Base, :log10), (:Base, :log1p), (nothing, :logb), (nothing, :ilogb),
