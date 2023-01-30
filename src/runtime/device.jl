@@ -137,31 +137,31 @@ getinfo(device::ROCDevice, query) = getinfo(device.agent, query)
 
 const AnyROCDevice = Union{ROCDevice,HSA.Agent}
 
-name(device::AnyROCDevice) =
+name(device::AnyROCDevice)::String =
     getinfo(device, HSA.AGENT_INFO_NAME)
 
-product_name(device::AnyROCDevice) =
+product_name(device::AnyROCDevice)::String =
     getinfo(device, HSA.AMD_AGENT_INFO_PRODUCT_NAME)
 
-uuid(device::AnyROCDevice) =
+uuid(device::AnyROCDevice)::String =
     getinfo(device, HSA.AMD_AGENT_INFO_UUID)
 
-profile(device::AnyROCDevice) =
+profile(device::AnyROCDevice)::HSA.Profile =
     getinfo(device, HSA.AGENT_INFO_PROFILE)
 
-device_type(device::AnyROCDevice) =
+device_type(device::AnyROCDevice)::HSA.DeviceType =
     getinfo(device, HSA.AGENT_INFO_DEVICE)
 
-device_wavefront_size(device::AnyROCDevice) =
+device_wavefront_size(device::AnyROCDevice)::UInt32 =
     getinfo(device, HSA.AGENT_INFO_WAVEFRONT_SIZE)
 
-device_workgroup_max_size(device::AnyROCDevice) =
+device_workgroup_max_size(device::AnyROCDevice)::UInt32 =
     getinfo(device, HSA.AGENT_INFO_WORKGROUP_MAX_SIZE)
 
-device_num_compute_units(device::AnyROCDevice) =
+device_num_compute_units(device::AnyROCDevice)::UInt32 =
     getinfo(device, HSA.AMD_AGENT_INFO_COMPUTE_UNIT_COUNT)
 
-device_num_simds_per_compute_unit(device::AnyROCDevice) =
+device_num_simds_per_compute_unit(device::AnyROCDevice)::UInt32 =
     getinfo(device, HSA.AMD_AGENT_INFO_NUM_SIMDS_PER_CU)
 
 function device_local_memory_size(device::AnyROCDevice)
@@ -226,7 +226,7 @@ const ISA_INFO_MAP = Dict(
 )
 getinfo_map(::HSA.ISA) = ISA_INFO_MAP
 
-isa_workgroup_max_size(isa::HSA.ISA) =
+isa_workgroup_max_size(isa::HSA.ISA)::UInt32 =
     getinfo(isa, HSA.ISA_INFO_WORKGROUP_MAX_SIZE)
 
 ### Regions
@@ -273,23 +273,23 @@ getinfo(region::ROCMemoryRegion, query) = getinfo(region.region, query)
 
 const AnyROCMemoryRegion = Union{ROCMemoryRegion,HSA.Region}
 
-region_segment(region::AnyROCMemoryRegion) =
+region_segment(region::AnyROCMemoryRegion)::HSA.RegionSegment =
     getinfo(region, HSA.REGION_INFO_SEGMENT)
-region_global_flags(region::AnyROCMemoryRegion) =
+region_global_flags(region::AnyROCMemoryRegion)::HSA.RegionGlobalFlag =
     getinfo(region, HSA.REGION_INFO_GLOBAL_FLAGS)
-region_size(region::AnyROCMemoryRegion) =
+region_size(region::AnyROCMemoryRegion)::Csize_t =
     getinfo(region, HSA.REGION_INFO_SIZE)
-region_alloc_max_size(region::AnyROCMemoryRegion) =
+region_alloc_max_size(region::AnyROCMemoryRegion)::Csize_t =
     getinfo(region, HSA.REGION_INFO_ALLOC_MAX_SIZE)
-region_alloc_max_private_workgroup_size(region::AnyROCMemoryRegion) =
+region_alloc_max_private_workgroup_size(region::AnyROCMemoryRegion)::Csize_t =
     getinfo(region, HSA.REGION_INFO_ALLOC_MAX_PRIVATE_WORKGROUP_SIZE)
-region_runtime_alloc_allowed(region::AnyROCMemoryRegion) =
+region_runtime_alloc_allowed(region::AnyROCMemoryRegion)::Bool =
     getinfo(region, HSA.REGION_INFO_RUNTIME_ALLOC_ALLOWED)
-region_runtime_alloc_granule(region::AnyROCMemoryRegion) =
+region_runtime_alloc_granule(region::AnyROCMemoryRegion)::Csize_t =
     getinfo(region, HSA.REGION_INFO_RUNTIME_ALLOC_GRANULE)
-region_runtime_alloc_alignment(region::AnyROCMemoryRegion) =
+region_runtime_alloc_alignment(region::AnyROCMemoryRegion)::Csize_t =
     getinfo(region, HSA.REGION_INFO_RUNTIME_ALLOC_ALIGNMENT)
-region_host_accessible(region::AnyROCMemoryRegion) =
+region_host_accessible(region::AnyROCMemoryRegion)::Bool =
     getinfo(region, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE)
 
 function get_region(device::ROCDevice, kind::Symbol)
@@ -393,21 +393,21 @@ getinfo(pool::ROCMemoryPool, query) = getinfo(pool.pool, query)
 
 const AnyROCMemoryPool = Union{ROCMemoryPool, HSA.AMDMemoryPool}
 
-pool_segment(pool::AnyROCMemoryPool) =
+pool_segment(pool::AnyROCMemoryPool)::HSA.AMDSegment =
     getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_SEGMENT)
-pool_global_flags(pool::AnyROCMemoryPool) =
+pool_global_flags(pool::AnyROCMemoryPool)::HSA.AMDMemoryPoolGlobalFlag =
     getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS)
-pool_size(pool::AnyROCMemoryPool) =
+pool_size(pool::AnyROCMemoryPool)::Csize_t =
     getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_SIZE)
-pool_alloc_max_size(pool::AnyROCMemoryPool) =
+pool_alloc_max_size(pool::AnyROCMemoryPool)::Csize_t =
     getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_ALLOC_MAX_SIZE)
-pool_runtime_alloc_allowed(pool::AnyROCMemoryPool) =
+pool_runtime_alloc_allowed(pool::AnyROCMemoryPool)::Bool =
     getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALLOWED)
-pool_runtime_alloc_granule(pool::AnyROCMemoryPool) =
+pool_runtime_alloc_granule(pool::AnyROCMemoryPool)::Csize_t =
     getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_GRANULE)
-pool_runtime_alloc_alignment(pool::AnyROCMemoryPool) =
+pool_runtime_alloc_alignment(pool::AnyROCMemoryPool)::Csize_t =
     getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_RUNTIME_ALLOC_ALIGNMENT)
-pool_accessible_by_all(pool::AnyROCMemoryPool) =
+pool_accessible_by_all(pool::AnyROCMemoryPool)::Bool =
     getinfo(pool, HSA.AMD_MEMORY_POOL_INFO_ACCESSIBLE_BY_ALL)
 
 function Base.show(io::IO, pool::ROCMemoryPool)

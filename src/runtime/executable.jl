@@ -14,24 +14,24 @@ const EXECUTABLE_SYMBOL_INFO_MAP = Dict(
 )
 getinfo_map(::HSA.ExecutableSymbol) = EXECUTABLE_SYMBOL_INFO_MAP
 
-executable_symbol_type(sym::HSA.ExecutableSymbol) =
+executable_symbol_type(sym::HSA.ExecutableSymbol)::HSA.SymbolKind =
     getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE)
 
 # TODO: Symbol name length
 
-executable_symbol_name(sym::HSA.ExecutableSymbol) =
+executable_symbol_name(sym::HSA.ExecutableSymbol)::String =
     getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME)
 
-executable_symbol_kernel_object(sym::HSA.ExecutableSymbol) =
+executable_symbol_kernel_object(sym::HSA.ExecutableSymbol)::UInt64 =
     getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT)
 
-executable_symbol_kernel_kernarg_segment_size(sym::HSA.ExecutableSymbol) =
+executable_symbol_kernel_kernarg_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
     getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE)
 
-executable_symbol_kernel_group_segment_size(sym::HSA.ExecutableSymbol) =
+executable_symbol_kernel_group_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
     getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE)
 
-executable_symbol_kernel_private_segment_size(sym::HSA.ExecutableSymbol) =
+executable_symbol_kernel_private_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
     getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE)
 
 ### @cfunction Callbacks ###
