@@ -53,6 +53,7 @@ end
 mutable struct ROCFunction
     mod::ROCModule
     entry::String
+    hash::UInt64
 end
 
 ## Kernel instance
@@ -61,6 +62,7 @@ mutable struct ROCKernel
     device::ROCDevice
     exe::ROCExecutable
     sym::String
+    localmem::Int64
     kernel_object::UInt64
     kernarg_segment_size::UInt32
     group_segment_size::UInt32
@@ -113,10 +115,10 @@ function ROCKernel(kernel #= ::HostKernel =#; localmem::Int=0)
     end
 
     group_segment_size = executable_symbol_kernel_group_segment_size(exec_symbol)
-    group_segment_size = UInt32(max(group_segment_size, localmem))
+    group_segment_size = UInt32(group_segment_size + localmem)
     private_segment_size = executable_symbol_kernel_private_segment_size(exec_symbol)
 
-    kernel = ROCKernel(device, exe, symbol, kernel_object,
+    kernel = ROCKernel(device, exe, symbol, localmem, kernel_object,
                        kernarg_segment_size, group_segment_size,
                        private_segment_size, Ptr{Cvoid}(0))
     return kernel
