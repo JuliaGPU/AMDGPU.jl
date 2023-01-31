@@ -103,23 +103,6 @@ end
 include("descriptors.jl")
 include("convolution.jl")
 include("pooling.jl")
-
-function main()
-    x = AMDGPU.rand(Float32, 6, 6, 1, 1)
-    display(x); println()
-
-    y = maxpool(x; dims=(3, 3), padding=(0, 0), stride=(1, 1))
-    display(y); println()
-
-    dy = AMDGPU.ones(Float32, size(y))
-    dx = ∇maxpool(dy, y, x; dims=(3, 3), padding=(0, 0), stride=(1, 1))
-    display(dx); println()
-
-    y = avgpool(x; dims=(3, 3), padding=(0, 0), stride=(1, 1))
-    display(y); println()
-    dx = ∇avgpool(dy, y, x; dims=(3, 3), padding=(0, 0), stride=(1, 1))
-    display(dx); println()
-    nothing
-end
+include("softmax.jl")
 
 end

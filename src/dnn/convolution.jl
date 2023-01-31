@@ -132,10 +132,14 @@ function convolution!(
     perf_results, workspace = find_algorithm(
         miopenConvFwdAlgorithm_t, hdl, conv_args,
         x, xdesc, w, wdesc, cdesc, y, ydesc)
+
+    AMDGPU.wait!((x, y, w))
     miopenConvolutionForward(
         hdl, Ref{Float32}(alpha), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, Ref{Float32}(beta), ydesc.handle, y,
         workspace.data.ptr, perf_results.memory) |> check
+    AMDGPU.mark!(y, C_NULL)
+    AMDGPU.wait!(y)
     y
 end
 
@@ -175,10 +179,13 @@ function ∇convolution_weight!(
     perf_algo, workspace = find_algorithm(
         miopenConvBwdWeightsAlgorithm_t, hdl, conv_args,
         dy, dydesc, x, xdesc, cdesc, ∇w, ∇wdesc)
+    AMDGPU.wait!((∇w, dy, x))
     miopenConvolutionBackwardWeights(
         hdl, Ref{Float32}(alpha), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, Ref{Float32}(beta), ∇wdesc.handle, ∇w,
         workspace.data.ptr, perf_algo.memory) |> check
+    AMDGPU.mark!(∇w, C_NULL)
+    AMDGPU.wait!(∇w)
     ∇w
 end
 
@@ -218,10 +225,13 @@ function ∇convolution_data!(
     perf_algo, workspace = find_algorithm(
         miopenConvBwdDataAlgorithm_t, hdl, conv_args,
         dy, dydesc, w, wdesc, cdesc, ∇x, ∇xdesc)
+    AMDGPU.wait!((∇x, dy, w))
     miopenConvolutionBackwardData(
         hdl, Ref{Float32}(alpha), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, Ref{Float32}(beta), ∇xdesc.handle, ∇x,
         workspace.data.ptr, perf_algo.memory) |> check
+    AMDGPU.mark!(∇x, C_NULL)
+    AMDGPU.wait!(∇x)
     ∇x
 end
 

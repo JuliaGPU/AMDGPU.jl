@@ -24,3 +24,7 @@ end
 @testset "Pooling" begin
     include("pool.jl")
 end
+
+@testset "Softmax" begin
+    include("softmax.jl")
+end
