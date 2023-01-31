@@ -1,3 +1,5 @@
+# TODO free workspace once used
+
 const CONV_ALGOS = Union{
     Type{miopenConvFwdAlgorithm_t},
     Type{miopenConvBwdWeightsAlgorithm_t},
@@ -20,7 +22,8 @@ function ConvolutionArgs(
     x::ROCArray{T, N}, w::ROCArray{T, N};
     handle, padding, stride, dilation, groups,
 ) where {T, N}
-    expand(v, ndims) = ntuple(i -> (i ≤ length(v)) ? v[i] : 0, Val{ndims}())
+    expand(v, ndims) = ntuple(
+        i -> (i ≤ length(v)) ? Int64(v[i]) : 0, Val{ndims}())
     dtype = miopen_data_type(T)
     x_size = expand(size(x), MIOPEN_DIM_MAX)
     w_size = expand(size(w), MIOPEN_DIM_MAX)
@@ -53,22 +56,13 @@ function set_benchmark_cache!(conv_type::C, conv_args, perf_results) where C <: 
     nothing
 end
 
-mutable struct Workspace
-    data::Mem.Buffer
-    function Workspace(device::ROCDevice, bytesize)
-        w = new(Mem.alloc(device, bytesize))
-        finalizer(w_ -> Mem.free(w_.data), w)
-        w
-    end
-end
-
 get_workspace_size_func(::Type{miopenConvFwdAlgorithm_t}) = miopenConvolutionForwardGetWorkSpaceSize
 get_workspace_size_func(::Type{miopenConvBwdWeightsAlgorithm_t}) = miopenConvolutionBackwardWeightsGetWorkSpaceSize
 get_workspace_size_func(::Type{miopenConvBwdDataAlgorithm_t}) = miopenConvolutionBackwardDataGetWorkSpaceSize
 
 function get_workspace_size(
-    conv_type; handle, a_desc, b_desc, conv_desc, c_desc,
-)
+    conv_type::C; handle, a_desc, b_desc, conv_desc, c_desc,
+) where C <: CONV_ALGOS
     wsize_ref = Ref{Csize_t}(0)
     get_workspace_size_func(conv_type)(
         handle, a_desc.handle, b_desc.handle,
@@ -118,13 +112,6 @@ function find_algorithm(
     perf_results, workspace
 end
 
-function _get_conv_descriptors(args...; padding, stride, dilation, groups)
-    pi32, si32, di32 = map(v -> Int32[reverse(v)...], (padding, stride, dilation))
-    descriptors = TensorDescriptor.(args)
-    cdesc = ConvolutionDescriptor(ndims(args[1]) - 2, pi32, si32, di32, groups)
-    (descriptors..., cdesc, pi32, si32, di32)
-end
-
 function _check_conv_args_dims(K, N)
     K == N - 2 && return nothing
     throw(ArgumentError(
@@ -137,11 +124,11 @@ end
 function convolution!(
     y::ROCArray{T, N}, ydesc::TensorDescriptor,
     x::ROCArray{T, N}, xdesc::TensorDescriptor,
-    w::ROCArray{T, N}, wdesc::TensorDescriptor, cdesc::ConvolutionDescriptor;
-    padding, stride, dilation, groups, alpha = 1f0, beta = 0f0,
+    w::ROCArray{T, N}, wdesc::TensorDescriptor,
+    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs;
+    alpha = 1f0, beta = 0f0,
 ) where {T, N}
     hdl = handle()
-    conv_args = ConvolutionArgs(x, w; handle=hdl, groups, padding, stride, dilation)
     perf_results, workspace = find_algorithm(
         miopenConvFwdAlgorithm_t, hdl, conv_args,
         x, xdesc, w, wdesc, cdesc, y, ydesc)
@@ -158,11 +145,10 @@ function convolution!(
     dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
 ) where {T, N, K}
     _check_conv_args_dims(K, N)
-    xdesc, wdesc, ydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
-        x, w, y; padding, stride, dilation, groups)
-    convolution!(
-        y, ydesc, x, xdesc, w, wdesc, cdesc;
-        padding=pi32, stride=si32, dilation=di32, groups, alpha, beta)
+    xdesc, wdesc, ydesc = TensorDescriptor.((x, w, y))
+    cdesc = ConvolutionDescriptor(ndims(xdesc) - 2; padding, stride, dilation, groups)
+    conv_args = ConvolutionArgs(x, w; handle=handle(), groups, padding, stride, dilation)
+    convolution!(y, ydesc, x, xdesc, w, wdesc, cdesc, conv_args; alpha, beta)
 end
 
 function convolution(
@@ -171,23 +157,21 @@ function convolution(
     dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
 ) where {T, N, K}
     _check_conv_args_dims(K, N)
-    xdesc, wdesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
-        x, w; padding, stride, dilation, groups)
-    y = similar(x, T, get_output_size(cdesc, xdesc, wdesc))
-    convolution!(
-        y, TensorDescriptor(y), x, xdesc, w, wdesc, cdesc;
-        padding=pi32, stride=si32, dilation=di32, groups, alpha, beta)
+    xdesc, wdesc = TensorDescriptor.((x, w))
+    cdesc = ConvolutionDescriptor(ndims(xdesc) - 2; padding, stride, dilation, groups)
+    conv_args = ConvolutionArgs(x, w; handle=handle(), groups, padding, stride, dilation)
+    y = similar(x, T, output_size(cdesc, xdesc, wdesc))
+    convolution!(y, TensorDescriptor(y), x, xdesc, w, wdesc, cdesc, conv_args; alpha, beta)
 end
 
 function ∇convolution_weight!(
     ∇w::ROCArray{T, N}, ∇wdesc::TensorDescriptor,
     dy::ROCArray{T, N}, dydesc::TensorDescriptor,
-    x::ROCArray{T, N}, xdesc::TensorDescriptor, cdesc::ConvolutionDescriptor;
-    padding, stride, dilation, groups, alpha = 1f0, beta = 0f0,
+    x::ROCArray{T, N}, xdesc::TensorDescriptor,
+    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs;
+    alpha = 1f0, beta = 0f0,
 ) where {T, N}
     hdl = handle()
-    conv_args = ConvolutionArgs(
-        x, ∇w; handle=hdl, groups, padding, stride, dilation)
     perf_algo, workspace = find_algorithm(
         miopenConvBwdWeightsAlgorithm_t, hdl, conv_args,
         dy, dydesc, x, xdesc, cdesc, ∇w, ∇wdesc)
@@ -204,11 +188,10 @@ function ∇convolution_weight!(
     dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
 ) where {T, N, K}
     _check_conv_args_dims(K, N)
-    xdesc, ∇wdesc, dydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
-        x, ∇w, dy; padding, stride, dilation, groups)
-    ∇convolution_weight!(
-        ∇w, ∇wdesc, dy, dydesc, x, xdesc, cdesc;
-        padding=pi32, stride=si32, dilation=di32, groups, alpha, beta)
+    xdesc, ∇wdesc, dydesc = TensorDescriptor.((x, ∇w, dy))
+    cdesc = ConvolutionDescriptor(ndims(xdesc) - 2; padding, stride, dilation, groups)
+    conv_args = ConvolutionArgs(x, ∇w; handle=handle(), groups, padding, stride, dilation)
+    ∇convolution_weight!(∇w, ∇wdesc, dy, dydesc, x, xdesc, cdesc, conv_args; alpha, beta)
 end
 
 function ∇convolution_weight(
@@ -217,23 +200,21 @@ function ∇convolution_weight(
     dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
 ) where {T, N, K}
     _check_conv_args_dims(K, N)
-    xdesc, dydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
-        x, dy; padding, stride, dilation, groups)
+    xdesc, dydesc = TensorDescriptor.((x, dy))
+    cdesc = ConvolutionDescriptor(ndims(xdesc) - 2; padding, stride, dilation, groups)
     ∇w = similar(x, T, size(w))
-    ∇convolution_weight!(
-        ∇w, TensorDescriptor(∇w), dy, dydesc, x, xdesc, cdesc;
-        padding=pi32, stride=si32, dilation=di32, groups, alpha, beta)
+    conv_args = ConvolutionArgs(x, ∇w; handle=handle(), groups, padding, stride, dilation)
+    ∇convolution_weight!(∇w, TensorDescriptor(∇w), dy, dydesc, x, xdesc, cdesc, conv_args; alpha, beta)
 end
 
 function ∇convolution_data!(
     ∇x::ROCArray{T, N}, ∇xdesc::TensorDescriptor,
     dy::ROCArray{T, N}, dydesc::TensorDescriptor,
-    w::ROCArray{T, N}, wdesc::TensorDescriptor, cdesc::ConvolutionDescriptor;
-    padding, stride, dilation, groups, alpha = 1f0, beta = 0f0,
+    w::ROCArray{T, N}, wdesc::TensorDescriptor,
+    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs;
+    alpha = 1f0, beta = 0f0,
 ) where {T, N}
     hdl = handle()
-    conv_args = ConvolutionArgs(
-        ∇x, w; handle=hdl, groups, padding, stride, dilation)
     perf_algo, workspace = find_algorithm(
         miopenConvBwdDataAlgorithm_t, hdl, conv_args,
         dy, dydesc, w, wdesc, cdesc, ∇x, ∇xdesc)
@@ -250,11 +231,10 @@ function ∇convolution_data!(
     dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
 ) where {T, N, K}
     _check_conv_args_dims(K, N)
-    wdesc, ∇xdesc, dydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
-        w, ∇x, dy; padding, stride, dilation, groups)
-    ∇convolution_data!(
-        ∇x, ∇xdesc, dy, dydesc, w, wdesc, cdesc;
-        padding=pi32, stride=si32, dilation=di32, groups, alpha, beta)
+    wdesc, ∇xdesc, dydesc = TensorDescriptor.((w, ∇x, dy))
+    cdesc = ConvolutionDescriptor(ndims(∇xdesc) - 2; padding, stride, dilation, groups)
+    conv_args = ConvolutionArgs(∇x, w; handle=handle(), groups, padding, stride, dilation)
+    ∇convolution_data!(∇x, ∇xdesc, dy, dydesc, w, wdesc, cdesc, conv_args; alpha, beta)
 end
 
 function ∇convolution_data(
@@ -263,12 +243,11 @@ function ∇convolution_data(
     dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
 ) where {T, N, K}
     _check_conv_args_dims(K, N)
-    wdesc, dydesc, cdesc, pi32, si32, di32 = _get_conv_descriptors(
-        w, dy; padding, stride, dilation, groups)
+    wdesc, dydesc = TensorDescriptor.((w, dy))
+    cdesc = ConvolutionDescriptor(ndims(dydesc) - 2; padding, stride, dilation, groups)
     ∇x = similar(x, T, size(x))
-    ∇convolution_data!(
-        ∇x, TensorDescriptor(∇x), dy, dydesc, w, wdesc, cdesc;
-        padding=pi32, stride=si32, dilation=di32, groups, alpha, beta)
+    conv_args = ConvolutionArgs(∇x, w; handle=handle(), groups, padding, stride, dilation)
+    ∇convolution_data!(∇x, TensorDescriptor(∇x), dy, dydesc, w, wdesc, cdesc, conv_args; alpha, beta)
 end
 
 # Non-unicode stubs.
