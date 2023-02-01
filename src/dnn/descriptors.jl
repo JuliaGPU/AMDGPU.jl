@@ -51,17 +51,18 @@ function TensorDescriptor(x::ROCArray{T}) where T
     TensorDescriptor(dtype, ndims(x), sizes, strides_)
 end
 
-function Base.ndims(desc::TensorDescriptor)
+Base.ndims(desc::TensorDescriptor) = Base.ndims(desc.handle)
+function Base.ndims(handle::miopenTensorDescriptor_t)
     nd = Ref{Int32}(0)
-    miopenGetTensorDescriptorSize(desc.handle, nd) |> check
+    miopenGetTensorDescriptorSize(handle, nd) |> check
     Int64(nd[])
 end
 
-function unpack(desc::TensorDescriptor)
-    nd = ndims(desc)
+unpack(desc::TensorDescriptor) = unpack(desc.handle, ndims(desc))
+function unpack(handle::miopenTensorDescriptor_t, nd::Integer)
     dtype = Ref{miopenDataType_t}()
     dims, stride = Vector{Int32}(undef, nd), Vector{Int32}(undef, nd)
-    miopenGetTensorDescriptor(desc.handle, dtype, dims, stride) |> check
+    miopenGetTensorDescriptor(handle, dtype, dims, stride) |> check
     dtype[], dims, stride
 end
 
