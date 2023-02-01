@@ -28,3 +28,7 @@ end
 @testset "Softmax" begin
     include("softmax.jl")
 end
+
+@testset "Activations" begin
+    include("activations.jl")
+end

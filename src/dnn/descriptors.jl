@@ -181,3 +181,25 @@ function output_size(pdesc::PoolingDescriptor, idesc::TensorDescriptor)
         pdesc.handle, idesc.handle, Int32(nd), out_dims) |> check
     NTuple{nd, Int32}(reverse(out_dims))
 end
+
+mutable struct ActivationDescriptor
+    handle::miopenActivationDescriptor_t
+end
+
+function ActivationDescriptor()
+    handle_ref = Ref{miopenActivationDescriptor_t}()
+    miopenCreateActivationDescriptor(handle_ref) |> check
+    handle = handle_ref[]
+    d = ActivationDescriptor(handle)
+    finalizer(d) do d_
+        miopenDestroyActivationDescriptor(d_.handle) |> check
+    end
+    d
+end
+
+function set!(
+    d::ActivationDescriptor, mode::miopenActivationMode_t,
+    α::Float64, β::Float64, γ::Float64,
+)
+    miopenSetActivationDescriptor(d.handle, mode, α, β, γ) |> check
+end

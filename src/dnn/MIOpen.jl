@@ -38,6 +38,9 @@ const DATA_TYPES = Dict(
     Int8 => miopenInt8,
     Int32 => miopenInt32)
 
+# MIOPEN supports only these types.
+const MIOPENFloat = Union{Float16, Float32}
+
 function status_string(status)
     s = get(STATUS_DESCRIPTORS, status, nothing)
     isnothing(s) ? "Unknown error code `$status`" : s
@@ -104,5 +107,6 @@ include("descriptors.jl")
 include("convolution.jl")
 include("pooling.jl")
 include("softmax.jl")
+include("activations.jl")
 
 end
