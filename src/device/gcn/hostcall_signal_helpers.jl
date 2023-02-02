@@ -105,7 +105,7 @@ end
 end
 
 @inline function device_sleep(duration::Int32)
-    ccall("llvm.amdgcn.s.sleep", llvmcall, Cvoid, (Int32,), duration)
+    @typed_ccall("llvm.amdgcn.s.sleep", llvmcall, Cvoid, (Int32,), Val(duration))
 end
 
 @inline function device_sethalt(code::Int32 = Int32(1))
