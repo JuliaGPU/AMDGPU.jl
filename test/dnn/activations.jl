@@ -1,7 +1,5 @@
 @testset "NNlib comparison" begin
     for (T, atol) in ((Float16, 1f-3), (Float32, 1f-6))
-        @show T
-
         x, dy = randn(T, 16), randn(T, 16)
         xd, dyd = ROCArray(x), ROCArray(dy)
 
