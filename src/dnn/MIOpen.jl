@@ -110,23 +110,4 @@ include("softmax.jl")
 include("activations.jl")
 include("batchnorm.jl")
 
-function main()
-    n_features = 3
-    x = AMDGPU.rand(Float32, 4, 4, n_features, 2);
-    γ = AMDGPU.ones(Float32, n_features)
-    β = AMDGPU.zeros(Float32, n_features)
-    μ = AMDGPU.zeros(Float32, n_features)
-    ν = AMDGPU.ones(Float32, n_features)
-
-    y, μ_saved, ν_saved = batchnorm_training(
-        x, γ, β, μ, ν; n_features, iteration=1)
-
-    display(y); println()
-    display(γ); println()
-    display(β); println()
-    display(μ); println()
-    display(ν); println()
-    nothing
-end
-
 end

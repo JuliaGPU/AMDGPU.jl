@@ -1,32 +1,86 @@
 """
+    batchnorm_training(
+        x::ROCArray{T},
+        γ::ROCArray{T}, β::ROCArray{T},
+        μ::ROCArray{T}, ν::ROCArray{T}; iteration::Int, ϵ::Float64 = 1e-5,
+    ) where T <: MIOPENFloat
+
+# Arguments:
 
 - `γ`: Scaling.
 - `β`: Bias.
 - `μ`: Running mean for inference.
 - `ν`: Running variance for inference.
+
+If `x` has `N` dims, then `N - 1` is considered as 'feature' dimension.
+Meaning, γ, β, μ, ν must have `size(x, N - 1)` shape.
 """
 function batchnorm_training(
     x::ROCArray{T},
     γ::ROCArray{T}, β::ROCArray{T},
-    μ::ROCArray{T}, ν::ROCArray{T};
-    n_features::Int, iteration::Int, ϵ::Float64 = 1e-10,
+    μ::ROCArray{T}, ν::ROCArray{T}; iteration::Int, ϵ::Float64 = 1e-5,
 ) where T <: MIOPENFloat
     y = similar(x)
-    xdesc, ydesc = TensorDescriptor.((x, y))
-    (; bndesc, dims) = derive_betta_gamma_descriptors(xdesc, miopenBNSpatial)
-    @show dims
-    factor = 1.0 / (1.0 + Float64(iteration))
 
+    nd = ndims(x)
+    n_features = size(x, nd - 1)
+    mode = nd == 2 ? miopenBNPerActivation : miopenBNSpatial
+    xdesc = TensorDescriptor(reshape(x, _bn_expand_dims(size(x), max(4, nd))))
+    ydesc = TensorDescriptor(reshape(y, _bn_expand_dims(size(x), max(4, nd))))
+
+    bndesc = derive_betta_gamma_descriptors(xdesc, mode)
+    factor = 1.0 / (1.0 + Float64(iteration))
+    # For backward pass.
     μ_saved, ν_saved = similar(x, n_features), similar(x, n_features)
 
-    AMDGPU.wait!((x, γ, β))
+    AMDGPU.wait!((x, γ, β, μ, ν))
     miopenBatchNormalizationForwardTraining(
-        handle(), miopenBNSpatial, Ref{Float32}(1f0), Ref{Float32}(0f0),
+        handle(), mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle, γ, β, factor,
         μ, ν, ϵ, μ_saved, ν_saved) |> check
     AMDGPU.mark!(y, C_NULL)
     AMDGPU.wait!(y)
     y, μ_saved, ν_saved
+end
+
+"""
+    batchnorm_inference(
+        x::ROCArray{T},
+        γ::ROCArray{T}, β::ROCArray{T},
+        μ::ROCArray{T}, ν::ROCArray{T}; ϵ::Float64 = 1e-5,
+    ) where T <: MIOPENFloat
+
+# Arguments:
+
+- `γ`: Scaling.
+- `β`: Bias.
+- `μ`: Running mean for inference.
+- `ν`: Running variance for inference.
+
+If `x` has `N` dims, then `N - 1` is considered as 'feature' dimension.
+Meaning, γ, β, μ, ν must have `size(x, N - 1)` shape.
+"""
+function batchnorm_inference(
+    x::ROCArray{T},
+    γ::ROCArray{T}, β::ROCArray{T},
+    μ::ROCArray{T}, ν::ROCArray{T}; ϵ::Float64 = 1e-5,
+) where T <: MIOPENFloat
+    y = similar(x)
+
+    nd = ndims(x)
+    mode = nd == 2 ? miopenBNPerActivation : miopenBNSpatial
+    xdesc = TensorDescriptor(reshape(x, _bn_expand_dims(size(x), max(4, nd))))
+    ydesc = TensorDescriptor(reshape(y, _bn_expand_dims(size(x), max(4, nd))))
+    bndesc = derive_betta_gamma_descriptors(xdesc, mode)
+
+    AMDGPU.wait!((x, γ, β, μ, ν))
+    miopenBatchNormalizationForwardInference(
+        handle(), mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
+        xdesc.handle, x, ydesc.handle, y, bndesc.handle,
+        γ, β, μ, ν, ϵ) |> check
+    AMDGPU.mark!(y, C_NULL)
+    AMDGPU.wait!(y)
+    y
 end
 
 function derive_betta_gamma_descriptors(
@@ -43,5 +97,13 @@ function derive_betta_gamma_descriptors(
     finalizer(bndesc) do d_
         miopenDestroyTensorDescriptor(d_.handle) |> check
     end
-    (; bndesc, dims)
+    bndesc
+end
+
+# Unsqueeze dimensions at the beginning:
+# _bn_expand_dims((3, 2), 4) -> (1, 1, 3, 2)
+function _bn_expand_dims(v, ndims)
+    reverse(ntuple(
+        i -> (i ≤ length(v)) ? Int64(v[end - i + 1]) : 1,
+        Val{ndims}()))
 end

@@ -32,3 +32,7 @@ end
 @testset "Activations" begin
     include("activations.jl")
 end
+
+@testset "Batch Normalization" begin
+    include("batchnorm.jl")
+end

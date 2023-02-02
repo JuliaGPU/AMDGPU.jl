@@ -1,6 +1,5 @@
 @testset "Contiguous & non-contiguous dims" begin
     for (T, atol) in ((Float16, 1f-3), (Float32, 1f-6))
-        @show T
         for (sz, dims) in [
             ((5,), :), ((5,), 1),
             ((5, 5), :), ((5, 5), 1), ((5, 5), 2),
