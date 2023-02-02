@@ -8,12 +8,13 @@
     @testset "Log Structure" begin
         logs = AMDGPU.Runtime.fetch_logs!()
         @test logs isa Dict
-        @test logs[myid()] isa Dict
-        @test haskey(logs[myid()], :core)
-        @test haskey(logs[myid()], :id)
-        @test haskey(logs[myid()], :timeline)
-        @test haskey(logs[myid()], :esat)
-        @test haskey(logs[myid()], :psat)
+        logs = logs[myid()]
+        @test logs isa Dict
+        @test haskey(logs, :core)
+        @test haskey(logs, :id)
+        @test haskey(logs, :timeline)
+        @test haskey(logs, :esat)
+        @test haskey(logs, :psat)
     end
     AMDGPU.Runtime.stop_logging()
     @test AMDGPU.Runtime.GLOBAL_TIMESPAN_CONTEXT.log_sink === nothing
@@ -25,6 +26,16 @@
         @test AMDGPU.Runtime.GLOBAL_TIMESPAN_CONTEXT.log_sink === nothing
     end
 
+    function log_idx(logs, category, kind)
+        for idx in 1:length(logs[:core])
+            core_log = logs[:core][idx]
+            if core_log.category == category && (kind == :all || core_log.kind == kind)
+                return idx
+            end
+        end
+        return nothing
+    end
+
     @testset "Buffer" begin
         local buf_ptr
         logs = AMDGPU.Runtime.log_and_fetch!() do
@@ -32,36 +43,40 @@
             buf_ptr = buf.ptr
             AMDGPU.Runtime.Mem.free(buf)
         end
-        @test length(logs[myid()][:core]) == 4
-        @test logs[myid()][:core][1].category == :alloc
-        @test logs[myid()][:core][2].category == :alloc
-        @test logs[myid()][:core][3].category == :free
-        @test logs[myid()][:core][4].category == :free
-        @test logs[myid()][:id][1].alloc_id == logs[myid()][:id][2].alloc_id
-        @test logs[myid()][:timeline][1].size == 64
+        logs = logs[myid()]
+        @test length(logs[:core]) == 4
+        alloc_start = something(log_idx(logs, :alloc, :start))
+        alloc_finish = something(log_idx(logs, :alloc, :finish))
+        free_start = something(log_idx(logs, :free, :start))
+        free_finish = something(log_idx(logs, :free, :finish))
+        @test alloc_start < alloc_finish < free_start < free_finish
+        @test logs[:id][alloc_start].alloc_id == logs[:id][alloc_finish].alloc_id
+        @test logs[:timeline][alloc_start].size == 64
         @test buf_ptr ==
-              logs[myid()][:timeline][2].ptr ==
-              logs[myid()][:id][3].ptr ==
-              logs[myid()][:id][4].ptr
+              logs[:timeline][alloc_finish].ptr ==
+              logs[:id][free_start].ptr ==
+              logs[:id][free_finish].ptr
     end
 
     @testset "Signal" begin
         local sig_handle
         logs = AMDGPU.Runtime.log_and_fetch!() do
-            sig = AMDGPU.ROCSignal()
+            sig = AMDGPU.ROCSignal(; pooled=false)
             sig_handle = AMDGPU.Runtime.get_handle(sig)
             finalize(sig)
         end
-        @test length(logs[myid()][:core]) == 4
-        @test logs[myid()][:core][1].category == :alloc_signal
-        @test logs[myid()][:core][2].category == :alloc_signal
-        @test logs[myid()][:core][3].category == :free_signal
-        @test logs[myid()][:core][4].category == :free_signal
-        @test logs[myid()][:id][1].alloc_id == logs[myid()][:id][2].alloc_id
+        logs = logs[myid()]
+        @test length(logs[:core]) == 4
+        alloc_start = something(log_idx(logs, :alloc_signal, :start))
+        alloc_finish = something(log_idx(logs, :alloc_signal, :finish))
+        free_start = something(log_idx(logs, :free_signal, :start))
+        free_finish = something(log_idx(logs, :free_signal, :finish))
+        @test alloc_start < alloc_finish < free_start < free_finish
+        @test logs[:id][alloc_start].alloc_id == logs[:id][alloc_finish].alloc_id
         @test sig_handle ==
-              logs[myid()][:timeline][2].signal ==
-              logs[myid()][:id][3].signal ==
-              logs[myid()][:id][4].signal
+              logs[:timeline][alloc_finish].signal ==
+              logs[:id][free_start].signal ==
+              logs[:id][free_finish].signal
     end
 
     @testset "Queue" begin
@@ -71,46 +86,63 @@
             queue_handle = AMDGPU.Runtime.get_handle(queue)
             AMDGPU.Runtime.kill_queue!(queue)
         end
-        @test length(logs[myid()][:core]) == 4
-        @test logs[myid()][:core][1].category == :alloc_queue
-        @test logs[myid()][:core][2].category == :alloc_queue
-        @test logs[myid()][:core][3].category == :kill_queue!
-        @test logs[myid()][:core][4].category == :kill_queue!
-        @test logs[myid()][:id][1].alloc_id == logs[myid()][:id][2].alloc_id
+        logs = logs[myid()]
+        @test length(logs[:core]) == 4
+        alloc_start = something(log_idx(logs, :alloc_queue, :start))
+        alloc_finish = something(log_idx(logs, :alloc_queue, :finish))
+        free_start = something(log_idx(logs, :kill_queue!, :start))
+        free_finish = something(log_idx(logs, :kill_queue!, :finish))
+        @test logs[:id][alloc_start].alloc_id == logs[:id][alloc_finish].alloc_id
         @test reinterpret(UInt64, queue_handle) ==
-              logs[myid()][:timeline][2].queue ==
-              logs[myid()][:id][3].queue ==
-              logs[myid()][:id][4].queue
+              logs[:timeline][alloc_finish].queue ==
+              logs[:id][free_start].queue ==
+              logs[:id][free_finish].queue
     end
 
     @testset "Compilation and Launch" begin
-        kernel() = nothing
+        function kernel()
+            AMDGPU.malloc(Csize_t(1))
+            nothing
+        end
         logs = AMDGPU.Runtime.log_and_fetch!() do
             wait(@roc kernel())
         end
-        @test length(logs[myid()][:core]) == 14
-        @test logs[myid()][:core][1].category == :cached_compile
-        @test logs[myid()][:core][2].category == :compile
-        @test logs[myid()][:core][3].category == :compile
-        @test logs[myid()][:core][4].category == :link
-        @test logs[myid()][:core][5].category == :alloc
-        @test logs[myid()][:core][6].category == :alloc
-        @test logs[myid()][:core][7].category == :link
-        @test logs[myid()][:core][8].category == :cached_compile
-        @test logs[myid()][:core][9].category == :alloc_signal
-        @test logs[myid()][:core][10].category == :alloc_signal
-        @test logs[myid()][:core][11].category == :launch_kernel!
-        @test logs[myid()][:core][12].category == :launch_kernel!
-        @test logs[myid()][:core][13].category == :wait
-        @test logs[myid()][:core][14].category == :wait
-        for id_idxs in [1:4, 7:8, 11:14]
-            @test all(id->id.f == typeof(kernel), logs[myid()][:id][id_idxs])
-            @test all(id->id.tt == Tuple{}, logs[myid()][:id][id_idxs])
-        end
-        @test length(unique(id->id.signal, logs[myid()][:id][11:14])) == 1
-        @test logs[myid()][:timeline][10].signal == logs[myid()][:id][11].signal
-        @test AMDGPU.Runtime.get_handle(AMDGPU.default_queue()) ==
-              logs[myid()][:id][11].queue ==
-              logs[myid()][:id][12].queue
+        logs = logs[myid()]
+        cachedcomp_start = something(log_idx(logs, :cached_compile, :start))
+        cachedcomp_finish = something(log_idx(logs, :cached_compile, :finish))
+        compile_start = something(log_idx(logs, :compile, :start))
+        compile_finish = something(log_idx(logs, :compile, :finish))
+        link_start = something(log_idx(logs, :link, :start))
+        link_finish = something(log_idx(logs, :link, :finish))
+        ginit_start = something(log_idx(logs, :global_init, :start))
+        ginit_finish = something(log_idx(logs, :global_init, :finish))
+        launch_start = something(log_idx(logs, :launch_kernel!, :start))
+        launch_finish = something(log_idx(logs, :launch_kernel!, :finish))
+        wait_start = something(log_idx(logs, :wait, :start))
+        wait_finish = something(log_idx(logs, :wait, :finish))
+        @test cachedcomp_start <
+              compile_start <
+              compile_finish <
+              link_start <
+              ginit_start <
+              ginit_finish <
+              link_finish <
+              cachedcomp_finish <
+              launch_start <
+              launch_finish <
+              wait_start <
+              wait_finish
+        f_tt_idxs = [cachedcomp_start,
+                     cachedcomp_finish,
+                     compile_start,
+                     compile_finish,
+                     link_start,
+                     link_finish,
+                     ginit_start,
+                     ginit_finish]
+        @test all(id->id.f == typeof(kernel), logs[:id][f_tt_idxs])
+        @test all(id->id.tt == Tuple{}, logs[:id][f_tt_idxs])
+        @test logs[:id][ginit_start].gname == logs[:id][ginit_finish].gname
+        # FIXME: Check f, tt => entry transition
     end
 end

@@ -69,7 +69,7 @@ function ROCSignal(init::Integer = 1; pooled::Bool=true, ipc::Bool=true)
     else
         HSA.signal_create(Int64(init), 0, C_NULL, signal_ref) |> check
     end
-    @log_finish(:alloc_signal, (;alloc_id), (;signal=signal_ref[]))
+    @log_finish(:alloc_signal, (;alloc_id), (;signal=signal_ref[].handle))
     AMDGPU.hsaref!()
 
     @label return_signal

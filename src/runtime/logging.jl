@@ -76,14 +76,13 @@ struct KernelLaunches
 end
 KernelLaunches() = KernelLaunches(Set{NamedTuple}())
 function (kl::KernelLaunches)(event::TimespanLogging.Event{:start})
-    if event.category == :wait
-        push!(kl.kernels, event.id)
-    end
     # FIXME: return Dict(k=>1 for k in collect(kl.kernels))
     return [(k, 1) for k in collect(kl.kernels)]
 end
 function (kl::KernelLaunches)(event::TimespanLogging.Event{:finish})
-    if event.category == :wait
+    if event.category == :launch_kernel!
+        push!(kl.kernels, event.id)
+    elseif event.category == :wait
         delete!(kl.kernels, event.id)
     end
     # FIXME: return Dict(k=>1 for k in collect(kl.kernels))
