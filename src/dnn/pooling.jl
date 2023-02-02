@@ -1,3 +1,87 @@
+# High-level functions.
+
+function maxpool(
+    x::ROCArray{T, N}; dims::NTuple{K, Int},
+    padding::NTuple{K, Int}, stride::NTuple{K, Int}, do_backward::Bool = true,
+) where {T <: MIOPENFloat, N, K}
+    xdesc = TensorDescriptor(x)
+    pdesc = PoolingDescriptor(miopenPoolingMax, ndims(x) - 2; dims, padding, stride)
+    y = similar(x, T, output_size(pdesc, xdesc))
+    pool!(y, TensorDescriptor(y), x, xdesc, pdesc; do_backward)
+end
+
+function maxpool!(
+    y::ROCArray{T, N}, x::ROCArray{T, N}; dims::NTuple{K, Int},
+    padding::NTuple{K, Int}, stride::NTuple{K, Int}, do_backward::Bool = true,
+) where {T <: MIOPENFloat, N, K}
+    xdesc, ydesc = TensorDescriptor.((x, y))
+    pdesc = PoolingDescriptor(miopenPoolingMax, ndims(x) - 2; dims, padding, stride)
+    pool!(y, ydesc, x, xdesc, pdesc; do_backward)
+end
+
+function ∇maxpool(
+    dy::ROCArray{T, N}, y::ROCArray{T, N}, x::ROCArray{T, N};
+    dims::NTuple{K, Int}, padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    workspace,
+) where {T <: MIOPENFloat, N, K}
+    dx = similar(x, T, size(x))
+    dxdesc, dydesc, ydesc, xdesc = TensorDescriptor.((dx, dy, y, x))
+    pdesc = PoolingDescriptor(miopenPoolingMax, ndims(x) - 2; dims, padding, stride)
+    ∇pool!(dx, dxdesc, dy, dydesc, y, ydesc, x, xdesc, pdesc; workspace)
+end
+
+function ∇maxpool!(
+    dx::ROCArray{T, N}, dy::ROCArray{T, N}, y::ROCArray{T, N}, x::ROCArray{T, N};
+    dims::NTuple{K, Int}, padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    workspace,
+) where {T <: MIOPENFloat, N, K}
+    dxdesc, dydesc, ydesc, xdesc = TensorDescriptor.((dx, dy, y, x))
+    pdesc = PoolingDescriptor(miopenPoolingMax, ndims(x) - 2; dims, padding, stride)
+    ∇pool!(dx, dxdesc, dy, dydesc, y, ydesc, x, xdesc, pdesc; workspace)
+end
+
+function meanpool(
+    x::ROCArray{T, N}; dims::NTuple{K, Int},
+    padding::NTuple{K, Int}, stride::NTuple{K, Int}, do_backward::Bool = true,
+) where {T <: MIOPENFloat, N, K}
+    xdesc = TensorDescriptor(x)
+    pdesc = PoolingDescriptor(miopenPoolingAverageInclusive, ndims(x) - 2; dims, padding, stride)
+    y = similar(x, T, output_size(pdesc, xdesc))
+    pool!(y, TensorDescriptor(y), x, xdesc, pdesc; do_backward)
+end
+
+function meanpool!(
+    y::ROCArray{T, N}, x::ROCArray{T, N}; dims::NTuple{K, Int},
+    padding::NTuple{K, Int}, stride::NTuple{K, Int}, do_backward::Bool = true,
+) where {T <: MIOPENFloat, N, K}
+    xdesc, ydesc = TensorDescriptor.((x, y))
+    pdesc = PoolingDescriptor(miopenPoolingAverageInclusive, ndims(x) - 2; dims, padding, stride)
+    pool!(y, ydesc, x, xdesc, pdesc; do_backward)
+end
+
+function ∇meanpool(
+    dy::ROCArray{T, N}, y::ROCArray{T, N}, x::ROCArray{T, N};
+    dims::NTuple{K, Int}, padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    workspace,
+) where {T <: MIOPENFloat, N, K}
+    dx = similar(x, T, size(x))
+    dxdesc, dydesc, ydesc, xdesc = TensorDescriptor.((dx, dy, y, x))
+    pdesc = PoolingDescriptor(miopenPoolingAverageInclusive, ndims(x) - 2; dims, padding, stride)
+    ∇pool!(dx, dxdesc, dy, dydesc, y, ydesc, x, xdesc, pdesc; workspace)
+end
+
+function ∇meanpool!(
+    dx::ROCArray{T, N}, dy::ROCArray{T, N}, y::ROCArray{T, N}, x::ROCArray{T, N};
+    dims::NTuple{K, Int}, padding::NTuple{K, Int}, stride::NTuple{K, Int},
+    workspace,
+) where {T <: MIOPENFloat, N, K}
+    dxdesc, dydesc, ydesc, xdesc = TensorDescriptor.((dx, dy, y, x))
+    pdesc = PoolingDescriptor(miopenPoolingAverageInclusive, ndims(x) - 2; dims, padding, stride)
+    ∇pool!(dx, dxdesc, dy, dydesc, y, ydesc, x, xdesc, pdesc; workspace)
+end
+
+# Generic MIOpen pooling.
+
 function get_workspace_size(pdesc::PoolingDescriptor, ydesc::TensorDescriptor)
     wsize_ref = Ref{Csize_t}(0)
     miopenPoolingGetWorkSpaceSizeV2(
@@ -43,51 +127,4 @@ function ∇pool!(
     AMDGPU.mark!(dx, C_NULL)
     AMDGPU.wait!(dx)
     dx
-end
-
-function pool(
-    x::ROCArray{T, N}; ptype::miopenPoolingMode_t, dims::NTuple{K, Int},
-    padding::NTuple{K, Int}, stride::NTuple{K, Int}, do_backward::Bool = true,
-) where {T <: MIOPENFloat, N, K}
-    # TODO check dims
-    xdesc = TensorDescriptor(x)
-    pdesc = PoolingDescriptor(ptype, ndims(x) - 2; dims, padding, stride)
-    y = similar(x, T, output_size(pdesc, xdesc))
-    pool!(y, TensorDescriptor(y), x, xdesc, pdesc; do_backward)
-end
-
-function maxpool(
-    x::ROCArray{T, N}; dims::NTuple{K, Int},
-    padding::NTuple{K, Int}, stride::NTuple{K, Int}, do_backward::Bool = true,
-) where {T <: MIOPENFloat, N, K}
-    pool(x; ptype=miopenPoolingMax, dims, padding, stride, do_backward)
-end
-
-function ∇maxpool(
-    dy::ROCArray{T, N}, y::ROCArray{T, N}, x::ROCArray{T, N};
-    dims::NTuple{K, Int}, padding::NTuple{K, Int}, stride::NTuple{K, Int},
-    workspace,
-) where {T <: MIOPENFloat, N, K}
-    dx = similar(x, T, size(x))
-    dxdesc, dydesc, ydesc, xdesc = TensorDescriptor.((dx, dy, y, x))
-    pdesc = PoolingDescriptor(miopenPoolingMax, ndims(x) - 2; dims, padding, stride)
-    ∇pool!(dx, dxdesc, dy, dydesc, y, ydesc, x, xdesc, pdesc; workspace)
-end
-
-function meanpool(
-    x::ROCArray{T, N}; dims::NTuple{K, Int},
-    padding::NTuple{K, Int}, stride::NTuple{K, Int}, do_backward::Bool = true,
-) where {T <: MIOPENFloat, N, K}
-    pool(x; ptype=miopenPoolingAverageInclusive, dims, padding, stride, do_backward)
-end
-
-function ∇meanpool(
-    dy::ROCArray{T, N}, y::ROCArray{T, N}, x::ROCArray{T, N};
-    dims::NTuple{K, Int}, padding::NTuple{K, Int}, stride::NTuple{K, Int},
-    workspace,
-) where {T <: MIOPENFloat, N, K}
-    dx = similar(x, T, size(x))
-    dxdesc, dydesc, ydesc, xdesc = TensorDescriptor.((dx, dy, y, x))
-    pdesc = PoolingDescriptor(miopenPoolingAverageInclusive, ndims(x) - 2; dims, padding, stride)
-    ∇pool!(dx, dxdesc, dy, dydesc, y, ydesc, x, xdesc, pdesc; workspace)
 end
