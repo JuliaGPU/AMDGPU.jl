@@ -27,7 +27,7 @@ function batchnorm_training(
     mode = nd == 2 ? miopenBNPerActivation : miopenBNSpatial
     xdesc, ydesc = TensorDescriptor4D.((x, y))
 
-    bndesc = derive_betta_gamma_descriptors(xdesc, mode)
+    bndesc = derive_beta_gamma_descriptors(xdesc, mode)
     factor = 1.0 / (1.0 + Float64(iteration))
     # For backward pass.
     μ_saved, ν_saved = similar(x, n_features), similar(x, n_features)
@@ -68,7 +68,7 @@ function batchnorm_inference(
     nd = ndims(x)
     mode = nd == 2 ? miopenBNPerActivation : miopenBNSpatial
     xdesc, ydesc = TensorDescriptor4D.((x, y))
-    bndesc = derive_betta_gamma_descriptors(xdesc, mode)
+    bndesc = derive_beta_gamma_descriptors(xdesc, mode)
 
     AMDGPU.wait!((x, γ, β, μ, ν))
     miopenBatchNormalizationForwardInference(
@@ -89,7 +89,7 @@ function ∇batchnorm(
     nd = ndims(x)
     mode = nd == 2 ? miopenBNPerActivation : miopenBNSpatial
     xdesc, dxdesc, dydesc = TensorDescriptor4D.((x, dx, dy))
-    bndesc = derive_betta_gamma_descriptors(xdesc, mode)
+    bndesc = derive_beta_gamma_descriptors(xdesc, mode)
 
     AMDGPU.wait!((x, dy, γ, β, μ_saved, ν_saved))
     miopenBatchNormalizationBackward(
@@ -104,7 +104,7 @@ function ∇batchnorm(
     dx, dγ, dβ
 end
 
-function derive_betta_gamma_descriptors(
+function derive_beta_gamma_descriptors(
     xdesc::TensorDescriptor, mode::miopenBatchNormMode_t,
 )
     handle_ref = Ref{miopenTensorDescriptor_t}()
