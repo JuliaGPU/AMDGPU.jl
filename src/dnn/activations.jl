@@ -122,7 +122,6 @@ function _activation(
         handle(), desc.handle, Ref{Float32}(1f0), xdesc.handle, x,
         Ref{Float32}(0f0), ydesc.handle, y) |> check
     AMDGPU.mark!(y, C_NULL)
-    AMDGPU.wait!(y)
     y
 end
 
@@ -137,6 +136,5 @@ function _∇activation(
         dydesc.handle, dy, xdesc.handle, x, Ref{Float32}(0f0),
         dxdesc.handle, dx) |> check
     AMDGPU.mark!(dx, C_NULL)
-    AMDGPU.wait!(dx)
     dx
 end

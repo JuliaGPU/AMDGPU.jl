@@ -139,7 +139,6 @@ function convolution!(
         perf_results.fwd_algo, Ref{Float32}(beta), ydesc.handle, y,
         workspace.data.ptr, perf_results.memory) |> check
     AMDGPU.mark!(y, C_NULL)
-    AMDGPU.wait!(y)
     y
 end
 
@@ -185,7 +184,6 @@ function ∇convolution_weight!(
         perf_algo.bwd_weights_algo, Ref{Float32}(beta), ∇wdesc.handle, ∇w,
         workspace.data.ptr, perf_algo.memory) |> check
     AMDGPU.mark!(∇w, C_NULL)
-    AMDGPU.wait!(∇w)
     ∇w
 end
 
@@ -231,7 +229,6 @@ function ∇convolution_data!(
         perf_algo.bwd_data_algo, Ref{Float32}(beta), ∇xdesc.handle, ∇x,
         workspace.data.ptr, perf_algo.memory) |> check
     AMDGPU.mark!(∇x, C_NULL)
-    AMDGPU.wait!(∇x)
     ∇x
 end
 

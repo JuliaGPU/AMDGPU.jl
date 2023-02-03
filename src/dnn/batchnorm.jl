@@ -25,8 +25,7 @@ function batchnorm_training(
     nd = ndims(x)
     n_features = size(x, nd - 1)
     mode = nd == 2 ? miopenBNPerActivation : miopenBNSpatial
-    xdesc = TensorDescriptor(reshape(x, _bn_expand_dims(size(x), max(4, nd))))
-    ydesc = TensorDescriptor(reshape(y, _bn_expand_dims(size(x), max(4, nd))))
+    xdesc, ydesc = TensorDescriptor4D.((x, y))
 
     bndesc = derive_betta_gamma_descriptors(xdesc, mode)
     factor = 1.0 / (1.0 + Float64(iteration))
@@ -39,7 +38,6 @@ function batchnorm_training(
         xdesc.handle, x, ydesc.handle, y, bndesc.handle, γ, β, factor,
         μ, ν, ϵ, μ_saved, ν_saved) |> check
     AMDGPU.mark!(y, C_NULL)
-    AMDGPU.wait!(y)
     y, μ_saved, ν_saved
 end
 
@@ -69,8 +67,7 @@ function batchnorm_inference(
 
     nd = ndims(x)
     mode = nd == 2 ? miopenBNPerActivation : miopenBNSpatial
-    xdesc = TensorDescriptor(reshape(x, _bn_expand_dims(size(x), max(4, nd))))
-    ydesc = TensorDescriptor(reshape(y, _bn_expand_dims(size(x), max(4, nd))))
+    xdesc, ydesc = TensorDescriptor4D.((x, y))
     bndesc = derive_betta_gamma_descriptors(xdesc, mode)
 
     AMDGPU.wait!((x, γ, β, μ, ν))
@@ -79,7 +76,6 @@ function batchnorm_inference(
         xdesc.handle, x, ydesc.handle, y, bndesc.handle,
         γ, β, μ, ν, ϵ) |> check
     AMDGPU.mark!(y, C_NULL)
-    AMDGPU.wait!(y)
     y
 end
 
@@ -106,4 +102,9 @@ function _bn_expand_dims(v, ndims)
     reverse(ntuple(
         i -> (i ≤ length(v)) ? Int64(v[end - i + 1]) : 1,
         Val{ndims}()))
+end
+
+function TensorDescriptor4D(x)
+    nd = ndims(x)
+    TensorDescriptor(reshape(x, _bn_expand_dims(size(x), max(4, nd))))
 end

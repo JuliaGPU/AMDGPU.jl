@@ -97,17 +97,18 @@ function pool!(
     if do_backward
         wsize = get_workspace_size(pdesc, ydesc)
         workspace = Workspace(GPUArrays.device(y), wsize)
+        wptr = workspace.data.ptr
     else
         wsize = 0
-        workspace = C_NULL
+        workspace = nothing
+        wptr = C_NULL
     end
     AMDGPU.wait!((x, y))
     miopenPoolingForward(
         handle(), pdesc.handle, Ref{Float32}(alpha), xdesc.handle, x,
         Ref{Float32}(beta), ydesc.handle, y, do_backward,
-        workspace.data.ptr, wsize) |> check
+        wptr, wsize) |> check
     AMDGPU.mark!(y, C_NULL)
-    AMDGPU.wait!(y)
     y, workspace
 end
 
@@ -123,8 +124,7 @@ function ∇pool!(
         handle(), pdesc.handle, Ref{Float32}(alpha),
         ydesc.handle, y, dydesc.handle, dy, xdesc.handle, x,
         Ref{Float32}(beta), dxdesc.handle, dx,
-        (workspace == C_NULL ? C_NULL : workspace.data.ptr)) |> check
+        (isnothing(workspace) ? C_NULL : workspace.data.ptr)) |> check
     AMDGPU.mark!(dx, C_NULL)
-    AMDGPU.wait!(dx)
     dx
 end

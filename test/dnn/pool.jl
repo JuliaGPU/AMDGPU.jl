@@ -1,9 +1,9 @@
 @testset "NNlib comparison" begin
-    x = rand(Float32, 16, 16, 3, 4);
+    x = rand(Float32, 16, 16, 3, 2)
     xd = ROCArray(x)
 
     for k in (2, 3, 4), stride in (1, 2, 3), padding in (0, 1, 2)
-        pdims = NNlib.PoolDims(size(x), k; stride, padding)
+        pdims = NNlib.PoolDims(x, k; stride, padding)
         pkwargs = (; dims=(k, k), padding=(padding, padding), stride=(stride, stride))
 
         # Max pooling.

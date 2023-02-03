@@ -63,7 +63,6 @@ function _softmax!(
         handle(), Ref{Float32}(1f0), xdesc.handle, x, Ref{Float32}(0f0),
         ydesc.handle, y, algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
     AMDGPU.mark!(y, C_NULL)
-    AMDGPU.wait!(y)
     y
 end
 
@@ -83,7 +82,6 @@ function _∇softmax!(
         Ref{Float32}(0f0), dxdesc.handle, dx,
         algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
     AMDGPU.mark!(dx, C_NULL)
-    AMDGPU.wait!(dx)
     dx
 end
 
