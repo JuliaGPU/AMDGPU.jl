@@ -16,7 +16,7 @@
 
             y = NNlib.softmax(x; dims)
             yd = MIOpen.softmax(xd; dims)
-            @test Array(yd) ≈ y atol=atol)
+            @test Array(yd) ≈ y atol=atol
 
             dx = NNlib.∇softmax_data(dy, y; dims)
             dxd = MIOpen.∇softmax(dyd, yd; dims)
