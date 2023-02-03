@@ -12,5 +12,8 @@
         y, μ_saved, ν_saved = MIOpen.batchnorm_training(
             x, γ, β, μ, ν; iteration=0)
         @test all(isapprox.(Array(y), 0; atol=1f-5))
+
+        dy = AMDGPU.ones(Float32, size(y))
+        dx, dγ, dβ = MIOpen.∇batchnorm(dy, x, γ, β, μ_saved, ν_saved)
     end
 end

@@ -79,6 +79,31 @@ function batchnorm_inference(
     y
 end
 
+function ∇batchnorm(
+    dy::ROCArray{T, N}, x::ROCArray{T, N},
+    γ::ROCArray{T}, β::ROCArray{T},
+    μ_saved::ROCArray{T}, ν_saved::ROCArray{T}; ϵ::Float64 = 1e-5,
+) where {T <: MIOPENFloat, N}
+    dx, dγ, dβ = similar(x), similar(γ), similar(β)
+
+    nd = ndims(x)
+    mode = nd == 2 ? miopenBNPerActivation : miopenBNSpatial
+    xdesc, dxdesc, dydesc = TensorDescriptor4D.((x, dx, dy))
+    bndesc = derive_betta_gamma_descriptors(xdesc, mode)
+
+    AMDGPU.wait!((x, dy, γ, β, μ_saved, ν_saved))
+    miopenBatchNormalizationBackward(
+        handle(), mode,
+        Ref{Float32}(1f0), Ref{Float32}(0f0),
+        Ref{Float32}(1f0), Ref{Float32}(0f0),
+        xdesc.handle, x, dydesc.handle, dy, dxdesc.handle, dx,
+        bndesc.handle, γ, dγ, dβ, ϵ, μ_saved, ν_saved) |> check
+    AMDGPU.mark!(dx, C_NULL)
+    AMDGPU.mark!(dγ, C_NULL)
+    AMDGPU.mark!(dβ, C_NULL)
+    dx, dγ, dβ
+end
+
 function derive_betta_gamma_descriptors(
     xdesc::TensorDescriptor, mode::miopenBatchNormMode_t,
 )
