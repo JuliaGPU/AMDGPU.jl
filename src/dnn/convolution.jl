@@ -125,8 +125,7 @@ function convolution!(
     y::ROCArray{T, N}, ydesc::TensorDescriptor,
     x::ROCArray{T, N}, xdesc::TensorDescriptor,
     w::ROCArray{T, N}, wdesc::TensorDescriptor,
-    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs;
-    alpha = 1f0, beta = 0f0,
+    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
     hdl = handle()
     perf_results, workspace = find_algorithm(
@@ -135,8 +134,8 @@ function convolution!(
 
     AMDGPU.wait!((x, y, w))
     miopenConvolutionForward(
-        hdl, Ref{Float32}(alpha), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
-        perf_results.fwd_algo, Ref{Float32}(beta), ydesc.handle, y,
+        hdl, Ref{Float32}(1f0), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
+        perf_results.fwd_algo, Ref{Float32}(0f0), ydesc.handle, y,
         workspace.data.ptr, perf_results.memory) |> check
     AMDGPU.mark!(y, C_NULL)
     y
@@ -145,34 +144,33 @@ end
 function convolution!(
     y::ROCArray{T, N}, x::ROCArray{T, N}, w::ROCArray{T, N};
     padding::NTuple{K, Int}, stride::NTuple{K, Int},
-    dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
+    dilation::NTuple{K, Int}, groups::Int,
 ) where {T <: MIOPENFloat, N, K}
     _check_conv_args_dims(K, N)
     xdesc, wdesc, ydesc = TensorDescriptor.((x, w, y))
     cdesc = ConvolutionDescriptor(ndims(xdesc) - 2; padding, stride, dilation, groups)
     conv_args = ConvolutionArgs(x, w; handle=handle(), groups, padding, stride, dilation)
-    convolution!(y, ydesc, x, xdesc, w, wdesc, cdesc, conv_args; alpha, beta)
+    convolution!(y, ydesc, x, xdesc, w, wdesc, cdesc, conv_args)
 end
 
 function convolution(
     x::ROCArray{T, N}, w::ROCArray{T, N};
     padding::NTuple{K, Int}, stride::NTuple{K, Int},
-    dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
+    dilation::NTuple{K, Int}, groups::Int,
 ) where {T <: MIOPENFloat, N, K}
     _check_conv_args_dims(K, N)
     xdesc, wdesc = TensorDescriptor.((x, w))
     cdesc = ConvolutionDescriptor(ndims(xdesc) - 2; padding, stride, dilation, groups)
     conv_args = ConvolutionArgs(x, w; handle=handle(), groups, padding, stride, dilation)
     y = similar(x, T, output_size(cdesc, xdesc, wdesc))
-    convolution!(y, TensorDescriptor(y), x, xdesc, w, wdesc, cdesc, conv_args; alpha, beta)
+    convolution!(y, TensorDescriptor(y), x, xdesc, w, wdesc, cdesc, conv_args)
 end
 
 function ∇convolution_weight!(
     ∇w::ROCArray{T, N}, ∇wdesc::TensorDescriptor,
     dy::ROCArray{T, N}, dydesc::TensorDescriptor,
     x::ROCArray{T, N}, xdesc::TensorDescriptor,
-    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs;
-    alpha = 1f0, beta = 0f0,
+    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
     hdl = handle()
     perf_algo, workspace = find_algorithm(
@@ -180,8 +178,8 @@ function ∇convolution_weight!(
         dy, dydesc, x, xdesc, cdesc, ∇w, ∇wdesc)
     AMDGPU.wait!((∇w, dy, x))
     miopenConvolutionBackwardWeights(
-        hdl, Ref{Float32}(alpha), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
-        perf_algo.bwd_weights_algo, Ref{Float32}(beta), ∇wdesc.handle, ∇w,
+        hdl, Ref{Float32}(1f0), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
+        perf_algo.bwd_weights_algo, Ref{Float32}(0f0), ∇wdesc.handle, ∇w,
         workspace.data.ptr, perf_algo.memory) |> check
     AMDGPU.mark!(∇w, C_NULL)
     ∇w
@@ -190,34 +188,33 @@ end
 function ∇convolution_weight!(
     ∇w::ROCArray{T, N}, dy::ROCArray{T, N}, x::ROCArray{T, N};
     padding::NTuple{K, Int}, stride::NTuple{K, Int},
-    dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
+    dilation::NTuple{K, Int}, groups::Int,
 ) where {T <: MIOPENFloat, N, K}
     _check_conv_args_dims(K, N)
     xdesc, ∇wdesc, dydesc = TensorDescriptor.((x, ∇w, dy))
     cdesc = ConvolutionDescriptor(ndims(xdesc) - 2; padding, stride, dilation, groups)
     conv_args = ConvolutionArgs(x, ∇w; handle=handle(), groups, padding, stride, dilation)
-    ∇convolution_weight!(∇w, ∇wdesc, dy, dydesc, x, xdesc, cdesc, conv_args; alpha, beta)
+    ∇convolution_weight!(∇w, ∇wdesc, dy, dydesc, x, xdesc, cdesc, conv_args)
 end
 
 function ∇convolution_weight(
     dy::ROCArray{T, N}, x::ROCArray{T, N}, w::ROCArray{T, N};
     padding::NTuple{K, Int}, stride::NTuple{K, Int},
-    dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
+    dilation::NTuple{K, Int}, groups::Int,
 ) where {T <: MIOPENFloat, N, K}
     _check_conv_args_dims(K, N)
     xdesc, dydesc = TensorDescriptor.((x, dy))
     cdesc = ConvolutionDescriptor(ndims(xdesc) - 2; padding, stride, dilation, groups)
     ∇w = similar(x, T, size(w))
     conv_args = ConvolutionArgs(x, ∇w; handle=handle(), groups, padding, stride, dilation)
-    ∇convolution_weight!(∇w, TensorDescriptor(∇w), dy, dydesc, x, xdesc, cdesc, conv_args; alpha, beta)
+    ∇convolution_weight!(∇w, TensorDescriptor(∇w), dy, dydesc, x, xdesc, cdesc, conv_args)
 end
 
 function ∇convolution_data!(
     ∇x::ROCArray{T, N}, ∇xdesc::TensorDescriptor,
     dy::ROCArray{T, N}, dydesc::TensorDescriptor,
     w::ROCArray{T, N}, wdesc::TensorDescriptor,
-    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs;
-    alpha = 1f0, beta = 0f0,
+    cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
     hdl = handle()
     perf_algo, workspace = find_algorithm(
@@ -225,8 +222,8 @@ function ∇convolution_data!(
         dy, dydesc, w, wdesc, cdesc, ∇x, ∇xdesc)
     AMDGPU.wait!((∇x, dy, w))
     miopenConvolutionBackwardData(
-        hdl, Ref{Float32}(alpha), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
-        perf_algo.bwd_data_algo, Ref{Float32}(beta), ∇xdesc.handle, ∇x,
+        hdl, Ref{Float32}(1f0), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
+        perf_algo.bwd_data_algo, Ref{Float32}(0f0), ∇xdesc.handle, ∇x,
         workspace.data.ptr, perf_algo.memory) |> check
     AMDGPU.mark!(∇x, C_NULL)
     ∇x
@@ -235,26 +232,26 @@ end
 function ∇convolution_data!(
     ∇x::ROCArray{T, N}, dy::ROCArray{T, N}, w::ROCArray{T, N};
     padding::NTuple{K, Int}, stride::NTuple{K, Int},
-    dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
+    dilation::NTuple{K, Int}, groups::Int,
 ) where {T <: MIOPENFloat, N, K}
     _check_conv_args_dims(K, N)
     wdesc, ∇xdesc, dydesc = TensorDescriptor.((w, ∇x, dy))
     cdesc = ConvolutionDescriptor(ndims(∇xdesc) - 2; padding, stride, dilation, groups)
     conv_args = ConvolutionArgs(∇x, w; handle=handle(), groups, padding, stride, dilation)
-    ∇convolution_data!(∇x, ∇xdesc, dy, dydesc, w, wdesc, cdesc, conv_args; alpha, beta)
+    ∇convolution_data!(∇x, ∇xdesc, dy, dydesc, w, wdesc, cdesc, conv_args)
 end
 
 function ∇convolution_data(
     dy::ROCArray{T, N}, x::ROCArray{T, N}, w::ROCArray{T, N};
     padding::NTuple{K, Int}, stride::NTuple{K, Int},
-    dilation::NTuple{K, Int}, groups::Int, alpha = 1f0, beta = 0f0,
+    dilation::NTuple{K, Int}, groups::Int,
 ) where {T <: MIOPENFloat, N, K}
     _check_conv_args_dims(K, N)
     wdesc, dydesc = TensorDescriptor.((w, dy))
     cdesc = ConvolutionDescriptor(ndims(dydesc) - 2; padding, stride, dilation, groups)
     ∇x = similar(x, T, size(x))
     conv_args = ConvolutionArgs(∇x, w; handle=handle(), groups, padding, stride, dilation)
-    ∇convolution_data!(∇x, TensorDescriptor(∇x), dy, dydesc, w, wdesc, cdesc, conv_args; alpha, beta)
+    ∇convolution_data!(∇x, TensorDescriptor(∇x), dy, dydesc, w, wdesc, cdesc, conv_args)
 end
 
 # Non-unicode stubs.

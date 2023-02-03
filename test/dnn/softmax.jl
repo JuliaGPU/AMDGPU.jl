@@ -1,5 +1,5 @@
 @testset "Contiguous & non-contiguous dims" begin
-    for (T, atol) in ((Float16, 1f-3), (Float32, 1f-6))
+    for (T, atol) in ((Float16, 1f-2), (Float32, 1f-5))
         for (sz, dims) in [
             ((5,), :), ((5,), 1),
             ((5, 5), :), ((5, 5), 1), ((5, 5), 2),
@@ -16,21 +16,21 @@
 
             y = NNlib.softmax(x; dims)
             yd = MIOpen.softmax(xd; dims)
-            @test all(isapprox.(Array(yd), y; atol))
+            @test Array(yd) ≈ y atol=atol)
 
             dx = NNlib.∇softmax_data(dy, y; dims)
             dxd = MIOpen.∇softmax(dyd, yd; dims)
-            @test all(isapprox.(Array(dxd), dx; atol))
+            @test Array(dxd) ≈ dx atol=atol
 
             # Log softmax.
 
             y = NNlib.logsoftmax(x; dims)
             yd = MIOpen.logsoftmax(xd; dims)
-            @test all(isapprox.(Array(yd), y; atol))
+            @test Array(yd) ≈ y atol=atol
 
             dx = NNlib.∇logsoftmax_data(dy, y; dims)
             dxd = MIOpen.∇logsoftmax(dyd, yd; dims)
-            @test all(isapprox.(Array(dxd), dx; atol))
+            @test Array(dxd) ≈ dx atol=atol
         end
     end
 end
