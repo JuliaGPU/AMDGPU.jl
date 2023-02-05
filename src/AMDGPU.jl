@@ -84,7 +84,6 @@ module Runtime
     include("runtime/launch.jl")
     include("runtime/execution.jl")
     include("runtime/sync.jl")
-    include("runtime/safe-load.jl")
     include("runtime/fault.jl")
 end # module Runtime
 import .Runtime: Mem

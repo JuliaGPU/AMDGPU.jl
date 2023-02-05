@@ -168,12 +168,6 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
             T = unsafe_pointer_to_objref(T_ptr)
 
             # Read argument
-            #=
-            valid, arg = Runtime.semi_safe_load(convert(Ptr{T}, ptr))::Tuple{Bool,T}
-            if !valid
-                @warn "@rocprintf: Memory read failed! Printed string may include garbage\nFuture read failures will be ignored" maxlog=1
-            end
-            =#
             arg = unsafe_load(reinterpret(Ptr{T}, ptr))
             push!(args, arg)
             ptr += sizeof(arg)

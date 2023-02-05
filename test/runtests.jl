@@ -46,7 +46,6 @@ AMDGPU.versioninfo()
 
 @info "Running tests with $(length(ws)) workers"
 
-push!(tests, "Core" => ()->include("pointer.jl"))
 push!(tests, "HSA" => ()->begin
     include("hsa/error.jl")
     include("hsa/utils.jl")
