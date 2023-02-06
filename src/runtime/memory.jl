@@ -712,14 +712,13 @@ function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
     dstOffsetRef = Ref(HSA.Dim3(dstOffset...))
     srcOffsetRef = Ref(HSA.Dim3(srcOffset...))
     rangeRef = Ref(HSA.Dim3(sizeof(T)*width, height, depth))
-    sig = signal.signal[]
 
     AMDGPU.HSA.amd_memory_async_copy_rect(Base.unsafe_convert(Ptr{HSA.PitchedPtr}, dstRef),
                                           Base.unsafe_convert(Ptr{HSA.Dim3},       dstOffsetRef),
                                           Base.unsafe_convert(Ptr{HSA.PitchedPtr}, srcRef),
                                           Base.unsafe_convert(Ptr{HSA.Dim3},       srcOffsetRef),
                                           Base.unsafe_convert(Ptr{HSA.Dim3},       rangeRef),
-                                          Runtime.get_default_device().agent,hsaCopyDir,UInt32(0),C_NULL,sig) |> check
+                                          Runtime.get_default_device().agent,hsaCopyDir,UInt32(0),C_NULL, signal.signal) |> check
 
     async || wait(signal)
     return nothing

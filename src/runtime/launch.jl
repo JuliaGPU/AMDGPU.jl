@@ -121,7 +121,7 @@ function launch_kernel!(
         @set! _packet.grid_size_x = gridsize.x
         @set! _packet.grid_size_y = gridsize.y
         @set! _packet.grid_size_z = gridsize.z
-        @set! _packet.completion_signal = signal.signal[]
+        @set! _packet.completion_signal = signal.signal
         @set! _packet.kernel_object = kernel.kernel_object
         @set! _packet.kernarg_address = kernel.kernarg_address
         @set! _packet.private_segment_size = kernel.private_segment_size
@@ -138,7 +138,7 @@ function launch_barrier!(T, queue::ROCQueue, signals::Vector{ROCSignal})
         for signal_set in Iterators.partition(signals, 5)
             comp_signal = ROCSignal()
             enqueue_packet!(T, queue) do _packet
-                @set! _packet.dep_signal = ntuple(i->length(signal_set)>=i ? signal_set[i].signal[] : HSA.Signal(0), 5)
+                @set! _packet.dep_signal = ntuple(i->length(signal_set)>=i ? signal_set[i].signal : HSA.Signal(0), 5)
                 _packet
             end
             push!(outset.signals, comp_signal)

@@ -10,7 +10,7 @@
 
     ev = @roc completion_signal_kernel(RA)
     wait(ev)
-    @test Array(RA)[1] == ev.signal.signal[].handle
+    @test Array(RA)[1] == ev.signal.signal.handle
 end
 
 @testset "sendmsg/sendmsghalt/endpgm" begin

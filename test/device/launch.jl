@@ -102,7 +102,7 @@ end
     sig = @roc identity(nothing)
     wait(sig)
     wait(sig.signal)
-    wait(sig.signal.signal[])
+    wait(sig.signal.signal)
     @test sig.queue === AMDGPU.default_queue()
 end
 
