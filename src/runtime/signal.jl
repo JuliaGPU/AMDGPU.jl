@@ -3,14 +3,14 @@ const DEFAULT_SIGNAL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
 const SIGNAL_TIMEOUT_KILL_QUEUE = Ref{Bool}(true)
 
 mutable struct ROCSignal
-    signal::Ref{HSA.Signal}
+    signal::HSA.Signal
 end
 
 struct SignalTimeoutException <: Exception
     signal::ROCSignal
 end
 
-Adapt.adapt_structure(::Adaptor, sig::ROCSignal) = sig.signal[]
+Adapt.adapt_structure(::Adaptor, sig::ROCSignal) = sig.signal
 
 """
     ROCSignal(init::Integer = 1; ipc::Bool=true) -> ROCSignal
@@ -22,35 +22,33 @@ between the host and device.
     IPC signals can be read, written, and waited on from any process.
 """
 function ROCSignal(init::Integer = 1; ipc::Bool = true)
-    signal = ROCSignal(Ref{HSA.Signal}())
+    signal_ref = Ref{HSA.Signal}()
     alloc_id = rand(UInt64)
     @log_start(:alloc_signal, (;alloc_id), nothing)
     if ipc
         attrs = UInt32(0)
         ipc && (attrs |= HSA.AMD_SIGNAL_IPC;)
-
-        HSA.amd_signal_create(
-            Int64(init), 0, C_NULL, attrs, signal.signal) |> check
+        HSA.amd_signal_create(Int64(init), 0, C_NULL, attrs, signal_ref) |> check
     else
-        HSA.signal_create(Int64(init), 0, C_NULL, signal.signal) |> check
+        HSA.signal_create(Int64(init), 0, C_NULL, signal_ref) |> check
     end
+    signal = ROCSignal(signal_ref[])
+
     @log_finish(:alloc_signal, (;alloc_id), (;signal=get_handle(signal)))
 
     AMDGPU.hsaref!()
     finalizer(signal) do s
         @log_start(:free_signal, (;signal=get_handle(s)), nothing)
-        HSA.signal_destroy(s.signal[]) |> check
+        HSA.signal_destroy(s.signal) |> check
         @log_finish(:free_signal, (;signal=get_handle(s)), nothing)
         AMDGPU.hsaunref!()
     end
     signal
 end
 
-ROCSignal(signal::HSA.Signal) = ROCSignal(Ref(signal))
+get_handle(signal::ROCSignal) = signal.signal.handle
 
-get_handle(signal::ROCSignal) = signal.signal[].handle
-
-load_acquire(signal::ROCSignal) = HSA.signal_load_scacquire(signal.signal[])
+load_acquire(signal::ROCSignal) = HSA.signal_load_scacquire(signal.signal)
 
 Base.isdone(signal::ROCSignal) = load_acquire(signal) < 1
 
@@ -71,15 +69,14 @@ function Base.wait(
 
     GC.@preserve signal while !finished
         @assert AMDGPU.HSA_REFCOUNT[] > 0
-        handle = signal.signal[]::HSA.Signal
         v = HSA.signal_wait_scacquire(
-            handle, HSA.SIGNAL_CONDITION_LT, 1,
+            signal.signal, HSA.SIGNAL_CONDITION_LT, 1,
             min_latency, HSA.WAIT_STATE_BLOCKED)
         finished = v == 0
 
         while !finished
             finished = 0 == HSA.signal_wait_scacquire(
-                handle, HSA.SIGNAL_CONDITION_LT, 1,
+                signal.signal, HSA.SIGNAL_CONDITION_LT, 1,
                 min_latency, HSA.WAIT_STATE_BLOCKED)
 
             if has_timeout && !finished
@@ -105,4 +102,4 @@ function Base.wait(signal::HSA.Signal; timeout = DEFAULT_SIGNAL_TIMEOUT[])
     wait(ROCSignal(signal); timeout)
 end
 
-Base.notify(signal::ROCSignal) = HSA.signal_store_screlease(signal.signal[], 0)
+Base.notify(signal::ROCSignal) = HSA.signal_store_screlease(signal.signal, 0)
