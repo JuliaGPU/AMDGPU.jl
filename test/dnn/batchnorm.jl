@@ -13,7 +13,14 @@
             x, γ, β, μ, ν; iteration=0)
         @test all(isapprox.(Array(y), 0; atol=1f-5))
 
+        hμ_saved, hν_saved = Array(μ_saved), Array(ν_saved)
+
         dy = AMDGPU.ones(Float32, size(y))
         dx, dγ, dβ = MIOpen.∇batchnorm(dy, x, γ, β, μ_saved, ν_saved)
+
+        hμ_saved2, hν_saved2 = Array(μ_saved), Array(ν_saved)
+
+        @test hμ_saved ≈ hμ_saved2
+        @test hν_saved ≈ hν_saved2
     end
 end
