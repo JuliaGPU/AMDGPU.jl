@@ -74,8 +74,8 @@ function executable_symbol_any(exe::ROCExecutable, device::ROCDevice)
     agent_func = @cfunction(iterate_exec_agent_syms_cb, HSA.Status,
                             (HSA.Executable, HSA.Agent, HSA.ExecutableSymbol, Ptr{HSA.ExecutableSymbol}))
     exec_symbol_ref = Ref{HSA.ExecutableSymbol}()
-    ret = HSA.executable_iterate_agent_symbols(exe.executable[], device.agent,
-                                               agent_func, exec_symbol_ref)
+    ret = HSA.executable_iterate_agent_symbols(
+        exe.executable, device.agent, agent_func, exec_symbol_ref)
     @assert ret == HSA.STATUS_SUCCESS || ret == HSA.STATUS_INFO_BREAK
     if isassigned(exec_symbol_ref)
         return exec_symbol_ref[]
@@ -86,8 +86,8 @@ function executable_symbol_by_name(exe::ROCExecutable, device::ROCDevice, name::
     agent_ref = Ref(device.agent)
     exec_symbol_ref = Ref{HSA.ExecutableSymbol}()
     GC.@preserve agent_ref begin
-        HSA.executable_get_symbol_by_name(exe.executable[], symbol,
-                                          agent_ref, exec_symbol_ref) |> check
+        HSA.executable_get_symbol_by_name(
+            exe.executable, symbol, agent_ref, exec_symbol_ref) |> check
     end
     if isassigned(exec_symbol_ref)
         return exec_symbol_ref[]
