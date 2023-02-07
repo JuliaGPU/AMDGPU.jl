@@ -175,7 +175,7 @@ function write_args!(kernel::ROCKernel, args...)
     kernel.kernarg_address = kernarg_address
     AMDGPU.hsaref!()
     finalizer(kernel) do k
-        Mem.free_pooled(kernel.device, key, :kernarg, kernarg_address)
+        Mem.free_pooled(k.device, key, :kernarg, kernarg_address)
         AMDGPU.hsaunref!()
     end
 end
