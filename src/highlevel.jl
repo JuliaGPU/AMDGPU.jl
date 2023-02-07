@@ -74,18 +74,9 @@ default_queue() = default_queue(default_device())
 default_queue(device::ROCDevice) = Runtime.get_default_queue(device)
 device(queue::ROCQueue) = queue.device
 
-# Device handle => default ISA.
-const DEFAULT_ISAS = Dict{UInt64, HSA.ISA}()
-
-function default_isa(device::ROCDevice)
-    get!(
-        () -> first(Runtime.isas(device)),
-        DEFAULT_ISAS, Runtime.get_handle(device))
-end
-default_isa_architecture(device::ROCDevice) =
-    Runtime.architecture(default_isa(device))
-default_isa_features(device::ROCDevice) =
-    Runtime.features(default_isa(device))
+default_isa(device::ROCDevice) = Runtime.default_isa(device)
+default_isa_architecture(device::ROCDevice) = Runtime.architecture(default_isa(device))
+default_isa_features(device::ROCDevice) = Runtime.features(default_isa(device))
 
 ## Executable creation
 

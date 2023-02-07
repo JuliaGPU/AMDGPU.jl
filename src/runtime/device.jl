@@ -170,6 +170,17 @@ function isas(agent::HSA.Agent)
     isas[]
 end
 
+# Device handle => default ISA.
+const DEFAULT_ISAS = Dict{UInt64, HSA.ISA}()
+
+function default_isa(device::ROCDevice)
+    lock(RT_LOCK) do
+        get!(
+            () -> first(Runtime.isas(device)),
+            DEFAULT_ISAS, Runtime.get_handle(device))
+    end
+end
+
 # TODO: PCRE regexes are not thread-safe
 const isa_regex = r"([a-z]*)-([a-z]*)-([a-z]*)--([a-z0-9]*)([a-zA-Z0-9+\-:]*)"
 function parse_isa(isa::HSA.ISA)
