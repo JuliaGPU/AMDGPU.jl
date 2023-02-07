@@ -172,21 +172,14 @@ function print_build_diagnostics()
     run(`id`)
 end
 
-function getinfo(object, query)
-    map = getinfo_map(object)
-    @assert haskey(map, query)
-    info_type = map[query]
-    value = if info_type === Vector{UInt8}
-        Base.zeros(UInt8, 64)
-    else
-        Ref{info_type}()
-    end
+function getinfo(::Type{String}, object, query)::String
+    value = Base.zeros(UInt8, 64)
     getinfo(object, query, value) |> Runtime.check
-    if value isa Vector{UInt8}
-        return rstrip(String(value), '\0')
-    else
-        return value[]
-    end
+    return rstrip(String(value), '\0')
 end
-getinfo_map(::T) where T =
-    throw(ArgumentError("No getinfo mappings defined for $T"))
+
+function getinfo(::Type{T}, object, query)::T where T
+    value = Ref{T}()
+    getinfo(object, query, value) |> Runtime.check
+    return value[]
+end

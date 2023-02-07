@@ -2,37 +2,25 @@ getinfo(exsym::HSA.ExecutableSymbol, attribute::HSA.ExecutableSymbolInfo,
         value::Union{Vector, Base.RefValue}) =
     HSA.executable_symbol_get_info(exsym, attribute, value)
 
-const EXECUTABLE_SYMBOL_INFO_MAP = Dict(
-    HSA.EXECUTABLE_SYMBOL_INFO_TYPE => HSA.SymbolKind,
-    HSA.EXECUTABLE_SYMBOL_INFO_NAME_LENGTH => Int,
-    HSA.EXECUTABLE_SYMBOL_INFO_NAME => Vector{UInt8},
-
-    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT => UInt64,
-    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE => UInt32,
-    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE => UInt32,
-    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE => UInt32,
-)
-getinfo_map(::HSA.ExecutableSymbol) = EXECUTABLE_SYMBOL_INFO_MAP
-
-executable_symbol_type(sym::HSA.ExecutableSymbol)::HSA.SymbolKind =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE)
+executable_symbol_type(sym::HSA.ExecutableSymbol) =
+    getinfo(HSA.SymbolKind, sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE)
 
 # TODO: Symbol name length
 
-executable_symbol_name(sym::HSA.ExecutableSymbol)::String =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME)
+executable_symbol_name(sym::HSA.ExecutableSymbol) =
+    getinfo(String, sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME)
 
-executable_symbol_kernel_object(sym::HSA.ExecutableSymbol)::UInt64 =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT)
+executable_symbol_kernel_object(sym::HSA.ExecutableSymbol) =
+    getinfo(UInt64, sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT)
 
-executable_symbol_kernel_kernarg_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE)
+executable_symbol_kernel_kernarg_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(UInt32, sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE)
 
-executable_symbol_kernel_group_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE)
+executable_symbol_kernel_group_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(UInt32, sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE)
 
-executable_symbol_kernel_private_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE)
+executable_symbol_kernel_private_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(UInt32, sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE)
 
 ### @cfunction Callbacks ###
 

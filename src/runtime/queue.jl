@@ -31,11 +31,11 @@ function Base.showerror(io::IO, err::QueueError)
     Base.showerror(io, err.err)
 end
 
-device_queue_max_size(device::AnyROCDevice)::UInt32 =
-    getinfo(device, HSA.AGENT_INFO_QUEUE_MAX_SIZE)
+device_queue_max_size(device::AnyROCDevice) =
+    getinfo(UInt32, device, HSA.AGENT_INFO_QUEUE_MAX_SIZE)
 
-device_queue_type(device::AnyROCDevice)::HSA.QueueType =
-    getinfo(device, HSA.AGENT_INFO_QUEUE_TYPE)
+device_queue_type(device::AnyROCDevice) =
+    getinfo(HSA.QueueType, device, HSA.AGENT_INFO_QUEUE_TYPE)
 
 function ROCQueue(device::ROCDevice; priority::Symbol = :normal)
     alloc_id = rand(UInt64)

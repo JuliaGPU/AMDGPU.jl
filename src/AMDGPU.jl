@@ -64,7 +64,7 @@ module Runtime
     import TimespanLogging: timespan_start, timespan_finish
 
     import ..AMDGPU
-    import ..AMDGPU: getinfo, getinfo_map
+    import ..AMDGPU: getinfo
 
     struct Adaptor end
 
