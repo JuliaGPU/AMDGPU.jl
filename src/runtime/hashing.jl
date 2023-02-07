@@ -8,8 +8,7 @@ function khash(x::T, h::UInt=UInt(0)) where T
     # Generic hashing
     h = khash(T, h)
     if isstructtype(T)
-        for idx in 1:fieldcount(T)
-            name = fieldname(T, idx)
+        for name in fieldnames(T)
             h = khash(getfield(x, name), h)
         end
     elseif isprimitivetype(T)

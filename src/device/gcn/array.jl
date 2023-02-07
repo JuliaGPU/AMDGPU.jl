@@ -33,6 +33,14 @@ struct ROCDeviceArray{T,N,A} <: AbstractArray{T,N}
     ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N} = new(shape,ptr)
 end
 
+# Define `khash` function to reduce runtime dispatches.
+function Runtime.khash(x::T, h::UInt=UInt(0)) where T <: AMDGPU.Device.ROCDeviceArray
+    for s in x.shape
+        h = hash(s, h)
+    end
+    Runtime.khash(x.ptr, h)
+end
+
 const ROCDeviceVector = ROCDeviceArray{T,1,A} where {T,A}
 const ROCDeviceMatrix = ROCDeviceArray{T,2,A} where {T,A}
 

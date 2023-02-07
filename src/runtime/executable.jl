@@ -2,37 +2,25 @@ getinfo(exsym::HSA.ExecutableSymbol, attribute::HSA.ExecutableSymbolInfo,
         value::Union{Vector, Base.RefValue}) =
     HSA.executable_symbol_get_info(exsym, attribute, value)
 
-const EXECUTABLE_SYMBOL_INFO_MAP = Dict(
-    HSA.EXECUTABLE_SYMBOL_INFO_TYPE => HSA.SymbolKind,
-    HSA.EXECUTABLE_SYMBOL_INFO_NAME_LENGTH => Int,
-    HSA.EXECUTABLE_SYMBOL_INFO_NAME => Vector{UInt8},
-
-    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT => UInt64,
-    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE => UInt32,
-    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE => UInt32,
-    HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE => UInt32,
-)
-getinfo_map(::HSA.ExecutableSymbol) = EXECUTABLE_SYMBOL_INFO_MAP
-
-executable_symbol_type(sym::HSA.ExecutableSymbol)::HSA.SymbolKind =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE)
+executable_symbol_type(sym::HSA.ExecutableSymbol) =
+    getinfo(HSA.SymbolKind, sym, HSA.EXECUTABLE_SYMBOL_INFO_TYPE)
 
 # TODO: Symbol name length
 
-executable_symbol_name(sym::HSA.ExecutableSymbol)::String =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME)
+executable_symbol_name(sym::HSA.ExecutableSymbol) =
+    getinfo(String, sym, HSA.EXECUTABLE_SYMBOL_INFO_NAME)
 
-executable_symbol_kernel_object(sym::HSA.ExecutableSymbol)::UInt64 =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT)
+executable_symbol_kernel_object(sym::HSA.ExecutableSymbol) =
+    getinfo(UInt64, sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT)
 
-executable_symbol_kernel_kernarg_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE)
+executable_symbol_kernel_kernarg_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(UInt32, sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE)
 
-executable_symbol_kernel_group_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE)
+executable_symbol_kernel_group_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(UInt32, sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_GROUP_SEGMENT_SIZE)
 
-executable_symbol_kernel_private_segment_size(sym::HSA.ExecutableSymbol)::UInt32 =
-    getinfo(sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE)
+executable_symbol_kernel_private_segment_size(sym::HSA.ExecutableSymbol) =
+    getinfo(UInt32, sym, HSA.EXECUTABLE_SYMBOL_INFO_KERNEL_PRIVATE_SEGMENT_SIZE)
 
 ### @cfunction Callbacks ###
 
@@ -51,46 +39,48 @@ end
 
 mutable struct ROCExecutable
     device::ROCDevice
-    executable::Ref{HSA.Executable}
+    executable::HSA.Executable
     data::Vector{UInt8}
     globals::Dict{Symbol, Mem.Buffer}
 end
 
 # TODO Docstring
 function ROCExecutable(device::ROCDevice, data::Vector{UInt8}, symbol::String; globals=())
-    code_object_reader = Ref{HSA.CodeObjectReader}(HSA.CodeObjectReader(0))
-    HSA.code_object_reader_create_from_memory(data, sizeof(data),
-                                              code_object_reader) |> check
+    code_object_reader_ref = Ref{HSA.CodeObjectReader}(HSA.CodeObjectReader(0))
+    HSA.code_object_reader_create_from_memory(
+        data, sizeof(data), code_object_reader_ref) |> check
+    code_object_reader = code_object_reader_ref[]
 
-    executable = Ref{HSA.Executable}()
-    HSA.executable_create_alt(profile(device),
-                              HSA.DEFAULT_FLOAT_ROUNDING_MODE_NEAR,
-                              C_NULL, executable) |> check
+    executable_ref = Ref{HSA.Executable}()
+    HSA.executable_create_alt(
+        profile(device), HSA.DEFAULT_FLOAT_ROUNDING_MODE_NEAR,
+        C_NULL, executable_ref) |> check
+    executable = executable_ref[]
 
     _globals = Dict{Symbol,Mem.Buffer}()
     for (gbl,sz) in globals
         gbl_buf = Mem.alloc(device, sz; coherent=true)
-        HSA.executable_agent_global_variable_define(executable[], device.agent,
-                                                    string(gbl), gbl_buf.ptr) |> check
+        HSA.executable_agent_global_variable_define(
+            executable, device.agent, string(gbl), gbl_buf.ptr) |> check
         _globals[gbl] = gbl_buf
     end
 
-    HSA.executable_load_agent_code_object(executable[], device.agent,
-                                          code_object_reader[],
-                                          C_NULL, C_NULL) |> check
+    HSA.executable_load_agent_code_object(
+        executable, device.agent, code_object_reader,
+        C_NULL, C_NULL) |> check
 
-    HSA.executable_freeze(executable[], "") |> check
+    HSA.executable_freeze(executable, "") |> check
 
     exe = ROCExecutable(device, executable, data, _globals)
 
     # TODO: Ensure no derived kernels are in flight during finalization
     AMDGPU.hsaref!()
     finalizer(exe) do e
-        HSA.executable_destroy(e.executable[]) |> check
+        HSA.executable_destroy(e.executable) |> check
         for buf in values(e.globals)
             Mem.free(buf)
         end
-        HSA.code_object_reader_destroy(code_object_reader[]) |> check
+        HSA.code_object_reader_destroy(code_object_reader) |> check
         AMDGPU.hsaunref!()
     end
 

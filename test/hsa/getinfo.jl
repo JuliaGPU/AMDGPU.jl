@@ -1,67 +1,28 @@
 @testset "getinfo queries" begin
     @testset "ROCDevice" begin
         device = AMDGPU.default_device()
-        for (kind, T) in AMDGPU.Runtime.AGENT_INFO_MAP
-            result = AMDGPU.getinfo(device, kind)
-            result_raw = AMDGPU.getinfo(device.agent, kind)
-            if T === Vector{UInt8}
-                @test result isa AbstractString
-                @test result_raw isa AbstractString
-            else
-                @test result isa T
-                @test result_raw isa T
-            end
-            @test result == result_raw
-        end
+        @test AMDGPU.Runtime.name(device) isa String
+        @test AMDGPU.Runtime.device_type(device) isa AMDGPU.HSA.DeviceType
+        @test AMDGPU.Runtime.device_wavefront_size(device) isa UInt32
     end
     @testset "HSA.ISA" begin
         device = AMDGPU.default_device()
-        device_isa = first(AMDGPU.Runtime.isas(device))
-        for (kind, T) in AMDGPU.Runtime.ISA_INFO_MAP
-            result = AMDGPU.getinfo(device_isa, kind)
-            if T === Vector{UInt8}
-                @test result isa AbstractString
-            else
-                @test result isa T
-            end
-        end
+        device_isa = AMDGPU.default_isa(device)
+        @test AMDGPU.Runtime.isa_workgroup_max_size(device_isa) isa UInt32
     end
     @testset "ROCMemoryRegion" begin
         device = AMDGPU.default_device()
         region = first(AMDGPU.Runtime.regions(device))
-        for (kind, T) in AMDGPU.Runtime.REGION_INFO_MAP
-            if kind == AMDGPU.HSA.REGION_INFO_ALLOC_MAX_PRIVATE_WORKGROUP_SIZE &&
-               (AMDGPU.Runtime.region_segment(region) & AMDGPU.HSA.REGION_SEGMENT_PRIVATE == 0)
-                # TODO: Test this too
-                continue
-            end
-            result = AMDGPU.getinfo(region, kind)
-            result_raw = AMDGPU.getinfo(region.region, kind)
-            if T === Vector{UInt8}
-                @test result isa AbstractString
-                @test result_raw isa AbstractString
-            else
-                @test result isa T
-                @test result_raw isa T
-            end
-            @test result == result_raw
-        end
+        @test AMDGPU.Runtime.region_segment(region) isa AMDGPU.HSA.RegionSegment
+        @test AMDGPU.Runtime.region_runtime_alloc_allowed(region) isa Bool
+        @test AMDGPU.Runtime.region_runtime_alloc_granule(region) isa Csize_t
     end
     @testset "ROCMemoryPool" begin
         device = AMDGPU.default_device()
         pool = first(AMDGPU.Runtime.memory_pools(device))
-        for (kind, T) in AMDGPU.Runtime.POOL_INFO_MAP
-            result = AMDGPU.getinfo(pool, kind)
-            result_raw = AMDGPU.getinfo(pool.pool, kind)
-            if T === Vector{UInt8}
-                @test result isa AbstractString
-                @test result_raw isa AbstractString
-            else
-                @test result isa T
-                @test result_raw isa T
-            end
-            @test result == result_raw
-        end
+        @test AMDGPU.Runtime.pool_segment(pool) isa AMDGPU.HSA.AMDSegment
+        @test AMDGPU.Runtime.pool_size(pool) isa Csize_t
+        @test AMDGPU.Runtime.pool_accessible_by_all(pool) isa Bool
     end
     @testset "HSA.ExecutableSymbol" begin
         device = AMDGPU.default_device()
@@ -72,13 +33,7 @@
         if exec_sym === nothing
             exec_sym = AMDGPU.Runtime.executable_symbol_by_name(exe, device, sym_name)
         end
-        for (kind, T) in AMDGPU.Runtime.EXECUTABLE_SYMBOL_INFO_MAP
-            result = AMDGPU.getinfo(exec_sym, kind)
-            if T === Vector{UInt8}
-                @test result isa AbstractString
-            else
-                @test result isa T
-            end
-        end
+        @test AMDGPU.Runtime.executable_symbol_name(exec_sym) isa String
+        @test AMDGPU.Runtime.executable_symbol_kernel_private_segment_size(exec_sym) isa UInt32
     end
 end

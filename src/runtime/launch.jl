@@ -157,7 +157,7 @@ end
     ret void
     """, Cvoid, Tuple{Ptr{UInt16}, UInt16}, x, v)
 
-function enqueue_packet!(f::Base.Callable, T, queue::ROCQueue)
+function enqueue_packet!(f::Base.Callable, ::Type{T}, queue::ROCQueue) where T
     # Obtain the current queue write index and queue size
     queue_ptr = @atomic queue.queue
     active = @atomic queue.active

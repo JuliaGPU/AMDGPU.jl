@@ -74,11 +74,9 @@ default_queue() = default_queue(default_device())
 default_queue(device::ROCDevice) = Runtime.get_default_queue(device)
 device(queue::ROCQueue) = queue.device
 
-default_isa(device::ROCDevice) = first(Runtime.isas(device))
-default_isa_architecture(device::ROCDevice) =
-    Runtime.architecture(first(Runtime.isas(device)))
-default_isa_features(device::ROCDevice) =
-    Runtime.features(first(Runtime.isas(device)))
+default_isa(device::ROCDevice) = Runtime.default_isa(device)
+default_isa_architecture(device::ROCDevice) = Runtime.architecture(default_isa(device))
+default_isa_features(device::ROCDevice) = Runtime.features(default_isa(device))
 
 ## Executable creation
 
