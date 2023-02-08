@@ -12,6 +12,7 @@ function hsa_version()
 end
 
 function versioninfo(io::IO=stdout)
+    println("Using ROCm provided by: ", use_artifacts ? "JLLs" : "System")
     println("HSA Runtime ($(functional(:hsa) ? "ready" : "MISSING"))")
     if functional(:hsa)
         println("- Path: $libhsaruntime_path")
