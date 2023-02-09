@@ -54,7 +54,7 @@
                 if i > 0
                     sleep(0.5)
                     @test Array(RA)[1] == 0.0
-                    HSA.signal_store_release(sig.signal], 3)
+                    HSA.signal_store_release(sig.signal, 3)
 
                     wait(ret1[1])
                     @test Array(RA)[1] == 1.0

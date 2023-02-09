@@ -111,7 +111,7 @@ function launch_kernel!(
     queue::ROCQueue, kernel::ROCKernel, signal::ROCSignal,
     groupsize::ROCDim3, gridsize::ROCDim3,
 )
-    @log_start(:launch_kernel!, (;f=typeof(kernel.f), tt=typeof(kernel.args), signal=get_handle(signal), queue=get_handle(queue)), nothing)
+    @log_start(:launch_kernel!, (;entry=kernel.sym, signal=get_handle(signal)), (;queue=UInt64(get_handle(queue))))
 
     enqueue_packet!(HSA.KernelDispatchPacket, queue) do _packet
         @set! _packet.setup = 3 << Int(HSA.KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS)
@@ -129,7 +129,7 @@ function launch_kernel!(
         _packet
     end
 
-    @log_finish(:launch_kernel!, (;f=typeof(kernel.f), tt=typeof(kernel.args), signal=get_handle(signal), queue=get_handle(queue)), nothing)
+    @log_finish(:launch_kernel!, (;entry=kernel.sym, signal=get_handle(signal)), (;queue=UInt64(get_handle(queue))))
 end
 
 function launch_barrier!(T, queue::ROCQueue, signals::Vector{ROCSignal})
