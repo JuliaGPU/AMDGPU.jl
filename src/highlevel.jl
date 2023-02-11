@@ -68,11 +68,16 @@ end
 
 wavefrontsize(device::ROCDevice) = Runtime.device_wavefront_size(device)
 
-# Queues
+HIPContext(device::ROCDevice) = HIPContext(HIPDevice(device))
+HIPDevice(device::ROCDevice) = HIPDevice(device_id(device))
+
+# Queues/Streams
 
 default_queue() = default_queue(default_device())
 default_queue(device::ROCDevice) = Runtime.get_default_queue(device)
 device(queue::ROCQueue) = queue.device
+device(stream::HIPStream) = stream.device
+HIPStream(device::ROCDevice; kwargs...) = HIPStream(HIPDevice(device); kwargs...)
 
 default_isa(device::ROCDevice) = Runtime.default_isa(device)
 default_isa_architecture(device::ROCDevice) = Runtime.architecture(default_isa(device))
@@ -135,6 +140,7 @@ function create_event(kernel::ROCKernel;
 end
 
 ## Kernel creation
+
 """
     create_kernel(kernel::HostKernel, f, args::Tuple; kwargs...)
 
@@ -171,6 +177,34 @@ function active_kernels(queue::ROCQueue=default_queue())
     lock(Runtime.RT_LOCK) do
         copy(Runtime._active_kernels[queue])
     end
+end
+
+"""
+    synchronize()
+    synchronize(queue::ROCQueue)
+
+Blocks until all kernels currently executing on `queue` have completed. When
+`queue` is unspecified, the default queue is used.
+"""
+function synchronize(queue::ROCQueue=default_queue())
+    sig = lock(queue.lock) do
+        kerns = queue.active_kernels
+        length(kerns) == 0 && return nothing
+        return last(kerns)
+    end
+    if sig !== nothing
+        wait(sig)
+    end
+    return
+end
+"""
+    synchronize(stream::HIPStream)
+
+Blocks until all kernels currently executing on `stream` have completed.
+"""
+function synchronize(stream::HIPStream)
+    HIP.hipStreamSynchronize(stream.stream) |> check
+    return
 end
 
 ## @roc interface

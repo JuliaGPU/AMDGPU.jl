@@ -45,9 +45,9 @@ include("utils.jl")
 
 # Load HIP
 const libhip = "libamdhip64.so"
-if functional(:hip)
-    include(joinpath(@__DIR__, "hip", "HIP.jl"))
-end
+include(joinpath(@__DIR__, "hip", "HIP.jl"))
+import .HIP: HIPContext, HIPDevice, HIPStream
+export HIPContext, HIPDevice, HIPStream
 
 module Runtime
     using ..CEnum
@@ -60,7 +60,7 @@ module Runtime
     import TimespanLogging: timespan_start, timespan_finish
 
     import ..AMDGPU
-    import ..AMDGPU: getinfo, LockedObject
+    import ..AMDGPU: getinfo, LockedObject, HIP
 
     struct Adaptor end
 

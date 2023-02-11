@@ -1,10 +1,123 @@
 module HIP
 
+import ..AMDGPU
 import ..AMDGPU.libhip
 using CEnum
 
 include("libhip_common.jl")
 include("error.jl")
 include("libhip.jl")
+
+struct HIPDevice
+    device::hipDevice_t
+    device_id::Cint
+end
+function HIPDevice(device_id::Integer)
+    device_ref = Ref{hipDevice_t}()
+    hipDeviceGet(device_ref, Cint(device_id-1)) |> check
+    return HIPDevice(device_ref[], device_id)
+end
+Base.unsafe_convert(::Type{Ptr{T}}, device::HIPDevice) where T =
+    reinterpret(Ptr{T}, device.device)
+function name(device::HIPDevice)
+    name_vec = zeros(Cuchar, 64)
+    hipDeviceGetName(pointer(name_vec), Cint(64), device.device) |> check
+    return String(name_vec)
+end
+function Base.show(io::IO, device::HIPDevice)
+    print(io, "HIPDevice(name=\"$(name(device))\", id=$(device.device_id))")
+end
+
+function device()
+    device_id_ref = Ref{Cint}()
+    hipGetDevice(device_id_ref) |> check
+    return HIPDevice(device_id_ref[]+1)
+end
+device!(device::HIPDevice) = hipSetDevice(device.device_id-Int32(1)) |> check
+device!(device_id::Integer) = hipSetDevice(Cint(device_id-1)) |> check
+function device!(f::Base.Callable, device::HIPDevice)
+    old_device_id_ref = Ref{Cint}()
+    hipGetDevice(old_device_id_ref) |> check
+    device!(device)
+    try
+        f()
+    finally
+        device!(old_device_id_ref[]+1)
+    end
+end
+
+mutable struct HIPContext
+    context::hipContext_t
+end
+const CONTEXTS = AMDGPU.LockedObject(Dict{HIPDevice,HIPContext}())
+function HIPContext(device::HIPDevice)
+    lock(CONTEXTS) do contexts
+        get!(contexts, device) do
+            context_ref = Ref{hipContext_t}()
+            hipCtxCreate(context_ref, Cuint(0), device.device) |> check
+            context = HIPContext(context_ref[])
+            device!(device)
+            finalizer(context) do c
+                hipCtxDestroy(c.context) |> check
+            end
+            return context
+        end
+    end
+end
+HIPContext(device_id::Integer) = HIPContext(HIPDevice(device_id))
+Base.unsafe_convert(::Type{Ptr{T}}, context::HIPContext) where T =
+    reinterpret(Ptr{T}, context.context)
+function Base.show(io::IO, context::HIPContext)
+    print(io, "HIPContext(ptr=$(repr(UInt64(context.context))))")
+end
+
+context!(context::HIPContext) = context!(context.context)
+context!(context::hipContext_t) = hipCtxSetCurrent(context) |> check
+function context!(f::Base.Callable, context::HIPContext)
+    old_context_ref = Ref{hipContext_t}()
+    hipCtxGetCurrent(old_context_ref) |> check
+    context!(context)
+    try
+        f()
+    finally
+        context!(old_context_ref[])
+    end
+end
+
+mutable struct HIPStream
+    stream::hipStream_t
+    priority::Symbol
+    device::HIPDevice
+end
+function HIPStream(device::HIPDevice; priority=:normal)
+    priority_int = if priority == :normal
+        Cint(0)
+    elseif priority == :high
+        Cint(-1)
+    elseif priority == :low
+        Cint(1)
+    else
+        throw(ArgumentError("Invalid stream priority: $priority"))
+    end
+    stream_ref = Ref{hipStream_t}()
+    hipStreamCreateWithPriority(stream_ref, Cuint(0), priority_int) |> check
+    stream = HIPStream(stream_ref[], priority, device)
+    finalizer(stream) do s
+        hipStreamSynchronize(s.stream) |> check
+        hipStreamDestroy(s.stream) |> check
+    end
+    return stream
+end
+# FIXME: Query default device from TLS
+HIPStream(;kwargs...) = HIPStream(HIPDevice(1); kwargs...)
+function HIPStream(stream::hipStream_t)
+    # FIXME: Query correct device and prio
+    return HIPStream(stream, :normal, HIPDevice(1))
+end
+Base.unsafe_convert(::Type{Ptr{T}}, stream::HIPStream) where T =
+    reinterpret(Ptr{T}, stream.stream)
+function Base.show(io::IO, stream::HIPStream)
+    print(io, "HIPStream(device=$(stream.device), ptr=$(repr(UInt64(stream.stream))), priority=$(stream.priority))")
+end
 
 end
