@@ -27,7 +27,7 @@ const ALLOC_SIGNAL_POOL_MAX = let
 end
 
 """
-    ROCSignal(init::Integer = 1; pooled::Bool=true, ipc::Bool=true) -> ROCSignal
+    ROCSignal(init::Integer = 1; pooled::Bool=true, ipc::Bool=false) -> ROCSignal
 
 Acquires an HSA signal object which can be used to communicate values between
 the host and device.
@@ -37,8 +37,8 @@ the host and device.
 - `ipc::Bool`: If `true`, signal may be used for interprocess communication.
     IPC signals can be read, written, and waited on from any process.
 """
-function ROCSignal(init::Integer = 1; pooled::Bool=true, ipc::Bool=true)
-    if !ipc
+function ROCSignal(init::Integer = 1; pooled::Bool=true, ipc::Bool=false)
+    if ipc
         pooled = false
     end
     if !pooled
