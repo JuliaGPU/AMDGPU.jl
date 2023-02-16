@@ -45,12 +45,22 @@ function delete_exception_user!(mod::LLVM.Module)
     end
     @assert !haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
 end
+function replace_boundscheck!(mod::LLVM.Module, boundscheck::Bool)
+    if haskey(LLVM.globals(mod), "__global_boundscheck")
+        gbl = LLVM.globals(mod)["__global_boundscheck"]
+        linkage!(gbl, LLVM.API.LLVMPrivateLinkage)
+        constant!(gbl, true)
+        extinit!(gbl, false)
+        initializer!(gbl, ConstantInt(UInt8(boundscheck); ctx=context(mod)))
+    end
+end
 
 ## GPUCompiler interface
 
 struct ROCCompilerParams <: AbstractCompilerParams
     device::ROCDevice
     global_hooks::NamedTuple
+    boundscheck::Bool
 end
 
 const ROCCompilerJob = CompilerJob{GCNCompilerTarget,ROCCompilerParams}
@@ -70,6 +80,9 @@ function GPUCompiler.process_module!(job::ROCCompilerJob, mod::LLVM.Module)
            job, mod)
     # Run this early (before optimization) to ensure we link OCKL
     emit_exception_user!(mod)
+
+    # Replace access to boundscheck flag early to enable optimizations
+    replace_boundscheck!(mod, job.params.boundscheck)
 end
 function GPUCompiler.process_entry!(job::ROCCompilerJob, mod::LLVM.Module, entry::LLVM.Function)
     invoke(GPUCompiler.process_entry!,
@@ -151,14 +164,14 @@ The output of this function is automatically cached, i.e. you can simply call
 generated automatically, when function definitions change, or when different
 types or keyword arguments are provided.
 """
-function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default_device(), global_hooks=NamedTuple()) where {F <: Core.Function}
+function rocfunction(f::F, tt::Type=Tuple{}; name=nothing, device=AMDGPU.default_device(), global_hooks=NamedTuple(), boundscheck::Bool=true) where {F <: Core.Function}
     source = FunctionSpec(F, tt, true, name)
     cache = get!(()->Dict{UInt, Any}(), rocfunction_cache, device)
 
     isa = AMDGPU.default_isa(device)
     dev_isa, features = Runtime.llvm_arch_features(isa)
     target = GCNCompilerTarget(; dev_isa, features)
-    params = ROCCompilerParams(device, global_hooks)
+    params = ROCCompilerParams(device, global_hooks, boundscheck)
     job = CompilerJob(target, source, params; always_inline=true)
     @debug "Compiling $f($(join(tt.parameters, ", ")))"
     Runtime.@log_start(:cached_compile, (;f=F, tt), nothing)
@@ -213,7 +226,9 @@ function rocfunction_link(@nospecialize(job::CompilerJob), compiled)
     # initialize globals from hooks
     for gname in first.(globals)
         hook = nothing
-        if haskey(default_global_hooks, gname)
+        if gname == :__global_boundscheck
+            hook = boundscheck_hook(job.params.boundscheck)
+        elseif haskey(default_global_hooks, gname)
             hook = default_global_hooks[gname]
         elseif haskey(global_hooks, gname)
             hook = global_hooks[gname]

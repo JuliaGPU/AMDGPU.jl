@@ -1,5 +1,12 @@
 const default_global_hooks = Dict{Symbol,Function}()
 
+function boundscheck_hook(boundscheck::Bool)
+    return (gbl, mod, device) -> begin
+        gbl_ptr = Base.unsafe_convert(Ptr{UInt8}, gbl)
+        Base.unsafe_store!(gbl_ptr, UInt8(boundscheck))
+    end
+end
+
 default_global_hooks[:__global_output_context] = (gbl, mod, device) -> begin
     # initialize global output context
     gbl_ptr = Base.unsafe_convert(Ptr{AMDGPU.Device.GLOBAL_OUTPUT_CONTEXT_TYPE}, gbl)

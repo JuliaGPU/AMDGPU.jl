@@ -194,7 +194,7 @@ rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 function split_kwargs(kwargs)
     alias_kws    = Dict(:stream=>:queue)
     macro_kws    = [:dynamic, :launch, :wait, :mark]
-    compiler_kws = [:name, :global_hooks]
+    compiler_kws = [:name, :global_hooks, :boundscheck]
     call_kws     = [:gridsize, :groupsize, :config]
     signal_kws   = [:queue, :signal, :soft, :minlat, :timeout]
     kernel_kws   = [:localmem]
@@ -322,6 +322,7 @@ Keyword arguments that affect various parts of `@roc`:
 Keyword arguments that control kernel compilation via [`rocfunction`](@ref) and [`dynamic_rocfunction`](@ref):
 - `name::Union{String,Nothing} = nothing`: If not `nothing`, the name to use for the generated kernel.
 - `global_hooks::NamedTuple = (;)`: The set of global compiler hooks to use to initialize memory accessed by the kernel. See `AMDGPU.Compiler.default_global_hooks` for an example of how to implement these.
+- `boundscheck::Bool = true`: If `false`, disables all boundschecking within the kernel. The default of `true` enables boundschecking unless `@inbounds` is used.
 
 Keyword arguments that control signal creation via [`AMDGPU.create_event`](@ref):
 - `signal::ROCSignal = ROCSignal()`: The underlying signal object to associate the high-level `ROCKernelSignal` with.

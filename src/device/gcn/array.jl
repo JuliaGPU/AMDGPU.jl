@@ -83,14 +83,21 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N
     Base.datatype_alignment(T)
 end
 
+@inline boundscheck_enabled() =
+    unsafe_load(get_global_pointer(Val(:__global_boundscheck), Bool))
+
 @device_function @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+    if boundscheck_enabled()
+        @boundscheck checkbounds(A, index)
+    end
     align = alignment(A)
     Base.unsafe_load(pointer(A), index, Val(align))::T
 end
 
 @device_function @inline function Base.setindex!(A::ROCDeviceArray{T}, x, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+    if boundscheck_enabled()
+        @boundscheck checkbounds(A, index)
+    end
     align = alignment(A)
     Base.unsafe_store!(pointer(A), x, index, Val(align))
     return A
