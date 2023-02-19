@@ -47,6 +47,7 @@ steps:
           codecov: true
     agents:
       queue: "juliagpu"
+      julia_1.9: "*"
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
@@ -65,6 +66,7 @@ steps:
           codecov: true
     agents:
       queue: "juliagpu"
+      julia_1.9: "*"
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
@@ -84,6 +86,7 @@ steps:
           codecov: true
     agents:
       queue: "juliagpu"
+      julia_1.9: "*"
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
