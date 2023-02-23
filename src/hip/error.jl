@@ -1,5 +1,7 @@
 export HIPError
 
+import .AMDGPU: @check, check
+
 struct HIPError <: Exception
     code::hipError_t
     msg::AbstractString
@@ -145,14 +147,5 @@ end
 function check(err::hipError_t)
     if err != hipSuccess && err != hipErrorNotReady
         throw(HIPError(err))
-    end
-end
-
-macro check(hip_func)
-    quote
-        local err::hipError_t
-        err = $(esc(hip_func::Expr))
-        $check(err)
-        err
     end
 end

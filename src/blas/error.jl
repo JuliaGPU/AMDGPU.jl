@@ -1,5 +1,7 @@
 export ROCBLASError
 
+import .AMDGPU: @check, check
+
 struct ROCBLASError <: Exception
     code::rocblas_status_t
     msg::AbstractString
@@ -31,13 +33,9 @@ function status_message(status)
     end
 end
 
-macro check(blas_func)
-    quote
-        local err::rocblas_status_t
-        err = $(esc(blas_func::Expr))
-        if err != ROCBLAS_STATUS_SUCCESS
-            throw(ROCBLASError(err))
-        end
-        err
+function check(status::rocblas_status_t)
+    if status != ROCBLAS_STATUS_SUCCESS
+        throw(ROCBLASError(status))
     end
+    return status
 end

@@ -1,5 +1,7 @@
 export ROCRANDError
 
+import .AMDGPU: @check, check
+
 struct ROCRANDError <: Exception
     code::rocrand_status
     msg::AbstractString
@@ -37,14 +39,9 @@ function status_message(status)
     end
 end
 
-
-macro check(rand_func)
-    quote
-        local err::rocrand_status
-        err = $(esc(rand_func::Expr))
-        if err != ROCRAND_STATUS_SUCCESS
-            throw(ROCRANDError(err))
-        end
-        err
+function check(status::rocrand_status)
+    if status != ROCRAND_STATUS_SUCCESS
+        throw(ROCRANDError(status))
     end
+    return status
 end

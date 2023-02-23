@@ -1,5 +1,7 @@
 export ROCFFTError
 
+import .AMDGPU: @check, check
+
 struct ROCFFTError <: Exception
     code::rocfft_status
     msg::AbstractString
@@ -33,14 +35,9 @@ function status_message(status)
     end
 end
 
-
-macro check(fft_func)
-    quote
-        local err::rocfft_status
-        err = $(esc(fft_func::Expr))
-        if err != rocfft_status_success
-            throw(ROCFFTError(err))
-        end
-        err
+function check(status::rocfft_status)
+    if status != rocfft_status_success
+        throw(ROCFFTError(status))
     end
+    return status
 end
