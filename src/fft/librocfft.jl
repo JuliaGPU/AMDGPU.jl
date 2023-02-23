@@ -97,7 +97,7 @@ end
 
 function rocfft_execution_info_set_stream(info, stream)
     @check ccall((:rocfft_execution_info_set_stream, librocfft), rocfft_status,
-                 (rocfft_execution_info, Ptr{Cvoid}),
+                 (rocfft_execution_info, hipStream_t),
                  info, stream)
 end
 # Julia wrapper for header: rocfft-export.h

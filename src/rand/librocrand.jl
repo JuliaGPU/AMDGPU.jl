@@ -106,7 +106,7 @@ end
 
 function rocrand_set_stream(generator, stream)
     @check ccall((:rocrand_set_stream, librocrand), rocrand_status,
-                 (rocrand_generator, Cint),
+                 (rocrand_generator, hipStream_t),
                  generator, stream)
 end
 
