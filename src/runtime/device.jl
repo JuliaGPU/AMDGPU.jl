@@ -151,13 +151,13 @@ device_num_simds_per_compute_unit(device::AnyROCDevice) =
     getinfo(UInt32, device, HSA.AMD_AGENT_INFO_NUM_SIMDS_PER_CU)
 
 function device_local_memory_size(device::AnyROCDevice)
-    _regions = regions(device)
-    for region in _regions
-        if region_segment(region) == HSA.REGION_SEGMENT_GROUP
-            return region_size(region)
+    _pools = memory_pools(device)
+    for pool in _pools
+        if pool_segment(pool) == HSA.AMD_SEGMENT_GROUP
+            return pool_size(pool)
         end
     end
-    error("Failed to find local memory region for $device")
+    error("Failed to find local memory pool for $device")
 end
 
 ### ISAs
