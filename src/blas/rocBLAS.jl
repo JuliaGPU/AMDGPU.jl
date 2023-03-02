@@ -3,13 +3,13 @@ module rocBLAS
 using ..AMDGPU
 import AMDGPU: wait!, mark!, librocblas, AnyROCArray
 import AMDGPU: HandleCache
-import AMDGPU.HIP: HIPContext, HIPStream
+import AMDGPU: HIP
+import .HIP: HIPContext, HIPStream, hipContext_t, hipStream_t, hipEvent_t
 
 using LinearAlgebra
 
-include("librocblas_types.jl")
-include("error.jl")
 include("librocblas.jl")
+include("error.jl")
 include("wrappers.jl")
 include("highlevel.jl")
 
@@ -36,18 +36,20 @@ function handle()
     # get library state
     @noinline function new_state(tls)
         new_handle = pop!(idle_handles, tls.context) do
-            rocblas_create_handle()
+            handle_ref = Ref{rocblas_handle}()
+            @check rocblas_create_handle(handle_ref)
+            handle_ref[]
         end
 
         finalizer(current_task()) do task
             push!(idle_handles, tls.context, new_handle) do
                 context!(tls.context) do
-                    rocblas_destroy_handle(new_handle)
+                    @check rocblas_destroy_handle(new_handle)
                 end
             end
         end
 
-        rocblas_set_stream(new_handle, tls.stream)
+        @check rocblas_set_stream(new_handle, tls.stream)
 
         (; handle=new_handle, tls.stream)
     end
@@ -57,7 +59,7 @@ function handle()
 
     # update stream
     @noinline function update_stream(tls, state)
-        rocblas_set_stream(state.handle, tls.stream)
+        @check rocblas_set_stream(state.handle, tls.stream)
         (; state.handle, stream=tls.stream)
     end
     if state.stream != tls.stream
@@ -65,6 +67,12 @@ function handle()
     end
 
     return state.handle
+end
+
+function stream(handle::rocblas_handle)
+    stream_ref = Ref{hipStream_t}()
+    rocblas_get_stream(handle, stream_ref)
+    return HIPStream(stream_ref[])
 end
 
 if AMDGPU.functional(:rocblas)

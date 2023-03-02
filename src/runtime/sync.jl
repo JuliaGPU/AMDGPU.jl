@@ -34,6 +34,8 @@ mark!(ss::SyncState, signal::ROCKernelSignal) =
     lock(()->push!(ss.signals, signal), ss.lock)
 mark!(ss::SyncState, stream::Ptr{Cvoid}) =
     lock(()->push!(ss.streams, stream), ss.lock)
+mark!(ss::SyncState, stream::HIP.HIPStream) =
+    mark!(ss, stream.stream)
 
 wait!(x) = Adapt.adapt(WaitAdaptor(), x)
 mark!(x, s) = Adapt.adapt(MarkAdaptor(s), x)

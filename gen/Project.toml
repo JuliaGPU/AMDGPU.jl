@@ -2,3 +2,4 @@
 Clang = "40e3b903-d033-50b4-a0cc-940c62c95e31"
 MIOpen_jll = "2409bb75-d5ef-542a-ac68-1cfd4c37dc24"
 hsa_rocr_jll = "dd59ff1a-a01a-568d-8b29-0669330f116a"
+rocBLAS_jll = "1ef8cab2-a151-54b4-a57f-5fbb4046a4ab"
