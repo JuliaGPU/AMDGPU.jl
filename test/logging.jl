@@ -1,5 +1,5 @@
+if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
 @testset "Basics" begin
-    @assert AMDGPU.Runtime.LOGGING_STATIC_ENABLED
     @test AMDGPU.Runtime.GLOBAL_TIMESPAN_CONTEXT.log_sink === nothing
 
     AMDGPU.Runtime.start_logging()
@@ -145,4 +145,8 @@
         @test logs[:id][ginit_start].gname == logs[:id][ginit_finish].gname
         # FIXME: Check f, tt => entry transition
     end
+end
+else # !AMDGPU.Runtime.LOGGING_STATIC_ENABLED
+@warning "Logging is statically disabled, skipping logging tests\nThis can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests"
+@test_skip "Logging"
 end
