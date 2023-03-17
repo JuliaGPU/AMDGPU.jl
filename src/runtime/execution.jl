@@ -232,8 +232,8 @@ a callable kernel object. Device-side equivalent of [`AMDGPU.rocfunction`](@ref)
 
 No keyword arguments are supported.
 """
-@inline function dynamic_rocfunction(f::Core.Function, tt::Type=Tuple{})
-    fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
+@inline function dynamic_rocfunction(f::F, tt::Type=Tuple{}) where {F <: Function}
+    fptr = GPUCompiler.deferred_codegen(Val(F), Val(tt))
     DeviceKernel{f,tt}(fptr)
 end
 
