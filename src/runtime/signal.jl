@@ -56,6 +56,7 @@ the host and device.
     signals; if `false`, or if the pool is empty, the signal is allocated from HSA.
 - `ipc::Bool`: If `true`, signal may be used for interprocess communication.
     IPC signals can be read, written, and waited on from any process.
+    Disables signal pooling when `true`.
 """
 function ROCSignal(init::Int64 = 1; pooled::Bool = true, ipc::Bool = false)
     pooled = ipc ? false : pooled
@@ -68,7 +69,7 @@ function ROCSignal(init::Int64 = 1; pooled::Bool = true, ipc::Bool = false)
             HSA.signal_create(init, 0, C_NULL, signal_ref))
         raw_signal = signal_ref[]
     else
-        HSA.signal_store_relaxed(raw_signal, init)
+        HSA.signal_store_relaxed(raw_signal, init) |> check
     end
 
     AMDGPU.hsaref!()
