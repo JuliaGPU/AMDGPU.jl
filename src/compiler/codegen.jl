@@ -121,7 +121,7 @@ end
 # compile to GCN
 function compile(@nospecialize(job::CompilerJob))
     # compile
-    Runtime.@log_start(:compile, (;f=job.source.f, tt=job.source.tt), nothing)
+    Runtime.@log_start(:compile, (;f=job.source.ft, tt=job.source.tt), nothing)
 
     method_instance, mi_meta = GPUCompiler.emit_julia(job)
     JuliaContext() do ctx
@@ -137,13 +137,13 @@ function compile(@nospecialize(job::CompilerJob))
 
         dispose(ir)
 
-        Runtime.@log_finish(:compile, (;f=job.source.f, tt=job.source.tt), nothing)
+        Runtime.@log_finish(:compile, (;f=job.source.ft, tt=job.source.tt), nothing)
 
         return (;obj, entry, globals)
     end
 end
 function link(@nospecialize(job::CompilerJob), compiled)
-    Runtime.@log_start(:link, (;f=job.source.f, tt=job.source.tt), nothing)
+    Runtime.@log_start(:link, (;f=job.source.ft, tt=job.source.tt), nothing)
     device = job.config.params.device
     global_hooks = job.config.params.global_hooks
     (;obj, entry, globals) = compiled
@@ -164,17 +164,17 @@ function link(@nospecialize(job::CompilerJob), compiled)
         end
         if hook !== nothing
             @debug "Initializing global $gname"
-            Runtime.@log_start(:global_init, (;f=job.source.f, tt=job.source.tt, gname), nothing)
+            Runtime.@log_start(:global_init, (;f=job.source.ft, tt=job.source.tt, gname), nothing)
             gbl = Runtime.get_global(exe, gname)
             hook(gbl, mod, device)
-            Runtime.@log_finish(:global_init, (;f=job.source.f, tt=job.source.tt, gname), nothing)
+            Runtime.@log_finish(:global_init, (;f=job.source.ft, tt=job.source.tt, gname), nothing)
         else
             @debug "Uninitialized global $gname"
             continue
         end
     end
 
-    Runtime.@log_finish(:link, (;f=job.source.f, tt=job.source.tt), nothing)
+    Runtime.@log_finish(:link, (;f=job.source.ft, tt=job.source.tt), nothing)
     return fun
 end
 
