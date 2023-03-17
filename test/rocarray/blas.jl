@@ -206,6 +206,55 @@ end
             end
         end
     end
+
+    @testset "triangular lmul!, rmul!, ldiv!, rdiv!" begin
+        for T in (Float32, Float64)
+            A = triu(rand(T, 20, 20))
+            B = rand(T, 20, 20)
+            b = rand(T, 20)
+            dA, dB, db = ROCArray(A), ROCArray(B), ROCArray(b)
+
+            for t in (identity, transpose, adjoint),
+                TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
+
+                # Left division.
+                dC = copy(dB)
+                ldiv!(t(TR(dA)), dC)
+                C = t(TR(A)) \ B
+                @test C ≈ Array(dC)
+
+                # Right division.
+                dC = copy(dB)
+                rdiv!(dC, t(TR(dA)))
+                C = B / t(TR(A))
+                @test C ≈ Array(dC)
+
+                # Left division vector.
+                dc = copy(db)
+                ldiv!(t(TR(dA)), dc)
+                c = t(TR(A)) \ b
+                @test c ≈ Array(dc)
+
+                # Left multiplication.
+                dC = copy(dB)
+                lmul!(t(TR(dA)), dC)
+                C = t(TR(A)) * B
+                @test C ≈ Array(dC)
+
+                # Right multiplication.
+                dC = copy(dB)
+                rmul!(dC, t(TR(dA)))
+                C = B * t(TR(A))
+                @test C ≈ Array(dC)
+
+                # Left multiplication by vector.
+                dc = copy(db)
+                lmul!(t(TR(dA)), dc)
+                c = t(TR(A)) * b
+                @test c ≈ Array(dc)
+            end
+        end
+    end
 end
 
 end # testset BLAS
