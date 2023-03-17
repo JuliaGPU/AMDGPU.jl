@@ -53,7 +53,6 @@ end
 mutable struct ROCFunction
     mod::ROCModule
     entry::String
-    hash::UInt64
 end
 
 ## Kernel instance
