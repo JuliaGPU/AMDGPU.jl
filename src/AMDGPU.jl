@@ -28,11 +28,8 @@ end
 LockedObject(payload) = LockedObject(ReentrantLock(), payload)
 
 function Base.lock(f, x::LockedObject)
-    lock(x.lock)
-    try
+    Base.@lock x.lock begin
         return f(x.payload)
-    finally
-        unlock(x.lock)
     end
 end
 

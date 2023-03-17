@@ -2,6 +2,7 @@ import ObjectFile
 import ObjectFile: readmeta, Sections, section_name, section_size, section_offset
 import MsgPack
 
+# TODO use LockedObject
 const OCCUPANCY_CACHE = Dict{Tuple{AMDGPU.Runtime.ROCDevice, UInt64, Int, Int}, NamedTuple}()
 const OCCUPANCY_CACHE_LOCK = Threads.ReentrantLock()
 

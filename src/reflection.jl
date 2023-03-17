@@ -9,17 +9,15 @@
 for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
     # only code_typed doesn't take an io argument
     args = method == :code_typed ? (:job,) : (:io, :job)
-
     @eval begin
-        function $method(io::IO, @nospecialize(func), @nospecialize(types);
-                         kernel::Bool=false, device=default_device(), kwargs...)
-            source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            isa = default_isa(device)
-            arch = Runtime.architecture(isa)
-            feat = Runtime.features(isa)
-            target = GCNCompilerTarget(; dev_isa=arch,features=feat)
-            params = Compiler.ROCCompilerParams(device, NamedTuple())
-            job = CompilerJob(target, source, params)
+        function $method(
+            io::IO, @nospecialize(func), @nospecialize(types);
+            kernel::Bool=false, device=default_device(), kwargs...,
+        )
+            source = FunctionSpec(typeof(func), Base.to_tuple_type(types))
+            config = Compiler.compiler_config(
+                device; kernel, global_hooks=NamedTuple())
+            job = CompilerJob(source, config)
             GPUCompiler.$method($(args...); kwargs...)
         end
         $method(@nospecialize(func), @nospecialize(types); kwargs...) =
