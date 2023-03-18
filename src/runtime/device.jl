@@ -47,9 +47,7 @@ end
 Returns the list of HSA devices available on the system.
 """
 function fetch_devices()
-    if !isempty(ALL_DEVICES)
-        return copy(ALL_DEVICES)
-    end
+    isempty(ALL_DEVICES) || return copy(ALL_DEVICES)
 
     devices = Ref(Vector{ROCDevice}())
     GC.@preserve devices begin
@@ -198,7 +196,7 @@ function llvm_arch_features(isa::HSA.ISA)
     m = parse_isa(isa)
     arch = String(m.captures[4])
     features = join(map(x->x[1:end-1],
-                        filter(x->!isempty(x) && (x[end]=='+'),
+                        filter!(x->!isempty(x) && (x[end]=='+'),
                                split(m.captures[5], ':'))),
                     ",+")
     if !isempty(features)
@@ -236,10 +234,12 @@ function iterate_regions_cb(region::HSA.Region, regions)
 end
 
 function regions(agent::HSA.Agent)
-    regions = Ref(HSA.Region[])
-    func = @cfunction(iterate_regions_cb, HSA.Status, (HSA.Region, Ref{Vector{HSA.Region}}))
-    HSA.agent_iterate_regions(agent, func, regions) |> check
-    return map(ROCMemoryRegion, regions[])
+    @memoize agent::HSA.Agent begin
+        regions = Ref(HSA.Region[])
+        func = @cfunction(iterate_regions_cb, HSA.Status, (HSA.Region, Ref{Vector{HSA.Region}}))
+        HSA.agent_iterate_regions(agent, func, regions) |> check
+        map(ROCMemoryRegion, regions[])
+    end::Vector{ROCMemoryRegion}
 end
 regions(device::ROCDevice) = regions(device.agent)
 
@@ -274,7 +274,6 @@ region_host_accessible(region::AnyROCMemoryRegion) =
     getinfo(Bool, region, HSA.AMD_REGION_INFO_HOST_ACCESSIBLE)
 
 function get_region(device::ROCDevice, kind::Symbol)
-    _regions = regions(device)
     flag = if kind == :finegrained
         HSA.REGION_GLOBAL_FLAG_FINE_GRAINED
     elseif kind == :coarsegrained || kind == :coarsegrained_host
@@ -284,10 +283,9 @@ function get_region(device::ROCDevice, kind::Symbol)
     else
         error("Region kind $kind not supported")
     end
-    _regions = filter(region->region_global_flags(region) & flag > 0, _regions)
-    if kind == :coarsegrained
-        _regions = filter(region->!region_host_accessible(region), _regions)
-    end
+    _regions = regions(device)
+    _regions = filter(r -> region_global_flags(r) & flag > 0, _regions)
+    kind == :coarsegrained && filter!(!region_host_accessible, _regions)
     @assert !isempty(_regions) "No region of kind $kind in device $device"
     return first(_regions)
 end
@@ -347,10 +345,12 @@ function iterate_pools_cb(pool::HSA.AMDMemoryPool, pools)
 end
 
 function memory_pools(agent::HSA.Agent)
-    pools = Ref(HSA.AMDMemoryPool[])
-    func = @cfunction(iterate_pools_cb, HSA.Status, (HSA.AMDMemoryPool, Ref{Vector{HSA.AMDMemoryPool}}))
-    HSA.amd_agent_iterate_memory_pools(agent, func, pools) |> check
-    return map(ROCMemoryPool, pools[])
+    @memoize agent::HSA.Agent begin
+        pools = Ref(HSA.AMDMemoryPool[])
+        func = @cfunction(iterate_pools_cb, HSA.Status, (HSA.AMDMemoryPool, Ref{Vector{HSA.AMDMemoryPool}}))
+        HSA.amd_agent_iterate_memory_pools(agent, func, pools) |> check
+        map(ROCMemoryPool, pools[])
+    end::Vector{ROCMemoryPool}
 end
 memory_pools(device::ROCDevice) = memory_pools(device.agent)
 
@@ -416,7 +416,6 @@ function Base.show(io::IO, pool::ROCMemoryPool)
 end
 
 function get_memory_pool(device::ROCDevice, kind::Symbol)
-    _pools = memory_pools(device)
     flag = if kind == :finegrained
         HSA.AMD_MEMORY_POOL_GLOBAL_FLAG_FINE_GRAINED
     elseif kind == :coarsegrained || kind == :coarsegrained_host
@@ -426,10 +425,10 @@ function get_memory_pool(device::ROCDevice, kind::Symbol)
     else
         error("Region kind $kind not supported")
     end
-    _pools = filter(pool->pool_global_flags(pool) & flag > 0, _pools)
-    if kind == :coarsegrained
-        _pools = filter(pool->!pool_accessible_by_all(pool), _pools)
-    end
+
+    _pools = memory_pools(device)
+    _pools = filter(p -> pool_global_flags(p) & flag > 0, _pools)
+    kind == :coarsegrained && filter!(!pool_accessible_by_all, _pools)
     @assert !isempty(_pools) "No memory pool of kind $kind in device $device"
     return first(_pools)
 end

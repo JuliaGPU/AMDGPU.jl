@@ -266,6 +266,7 @@ Note: This API is currently experimental and is subject to change at any time.
 function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; return_task::Bool = false,
                   device=AMDGPU.default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
                   timeout=nothing, continuous=false, buf_len=nothing)
+    # TODO Create raw HSA signal.
     signal = Runtime.ROCSignal()
     hc = HostCall(rettype, argtypes, Runtime.get_handle(signal); device, buf_len)
 
