@@ -1,5 +1,4 @@
 import ..LLVM
-import ..LLVM.Interop: assume
 
 ## Lazy Initialization
 # Borrowed from CUDA.jl
@@ -126,7 +125,7 @@ macro memoize(ex...)
             end
             local_cache = @inbounds begin
                 tid = Threads.threadid()
-                assume(isassigned(cache, tid))
+                LLVM.Interop.assume(isassigned(cache, tid))
                 cache[tid]
             end
             cached_value = @inbounds local_cache[$(esc(key.val))]
@@ -148,7 +147,7 @@ macro memoize(ex...)
             end
             local_cache = @inbounds begin
                 tid = Threads.threadid()
-                assume(isassigned(cache, tid))
+                LLVM.Interop.assume(isassigned(cache, tid))
                 cache[tid]
             end
             cached_value = get(local_cache, $(esc(key.val)), nothing)

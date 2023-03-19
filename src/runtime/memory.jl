@@ -401,6 +401,10 @@ function alloc_or_retry!(f)
         end
     end
 end
+
+# TODO monitor allocations per pool & region.
+# When reaching the limit - perform GC.
+
 const ALL_ALLOCS = Threads.Atomic{Int64}(0)
 function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     if ALL_ALLOCS[] + bytesize > MEMORY_ALLOC_LIMIT
