@@ -23,8 +23,11 @@ function KernelAbstractions.synchronize(::ROCBackend)
     # TODO: Make this non-blocking
     queue = AMDGPU.default_queue()
     # Returns a ROCSignalSet containing signals
-    event = AMDGPU.barrier_and!(queue, AMDGPU.active_kernels(queue))
-    wait(event)
+    # TODO: Need to also sync HIP work
+    barrier = AMDGPU.barrier_and!(queue, AMDGPU.active_kernels(queue))
+    foreach(barrier.signals) do signal
+        AMDGPU.wait(signal; queue)
+    end
 end
 
 Adapt.adapt_storage(::ROCBackend, a::Array) = Adapt.adapt(AMDGPU.ROCArray, a)
@@ -40,7 +43,7 @@ function KernelAbstractions.copyto!(backend::ROCBackend, A::AMDGPU.ROCArray{TA},
         destptr = pointer(A)
         srcptr  = pointer(B)
         N       = length(A)
-        signal  = ROCSignal()
+        # signal  = ROCSignal()
         #if TA === TB
         #    AMDGPU.Mem.unsafe_copy3d!(destptr, srcptr, N; signal, async=true)
         #else
