@@ -9,52 +9,38 @@
 # License: MIT
 #
 
+const ROCBLASReal = Union{Float32,Float64}
+const ROCBLASComplex = Union{ComplexF32,ComplexF64}
+const ROCBLASFloat = Union{ROCBLASReal, ROCBLASComplex}
+
 # Utility functions
 
-# convert Char {N,T,C} to rocblas_operation_t
+# convert Char {N,T,C} to rocblas_operation
 function rocblasop(trans::Char)
-    if trans == 'N'
-        return ROCBLAS_OPERATION_NONE
-    end
-    if trans == 'T'
-        return ROCBLAS_OPERATION_TRANSPOSE
-    end
-    if trans == 'C'
-        return ROCBLAS_OPERATION_CONJUGATE_TRANSPOSE
-    end
+    trans == 'N' && return rocblas_operation_none
+    trans == 'T' && return rocblas_operation_transpose
+    trans == 'C' && return rocblas_operation_conjugate_transpose
     throw(ArgumentError("unknown rocblas operation $trans"))
 end
 
-# convert Char {U,L} to rocblas_fill_t
+# convert Char {U,L} to rocblas_fill
 function rocblasfill(uplo::Char)
-    if uplo == 'U'
-        return ROCBLAS_FILL_UPPER
-    end
-    if uplo == 'L'
-        return ROCBLAS_FILL_LOWER
-    end
+    uplo == 'U' && return rocblas_fill_upper
+    uplo == 'L' && return rocblas_fill_lower
     throw(ArgumentError("unknown rocblas fill mode $uplo"))
 end
 
-# convert Char {U,N} to rocblas_diagonal_t
+# convert Char {U,N} to rocblas_diagonal
 function rocblasdiag(diag::Char)
-    if diag == 'U'
-        return ROCBLAS_DIAGONAL_UNIT
-    end
-    if diag == 'N'
-        return ROCBLAS_DIAGONAL_NON_UNIT
-    end
+    diag == 'U' && return rocblas_diagonal_unit
+    diag == 'N' && return rocblas_diagonal_non_unit
     throw(ArgumentError("unknown rocblas diag mode $diag"))
 end
 
-# convert Char {L,R} to rocblas_side_t
+# convert Char {L,R} to rocblas_side
 function rocblasside(side::Char)
-    if side == 'L'
-        return ROCBLAS_SIDE_LEFT
-    end
-    if side == 'R'
-        return ROCBLAS_SIDE_RIGHT
-    end
+    side == 'L' && return rocblas_side_left
+    side == 'R' && return rocblas_side_right
     throw(ArgumentError("unknown rocblas side mode $side"))
 end
 
@@ -65,18 +51,14 @@ for (fname, elty) in ((:rocblas_dcopy,:Float64),
                       (:rocblas_zcopy,:ComplexF64),
                       (:rocblas_ccopy,:ComplexF32))
     @eval begin
-        # SUBROUTINE DCOPY(N,DX,INCX,DY,INCY)
         function blascopy!(n::Integer,
                            DX::ROCArray{$elty},
                            incx::Integer,
                            DY::ROCArray{$elty},
                            incy::Integer)
               wait!((DX,DY))
-              @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                           (rocblas_handle, Cint, Ptr{$elty}, Cint,
-                            Ptr{$elty}, Cint),
-                           handle(), n, DX, incx, DY, incy)
-              mark!((DX,DY),rocblas_get_stream(handle()))
+              $(fname)(handle(), n, DX, incx, DY, incy) |> check
+              mark!((DX,DY), stream(handle()))
               DY
         end
     end
@@ -88,17 +70,13 @@ for (fname, elty) in ((:rocblas_dscal,:Float64),
                       (:rocblas_zscal,:ComplexF64),
                       (:rocblas_cscal,:ComplexF32))
     @eval begin
-        # SUBROUTINE DSCAL(N,DA,DX,INCX)
         function scal!(n::Integer,
                        DA::$elty,
                        DX::ROCArray{$elty},
                        incx::Integer)
             wait!(DX)
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ptr{$elty}, Ptr{$elty},
-                          Cint),
-                         handle(), n, Ref(DA), DX, incx)
-            mark!(DX,rocblas_get_stream(handle()))
+            $(fname)(handle(), n, Ref(DA), DX, incx) |> check
+            mark!(DX,stream(handle()))
             DX
         end
     end
@@ -107,31 +85,18 @@ end
 for (fname, elty, celty) in ((:rocblas_sscal, :Float32, :ComplexF32),
                              (:rocblas_dscal, :Float64, :ComplexF64))
     @eval begin
-        # SUBROUTINE DSCAL(N,DA,DX,INCX)
         function scal!(n::Integer,
                        DA::$elty,
                        DX::ROCArray{$celty},
                        incx::Integer)
-            #DY = reinterpret($elty,DX,(2*n,))
-            #$(rocblascall(fname))(handle(),2*n,Ref(DA),DY,incx)
             wait!(DX)
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ptr{$elty}, Ptr{$celty},
-                          Cint),
-                         handle(), 2*n, Ref(DA), DX, incx)
-            mark!(DX,rocblas_get_stream(handle()))
+            $(fname)(handle(), 2*n, Ref(DA), DX, incx) |> check
+            mark!(DX,stream(handle()))
             DX
         end
     end
 end
 
-## dot, dotc, dotu
-# rocblas_status_t rocblas_ddot
-#   (rocblas_handle handle,
-#    int n,
-#    const double *x, int incx,
-#    const double *y, int incy,
-#    double *result);
 for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
                              (:dot,:rocblas_sdot,:Float32),
                              (:dotc,:rocblas_zdotc,:ComplexF64),
@@ -146,10 +111,7 @@ for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
                         incy::Integer)
             result = Ref{$elty}()
             wait!((DX,DY))
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ptr{$elty}, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}),
-                         handle(), n, DX, incx, DY, incy, result)
+            $(fname)(handle(), n, DX, incx, DY, incy, result) |> check
             return result[]
         end
     end
@@ -161,16 +123,12 @@ for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
                                 (:rocblas_dznrm2,:ComplexF64,:Float64),
                                 (:rocblas_scnrm2,:ComplexF32,:Float32))
     @eval begin
-        # SUBROUTINE DNRM2(N,X,INCX)
         function nrm2(n::Integer,
                       X::ROCArray{$elty},
                       incx::Integer)
             result = Ref{$ret_type}()
             wait!(X)
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ptr{$elty}, Cint,
-                          Ptr{$ret_type}),
-                         handle(), n, X, incx, result)
+            $(fname)(handle(), n, X, incx, result) |> check
             return result[]
         end
     end
@@ -184,16 +142,12 @@ for (fname, elty, ret_type) in ((:rocblas_dasum,:Float64,:Float64),
                                 (:rocblas_dzasum,:ComplexF64,:Float64),
                                 (:rocblas_scasum,:ComplexF32,:Float32))
     @eval begin
-        # SUBROUTINE ASUM(N, X, INCX)
         function asum(n::Integer,
                       X::ROCArray{$elty},
                       incx::Integer)
             result = Ref{$ret_type}()
             wait!(X)
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ptr{$elty}, Cint,
-                          Ptr{$ret_type}),
-                         handle(), n, X, incx, result)
+            $(fname)(handle(), n, X, incx, result) |> check
             return result[]
         end
     end
@@ -205,16 +159,6 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
                       (:rocblas_zaxpy,:ComplexF64),
                       (:rocblas_caxpy,:ComplexF32))
     @eval begin
-        # SUBROUTINE DAXPY(N,DA,DX,INCX,DY,INCY)
-        # DY <- DA*DX + DY
-        # rocblas_status_t rocblas_saxpy(
-        #   rocblas_handle handle,
-        #   int n,
-        #   const float *alpha, /* host or device pointer */
-        #   const float *x,
-        #   int incx,
-        #   float *y,
-        #   int incy);
         function axpy!(n::Integer,
                        alpha::($elty),
                        dx::ROCArray{$elty},
@@ -222,12 +166,8 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
                        dy::ROCArray{$elty},
                        incy::Integer)
             wait!((dx,dy))
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ref{$elty}, Ptr{$elty},
-                          Cint, Ptr{$elty},
-                          Cint),
-                         handle(), n, alpha, dx, incx, dy, incy)
-            mark!((dx,dy),rocblas_get_stream(handle()))
+            $(fname)(handle(), n, alpha, dx, incx, dy, incy) |> check
+            mark!((dx,dy),stream(handle()))
             dy
         end
     end
@@ -259,7 +199,7 @@ for (fname, elty) in ((:rocblasIdamax,:Float64),
                        dx::ROCArray{$elty},
                        incx::Integer)
             result = Ref{Cint}()
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
+            @check ccall(($(string(fname)), librocblas), rocblas_status,
                          (rocblas_handle, Cint, Ptr{$elty}, Cint,
                           Ptr{Cint}),
                          handle(), n, dx, incx, result)
@@ -280,7 +220,7 @@ for (fname, elty) in ((:rocblasIdamin,:Float64),
                        dx::ROCArray{$elty},
                        incx::Integer)
             result = Ref{Cint}()
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
+            @check ccall(($(string(fname)), librocblas), rocblas_status,
                          (rocblas_handle, Cint, Ptr{$elty}, Cint,
                           Ptr{Cint}),
                          handle(), n, dx, incx, result)
@@ -292,21 +232,12 @@ iamin(dx::ROCArray) = iamin(length(dx), dx, 1)
 =#
 
 # Level 2
-## mv
-### gemv
+
 for (fname, elty) in ((:rocblas_dgemv,:Float64),
                       (:rocblas_sgemv,:Float32),
                       (:rocblas_zgemv,:ComplexF64),
                       (:rocblas_cgemv,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgemv(
-        #   rocblas_handle handle, rocblas_operation_t trans,
-        #   int m, int n,
-        #   const double *alpha,
-        #   const double *A, int lda,
-        #   const double *x, int incx,
-        #   const double *beta,
-        #   double *y, int incy)
         function gemv!(trans::Char,
                        alpha::($elty),
                        A::ROCMatrix{$elty},
@@ -323,13 +254,8 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
             incx = stride(X,1)
             incy = stride(Y,1)
             wait!((A,X,Y))
-            @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_operation_t, Cint, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
-                         Cint, Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         roctrans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y,
-                         incy)
-            mark!((A,X,Y),rocblas_get_stream(handle()))
+            $(fname)(handle(), roctrans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy) |> check
+            mark!((A,X,Y),stream(handle()))
             Y
         end
         function gemv(trans::Char, alpha::($elty), A::ROCMatrix{$elty}, X::ROCVector{$elty})
@@ -347,12 +273,6 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
                       (:rocblas_zgbmv,:ComplexF64),
                       (:rocblas_cgbmv,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgbmv(
-        #   rocblas_handle handle, rocblas_operation_t trans,
-        #   int m, int n, int kl, int ku,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *x, int incx,
-        #   const double *beta, double *y, int incy)
         function gbmv!(trans::Char,
                        m::Integer,
                        kl::Integer,
@@ -372,13 +292,8 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
             incx = stride(x,1)
             incy = stride(y,1)
             wait!((A,x,y))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_operation_t, Cint, Cint,
-                          Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty},
-                          Cint), handle(), roctrans, m, n, kl, ku, Ref(alpha), A,
-                         lda, x, incx, Ref(beta), y, incy)
-            mark!((A,x,y),rocblas_get_stream(handle()))
+            $(fname)(handle(), roctrans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            mark!((A,x,y),stream(handle()))
             y
         end
         function gbmv(trans::Char,
@@ -411,11 +326,6 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
                       (:rocblas_csymv,:ComplexF32))
     # Note that the complex symv are not BLAS but auiliary functions in LAPACK
     @eval begin
-        # rocblas_status_t rocblas_dsymv(
-        #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   int n, const double *alpha, const double *A, int lda,
-        #   const double *x, int incx,
-        #   const double *beta, double *y, int incy)
         function symv!(uplo::Char,
                        alpha::($elty),
                        A::ROCMatrix{$elty},
@@ -430,14 +340,8 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
             incx = stride(x,1)
             incy = stride(y,1)
             wait!((A,x,y))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t,
-                         Cint,Ptr{$elty}, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Cint, Ptr{$elty},
-                         Ptr{$elty},Cint),
-                         handle(), rocuplo, n, Ref(alpha),
-                         A, lda, x, incx, Ref(beta), y, incy)
-            mark!((A,x,y),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            mark!((A,x,y),stream(handle()))
             y
         end
         function symv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty}, x::ROCVector{$elty})
@@ -454,11 +358,6 @@ end
 for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
                       (:rocblas_chemv,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_chemv(
-        #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   int n, const rocComplex *alpha, const rocComplex *A, int lda,
-        #   const rocComplex *x, int incx,
-        #   const rocComplex *beta, rocComplex *y, int incy)
         function hemv!(uplo::Char,
                        alpha::$elty,
                        A::ROCMatrix{$elty},
@@ -474,14 +373,8 @@ for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
             incx = stride(x,1)
             incy = stride(y,1)
             wait!((A,x,y))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t,
-                         Cint,Ptr{$elty}, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Cint, Ptr{$elty},
-                         Ptr{$elty},Cint),
-                         handle(), rocuplo, n, Ref(alpha),
-                         A, lda, x, incx, Ref(beta), y, incy)
-            mark!((A,x,y),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            mark!((A,x,y),stream(handle()))
             y
         end
         function hemv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty},
@@ -501,11 +394,6 @@ end
 for (fname, elty) in ((:rocblas_dsbmv,:Float64),
                       (:rocblas_ssbmv,:Float32))
     @eval begin
-        # rocblas_status_t rocblas_dsbmv(
-        #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   int n, int k, const double *alpha, const double *A, int lda,
-        #   const double *x, int incx,
-        #   const double *beta, double *y, int incy)
         function sbmv!(uplo::Char,
                        k::Integer,
                        alpha::($elty),
@@ -523,13 +411,8 @@ for (fname, elty) in ((:rocblas_dsbmv,:Float64),
             incx = stride(x,1)
             incy = stride(y,1)
             wait!((A,x,y))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t, Cint, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y,
-                         incy)
-            mark!((A,x,y),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            mark!((A,x,y),stream(handle()))
             y
         end
         function sbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -548,11 +431,6 @@ end
 for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
                       (:rocblas_chbmv,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_chbmv(
-        #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   int n, int k, const rocComplex *alpha, const rocComplex *A, int lda,
-        #   const rocComplex *x, int incx,
-        #   const rocComplex *beta, rocComplex *y, int incy)
         function hbmv!(uplo::Char,
                        k::Integer,
                        alpha::($elty),
@@ -569,13 +447,8 @@ for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
             incx = stride(x,1)
             incy = stride(y,1)
             wait!((A,x,y))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t, Cint, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y,
-                         incy)
-            mark!((A,x,y),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            mark!((A,x,y),stream(handle()))
             y
         end
         function hbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -596,11 +469,6 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
                       (:rocblas_ztbmv,:ComplexF64),
                       (:rocblas_ctbmv,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dtbmv(
-        #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   rocblas_operation_t trans, rocblas_diagonal_t diag,
-        #   int n, int k, const double *alpha, const double *A, int lda,
-        #   const double *x, int incx)
         function tbmv!(uplo::Char,
                        trans::Char,
                        diag::Char,
@@ -617,12 +485,8 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             wait!((A,x))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t, rocblas_operation_t,
-                         rocblas_diagonal_t, Cint, Cint, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Cint), handle(), rocuplo, roctrans,
-                         rocdiag, n, k, A, lda, x, incx)
-            mark!((A,x),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, roctrans, rocdiag, n, k, A, lda, x, incx) |> check
+            mark!((A,x),stream(handle()))
             x
         end
         function tbmv(uplo::Char,
@@ -641,11 +505,6 @@ for (fname, elty) in ((:rocblas_stbsv,:Float32),
                       (:rocblas_ztbsv,:ComplexF64),
                       (:rocblas_ctbsv,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dtbsv(
-        #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   rocblas_operation_t trans, rocblas_diagonal_t diag,
-        #   int n, int k, const double *alpha, const double *A, int lda,
-        #   const double *x, int incx)
         function tbsv!(uplo::Char,
                        trans::Char,
                        diag::Char,
@@ -662,12 +521,8 @@ for (fname, elty) in ((:rocblas_stbsv,:Float32),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             wait!((A,x))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t, rocblas_operation_t,
-                         rocblas_diagonal_t, Cint, Cint, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Cint), handle(), rocuplo, roctrans,
-                         rocdiag, n, k, A, lda, x, incx)
-            mark!((A,x),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, roctrans, rocdiag, n, k, A, lda, x, incx) |> check
+            mark!((A,x),stream(handle()))
             x
         end
         function tbsv(uplo::Char,
@@ -687,11 +542,6 @@ for (fname, elty) in ((:rocblas_dtrmv,:Float64),
                       (:rocblas_ztrmv,:ComplexF64),
                       (:rocblas_ctrmv,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dtrmv(
-        #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   rocblas_operation_t trans, rocblas_diagonal_t diag,
-        #   int n, const double *A, int lda,
-        #   double *x, int incx)
         function trmv!(uplo::Char,
                        trans::Char,
                        diag::Char,
@@ -708,12 +558,8 @@ for (fname, elty) in ((:rocblas_dtrmv,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             wait!((A,x))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t,
-                          rocblas_operation_t, rocblas_diagonal_t, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint), handle(),
-                         rocuplo, roctrans, rocdiag, n, A, lda, x, incx)
-            mark!((A,x),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, roctrans, rocdiag, n, A, lda, x, incx) |> check
+            mark!((A,x),stream(handle()))
             x
         end
         function trmv(uplo::Char,
@@ -734,7 +580,7 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
     @eval begin
         # rocblas_status_t rocblas_dtrsv(
         #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   rocblas_operation_t trans, rocblas_diagonal_t diag,
+        #   rocblas_operation trans, rocblas_diagonal_t diag,
         #   int n, const double *A, int lda,
         #   double *x, int incx)
         function trsv!(uplo::Char,
@@ -753,12 +599,8 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             wait!((A,x))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t,
-                          rocblas_operation_t, rocblas_diagonal_t, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint), handle(),
-                         rocuplo, roctrans, rocdiag, n, A, lda, x, incx)
-            mark!((A,x),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, roctrans, rocdiag, n, A, lda, x, incx) |> check
+            mark!((A,x),stream(handle()))
             x
         end
         function trsv(uplo::Char,
@@ -777,11 +619,6 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
                       (:rocblas_zgerc,:ComplexF64),
                       (:rocblas_cgerc,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dger(
-        #   rocblas_handle handle, int m, int n, const double *alpha,
-        #   const double *x, int incx,
-        #   const double *y, int incy,
-        #   double *A, int lda)
         function ger!(alpha::$elty,
                       x::ROCVector{$elty},
                       y::ROCVector{$elty},
@@ -793,12 +630,8 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
             incy = stride(y,1)
             lda = max(1,stride(A,2))
             wait!((x,y,A))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                         Cint), handle(), m, n, Ref(alpha), x, incx, y,
-                         incy, A, lda)
-            mark!((x,y,A),rocblas_get_stream(handle()))
+            $(fname)(handle(), m, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
+            mark!((x,y,A),stream(handle()))
             A
         end
     end
@@ -811,10 +644,6 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
                       (:rocblas_zsyr,:ComplexF64),
                       (:rocblas_csyr,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dsyr(
-        #   rocblas_handle handle, rocblas_fill_t uplo, int n,
-        #   const double *alpha, const double *x, int incx,
-        #   double *A, int lda)
         function syr!(uplo::Char,
                       alpha::$elty,
                       x::ROCVector{$elty},
@@ -826,12 +655,8 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
             incx = stride(x,1)
             lda = max(1,stride(A,2))
             wait!((x,A))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                         handle(), rocuplo, n, Ref(alpha), x, incx, A,
-                         lda)
-            mark!((x,A),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, n, Ref(alpha), x, incx, A, lda) |> check
+            mark!((x,A),stream(handle()))
             A
         end
     end
@@ -852,12 +677,8 @@ for (fname, elty) in ((:rocblas_zher,:ComplexF64),
             incx = stride(x,1)
             lda = max(1,stride(A,2))
             wait!((x,A))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                         handle(), rocuplo, n, Ref(alpha), x, incx, A,
-                         lda)
-            mark!((x,A),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, n, Ref(alpha), x, incx, A, lda) |> check
+            mark!((x,A),stream(handle()))
             A
         end
     end
@@ -881,13 +702,8 @@ for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
             incy = stride(y,1)
             lda = max(1,stride(A,2))
             wait!((x,y,A))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t, Cint,
-                          Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
-                          Ptr{$elty}, Cint),
-                         handle(), rocuplo, n, Ref(alpha), x, incx, y, incy, A,
-                         lda)
-            mark!((x,y,A),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
+            mark!((x,y,A),stream(handle()))
             A
         end
     end
@@ -921,7 +737,7 @@ for (fname, elty) in
             $(fname)(
                 handle(), rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
-            mark!((A, B, C),rocblas_get_stream(handle()))
+            mark!((A, B, C),stream(handle()))
             C
         end
         function gemm(transA::Char,
@@ -1047,9 +863,9 @@ for (fname, elty) in
                 handle(), rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), Ab, lda, Bb, ldb, Ref(beta),
                 Cb, ldc, batch_count)
-            mark!(A, rocblas_get_stream(handle()))
-            mark!(B, rocblas_get_stream(handle()))
-            mark!(C, rocblas_get_stream(handle()))
+            mark!(A, stream(handle()))
+            mark!(B, stream(handle()))
+            mark!(C, stream(handle()))
             C
         end
         function gemm_batched(
@@ -1089,21 +905,6 @@ for (fname, elty) in
          (:rocblas_zgemmStridedBatched,:ComplexF64),
          (:rocblas_cgemmStridedBatched,:ComplexF32))
     @eval begin
-
-        # rocblas_status_t rocblas_dgemmStridedBatched(rocblas_handle handle,
-        #                                   rocblas_operation_t transa,
-        #                                   rocblas_operation_t transb,
-        #                                   int m, int n, int k,
-        #                                   const double          *alpha,
-        #                                   const double          *A, int lda,
-        #                                   long long int          strideA,
-        #                                   const double          *B, int ldb,
-        #                                   long long int          strideB,
-        #                                   const double          *beta,
-        #                                   double                *C, int ldc,
-        #                                   long long int          strideC,
-        #                                   int batchCount)
-
         function gemm_strided_batched!(transA::Char,
                                transB::Char,
                                alpha::($elty),
@@ -1131,15 +932,8 @@ for (fname, elty) in
            strideC = stride(C, 3)
            batchCount = size(A, 3)
            wait!((A,B,C))
-           @check ccall(($(string(fname)), librocblas), rocblas_status_t,
-                        (rocblas_handle, rocblas_operation_t,
-                         rocblas_operation_t, Cint, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Cint, Ptr{$elty}, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Cint, Cint),
-                        handle(), roctransA,
-                        roctransB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta),
-                        C, ldc, strideC, batchCount)
-           mark!((A,B,C),rocblas_get_stream(handle()))
+           $(fname)(handle(), roctransA, roctransB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta), C, ldc, strideC, batchCount) |> check
+           mark!((A,B,C),stream(handle()))
            C
         end
         function gemm_strided_batched(transA::Char,
@@ -1166,12 +960,6 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
                       (:rocblas_csymm,:ComplexF32))
     # TODO: fix julia dimension checks in symm!
     @eval begin
-        # rocblas_status_t rocblas_dsymm(
-        #   rocblas_handle handle, rocblas_side_t side,
-        #   rocblas_fill_t uplo, int m, int n,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb,
-        #   const double *beta, double *C, int ldc)
         function symm!(side::Char,
                        uplo::Char,
                        alpha::($elty),
@@ -1192,15 +980,8 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             wait!((A,B,C))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_side_t,
-                         rocblas_fill_t, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint),
-                         handle(), rocside,
-                         rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C,
-                         ldc)
-            mark!((A,B,C),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+            mark!((A,B,C),stream(handle()))
             C
         end
         function symm(side::Char,
@@ -1225,11 +1006,6 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
                       (:rocblas_zsyrk,:ComplexF64),
                       (:rocblas_csyrk,:ComplexF32))
    @eval begin
-       # rocblas_status_t rocblas_dsyrk(
-       #   rocblas_handle handle, rocblas_fill_t uplo,
-       #   rocblas_operation_t trans, int n, int k,
-       #   const double *alpha, const double *A, int lda,
-       #   const double *beta, double *C, int ldc)
        function syrk!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
@@ -1246,13 +1022,8 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
            wait!((A,C))
-           @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                        (rocblas_handle, rocblas_fill_t,
-                         rocblas_operation_t, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty}, Cint),
-                        handle(), rocuplo, roctrans, n, k, Ref(alpha), A,
-                        lda, Ref(beta), C, ldc)
-           mark!((A,C),rocblas_get_stream(handle()))
+           $(fname)(handle(), rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
+           mark!((A,C),stream(handle()))
            C
         end
     end
@@ -1273,14 +1044,6 @@ syrk(uplo::Char, trans::Char, A::ROCVecOrMat) = syrk(uplo, trans,
 for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
                       (:rocblas_chemm,:ComplexF32))
    @eval begin
-       # rocblas_status_t rocblas_chemm(
-       #   rocblas_handle handle, rocblas_side_t side, rocblas_fill_t uplo,
-       #   int m, int n,
-       #   const rocComplex *alpha,
-       #   const rocComplex *A, int lda,
-       #   const rocComplex *B, int ldb,
-       #   const rocComplex *beta,
-       #   rocComplex *C, int ldc)
        function hemm!(side::Char,
                       uplo::Char,
                       alpha::($elty),
@@ -1301,13 +1064,8 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
            wait!((A,B,C))
-           @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                        (rocblas_handle, rocblas_side_t, rocblas_fill_t,
-                        Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
-                         Cint, Ptr{$elty}, Ptr{$elty}, Cint),
-                        handle(),
-                        rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
-           mark!((A,B,C),rocblas_get_stream(handle()))
+           $(fname)(handle(), rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+           mark!((A,B,C),stream(handle()))
            C
        end
        function hemm(uplo::Char,
@@ -1326,11 +1084,6 @@ end
 for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
                       (:rocblas_cherk,:ComplexF32))
    @eval begin
-       # rocblas_status_t rocblas_cherk(
-       #   rocblas_handle handle, rocblas_fill_t uplo, rocblas_operation_t trans,
-       #   int n, int k,
-       #   const float *alpha, const rocComplex *A, int lda,
-       #   const float *beta, rocComplex *C, int ldc)
        function herk!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
@@ -1347,13 +1100,8 @@ for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
            wait!((A,C))
-           @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                        (rocblas_handle, rocblas_fill_t,
-                         rocblas_operation_t, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty}, Cint),
-                        handle(), rocuplo, roctrans, n, k, Ref(alpha), A,
-                        lda, Ref(beta), C, ldc)
-           mark!((A,C),rocblas_get_stream(handle()))
+           $(fname)(handle(), rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
+           mark!((A,C),stream(handle()))
            C
        end
        function herk(uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty})
@@ -1370,15 +1118,6 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
                       (:rocblas_zsyr2k,:ComplexF64),
                       (:rocblas_csyr2k,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dsyr2k(
-        #   rocblas_handle handle,
-        #   rocblas_fill_t uplo, rocblas_operation_t trans,
-        #   int n, int k,
-        #   const double *alpha,
-        #   const double *A, int lda,
-        #   const double *B, int ldb,
-        #   const double *beta,
-        #   double *C, int ldc)
         function syr2k!(uplo::Char,
                         trans::Char,
                         alpha::($elty),
@@ -1402,15 +1141,8 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             wait!((A,B,C))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_fill_t,
-                         rocblas_operation_t, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint),
-                         handle(), rocuplo,
-                         roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C,
-                         ldc)
-            mark!((A,B,C),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocuplo, roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+            mark!((A,B,C),stream(handle()))
             C
         end
     end
@@ -1430,12 +1162,6 @@ syr2k(uplo::Char, trans::Char, A::ROCVecOrMat, B::ROCVecOrMat) = syr2k(uplo, tra
 for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
                               (:rocblas_cher2k,:ComplexF32,:Float32))
    @eval begin
-       # rocblas_status_t rocblas_zher2k(
-       #   rocblas_handle handle, rocblas_fill_t uplo, rocblas_operation_t trans,
-       #   int n, int k,
-       #   const cuDoubleComplex *alpha, const cuDoubleComplex *A, int lda,
-       #   const cuDoubleComplex *B, int ldb,
-       #   const double *beta, cuDoubleComplex *C, int ldc)
        function her2k!(uplo::Char,
                        trans::Char,
                        alpha::($elty1),
@@ -1460,14 +1186,8 @@ for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
            wait!((A,B,C))
-           @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                        (rocblas_handle, rocblas_fill_t,
-                        rocblas_operation_t, Cint, Cint, Ptr{$elty1},
-                         Ptr{$elty1}, Cint, Ptr{$elty1}, Cint, Ptr{$elty2},
-                         Ptr{$elty1}, Cint),
-                        handle(), rocuplo, roctrans, n, k,
-                        Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
-           mark!((A,B,C),rocblas_get_stream(handle()))
+           $(fname)(handle(), rocuplo, roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+           mark!((A,B,C),stream(handle()))
            C
        end
        function her2k(uplo::Char,
@@ -1492,13 +1212,6 @@ for (mmname, smname, elty) in
          (:rocblas_ztrmm,:rocblas_ztrsm,:ComplexF64),
          (:rocblas_ctrmm,:rocblas_ctrsm,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dtrmm(rocblas_handle handle,
-        #   rocblas_side_t side, rocblas_fill_t uplo,
-        #   rocblas_operation_t trans, rocblas_diagonal_t diag,
-        #   int m, int n,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb,
-        #   double *C, int ldc)
         # Note: ROCBLAS differs from BLAS API for trmm
         #   BLAS: inplace modification of B
         #   ROCBLAS: store result in C
@@ -1525,15 +1238,10 @@ for (mmname, smname, elty) in
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             wait!((A,B,C))
-            @check ccall(($(string(mmname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_side_t,
-                          rocblas_fill_t, rocblas_operation_t,
-                          rocblas_diagonal_t, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Cint),
-                         handle(), rocside, rocuplo, roctransa,
-                         rocdiag, m, n, Ref(alpha), A, lda, B, ldb, C, ldc)
-            mark!((A,B,C),rocblas_get_stream(handle()))
+            $(mmname)(
+                handle(), rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha),
+                A, lda, B, ldb, C, ldc) |> check
+            mark!((A,B,C),stream(handle()))
             C
         end
         function trmm(side::Char,
@@ -1545,13 +1253,6 @@ for (mmname, smname, elty) in
                       B::ROCMatrix{$elty})
             trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
         end
-        # rocblas_status_t rocblas_dtrsm(rocblas_handle handle,
-        #   rocblas_side_t side, rocblas_fill_t uplo,
-        #   rocblas_operation_t trans, rocblas_diagonal_t diag,
-        #   int m, int n,
-        #   const double *alpha,
-        #   const double *A, int lda,
-        #   double *B, int ldb)
         function trsm!(side::Char,
                        uplo::Char,
                        transa::Char,
@@ -1571,14 +1272,8 @@ for (mmname, smname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             wait!((A,B))
-            @check ccall(($(string(smname)), librocblas), rocblas_status_t,
-                          (rocblas_handle, rocblas_side_t,
-                           rocblas_fill_t, rocblas_operation_t,
-                           rocblas_diagonal_t, Cint, Cint, Ptr{$elty},
-                           Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                          handle(), rocside, rocuplo, roctransa, rocdiag,
-                          m, n, Ref(alpha), A, lda, B, ldb)
-            mark!((A,B),rocblas_get_stream(handle()))
+            $(smname)(handle(), rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha), A, lda, B, ldb) |> check
+            mark!((A,B),stream(handle()))
             B
         end
         function trsm(side::Char,
@@ -1600,14 +1295,6 @@ for (fname, elty) in
          (:rocblas_ztrsmBatched,:ComplexF64),
          (:rocblas_ctrsmBatched,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dtrsmBatched(rocblas_handle handle,
-        #   rocblas_side_t side, rocblas_fill_t uplo,
-        #   rocblas_operation_t trans, rocblas_diagonal_t diag,
-        #   int m, int n,
-        #   const double *alpha,
-        #   const double **A, int lda,
-        #   double **B, int ldb,
-        #   int batchCount)
         function trsm_batched!(side::Char,
                                uplo::Char,
                                transa::Char,
@@ -1634,15 +1321,8 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Bptrs = device_batch(B)
             wait!((A,B))
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_side_t, rocblas_fill_t,
-                          rocblas_operation_t, rocblas_diagonal_t, Cint, Cint,
-                          Ptr{$elty}, Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}},
-                          Cint, Cint),
-                         handle(), rocside, rocuplo,
-                         roctransa, rocdiag, m, n, Ref(alpha), Aptrs, lda,
-                         Bptrs, ldb, length(A))
-            mark!((A,B),rocblas_get_stream(handle()))
+            $(fname)(handle(), rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha), Aptrs, lda, Bptrs, ldb, length(A)) |> check
+            mark!((A,B),stream(handle()))
             B
         end
         function trsm_batched(side::Char,
@@ -1667,14 +1347,6 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
                       (:rocblas_zgeam,:ComplexF64),
                       (:rocblas_cgeam,:ComplexF32))
    @eval begin
-       # rocblas_status_t rocblas_cgeam(
-       #   rocblas_handle handle, rocblas_operation_t transa, rocblas_operation_t transb,
-       #   int m, int n,
-       #   const rocComplex *alpha,
-       #   const rocComplex *A, int lda,
-       #   const rocComplex *B, int ldb,
-       #   const rocComplex *beta,
-       #   rocComplex *C, int ldc)
        function geam!(transa::Char,
                       transb::Char,
                       alpha::($elty),
@@ -1695,12 +1367,8 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
            wait!((A,B,C))
-           @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                        (rocblas_handle, rocblas_operation_t, rocblas_operation_t,
-                         Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Ptr{$elty}, Cint), handle(),
-                         roctransa, roctransb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc)
-           mark!((A,B,C),rocblas_get_stream(handle()))
+           $(fname)(handle(), roctransa, roctransb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc) |> check
+           mark!((A,B,C),stream(handle()))
            C
        end
        function geam(transa::Char,
@@ -1729,10 +1397,6 @@ for (fname, elty) in
          (:rocblas_zgetrfBatched,:ComplexF64),
          (:rocblas_cgetrfBatched,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgetrfBatched(
-        #   rocblas_handle handle, int n, double **A,
-        #   int lda, int *PivotArray, int *infoArray,
-        #   int batchSize)
         function getrf_batched!(A::Array{ROCMatrix{$elty},1},
                                 Pivot::Bool)
             for As in A
@@ -1747,16 +1411,13 @@ for (fname, elty) in
             info  = ROCArray{Cint}(undef, length(A))
             pivotArray  = Pivot ? ROCArray{Int32}(undef, (n, length(A))) : C_NULL
             wait!(A)
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ptr{Ptr{$elty}}, Cint,
-                          Ptr{Cint}, Ptr{Cint}, Cint), handle(), n,
-                         Aptrs, lda, pivotArray, info, length(A))
+            $(fname)(handle(), n, Aptrs, lda, pivotArray, info, length(A)) |> check
             if( !Pivot )
                 pivotArray = ROCArray(zeros(Cint, (n, length(A))))
             end
-            mark!(A,rocblas_get_stream(handle()))
-            pivotArray != C_NULL && mark!(pivotArray,rocblas_get_stream(handle()))
-            mark!(info,rocblas_get_stream(handle()))
+            mark!(A,stream(handle()))
+            pivotArray != C_NULL && mark!(pivotArray,stream(handle()))
+            mark!(info,stream(handle()))
             pivotArray, info, A
         end
         function getrf_batched(A::Array{ROCMatrix{$elty},1},
@@ -1776,10 +1437,6 @@ for (fname, elty) in
          (:rocblas_zgetriBatched,:ComplexF64),
          (:rocblas_cgetriBatched,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgetriBatched(
-        #   rocblas_handle handle, int n, double **A,
-        #   int lda, int *PivotArray, double **C,
-        #   int ldc, int *info, int batchSize)
         function getri_batched(A::Array{ROCMatrix{$elty},1},
                                pivotArray::ROCMatrix{Cint})
             for As in A
@@ -1797,15 +1454,11 @@ for (fname, elty) in
             info = ROCArray(zeros(Cint,length(A)))
             wait!(A)
             wait!(pivotArray)
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ptr{Ptr{$elty}}, Cint,
-                          Ptr{Cint}, Ptr{Ptr{$elty}}, Cint, Ptr{Cint}, Cint),
-                         handle(), n, Aptrs, lda, pivotArray, Cptrs,
-                         ldc, info, length(A))
-            mark!(A,rocblas_get_stream(handle()))
-            mark!(pivotArray,rocblas_get_stream(handle()))
-            mark!(info,rocblas_get_stream(handle()))
-            mark!(C,rocblas_get_stream(handle()))
+            $(fname)(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A)) |> check
+            mark!(A,stream(handle()))
+            mark!(pivotArray,stream(handle()))
+            mark!(info,stream(handle()))
+            mark!(C,stream(handle()))
             pivotArray, info, C
         end
     end
@@ -1819,10 +1472,6 @@ for (fname, elty) in
          (:rocblas_zmatinvBatched,:ComplexF64),
          (:rocblas_cmatinvBatched,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dmatinvBatched(
-        #   rocblas_handle handle, int n, double **A,
-        #   int lda, double **C, int ldc,
-        #   int *info, int batchSize)
         function matinv_batched(A::Array{ROCMatrix{$elty},1})
             for As in A
                 m,n = size(As)
@@ -1841,14 +1490,10 @@ for (fname, elty) in
             Cptrs = device_batch(C)
             info = ROCArray(zeros(Cint,length(A)))
             wait!(A)
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Ptr{Ptr{$elty}}, Cint,
-                          Ptr{Ptr{$elty}}, Cint, Ptr{Cint}, Cint),
-                         handle(), n, Aptrs, lda, Cptrs,
-                         ldc, info, length(A))
-            mark!(A,rocblas_get_stream(handle()))
-            mark!(info,rocblas_get_stream(handle()))
-            mark!(C,rocblas_get_stream(handle()))
+            $(fname)(handle(), n, Aptrs, lda, Cptrs, ldc, info, length(A)) |> check
+            mark!(A,stream(handle()))
+            mark!(info,stream(handle()))
+            mark!(C,stream(handle()))
             info, C
         end
     end
@@ -1862,10 +1507,6 @@ for (fname, elty) in
          (:rocblas_zgeqrfBatched,:ComplexF64),
          (:rocblas_cgeqrfBatched,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgeqrfBatched(
-        #   rocblas_handle handle, int n, int m,
-        #   double **A, int lda, double **TauArray,
-        #   int *infoArray, int batchSize)
         function geqrf_batched!(A::Array{ROCMatrix{$elty},1})
             m,n = size(A[1])
             lda = max(1,stride(A[1],2))
@@ -1878,16 +1519,12 @@ for (fname, elty) in
             Tauptrs = device_batch(TauArray)
             info    = zero(Cint)
             wait!(A)
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, Cint, Cint, Ptr{Ptr{$elty}},
-                          Cint, Ptr{Ptr{$elty}}, Ptr{Cint}, Cint),
-                         handle(), m, n, Aptrs, lda,
-                         Tauptrs, Ref(info), length(A))
+            $(fname)(handle(), m, n, Aptrs, lda, Tauptrs, Ref(info), length(A)) |> check
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
-            mark!(A,rocblas_get_stream(handle()))
-            mark!(TauArray,rocblas_get_stream(handle()))
+            mark!(A,stream(handle()))
+            mark!(TauArray,stream(handle()))
             TauArray, A
         end
         function geqrf_batched(A::Array{ROCMatrix{$elty},1})
@@ -1904,11 +1541,6 @@ for (fname, elty) in
          (:rocblas_zgelsBatched,:ComplexF64),
          (:rocblas_cgelsBatched,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dgelsBatched(
-        #   rocblas_handle handle, int m, int n,
-        #   int nrhs, double **A, int lda,
-        #   double **C, int ldc, int *infoArray,
-        #   int *devInfoArray, int batchSize)
         function gels_batched!(trans::Char,
                               A::Array{ROCMatrix{$elty},1},
                               C::Array{ROCMatrix{$elty},1})
@@ -1936,18 +1568,13 @@ for (fname, elty) in
             infoarray = ROCArray(zeros(Cint, length(A)))
             wait!(A)
             wait!(C)
-            @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                         (rocblas_handle, rocblas_operation_t, Cint, Cint,
-                          Cint, Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}},
-                          Cint, Ptr{Cint}, Ptr{Cint}, Cint),
-                         handle(), roctrans, m, n, nrhs, Aptrs, lda,
-                         Cptrs, ldc, Ref(info), infoarray, length(A))
+            $(fname)(handle(), roctrans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, Ref(info), infoarray, length(A)) |> check
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
-            mark!(A,rocblas_get_stream(handle()))
-            mark!(C,rocblas_get_stream(handle()))
-            mark!(infoarray,rocblas_get_stream(handle()))
+            mark!(A,stream(handle()))
+            mark!(C,stream(handle()))
+            mark!(infoarray,stream(handle()))
             A, C, infoarray
         end
         function gels_batched(trans::Char,
@@ -1964,12 +1591,6 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
                       (:rocblas_zdgmm,:ComplexF64),
                       (:rocblas_cdgmm,:ComplexF32))
    @eval begin
-       # rocblas_status_t rocblas_cdgmm(
-       #   rocblas_handle handle, rocblas_side_t mode,
-       #   int m, int n,
-       #   const rocComplex *A, int lda,
-       #   const rocComplex *X, int incx,
-       #   rocComplex *C, int ldc)
        function dgmm!(mode::Char,
                       A::ROCMatrix{$elty},
                       X::ROCVector{$elty},
@@ -1985,11 +1606,8 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
            incx = stride(X,1)
            ldc = max(1,stride(C,2))
            wait!((A,X,C))
-           @check ccall(($(string(fname)),librocblas), rocblas_status_t,
-                        (rocblas_handle, rocblas_side_t, Cint, Cint,
-                         Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                        handle(), rocside, m, n, A, lda, X, incx, C, ldc)
-           mark!((A,X,C),rocblas_get_stream(handle()))
+           $(fname)(handle(), rocside, m, n, A, lda, X, incx, C, ldc) |> check
+           mark!((A,X,C),stream(handle()))
            C
        end
        function dgmm(mode::Char,

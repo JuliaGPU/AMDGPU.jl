@@ -1,0 +1,4 @@
+[general]
+library_name = "librocblas"
+output_file_path = "./librocblas.jl"
+export_symbol_prefixes = []
