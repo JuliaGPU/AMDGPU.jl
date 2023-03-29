@@ -1212,17 +1212,10 @@ for (mmname, smname, elty) in
          (:rocblas_ztrmm,:rocblas_ztrsm,:ComplexF64),
          (:rocblas_ctrmm,:rocblas_ctrsm,:ComplexF32))
     @eval begin
-        # Note: ROCBLAS differs from BLAS API for trmm
-        #   BLAS: inplace modification of B
-        #   ROCBLAS: store result in C
-        function trmm!(side::Char,
-                       uplo::Char,
-                       transa::Char,
-                       diag::Char,
-                       alpha::($elty),
-                       A::ROCMatrix{$elty},
-                       B::ROCMatrix{$elty},
-                       C::ROCMatrix{$elty})
+        function trmm!(
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+        )
             rocside = rocblasside(side)
             rocuplo = rocblasfill(uplo)
             roctransa = rocblasop(transa)
@@ -1232,34 +1225,25 @@ for (mmname, smname, elty) in
             # TODO: clean up error messages
             if mA != nA throw(DimensionMismatch("A must be square")) end
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trmm!")) end
-            mC, nC = size(C)
-            if mC != m || nC != n throw(DimensionMismatch("trmm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
-            wait!((A,B,C))
+            wait!((A,B))
             $(mmname)(
                 handle(), rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha),
-                A, lda, B, ldb, C, ldc) |> check
-            mark!((A,B,C),stream(handle()))
-            C
+                A, lda, B, ldb) |> check
+            mark!((A,B),stream(handle()))
+            B
         end
-        function trmm(side::Char,
-                      uplo::Char,
-                      transa::Char,
-                      diag::Char,
-                      alpha::($elty),
-                      A::ROCMatrix{$elty},
-                      B::ROCMatrix{$elty})
-            trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
+        function trmm(
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+        )
+            trmm!(side, uplo, transa, diag, alpha, A, copy(B))
         end
-        function trsm!(side::Char,
-                       uplo::Char,
-                       transa::Char,
-                       diag::Char,
-                       alpha::($elty),
-                       A::ROCMatrix{$elty},
-                       B::ROCMatrix{$elty})
+        function trsm!(
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+        )
             rocside = rocblasside(side)
             rocuplo = rocblasfill(uplo)
             roctransa = rocblasop(transa)
@@ -1276,13 +1260,10 @@ for (mmname, smname, elty) in
             mark!((A,B),stream(handle()))
             B
         end
-        function trsm(side::Char,
-                      uplo::Char,
-                      transa::Char,
-                      diag::Char,
-                      alpha::($elty),
-                      A::ROCMatrix{$elty},
-                      B::ROCMatrix{$elty})
+        function trsm(
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+        )
             trsm!(side, uplo, transa, diag, alpha, A, copy(B))
         end
     end

@@ -32,8 +32,16 @@ function wait!(ss::SyncState)
 end
 mark!(ss::SyncState, signal::ROCKernelSignal) =
     lock(()->push!(ss.signals, signal), ss.lock)
-mark!(ss::SyncState, stream::Ptr{Cvoid}) =
+function mark!(ss::SyncState, stream::Ptr{C}) where C
     lock(()->push!(ss.streams, stream), ss.lock)
+end
 
 wait!(x) = Adapt.adapt(WaitAdaptor(), x)
-mark!(x, s) = Adapt.adapt(MarkAdaptor(s), x)
+
+# TODO if `s` is not stream, nor signal, it will silently do nothing.
+# As was the case, when `stream` was only `Ptr{Cvoid}`, but rocBLAS returned
+# `Ptr{ihipStream_t}` thus failing to properly synchronize.
+function mark!(x, s)
+    @assert typeof(s) <: ROCKernelSignal || typeof(s) <: Ptr
+    Adapt.adapt(MarkAdaptor(s), x)
+end

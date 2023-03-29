@@ -7,6 +7,8 @@ import AMDGPU: ROCArray, ROCDevice, LockedObject
 using CEnum
 using GPUArrays
 
+# TODO use miopenGetStream instead of C_NULL.
+
 @static if AMDGPU.use_artifacts
     using MIOpen_jll
     const libMIOpen_path = MIOpen_jll.libMIOpen_path
