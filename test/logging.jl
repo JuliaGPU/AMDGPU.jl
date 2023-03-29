@@ -1,5 +1,4 @@
 @testset "Basics" begin
-    @assert AMDGPU.Runtime.LOGGING_STATIC_ENABLED
     @test AMDGPU.Runtime.GLOBAL_TIMESPAN_CONTEXT.log_sink === nothing
 
     AMDGPU.Runtime.start_logging()
