@@ -72,21 +72,24 @@ end
             @test LinearAlgebra.dot(A, B) ≈ result
         end
     end
-    @testset "swap()" begin
-        for T in (Float32, Float64)
-            A = rand(T, 8)
-            B = rand(T, 8)
-            RA = ROCArray(A)
-            RB = ROCArray(B)
-            if T === Float32
-                rocBLAS.rocblas_sswap(handle, 8, RA, 1, RB, 1)
-            else
-                rocBLAS.rocblas_dswap(handle, 8, RA, 1, RB, 1)
-            end
-            @test A ≈ Array(RB)
-            @test B ≈ Array(RA)
-        end
-    end
+
+    # TODO this tests direct ccall without synchronization.
+    # Replace with better test.
+    # @testset "swap()" begin
+    #     for T in (Float32, Float64)
+    #         A = rand(T, 8)
+    #         B = rand(T, 8)
+    #         RA = ROCArray(A)
+    #         RB = ROCArray(B)
+    #         if T === Float32
+    #             rocBLAS.rocblas_sswap(handle, 8, RA, 1, RB, 1)
+    #         else
+    #             rocBLAS.rocblas_dswap(handle, 8, RA, 1, RB, 1)
+    #         end
+    #         @test A ≈ Array(RB)
+    #         @test B ≈ Array(RA)
+    #     end
+    # end
 end
 
 @testset "Level 2 BLAS" begin
