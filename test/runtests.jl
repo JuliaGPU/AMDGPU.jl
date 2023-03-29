@@ -60,7 +60,15 @@ push!(tests, "Codegen" => ()->begin
     include("codegen/synchronization.jl")
     include("codegen/trap.jl")
 end)
-push!(tests, "Logging" => ()->include("logging.jl"))
+if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
+    push!(tests, "Logging" => ()->include("logging.jl"))
+else
+    @warn """
+    Logging is statically disabled, skipping logging tests.
+    This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
+    """
+    @test_skip "Logging"
+end
 push!(tests, "Device Functions" => ()->begin
     include("device/launch.jl")
     include("device/array.jl")
