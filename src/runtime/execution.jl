@@ -194,7 +194,7 @@ end
 # FIXME: duplication with roccall
 @generated function dynamic_roccall(f::Ptr{Cvoid}, tt::Type, args...;
                                      blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
-                                     queue=default_queue())
+                                     queue=queue())
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
     ex = quote

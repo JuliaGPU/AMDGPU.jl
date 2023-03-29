@@ -24,7 +24,7 @@ end
     @test context isa HIPContext
     @test AMDGPU.device_id(AMDGPU.device(context)) == AMDGPU.device_id(device)
 
-    queue = AMDGPU.default_queue()
+    queue = AMDGPU.queue()
     @test queue isa ROCQueue
 
     stream = AMDGPU.stream()
@@ -80,8 +80,8 @@ end
 
 @testset "Queues/Streams" begin
     tls1 = copy(AMDGPU.task_local_state())
-    queue1 = AMDGPU.default_queue()
-    @test tls1.queue === queue1 === AMDGPU.default_queue()
+    queue1 = AMDGPU.queue()
+    @test tls1.queue === queue1 === AMDGPU.queue()
     stream1 = AMDGPU.stream()
     @test tls1.stream === stream1 === AMDGPU.stream()
     @test tls1.priority == queue1.priority == stream1.priority == :normal
@@ -94,7 +94,7 @@ end
     @test tls2.priority == :normal
 
     tls3 = copy(AMDGPU.task_local_state())
-    @test tls3.queue === queue1 === AMDGPU.default_queue()
+    @test tls3.queue === queue1 === AMDGPU.queue()
     @test tls3.stream === stream1 === AMDGPU.stream()
 
     @testset "Priorities" begin

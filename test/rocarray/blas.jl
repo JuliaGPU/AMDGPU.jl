@@ -19,8 +19,7 @@ end
         RA = ROCArray(A)
         Rx = ROCArray(x)
         Rb = RA*Rx
-        _b = Array(Rb)
-        @test isapprox(A*x, _b)
+        @test A*x ≈ Array(Rb)
 
         # View into array
         A = rand(T, 8, 8, 2)
@@ -31,14 +30,15 @@ end
         # This ensures that the offsets are properly being passed to rocBLAS
         Ax = view(A, :, :, 2) * view(x, :, 2)
         Ax_d = view(A_d, :, :, 2) * view(x_d, :, 2)
-        @test isapprox(Ax, Array(Ax_d))
+        AMDGPU.wait!(Ax_d)
+        @test Ax ≈ Array(Ax_d)
     end
     @testset "norm" begin
         for T in (Float32, Float64, ComplexF32, ComplexF64)
             x = rand(T, 8)
             Rx = ROCArray(x)
             nx = norm(Rx)
-            @test isapprox(nx, norm(x))
+            @test nx ≈ norm(x)
         end
     end
 end
@@ -48,13 +48,8 @@ end
         for T in (Float32, Float64)
             A = rand(T, 8)
             RA = ROCArray(A)
-            if T === Float32
-                rocBLAS.rocblas_sscal(handle, 8, 5f0, RA, 1)
-            else
-                rocBLAS.rocblas_dscal(handle, 8, 5.0, RA, 1)
-            end
-            _A = Array(RA)
-            @test isapprox(A .* 5, _A)
+            rocBLAS.scal!(8, T(5), RA, 1)
+            @test A .* 5 ≈ Array(RA)
         end
     end
     @testset "copy()" begin
@@ -63,38 +58,25 @@ end
             B = rand(T, 8)
             RA = ROCArray(A)
             RB = ROCArray(B)
-            if T === Float32
-                rocBLAS.rocblas_scopy(handle, 8, RA, 1, RB, 1)
-            else
-                rocBLAS.rocblas_dcopy(handle, 8, RA, 1, RB, 1)
-            end
-            _A = Array(RA)
-            _B = Array(RB)
-            @test isapprox(A, _A)
-            @test isapprox(A, _B)
+            rocBLAS.blascopy!(8, RA, 1, RB, 1)
+            @test A ≈ Array(RA)
+            @test A ≈ Array(RB)
         end
     end
     @testset "dot()" begin
         for T in (Float32, Float64)
             A = rand(T, 8)
             B = rand(T, 8)
-            result = zeros(T, 8)
             RA = ROCArray(A)
             RB = ROCArray(B)
-            result = Ref{T}(zero(T))
-            if T === Float32
-                rocBLAS.rocblas_sdot(handle, 8, RA, 1, RB, 1, result)
-            else
-                rocBLAS.rocblas_ddot(handle, 8, RA, 1, RB, 1, result)
-            end
-            @test isapprox(LinearAlgebra.dot(A,B), result[])
+            result = rocBLAS.dot(8, RA, 1, RB, 1)
+            @test LinearAlgebra.dot(A, B) ≈ result
         end
     end
     @testset "swap()" begin
         for T in (Float32, Float64)
             A = rand(T, 8)
             B = rand(T, 8)
-            result = zeros(T, 8)
             RA = ROCArray(A)
             RB = ROCArray(B)
             if T === Float32
@@ -102,10 +84,8 @@ end
             else
                 rocBLAS.rocblas_dswap(handle, 8, RA, 1, RB, 1)
             end
-            _A = Array(RA)
-            _B = Array(RB)
-            @test isapprox(A, _B)
-            @test isapprox(B, _A)
+            @test A ≈ Array(RB)
+            @test B ≈ Array(RA)
         end
     end
 end
@@ -114,24 +94,11 @@ end
     @testset "gemv()" begin
         for T in (Float32, Float64)
             A = rand(T, 8, 4)
-            RA = ROCArray(A)
             x = rand(T, 4)
-            Rx = ROCArray(x)
             y = zeros(T, 8)
-            Ry = ROCArray(y)
-            op = rocBLAS.ROCBLAS_OPERATION_NONE
-            m, n = rocblas_int.(size(A))
-            lda = m
-            incx = incy = Int32(1)
-            if T === Float32
-                rocBLAS.rocblas_sgemv(handle, op, m, n, 5f0, RA, lda, Rx, incx, 0f0, Ry, incy)
-            else
-                rocBLAS.rocblas_dgemv(handle, op, m, n, 5.0, RA, lda, Rx, incx, 0.0, Ry, incy)
-            end
-            _A = Array(RA)
-            _x = Array(Rx)
-            _y = Array(Ry)
-            @test isapprox(5A * x, _y)
+            RA, Rx, Ry = ROCArray.((A, x, y))
+            rocBLAS.gemv!('N', T(5), RA, Rx, T(0), Ry)
+            @test 5A * x ≈ Array(Ry)
         end
     end
 end

@@ -1,5 +1,3 @@
-using CEnum
-
 const rocblas_handle = Ptr{Cvoid}
 
 @cenum rocblas_status_::UInt32 begin
@@ -39,9 +37,7 @@ const rocblas_float = Cfloat
 
 const rocblas_double = Cdouble
 
-struct rocblas_half
-    data::UInt16
-end
+const rocblas_half = Float16
 
 struct rocblas_int8x4
     a::Int8
@@ -50,15 +46,9 @@ struct rocblas_int8x4
     d::Int8
 end
 
-struct rocblas_float_complex
-    x::Cfloat
-    y::Cfloat
-end
+const rocblas_float_complex = ComplexF32
 
-struct rocblas_double_complex
-    x::Cdouble
-    y::Cdouble
-end
+const rocblas_double_complex = ComplexF64
 
 @cenum rocblas_operation_::UInt32 begin
     rocblas_operation_none = 111

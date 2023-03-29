@@ -148,21 +148,21 @@ function create_executable(device, entry, obj; globals=())
 end
 
 function get_kernel_queue(;
-    queue::Union{ROCQueue, Nothing}, device::Union{ROCDevice, Nothing},
+    event_queue::Union{ROCQueue, Nothing}, device::Union{ROCDevice, Nothing},
 )
-    if !isnothing(queue) && !isnothing(device)
-        if queue.device != device
+    if !isnothing(event_queue) && !isnothing(device)
+        if event_queue.device != device
             error(
                 "Specified both `device` and `queue`, " *
                 "but `queue` is on a different device than `device`.\n" *
                 "In this case, only one argument can be specified.")
         else
-            return queue
+            return event_queue
         end
     end
-    isnothing(queue) && isnothing(device) && return default_queue()
-    isnothing(queue) && return default_queue(device)
-    queue
+    isnothing(event_queue) && isnothing(device) && return queue()
+    isnothing(event_queue) && return queue(device)
+    event_queue
 end
 
 ## Event creation
@@ -175,7 +175,7 @@ function create_event(kernel::ROCKernel;
     if signal isa ROCKernelSignal
         return signal
     end
-    kernel_queue = get_kernel_queue(; queue, device)
+    kernel_queue = get_kernel_queue(; event_queue=queue, device)
     return ROCKernelSignal(signal, kernel_queue, kernel; kwargs...)
 end
 
@@ -195,8 +195,8 @@ create_kernel(kernel::Runtime.HostKernel; kwargs...) =
 
 ## Kernel launch and barriers
 
-barrier_and!(signals::Vector) = barrier_and!(default_queue(), signals)
-barrier_or!(signals::Vector) = barrier_or!(default_queue(), signals)
+barrier_and!(signals::Vector) = barrier_and!(queue(), signals)
+barrier_or!(signals::Vector) = barrier_or!(queue(), signals)
 barrier_and!(queue::ROCQueue, signals::Vector{ROCKernelSignal}) =
     barrier_and!(queue, map(x->x.signal,signals))
 barrier_or!(queue::ROCQueue, signals::Vector{ROCKernelSignal}) =
@@ -214,7 +214,7 @@ barrier_or!(queue::ROCQueue, signals::Vector{ROCSignal}) =
 
 Returns the set of actively-executing kernels on `queue`.
 """
-function active_kernels(queue::ROCQueue=default_queue())
+function active_kernels(queue::ROCQueue = queue())
     lock(queue.lock) do
         copy(queue.active_kernels)
     end
@@ -226,7 +226,7 @@ end
 Blocks until all kernels currently executing on the default queue and stream have completed.
 """
 function synchronize()
-    synchronize(default_queue())
+    synchronize(queue())
     synchronize(stream())
 end
 """
@@ -399,7 +399,7 @@ Keyword arguments that control general `@roc` behavior:
 
 Keyword arguments that affect various parts of `@roc`:
 - `device::ROCDevice = AMDGPU.default_device()`: The device to compile code for, and launch the kernel on.
-- `queue::ROCQueue = AMDGPU.default_queue(device)`: Which queue to associate the kernel (and its completion signal) with. May also be specified as `stream` for compatibility with CUDA.jl.
+- `queue::ROCQueue = AMDGPU.queue(device)`: Which queue to associate the kernel (and its completion signal) with. May also be specified as `stream` for compatibility with CUDA.jl.
 
 Keyword arguments that control kernel compilation via [`rocfunction`](@ref) and [`dynamic_rocfunction`](@ref):
 - `name::Union{String,Nothing} = nothing`: If not `nothing`, the name to use for the generated kernel.

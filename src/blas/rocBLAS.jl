@@ -7,11 +7,19 @@ import AMDGPU: HIP
 import .HIP: HIPContext, HIPStream, hipContext_t, hipStream_t, hipEvent_t
 
 using LinearAlgebra
+using CEnum
 
 include("librocblas.jl")
 include("error.jl")
 include("wrappers.jl")
 include("highlevel.jl")
+
+function rocblas_get_version_string()
+    vec = zeros(UInt8, 64)
+    str = reinterpret(Cstring, pointer(vec))
+    rocblas_get_version_string(vec, 64) |> check
+    return unsafe_string(str)
+end
 
 function version()
     VersionNumber(join(split(rocblas_get_version_string(), '.')[1:3], '.'))
