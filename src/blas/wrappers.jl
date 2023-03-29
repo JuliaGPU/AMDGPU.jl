@@ -166,7 +166,7 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
                        dy::ROCArray{$elty},
                        incy::Integer)
             wait!((dx,dy))
-            $(fname)(handle(), n, alpha, dx, incx, dy, incy) |> check
+            $(fname)(handle(), n, Ref(alpha), dx, incx, dy, incy) |> check
             mark!((dx,dy),stream(handle()))
             dy
         end
