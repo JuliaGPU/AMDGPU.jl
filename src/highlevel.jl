@@ -95,7 +95,11 @@ queue() = task_local_state().queue::ROCQueue
 @deprecate default_queue() queue()
 function queue(device::ROCDevice)
     tls = task_local_state()
-    return get!(()->ROCQueue(device), tls.queues, device_id(device))
+    q = tls.queues[device_id(device)]
+    isnothing(q) || return q
+
+    tls.queues[device_id(device)] = ROCQueue(device)
+    return q
 end
 queue!(f::Base.Callable, queue::ROCQueue) = task_local_state!(f; queue)
 device(queue::ROCQueue) = queue.device

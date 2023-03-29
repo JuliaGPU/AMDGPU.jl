@@ -30,7 +30,6 @@ end
         # This ensures that the offsets are properly being passed to rocBLAS
         Ax = view(A, :, :, 2) * view(x, :, 2)
         Ax_d = view(A_d, :, :, 2) * view(x_d, :, 2)
-        AMDGPU.wait!(Ax_d)
         @test Ax ≈ Array(Ax_d)
     end
     @testset "norm" begin

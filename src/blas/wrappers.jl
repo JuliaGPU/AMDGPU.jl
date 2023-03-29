@@ -578,11 +578,6 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
                       (:rocblas_ztrsv,:ComplexF64),
                       (:rocblas_ctrsv,:ComplexF32))
     @eval begin
-        # rocblas_status_t rocblas_dtrsv(
-        #   rocblas_handle handle, rocblas_fill_t uplo,
-        #   rocblas_operation trans, rocblas_diagonal_t diag,
-        #   int n, const double *A, int lda,
-        #   double *x, int incx)
         function trsv!(uplo::Char,
                        trans::Char,
                        diag::Char,

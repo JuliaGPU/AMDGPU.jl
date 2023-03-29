@@ -2,7 +2,7 @@
     kernel() = nothing
 
     device = AMDGPU.default_device()
-    queue = AMDGPU.default_queue(device)
+    queue = AMDGPU.queue(device)
 
     # Group/grid size selection and aliases
     for (groupsize,gridsize) in (
@@ -103,7 +103,7 @@ end
     wait(sig)
     wait(sig.signal)
     wait(sig.signal.signal)
-    @test sig.queue === AMDGPU.default_queue()
+    @test sig.queue === AMDGPU.queue()
 end
 
 @testset "Custom signal" begin
