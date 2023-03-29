@@ -13,8 +13,8 @@ export @roc, rocconvert, rocfunction
 default_device() = Runtime.get_default_device()
 default_device!(device::ROCDevice) = Runtime.set_default_device!(device)
 
-devices(kind::Symbol=:gpu) = filter(device->device_type(device)==kind,
-                                    copy(Runtime.ALL_DEVICES))
+devices(kind::Symbol=:gpu) =
+    filter!(d -> device_type(d) == kind, copy(Runtime.ALL_DEVICES))
 
 """
     default_device_id(kind::Symbol=:gpu) -> Int

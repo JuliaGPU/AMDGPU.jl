@@ -131,8 +131,8 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
 
     # group size is restricted by local memory
     device = AMDGPU.device(R)
-    pools = filter(pool->Runtime.pool_segment(pool) == HSA.AMD_SEGMENT_GROUP,
-                   Runtime.memory_pools(device))
+    pools = filter(p -> Runtime.pool_segment(p) == HSA.AMD_SEGMENT_GROUP,
+        Runtime.memory_pools(device))
     max_items = if !isempty(pools)
         pool = first(pools)
         max_lmem_elements = Runtime.pool_size(pool) ÷ sizeof(T)

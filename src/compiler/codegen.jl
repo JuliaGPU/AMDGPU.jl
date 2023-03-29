@@ -132,7 +132,7 @@ function compile(@nospecialize(job::CompilerJob))
 
         # find undefined globals and calculate sizes
         globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
-                      filter(x->isextinit(x), collect(LLVM.globals(ir))))
+                      filter!(x->isextinit(x), collect(LLVM.globals(ir))))
         entry = LLVM.name(kernel)
 
         dispose(ir)

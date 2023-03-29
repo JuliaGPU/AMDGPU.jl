@@ -266,15 +266,21 @@ Note: This API is currently experimental and is subject to change at any time.
 function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; return_task::Bool = false,
                   device=AMDGPU.default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
                   timeout=nothing, continuous=false, buf_len=nothing)
-    signal = Runtime.ROCSignal()
-    hc = HostCall(rettype, argtypes, Runtime.get_handle(signal); device, buf_len)
+    # Create raw HSA signal to avoid ROCSignal finalizer
+    # being called too early in the HostCall task.
+    signal_ref = Ref{HSA.Signal}()
+    HSA.signal_create(1, 0, C_NULL, signal_ref) |> Runtime.check
+    signal = signal_ref[]
+    AMDGPU.hsaref!()
+
+    hc = HostCall(rettype, argtypes, signal.handle; device, buf_len)
 
     tsk = Threads.@spawn begin
         ret_buf = Ref{Mem.Buffer}()
         ret_len = 0
         try
             while true
-                if !hostcall_host_wait(signal.signal; maxlat=maxlat, timeout=timeout)
+                if !hostcall_host_wait(signal; maxlat=maxlat, timeout=timeout)
                     throw(HostCallException("Hostcall: Timeout on signal $signal"))
                 end
                 if length(argtypes.parameters) > 0
@@ -319,7 +325,7 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
                         args_buf_ptr = reinterpret(Ptr{Ptr{Cvoid}}, hc.buf_ptr)
                         unsafe_store!(args_buf_ptr, ret_ptr)
                     end
-                    host_signal_store!(signal.signal, HOST_MSG_SENTINEL)
+                    host_signal_store!(signal, HOST_MSG_SENTINEL)
                 catch err
                     throw(HostCallException("Error returning hostcall result", err))
                 end
@@ -328,7 +334,7 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
             end
         catch err
             # Gracefully terminate all waiters
-            host_signal_store!(signal.signal, HOST_ERR_SENTINEL)
+            host_signal_store!(signal, HOST_ERR_SENTINEL)
             if err isa EOFError
                 # If EOF, then Julia is exiting, no need to re-throw.
             else
@@ -340,7 +346,7 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
             # the device has read from these buffers. Therefore we wait either for
             # READY_SENTINEL or else an error signal.
             while !Runtime.RT_EXITING[]
-                prev = host_signal_load(signal.signal)
+                prev = host_signal_load(signal)
                 if prev == READY_SENTINEL || prev == HOST_ERR_SENTINEL || prev == DEVICE_ERR_SENTINEL
                     if isassigned(ret_buf)
                         Mem.free(ret_buf[])
@@ -350,6 +356,9 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
                     break
                 end
             end
+            # Destroy HSA signal.
+            HSA.signal_destroy(signal) |> Runtime.check
+            AMDGPU.hsaunref!()
         end
     end
 

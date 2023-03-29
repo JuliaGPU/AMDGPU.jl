@@ -104,7 +104,7 @@ macro memoize(ex...)
         global_cache_eltyp = :(Union{Nothing,$rettyp})
         ex = quote
             cache = get!($(esc(global_cache))) do
-                [nothing for _ in 1:Threads.nthreads()]
+                $global_cache_eltyp[nothing for _ in 1:Threads.nthreads()]
             end
             cached_value = @inbounds cache[Threads.threadid()]
             if cached_value !== nothing
@@ -121,7 +121,7 @@ macro memoize(ex...)
         global_init = :(Union{Nothing,$rettyp}[nothing for _ in 1:$(esc(options[:maxlen]))])
         ex = quote
             cache = get!($(esc(global_cache))) do
-                [$global_init for _ in 1:Threads.nthreads()]
+                $global_cache_eltyp[$global_init for _ in 1:Threads.nthreads()]
             end
             local_cache = @inbounds begin
                 tid = Threads.threadid()
@@ -143,7 +143,7 @@ macro memoize(ex...)
         global_init = :(Dict{$(key.typ),$rettyp}())
         ex = quote
             cache = get!($(esc(global_cache))) do
-                [$global_init for _ in 1:Threads.nthreads()]
+                $global_cache_eltyp[$global_init for _ in 1:Threads.nthreads()]
             end
             local_cache = @inbounds begin
                 tid = Threads.threadid()

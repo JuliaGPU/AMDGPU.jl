@@ -401,6 +401,7 @@ function alloc_or_retry!(f)
         end
     end
 end
+
 const ALL_ALLOCS = Threads.Atomic{Int64}(0)
 function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
     if ALL_ALLOCS[] + bytesize > MEMORY_ALLOC_LIMIT

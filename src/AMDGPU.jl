@@ -8,7 +8,6 @@ using LLVM, LLVM.Interop
 using GPUCompiler
 using GPUArrays
 using Adapt
-using Requires
 import LinearAlgebra
 import Core: LLVMPtr
 
@@ -326,9 +325,6 @@ function __init__()
             """
         end
     end
-
-    # Load optional OpenCL integrations
-    @require OpenCL="08131aa3-fb12-5dee-8b74-c09406e224a2" include("opencl.jl")
 end
 
 end # module
