@@ -47,6 +47,10 @@ function hipStreamCreateWithPriority(stream_ref::Ref{hipStream_t}, flags::Cuint,
           (Ptr{hipStream_t}, Cuint, Cint), stream_ref, flags, priority)
 end
 
+function hipStreamGetPriority(stream::hipStream_t, priority::Ref{Cint})
+    ccall((:hipStreamGetPriority, libhip), hipError_t, (hipStream_t, Ptr{Cint}), stream, priority)
+end
+
 function hipStreamSynchronize(stream::hipStream_t)
     ccall((:hipStreamSynchronize, libhip), hipError_t, (hipStream_t,), stream)
 end

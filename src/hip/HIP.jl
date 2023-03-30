@@ -90,15 +90,8 @@ mutable struct HIPStream
     device::HIPDevice
 end
 function HIPStream(device::HIPDevice; priority=:normal)
-    priority_int = if priority == :normal
-        Cint(0)
-    elseif priority == :high
-        Cint(-1)
-    elseif priority == :low
-        Cint(1)
-    else
-        throw(ArgumentError("Invalid stream priority: $priority"))
-    end
+    priority_int = symbol_to_priority(priority)
+
     stream_ref = Ref{hipStream_t}()
     hipStreamCreateWithPriority(stream_ref, Cuint(0), priority_int) |> check
     stream = HIPStream(stream_ref[], priority, device)
@@ -108,16 +101,50 @@ function HIPStream(device::HIPDevice; priority=:normal)
     end
     return stream
 end
-# FIXME: Query default device from TLS
-HIPStream(;kwargs...) = HIPStream(HIPDevice(1); kwargs...)
-function HIPStream(stream::hipStream_t)
-    # FIXME: Query correct device and prio
-    return HIPStream(stream, :normal, HIPDevice(1))
+function HIPStream(;kwargs...)
+    HIPStream(HIPDevice(AMDGPU.device()); kwargs...)
 end
+
+"""
+    HIPStream(stream::hipStream_t)
+
+Create HIPStream from `hipStream_t` handle.
+Device is the default device that's currently in use.
+"""
+function HIPStream(stream::hipStream_t)
+    return HIPStream(stream, hipStreamGetPriority(stream), device())
+end
+
 Base.unsafe_convert(::Type{Ptr{T}}, stream::HIPStream) where T =
     reinterpret(Ptr{T}, stream.stream)
 function Base.show(io::IO, stream::HIPStream)
     print(io, "HIPStream(device=$(stream.device), ptr=$(repr(UInt64(stream.stream))), priority=$(stream.priority))")
+end
+
+function priority_to_symbol(priority)
+    priority ==  0 && return :normal
+    priority == -1 && return :high
+    priority ==  1 && return :low
+    throw(ArgumentError("""
+    Invalid HIP priority: $priority.
+    Valid values are: 0, -1, 1.
+    """))
+end
+
+function symbol_to_priority(priority::Symbol)
+    priority == :normal && return Cint(0)
+    priority == :high && return Cint(-1)
+    priority == :low && return Cint(1)
+    throw(ArgumentError("""
+    Invalid HIP priority symbol: $priority.
+    Valid values are: `:normal`, `:low`, `:high`.
+    """))
+end
+
+function hipStreamGetPriority(stream::hipStream_t)
+    priority = Ref{Cint}(2)
+    hipStreamGetPriority(stream, priority) |> check
+    priority_to_symbol(priority[])
 end
 
 end

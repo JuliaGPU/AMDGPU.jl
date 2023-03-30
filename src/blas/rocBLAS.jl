@@ -77,6 +77,8 @@ function handle()
     return state.handle
 end
 
+# TODO do not create new stream
+# re-use from TLS?
 function stream(handle::rocblas_handle)
     stream_ref = Ref{hipStream_t}()
     rocblas_get_stream(handle, stream_ref)

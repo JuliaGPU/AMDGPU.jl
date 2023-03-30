@@ -29,7 +29,7 @@ function TaskLocalState(device::Union{ROCDevice,Nothing},
     end
     HIP.context!(context)
     if stream === nothing
-        stream = HIPStream()
+        stream = HIPStream(device)
     else
         @assert stream.priority == priority
     end
