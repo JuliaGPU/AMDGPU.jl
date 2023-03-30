@@ -134,9 +134,9 @@ push!(tests, "MIOpen" => ()->begin
     end
 end)
 push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
-for name in keys(TestSuite.tests)
+for (i, name) in enumerate(keys(TestSuite.tests))
     push!(tests, "GPUArrays TestSuite - $name" =>
-                 ()->TestSuite.tests[name](ROCArray))
+        ()->TestSuite.tests[name](ROCArray))
 end
 
 function run_worker(w)

@@ -30,9 +30,8 @@ end
 # cache for created, but unused handles
 const idle_handles = HandleCache{HIPContext, rocblas_handle}()
 
-function handle()
+function library_state()
     rocblas_check_functional()
-
     tls = AMDGPU.task_local_state()
 
     # every task maintains library state per device
@@ -61,29 +60,31 @@ function handle()
 
         (; handle=new_handle, tls.stream)
     end
-    state = get!(states, tls.context) do
-        new_state(tls)
-    end
+    state = get!(() -> new_state(tls), states, tls.context)
 
     # update stream
     @noinline function update_stream(tls, state)
         @check rocblas_set_stream(state.handle, tls.stream)
-        (; state.handle, stream=tls.stream)
+        (; state.handle, tls.stream)
     end
     if state.stream != tls.stream
         states[tls.context] = state = update_stream(tls, state)
     end
 
-    return state.handle
+    return state
 end
+
+handle() = library_state().handle
+stream() = library_state().stream
 
 # TODO do not create new stream
 # re-use from TLS?
-function stream(handle::rocblas_handle)
-    stream_ref = Ref{hipStream_t}()
-    rocblas_get_stream(handle, stream_ref)
-    return HIPStream(stream_ref[])
-end
+# Is this ever needed?
+# function stream(handle::rocblas_handle)
+#     stream_ref = Ref{hipStream_t}()
+#     rocblas_get_stream(handle, stream_ref)
+#     return HIPStream(stream_ref[])
+# end
 
 if AMDGPU.functional(:rocblas)
     @eval rocblas_check_functional() = nothing
