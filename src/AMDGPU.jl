@@ -72,6 +72,7 @@ module Runtime
     include(joinpath("runtime", "error.jl"))
     include(joinpath("runtime", "thread-utils.jl"))
     include(joinpath("runtime", "device.jl"))
+    include(joinpath("runtime", "linked-list.jl"))
     include(joinpath("runtime", "queue.jl"))
     include(joinpath("runtime", "signal.jl"))
     include(joinpath("runtime", "dims.jl"))
