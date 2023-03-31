@@ -112,7 +112,7 @@ Create HIPStream from `hipStream_t` handle.
 Device is the default device that's currently in use.
 """
 function HIPStream(stream::hipStream_t)
-    return HIPStream(stream, hipStreamGetPriority(stream), device())
+    return HIPStream(stream, priority(stream), device())
 end
 
 Base.unsafe_convert(::Type{Ptr{T}}, stream::HIPStream) where T =
@@ -141,8 +141,8 @@ function symbol_to_priority(priority::Symbol)
     """))
 end
 
-function hipStreamGetPriority(stream::hipStream_t)
-    priority = Ref{Cint}(2)
+function priority(stream::hipStream_t)
+    priority = Ref{Cint}()
     hipStreamGetPriority(stream, priority) |> check
     priority_to_symbol(priority[])
 end

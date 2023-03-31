@@ -39,11 +39,8 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             groupsize, gridsize = normalize_launch_dimensions(groupsize, gridsize)
 
             # launch kernel
-            lock(signal.queue.lock)
-            try
+            Base.@lock signal.queue.lock begin
                 push!(signal.queue.active_kernels, signal)
-            finally
-                unlock(signal.queue.lock)
             end
             launch_kernel!(signal.queue, signal.kernel, signal.signal, groupsize, gridsize)
 
