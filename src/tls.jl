@@ -52,12 +52,7 @@ TaskLocalState() = TaskLocalState(nothing, nothing, nothing, nothing, :normal)
 function Base.getproperty(state::TaskLocalState, field::Symbol)
     # Helpers to return active queue or stream
     if field == :queue
-        queue = state.queues[device_id(state.device)]::ROCQueue
-        if !queue.active
-            @debug "Replacing dead queue in TLS"
-            queue = state.queues[device_id(state.device)] = ROCQueue(state.device; priority=state.priority)
-        end
-        return queue
+        return state.queues[device_id(state.device)]::ROCQueue
     elseif field == :stream
         return state.streams[device_id(state.device)]::HIPStream
     else
@@ -70,6 +65,15 @@ Base.copy(state::TaskLocalState) =
                    copy(state.queues),
                    copy(state.streams),
                    state.priority)
+
+function reset_dead_queue!()
+    state = task_local_state()
+    queue = state.queue
+    if !queue.active
+        queue = state.queues[device_id(state.device)] = ROCQueue(state.device; priority=state.priority)
+    end
+    return queue
+end
 
 function Base.show(io::IO, state::TaskLocalState)
     println(io, "TaskLocalState:")
