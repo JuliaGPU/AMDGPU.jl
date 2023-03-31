@@ -89,20 +89,28 @@ mutable struct HIPStream
     priority::Symbol
     device::HIPDevice
 end
-function HIPStream(device::HIPDevice; priority=:normal)
+
+"""
+    HIPStream(priority::Symbol = :normal)
+
+# Arguments:
+
+- `priority::Symbol`: Priority of the stream: `:normal`, `:high` or `:low`.
+
+Create HIPStream with given priority.
+Device is the default device that's currently in use.
+"""
+function HIPStream(priority::Symbol = :normal)
     priority_int = symbol_to_priority(priority)
 
     stream_ref = Ref{hipStream_t}()
     hipStreamCreateWithPriority(stream_ref, Cuint(0), priority_int) |> check
-    stream = HIPStream(stream_ref[], priority, device)
+    stream = HIPStream(stream_ref[], priority, device())
     finalizer(stream) do s
         hipStreamSynchronize(s.stream) |> check
         hipStreamDestroy(s.stream) |> check
     end
     return stream
-end
-function HIPStream(;kwargs...)
-    HIPStream(HIPDevice(AMDGPU.device()); kwargs...)
 end
 
 """
@@ -111,9 +119,7 @@ end
 Create HIPStream from `hipStream_t` handle.
 Device is the default device that's currently in use.
 """
-function HIPStream(stream::hipStream_t)
-    return HIPStream(stream, priority(stream), device())
-end
+HIPStream(stream::hipStream_t) = HIPStream(stream, priority(stream), device())
 
 Base.unsafe_convert(::Type{Ptr{T}}, stream::HIPStream) where T =
     reinterpret(Ptr{T}, stream.stream)

@@ -21,21 +21,29 @@ function TaskLocalState(device::Union{ROCDevice,Nothing},
         if queue === nothing
             queue = ROCQueue(device; priority, pooled=true)
         else
+            queue.device == device || throw(ArgumentError("""
+            Provided ROCQueue is on a differen device `$(queue.device)`
+            from the default one `$device`.
+            """))
             @assert queue.priority == priority
         end
     end
     if context === nothing
         context = HIPContext(device_id(device))
     end
-    HIP.context!(context)
+    HIP.context!(context) # Switches HIP active device as well.
     if stream === nothing
-        stream = HIPStream(device)
+        stream = HIPStream(priority)
     else
+        stream.device == device || throw(ArgumentError("""
+        Provided HIPStream is on a differen device `$(stream.device)`
+        from the default one `$device`.
+        """))
         @assert stream.priority == priority
     end
     queues = Union{ROCQueue,Nothing}[nothing for _ in 1:length(devices())]
-    queues[device_id(device)] = queue
     streams = Union{HIPStream,Nothing}[nothing for _ in 1:length(devices())]
+    queues[device_id(device)] = queue
     streams[device_id(device)] = stream
     return TaskLocalState(device, context, queues, streams, priority)
 end
@@ -115,12 +123,12 @@ function task_local_state!(; device=nothing, queue=nothing, stream=nothing, prio
             if priority == old_state.priority && old_state.streams[device_id(device)] !== nothing
                 stream = old_state.streams[device_id(device)]
             else
-                stream = HIPStream(device; priority)
+                stream = HIPStream(priority)
             end
         end
         queues = copy(old_state.queues)
         streams = copy(old_state.streams)
-    else
+    else # TODO Use default constructor?
         if device === nothing
             device = Runtime.get_default_device()
         end
@@ -130,7 +138,7 @@ function task_local_state!(; device=nothing, queue=nothing, stream=nothing, prio
             queue = ROCQueue(device; priority)
         end
         if stream === nothing
-            stream = HIPStream(device; priority)
+            stream = HIPStream(priority)
         end
         queues = Union{ROCQueue,Nothing}[nothing for _ in 1:length(devices())]
         streams = Union{HIPStream,Nothing}[nothing for _ in 1:length(devices())]
@@ -141,8 +149,8 @@ function task_local_state!(; device=nothing, queue=nothing, stream=nothing, prio
 
     task_local_storage(:AMDGPU, new_state)
 end
-task_local_state!(state::TaskLocalState) =
-    task_local_storage(:AMDGPU, state)
+
+task_local_state!(state::TaskLocalState) = task_local_storage(:AMDGPU, state)
 
 """
     task_local_state!(f::Base.Callable; device=nothing, queue=nothing, stream=nothing, priority::Symbol=:normal)

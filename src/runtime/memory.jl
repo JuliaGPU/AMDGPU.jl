@@ -211,9 +211,9 @@ function lock(ptr::Ptr, bytesize::Integer, device::ROCDevice)
     HSA.amd_memory_lock(Ptr{Cvoid}(ptr), bytesize, Ref(device.agent), 1, plocked) |> check
     return plocked[]
 end
-lock(ptr, bytesize) = lock(ptr, bytesize, Runtime.get_default_device())
+lock(ptr, bytesize) = lock(ptr, bytesize, AMDGPU.device())
 lock(a::Array, device::ROCDevice) = lock(pointer(a), sizeof(a), device)
-lock(a::Array) = lock(pointer(a), sizeof(a), Runtime.get_default_device())
+lock(a::Array) = lock(pointer(a), sizeof(a), AMDGPU.device())
 
 """
     unlock(ptr::Ptr)
@@ -429,8 +429,8 @@ function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
     ptr = ptr_ref[]
     return Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, Runtime.region_host_accessible(region), false)
 end
-alloc(bytesize; kwargs...) =
-    alloc(Runtime.get_default_device(), bytesize; kwargs...)
+alloc(bytesize; kwargs...) = alloc(AMDGPU.device(), bytesize; kwargs...)
+
 @static if AMDGPU.hip_configured
 function alloc_hip(bytesize::Integer)
     ptr_ref = Ref{Ptr{Cvoid}}()
@@ -446,7 +446,7 @@ function alloc_hip(bytesize::Integer)
     end
     AMDGPU.hsaref!()
     ptr = ptr_ref[]
-    return Buffer(ptr, C_NULL, ptr, Int64(bytesize), Runtime.get_default_device(), false, true)
+    return Buffer(ptr, C_NULL, ptr, Int64(bytesize), AMDGPU.device(), false, true)
 end
 end # if AMDGPU.hip_configured
 
@@ -714,12 +714,14 @@ function unsafe_copy3d!(dst::Ptr{T}, src::Ptr{T}, width, height=1, depth=1;
     srcOffsetRef = Ref(HSA.Dim3(srcOffset...))
     rangeRef = Ref(HSA.Dim3(sizeof(T)*width, height, depth))
 
-    AMDGPU.HSA.amd_memory_async_copy_rect(Base.unsafe_convert(Ptr{HSA.PitchedPtr}, dstRef),
-                                          Base.unsafe_convert(Ptr{HSA.Dim3},       dstOffsetRef),
-                                          Base.unsafe_convert(Ptr{HSA.PitchedPtr}, srcRef),
-                                          Base.unsafe_convert(Ptr{HSA.Dim3},       srcOffsetRef),
-                                          Base.unsafe_convert(Ptr{HSA.Dim3},       rangeRef),
-                                          Runtime.get_default_device().agent,hsaCopyDir,UInt32(0),C_NULL, signal.signal) |> check
+    AMDGPU.HSA.amd_memory_async_copy_rect(
+        Base.unsafe_convert(Ptr{HSA.PitchedPtr}, dstRef),
+        Base.unsafe_convert(Ptr{HSA.Dim3},       dstOffsetRef),
+        Base.unsafe_convert(Ptr{HSA.PitchedPtr}, srcRef),
+        Base.unsafe_convert(Ptr{HSA.Dim3},       srcOffsetRef),
+        Base.unsafe_convert(Ptr{HSA.Dim3},       rangeRef),
+        AMDGPU.device().agent, hsaCopyDir,
+        UInt32(0), C_NULL, signal.signal) |> check
 
     async || wait(signal)
     return nothing

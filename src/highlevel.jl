@@ -11,10 +11,30 @@ export @roc, rocconvert, rocfunction
 ## Devices
 
 default_device() = Runtime.get_default_device()
-default_device!(device::ROCDevice) =
-    Runtime.set_default_device!(device)
+
+"""
+    default_device!(device::ROCDevice)
+
+Set default device that will be used when creating new tasks.
+
+!!! note
+    This does not change current device being used.
+    Refer to [`device!`](@ref) for that.
+"""
+default_device!(device::ROCDevice) = Runtime.set_default_device!(device)
 
 device() = task_local_state().device
+
+"""
+    device!(device::ROCDevice)
+
+Switch current device being used.
+This switches only for a task inside which it is called.
+
+!!! note
+    To select default device that will be used when creating new tasks,
+    refer to [`default_device!`](@ref) for that.
+"""
 function device!(device::ROCDevice)
     task_local_state!(; device)
     return device
@@ -118,8 +138,6 @@ function priority!(priority::Symbol)
     return priority
 end
 priority!(f::Base.Callable, priority::Symbol) = task_local_state!(f; priority)
-
-HIPStream(device::ROCDevice; kwargs...) = HIPStream(HIPDevice(device); kwargs...)
 
 # Device ISAs
 

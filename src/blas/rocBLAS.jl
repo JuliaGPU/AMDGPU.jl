@@ -77,15 +77,6 @@ end
 handle() = library_state().handle
 stream() = library_state().stream
 
-# TODO do not create new stream
-# re-use from TLS?
-# Is this ever needed?
-# function stream(handle::rocblas_handle)
-#     stream_ref = Ref{hipStream_t}()
-#     rocblas_get_stream(handle, stream_ref)
-#     return HIPStream(stream_ref[])
-# end
-
 if AMDGPU.functional(:rocblas)
     @eval rocblas_check_functional() = nothing
 else

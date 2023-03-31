@@ -191,7 +191,7 @@ function monitor_queue(queue::ROCQueue)
     end
 end
 
-ROCQueue(; kwargs...) = ROCQueue(get_default_device(); kwargs...)
+ROCQueue(; kwargs...) = ROCQueue(AMDGPU.device(); kwargs...)
 
 """
 Determine if there are active kernels for the queue.
