@@ -48,6 +48,7 @@ function TaskLocalState(device::Union{ROCDevice,Nothing},
     return TaskLocalState(device, context, queues, streams, priority)
 end
 TaskLocalState() = TaskLocalState(nothing, nothing, nothing, nothing, :normal)
+
 function Base.getproperty(state::TaskLocalState, field::Symbol)
     # Helpers to return active queue or stream
     if field == :queue
@@ -166,6 +167,7 @@ function task_local_state!(f::Base.Callable;
         old_state = task_local_state()
     end
     task_local_state!(; device, queue, stream, priority)
+
     return try
         f()
     finally

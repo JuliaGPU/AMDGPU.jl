@@ -1,10 +1,10 @@
-mutable struct ROCQueue
+mutable struct ROCQueue{S}
     device::ROCDevice
     @atomic queue::Ptr{HSA.Queue}
     priority::Symbol
     status::HSA.Status
     @atomic active::Bool
-    active_kernels::Vector # TODO: Concrete type
+    active_kernels::Vector{S} # always Vector{ROCKernelSignal}
     running::Base.Event
     lock::Threads.ReentrantLock
 end
@@ -37,22 +37,69 @@ function Base.showerror(io::IO, err::QueueError)
     Base.showerror(io, err.err)
 end
 
-const ALLOC_QUEUE_LOCK = Threads.ReentrantLock()
-# Device -> Priority -> Queues
-const ALLOC_QUEUE_POOL = Dict{ROCDevice,Dict{Symbol,Vector{ROCQueue}}}()
-set_alloc_queue_pool_max!(nums::Vector{Int}) =
-    @set_preferences!("alloc_queue_pool_max"=>nums)
-const ALLOC_QUEUE_POOL_MAX = let
-    Tuple(if haskey(ENV, "JULIA_AMDGPU_ALLOC_QUEUE_POOL_MAX")
-        nums = ENV["JULIA_AMDGPU_ALLOC_QUEUE_POOL_MAX"]
-        nums = parse.(Int, split(nums, ':'))
-        set_alloc_queue_pool_max!(nums)
-        nums
-    else
-        @load_preference("alloc_queue_pool_max", [12,1,1])
-    end)
+mutable struct QueuePool
+    pool::Dict{ROCDevice,Dict{Symbol,Vector{ROCQueue}}}
+    max_size::NTuple{3, Int}
+    idx::Int
 end
-const ALLOC_QUEUE_INDEX = Ref(1)
+QueuePool() = QueuePool(
+    Dict{ROCDevice,Dict{Symbol,Vector{ROCQueue}}}(),
+    (@load_preference("queue_pool_max_size", [12, 1, 1])...,),
+    0)
+
+const QUEUE_POOL = LockedObject(QueuePool())
+
+function set_alloc_queue_pool_max!(nums::NTuple{3, Int})
+    @set_preferences!("queue_pool_max_size" => [nums...])
+    @info """Successfully set queue pool max size to `$nums` (:normal, :low, :high).
+    Reset your Julia session for the changes to take effect."""
+end
+
+function get_pool_queue!(device::ROCDevice, priority::Symbol)
+    prio_idx = priority == :normal ? 1 : (priority == :low ? 2 : 3)
+
+    lock(QUEUE_POOL) do pool
+        device_pool = get!(() -> Dict{Symbol, Vector{ROCQueue}}(), pool.pool, device)
+        queues = get!(() -> ROCQueue[], device_pool, priority)
+        length(queues) < pool.max_size[prio_idx] && return nothing
+
+        # If all queues are allocated, pick next one.
+        idx = pool.idx % length(queues) + 1
+        pool.idx += 1
+
+        queue = queues[idx]
+        queue.active && return queue
+
+        @debug "Removing dead queue from pool"
+        deleteat!(queues, idx)
+        return nothing
+    end
+end
+
+function pool_queue!(queue::ROCQueue)
+    prio_idx = queue.priority == :normal ? 1 : (queue.priority == :low ? 2 : 3)
+    QUEUE_POOL.payload.max_size[prio_idx] == 0 && return false
+
+    lock(QUEUE_POOL) do pool
+        queues = pool.pool[queue.device][queue.priority]
+        length(queues) < pool.max_size[prio_idx] ?
+            (push!(queues, queue); true) :
+            false
+    end
+end
+
+function remove_pooled_queue!(queue::ROCQueue)
+    lock(QUEUE_POOL) do pool
+        device_pool = get(pool.pool, queue.device, nothing)
+        isnothing(device_pool) && return
+
+        queues = get(device_pool, queue.priority, nothing)
+        isnothing(queues) && return
+
+        idx = findfirst(q -> q === queue, queues)
+        isnothing(idx) || deleteat!(queues, idx)
+    end
+end
 
 device_queue_max_size(device::AnyROCDevice) =
     getinfo(UInt32, device, HSA.AGENT_INFO_QUEUE_MAX_SIZE)
@@ -67,67 +114,34 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=fals
             "Options are :low, :normal, :high"))
     end
 
+    queue = pooled ? get_pool_queue!(device, priority) : nothing
+    isnothing(queue) || return queue
+
     alloc_id = rand(UInt64)
     @log_start(:alloc_queue, (;alloc_id), (;device=get_handle(device), priority))
 
-    if !pooled
-        @goto alloc_queue
-    end
-    prio_idx = priority == :normal ? 1 : (priority == :low ? 2 : 3)
-    if ALLOC_QUEUE_POOL_MAX[prio_idx] == 0
-        @goto alloc_queue
-    end
+    # Allocate a new queue from HSA.
+    c_queue_error_handler = @cfunction(queue_error_handler,
+        Cvoid, (HSA.Status, Ptr{HSA.Queue}, Ptr{Cvoid}))
 
-    # Try to select a queue from the pool
-    queue = lock(ALLOC_QUEUE_LOCK) do
-        prios_pool = get!(ALLOC_QUEUE_POOL, device) do
-            Dict{Symbol,Vector{ROCQueue}}()
-        end
-        pool = get!(prios_pool, priority) do
-            ROCQueue[]
-        end
-
-        # If all queues are allocated, pick one randomly
-        if length(pool) >= ALLOC_QUEUE_POOL_MAX[prio_idx]
-            idx = ((ALLOC_QUEUE_INDEX[] - 1) % length(pool)) + 1
-            ALLOC_QUEUE_INDEX[] += 1
-            q = pool[idx]
-            if q.active
-                return q
-            else
-                @debug "Removing dead queue from pool"
-                deleteat!(pool, idx)
-            end
-        end
-
-        # Otherwise, we want to allocate a new queue for the pool
-        return nothing
-    end
-    if queue !== nothing
-        @goto return_queue
-    end
-
-    # Allocate a new queue from HSA
-    @label alloc_queue
     queue_size = device_queue_max_size(device)
-    @assert queue_size > 0
-
     queue_type = device_queue_type(device)
+    @assert queue_size > 0
     @assert queue_type == HSA.QUEUE_TYPE_MULTI
 
-    r_queue = Ref{Ptr{HSA.Queue}}()
-    queue = ROCQueue(device, Ptr{HSA.Queue}(0), priority,
-                     HSA.STATUS_SUCCESS, true,
-                     ROCKernelSignal[], Base.Event(),
-                     Threads.ReentrantLock())
-    c_queue_error_handler = @cfunction(
-        queue_error_handler, Cvoid, (HSA.Status, Ptr{HSA.Queue}, Ptr{Cvoid}))
+    # Create ROCQueue before HSA queue to be able to pass it to error handler.
+    queue = ROCQueue(
+        device, Ptr{HSA.Queue}(0), priority, HSA.STATUS_SUCCESS, true,
+        ROCKernelSignal[], Base.Event(), Threads.ReentrantLock())
 
-    AMDGPU.hsaref!()
+    # Create HSA queue.
+    r_queue = Ref{Ptr{HSA.Queue}}()
     HSA.queue_create(
-        device.agent, queue_size[], HSA.QUEUE_TYPE_MULTI,
+        device.agent, queue_size, queue_type,
         c_queue_error_handler, pointer_from_objref(queue),
         typemax(UInt32), typemax(UInt32), r_queue) |> check
+
+    AMDGPU.hsaref!()
     @atomic queue.queue = r_queue[]
 
     lock(RT_LOCK) do
@@ -135,15 +149,7 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=fals
         QUEUES[queue.queue] = WeakRef(queue)
     end
 
-    hsa_priority = if priority == :normal
-        HSA.AMD_QUEUE_PRIORITY_NORMAL
-    elseif priority == :low
-        HSA.AMD_QUEUE_PRIORITY_LOW
-    elseif priority == :high
-        HSA.AMD_QUEUE_PRIORITY_HIGH
-    end
-    HSA.amd_queue_set_priority(queue.queue, hsa_priority) |> check
-
+    HSA.amd_queue_set_priority(queue.queue, hsa_priority(priority)) |> check
     errormonitor(Threads.@spawn monitor_queue(queue))
 
     finalizer(queue) do q
@@ -151,19 +157,19 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=fals
         AMDGPU.hsaunref!()
     end
 
-    if pooled && ALLOC_QUEUE_POOL_MAX[prio_idx] > 0
-        lock(ALLOC_QUEUE_LOCK) do
-            pool = ALLOC_QUEUE_POOL[device][priority]
-            if length(pool) < ALLOC_QUEUE_POOL_MAX[prio_idx]
-                push!(pool, queue)
-            end
-        end
-    end
-
-    @label return_queue
+    pooled && pool_queue!(queue)
     @log_finish(:alloc_queue, (;alloc_id), (;queue=reinterpret(UInt64, queue.queue)))
-    @assert queue.active
     return queue
+end
+
+function hsa_priority(priority::Symbol)
+    if priority == :normal
+        HSA.AMD_QUEUE_PRIORITY_NORMAL
+    elseif priority == :low
+        HSA.AMD_QUEUE_PRIORITY_LOW
+    elseif priority == :high
+        HSA.AMD_QUEUE_PRIORITY_HIGH
+    end
 end
 
 function monitor_queue(queue::ROCQueue)
@@ -208,16 +214,7 @@ function kill_queue!(queue::ROCQueue)
     succ || return
 
     @log_start(:kill_queue!, (;queue=reinterpret(UInt64, queue.queue)), nothing)
-
-    lock(ALLOC_QUEUE_LOCK) do
-        device_pools = get(ALLOC_QUEUE_POOL, queue.device, nothing)
-        device_pools === nothing && return
-        pool = get(device_pools, queue.priority, nothing)
-        pool === nothing && return
-        queue_idx = findfirst(q -> q === queue, pool)
-        queue_idx === nothing && return
-        deleteat!(pool, queue_idx)
-    end
+    remove_pooled_queue!(queue)
 
     lock(RT_LOCK) do
         delete!(QUEUES, queue.queue)
@@ -236,8 +233,6 @@ function kill_queue!(queue::ROCQueue)
     end
 
     HSA.queue_destroy(queue.queue) |> check
-
     @log_finish(:kill_queue!, (;queue=reinterpret(UInt64, queue.queue)), nothing)
-
     return
 end
