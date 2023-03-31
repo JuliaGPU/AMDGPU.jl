@@ -175,7 +175,6 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=fals
     @log_finish(:alloc_queue, (;alloc_id), (;queue=reinterpret(UInt64, queue.queue)))
     return queue
 end
-ROCQueue(; kwargs...) = ROCQueue(get_default_device(); kwargs...)
 
 function hsa_priority(priority::Symbol)
     if priority == :normal
