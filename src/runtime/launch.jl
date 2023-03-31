@@ -158,14 +158,9 @@ end
 
 function enqueue_packet!(f::Base.Callable, ::Type{T}, queue::ROCQueue) where T
     # Obtain the current queue write index and queue size
-    queue_ptr = @atomic queue.queue
-    active = @atomic queue.active
-    if !active || queue_ptr == C_NULL
-        status = queue.status
-        @assert status != HSA.STATUS_SUCCESS
-        throw(QueueError(queue_ptr, HSAError(status)))
-    end
-    _queue = unsafe_load(queue_ptr)
+    ensure_active(queue)
+    queue_ptr = queue.queue
+    _queue = unsafe_load(queue.queue)
     queue_size = _queue.size
     write_index = HSA.queue_add_write_index_scacq_screl(queue_ptr, UInt64(1))
 

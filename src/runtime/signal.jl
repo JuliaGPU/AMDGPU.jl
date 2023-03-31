@@ -113,8 +113,8 @@ function Base.wait(
             (diff_time > timeout) && throw(SignalTimeoutException(signal))
         end
 
-        if queue !== nothing && queue.status !== HSA.STATUS_SUCCESS
-            throw(QueueError(queue))
+        if queue !== nothing
+            ensure_active(queue)
         end
 
         # Allow another scheduled task to run.

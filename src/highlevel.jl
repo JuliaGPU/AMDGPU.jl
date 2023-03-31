@@ -237,33 +237,47 @@ barrier_or!(queue::ROCQueue, signals::Vector{ROCSignal}) =
 Returns the set of actively-executing kernels on `queue`.
 """
 function active_kernels(queue::ROCQueue = queue())
-    lock(queue.lock) do
-        copy(queue.active_kernels)
+    if length(queue.active_kernels) == 0
+        return NO_ACTIVE_KERNELS
     end
+    return Array(queue.active_kernels)
 end
+const NO_ACTIVE_KERNELS = ROCKernelSignal[]
 
 """
-    synchronize()
+    synchronize(; errors::Bool=true)
 
-Blocks until all kernels currently executing on the default queue and stream have completed.
+Blocks until all kernels currently executing on the default queue and stream
+have completed. See [`synchronize(::ROCQueue)`](@ref) for details on `errors`.
 """
-function synchronize()
-    synchronize(queue())
+function synchronize(; errors::Bool=true)
+    synchronize(queue(); errors)
     synchronize(stream())
 end
 """
-    synchronize(queue::ROCQueue)
+    synchronize(queue::ROCQueue; errors::Bool=true)
 
-Blocks until all kernels currently executing on `queue` have completed.
+Blocks until all kernels currently executing on `queue` have completed. If
+`errors` is `true`, then any kernels currently on the queue which throw an
+error will be re-thrown; only the first encountered error will be thrown. If
+`false`, errors will not be thrown.
 """
-function synchronize(queue::ROCQueue)
-    sig = lock(queue.lock) do
-        kerns = queue.active_kernels
-        length(kerns) == 0 && return nothing
-        return last(kerns)
+function synchronize(queue::ROCQueue; errors::Bool=true)
+    if length(queue.active_kernels) == 0
+        return
     end
-    if sig !== nothing
-        wait(sig)
+    if errors
+        kerns = copy(queue.active_kernels)
+        while length(kerns) > 0
+            sig = first(kerns)
+            wait(sig; check_exceptions=true, cleanup=false)
+            Runtime.next!(kerns)
+        end
+    else
+        sig = Runtime.maybelast(queue.active_kernels)
+        if sig !== nothing
+            wait(sig; check_exceptions=false, cleanup=false)
+        end
     end
     return
 end

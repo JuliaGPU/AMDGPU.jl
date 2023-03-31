@@ -95,7 +95,7 @@ end
 has_exception(e::ROCExecutable) = haskey(e.globals, :__global_exception_flag)
 
 function get_exception(
-    exe::ROCExecutable; check_exceptions::Bool = true, signal_handle::UInt64,
+    exe::ROCExecutable; cleanup::Bool = true, signal_handle::UInt64,
 )
     has_exception(exe) || return nothing
 
@@ -106,8 +106,7 @@ function get_exception(
     ex_flag_value == 0 && return nothing
 
     ex_string = nothing
-    fetch_ex_strings =
-        check_exceptions && haskey(exe.globals, :__global_exception_ring)
+    fetch_ex_strings = haskey(exe.globals, :__global_exception_ring)
 
     if fetch_ex_strings
         ex_strings = String[]
@@ -123,10 +122,12 @@ function get_exception(
                     reinterpret(Ptr{UInt8}, ex_ring_value.ptr))
                 push!(ex_strings, ex_ring_value_str)
 
-                # FIXME: Write rest of entry first, then CAS 0 to kern field
-                entry = AMDGPU.Device.ExceptionEntry(
-                    UInt64(0), Core.LLVMPtr{UInt8,1}(0))
-                unsafe_store!(ex_ring_ptr, entry)
+                if cleanup
+                    # FIXME: Write rest of entry first, then CAS 0 to kern field
+                    entry = AMDGPU.Device.ExceptionEntry(
+                        UInt64(0), Core.LLVMPtr{UInt8,1}(0))
+                    unsafe_store!(ex_ring_ptr, entry)
+                end
             end
             ex_ring_ptr += sizeof(AMDGPU.Device.ExceptionEntry)
         end
@@ -134,5 +135,5 @@ function get_exception(
         ex_string = join(ex_strings, '\n')
     end
 
-    KernelException(exe.device, ex_string)
+    return KernelException(exe.device, ex_string)
 end

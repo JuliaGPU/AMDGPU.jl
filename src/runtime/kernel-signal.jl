@@ -30,7 +30,8 @@ mutable struct ROCKernelSignal
 end
 
 function Base.wait(
-    kersig::ROCKernelSignal; check_exceptions::Bool = true, signal_kwargs...,
+    kersig::ROCKernelSignal; check_exceptions::Bool = true,
+    cleanup::Bool = false, signal_kwargs...,
 )
     @log_start(:wait, (;entry=kersig.kernel.sym, signal=get_handle(kersig.signal)), nothing)
     finished = try
@@ -44,12 +45,27 @@ function Base.wait(
         false
     finally
         @log_finish(:wait, (;entry=kersig.kernel.sym, signal=get_handle(kersig.signal)), nothing)
-        queue_error = kersig.queue.status != HSA.STATUS_SUCCESS
-        # If it is QueueError, `kill_queue!` will fill `exception` field.
-        queue_error && kill_queue!(kersig.queue)
     end
 
-    cleanup!(kersig; finished, check_exceptions)
+    if cleanup
+        cleanup!(kersig; finished, check_exceptions)
+    elseif check_exceptions
+        # Ensure we check for and propagate errors
+        ex = get_exception(kersig; finished, cleanup=false)
+        if ex !== nothing
+            kersig.exception = ex
+        end
+    end
+
+    if check_exceptions
+        # Report any kernel-specific exceptions
+        if kersig.exception !== nothing
+            throw(kersig.exception)
+        end
+        # Report any queue-specific exceptions
+        ensure_active(kersig.queue)
+    end
+
     return finished
 end
 
@@ -61,26 +77,24 @@ function cleanup!(
 
     unpreserve!(kersig)
 
-    exe::ROCExecutable = kersig.kernel.exe
-    mod::ROCModule = EXE_TO_MODULE_MAP[exe].value
-    signal_handle::UInt64 = get_handle(kersig.signal)
     if finished
-        ex = get_exception(exe; signal_handle, check_exceptions)
+        ex = get_exception(kersig; finished, cleanup=true)
         isnothing(ex) || (kersig.exception = ex;)
     end
 
+    exe = kersig.kernel.exe::ROCExecutable
     lock(RT_LOCK) do
+        mod = EXE_TO_MODULE_MAP[exe].value::ROCModule
+        signal_handle = get_handle(kersig.signal)::UInt64
         delete_metadata!(mod; signal_handle)
     end
 
-    queue = kersig.queue
-    lock(queue.lock) do
-        sig_idxs = findall(x->x===kersig, queue.active_kernels)
-        deleteat!(queue.active_kernels, sig_idxs)
-    end
-
-    isnothing(kersig.exception) || throw(kersig.exception)
-    nothing
+    return
+end
+function get_exception(kersig::ROCKernelSignal; finished::Bool, cleanup::Bool)
+    exe = kersig.kernel.exe::ROCExecutable
+    signal_handle::UInt64 = get_handle(kersig.signal)
+    return get_exception(exe; signal_handle, cleanup)
 end
 
 function Base.show(io::IO, kersig::ROCKernelSignal)

@@ -1,13 +1,15 @@
-mutable struct ROCQueue{S}
+mutable struct ROCQueue
     device::ROCDevice
-    @atomic queue::Ptr{HSA.Queue}
+    queue::Ptr{HSA.Queue}
     priority::Symbol
     status::HSA.Status
     @atomic active::Bool
-    active_kernels::Vector{S} # always Vector{ROCKernelSignal}
+    active_kernels::LinkedList # TODO: Concrete type
     running::Base.Event
     lock::Threads.ReentrantLock
 end
+ROCQueue(; kwargs...) = ROCQueue(AMDGPU.device(); kwargs...)
+
 get_handle(queue::ROCQueue) = reinterpret(Ptr{Cvoid}, queue.queue)
 
 function Base.show(io::IO, queue::ROCQueue)
@@ -27,14 +29,26 @@ function queue_error_handler(
 end
 
 struct QueueError <: Exception
-    queue::Ptr{HSA.Queue}
-    err::HSAError
+    queue::ROCQueue
+    exception::Union{Exception,Nothing}
 end
-QueueError(queue::ROCQueue) = QueueError(queue.queue, HSAError(queue.status))
-
+function QueueError(queue::ROCQueue)
+    err = if queue.status != HSA.STATUS_SUCCESS
+        HSAError(queue.status)
+    else
+        nothing
+    end
+    return QueueError(queue, err)
+end
 function Base.showerror(io::IO, err::QueueError)
-    println(io, "QueueError(Queue at $(err.queue)) due to:")
-    Base.showerror(io, err.err)
+    queue = err.queue
+    println(io, "QueueError(Queue $(repr(reinterpret(UInt64, queue.queue))) on $(queue.device)) due to:")
+    if err.exception !== nothing
+        Base.showerror(io, err.exception)
+    else
+        print(io, "Queue was killed")
+    end
+    println(io); print(io, "You can select a new queue with `AMDGPU.reset_dead_queue!()`")
 end
 
 mutable struct QueuePool
@@ -132,7 +146,7 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=fals
     # Create ROCQueue before HSA queue to be able to pass it to error handler.
     queue = ROCQueue(
         device, Ptr{HSA.Queue}(0), priority, HSA.STATUS_SUCCESS, true,
-        ROCKernelSignal[], Base.Event(), Threads.ReentrantLock())
+        LinkedList{ROCKernelSignal}(), Base.Event(), Threads.ReentrantLock())
 
     # Create HSA queue.
     r_queue = Ref{Ptr{HSA.Queue}}()
@@ -142,7 +156,7 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=fals
         typemax(UInt32), typemax(UInt32), r_queue) |> check
 
     AMDGPU.hsaref!()
-    @atomic queue.queue = r_queue[]
+    queue.queue = r_queue[]
 
     lock(RT_LOCK) do
         @assert !haskey(QUEUES, queue.queue)
@@ -161,6 +175,7 @@ function ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=fals
     @log_finish(:alloc_queue, (;alloc_id), (;queue=reinterpret(UInt64, queue.queue)))
     return queue
 end
+ROCQueue(; kwargs...) = ROCQueue(get_default_device(); kwargs...)
 
 function hsa_priority(priority::Symbol)
     if priority == :normal
@@ -173,14 +188,16 @@ function hsa_priority(priority::Symbol)
 end
 
 function monitor_queue(queue::ROCQueue)
-    while queue.active
+    kerns = queue.active_kernels::LinkedList{ROCKernelSignal}
+    while queue.active || length(kerns) > 0
         # Fetch oldest signal, if any
         sig = lock(queue.lock) do
-            kerns = queue.active_kernels
             if length(kerns) > 0
                 # Notify waiters that queue is running
                 notify(queue.running)
-                return first(kerns)
+                sig = first(kerns)
+                next!(queue.active_kernels)
+                return sig
             else
                 # Reset event
                 reset(queue.running)
@@ -190,14 +207,27 @@ function monitor_queue(queue::ROCQueue)
 
         # Wait for signal completion or new launches
         if sig !== nothing
-            wait(sig)
+            try
+                wait(sig; check_exceptions=true, cleanup=true)
+            catch err
+                @debug "Kernel exception" exception=(err,catch_backtrace())
+            end
         else
             wait(queue.running)
         end
     end
 end
 
-ROCQueue(; kwargs...) = ROCQueue(AMDGPU.device(); kwargs...)
+function ensure_active(queue::ROCQueue)
+    @label check
+    if !queue.active
+        throw(QueueError(queue))
+    elseif queue.status != HSA.STATUS_SUCCESS
+        # We track status updates from the queue callback
+        kill_queue!(queue)
+        @goto check
+    end
+end
 
 """
 Determine if there are active kernels for the queue.
@@ -213,6 +243,8 @@ function kill_queue!(queue::ROCQueue)
     _, succ = @atomicreplace queue.active true => false
     succ || return
 
+    # TODO: Eliminate race from active=false to setting exception
+
     @log_start(:kill_queue!, (;queue=reinterpret(UInt64, queue.queue)), nothing)
     remove_pooled_queue!(queue)
 
@@ -222,14 +254,13 @@ function kill_queue!(queue::ROCQueue)
     lock(queue.lock) do
         # Send exception to all waiter signals
         if queue.status != HSA.STATUS_SUCCESS
-            err = QueueError(queue.queue, HSAError(queue.status))
-            for kersig in queue.active_kernels
+            err = QueueError(queue)
+            for kersig in queue.active_kernels::LinkedList{ROCKernelSignal}
+                kersig::ROCKernelSignal
                 kersig.exception = err
                 notify(kersig)
             end
         end
-        # Clear active kernel set
-        empty!(queue.active_kernels)
     end
 
     HSA.queue_destroy(queue.queue) |> check
