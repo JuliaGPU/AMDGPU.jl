@@ -37,25 +37,36 @@ Julia support for programming AMD GPUs is currently provided by the [AMDGPU.jl p
 
 ### Optional Packages
 
-* [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for BLAS support
+* [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for BLAS support (JLL available)
 * [rocFFT](https://github.com/ROCmSoftwarePlatform/rocFFT) for FFT support (No JLL yet)
-* [rocRAND](https://github.com/ROCmSoftwarePlatform/rocRAND) for RNG support
-* [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for DNN support
+* [rocRAND](https://github.com/ROCmSoftwarePlatform/rocRAND) for RNG support (JLL available)
+* [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for DNN support (JLL available)
 
 Other ROCm packages are currently unused by AMDGPU.
 
 ### JLL usage
 
-By default, AMDGPU provides JLL packages for core libraries, so as long as
-`ld.lld` is available, you should be all set for most basic functionality. If
-this does not work for you, or if you have a full ROCm installation available
-on your system (common for HPC/supercomputer users), you can set the
-`JULIA_AMDGPU_DISABLE_ARTIFACTS` environment variable to "1" to disable usage
-of JLL artifacts.
+By default, AMDGPU provides and uses JLL packages for core libraries,
+so as long as `ld.lld` is available, you should be all set for most basic functionality.
+For example, Julia 1.9 provides ROCm 5.2.3 libraries.
+
+If this does not work for you, or if you have a full ROCm installation available
+on your system (common for HPC/supercomputer users),
+you can set the `JULIA_AMDGPU_DISABLE_ARTIFACTS` environment variable to "1"
+to disable usage of JLL artifacts:
+
+```bash
+JULIA_AMDGPU_DISABLE_ARTIFACTS=1 julia --project=.
+```
 
 Note that currently ROCm-Device-Libs are always provided by AMDGPU to ensure
 compatibility with Julia's version of LLVM; please file an issue if this is
 problematic on your system.
+
+!!! note "LLVM compatibility"
+    For proper support, Julia's LLVM version should match ROCm LLVM's version.
+    For example, Julia 1.9 relies on LLVM 14,
+    so the matching ROCm version is `5.2.x`.
 
 ### Extra Setup Details
 

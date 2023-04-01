@@ -2,8 +2,12 @@
 
 In AMDGPU, all GPU devices (also known as "agents" in HSA parlance) are
 auto-detected by the runtime, if they're supported.
-There are three classes of devices: CPU, GPU, and DSP.
-In AMDGPU, we only support compilation and execution on GPU devices,
+There are three classes of devices:
+- CPU
+- GPU
+- DSP
+
+In AMDGPU, we only support compilation and execution on **GPU** devices,
 so we will henceforth limit discussion to those;
 however, you may see a `kind` `Symbol` available in the APIs of many device
 access functions, which defaults to `:gpu`, but could also be `:cpu` or `:dsp`.

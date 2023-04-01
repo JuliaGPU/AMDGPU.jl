@@ -132,6 +132,11 @@ HIPContext(device::ROCDevice) = HIPContext(HIPDevice(device))
 
 # Queues/Streams
 
+"""
+    queue()::ROCQueue
+
+Get task-local default queue for the currently active device.
+"""
 queue() = task_local_state().queue::ROCQueue
 @deprecate default_queue() queue()
 function queue(device::ROCDevice)
@@ -142,6 +147,16 @@ function queue(device::ROCDevice)
     tls.queues[device_id(device)] = ROCQueue(device)
     return q
 end
+"""
+    queue!(f::Base.Callable, queue::ROCQueue)
+
+Change default queue, execute given function `f`
+and revert back to the original queue.
+
+# Returns
+
+Return value of the function `f`.
+"""
 queue!(f::Base.Callable, queue::ROCQueue) = task_local_state!(f; queue)
 device(queue::ROCQueue) = queue.device
 
@@ -154,10 +169,29 @@ stream!(f::Base.Callable, stream::HIPStream) = task_local_state!(f; stream)
 device(stream::HIPStream) = stream.device
 
 priority() = task_local_state().priority
+
+"""
+    priority!(priority::Symbol)
+
+Change the priority of the default queue.
+Accepted values are `:normal` (the default), `:low` and `:high`.
+"""
 function priority!(priority::Symbol)
     task_local_state!(;priority)
     return priority
 end
+
+"""
+    priority!(f::Base.Callable, priority::Symbol)
+
+Chnage the priority of default queue, execute `f` and
+revert to the original priority.
+Accepted values are `:normal` (the default), `:low` and `:high`.
+
+# Returns
+
+Return value of the function `f`.
+"""
 priority!(f::Base.Callable, priority::Symbol) = task_local_state!(f; priority)
 
 # Device ISAs
@@ -252,15 +286,12 @@ barrier_or!(queue::ROCQueue, signals::Vector{ROCSignal}) =
     Runtime.launch_barrier!(HSA.BarrierOrPacket, queue, signals)
 
 """
-    active_kernels() -> Vector{ROCKernelSignal}
-    active_kernels(queue::ROCQueue) -> Vector{ROCKernelSignal}
+    active_kernels(queue::ROCQueue = queue()) -> Vector{ROCKernelSignal}
 
 Returns the set of actively-executing kernels on `queue`.
 """
 function active_kernels(queue::ROCQueue = queue())
-    if length(queue.active_kernels) == 0
-        return NO_ACTIVE_KERNELS
-    end
+    isempty(queue.active_kernels) && return NO_ACTIVE_KERNELS
     return Array(queue.active_kernels)
 end
 const NO_ACTIVE_KERNELS = ROCKernelSignal[]
