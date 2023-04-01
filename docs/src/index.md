@@ -64,14 +64,13 @@ documented in the upstream docs for any distro other than Ubuntu.
 So here is a list of requirements I've found through the process of making this work:
 
 - Make sure `/dev/kfd` has a group other than root that you can add your user to.
-I recommend adding your user to the `video` group, and setting the
-ownership of `/dev/kfd` to `root:video` with `660` permissions.
+    I recommend adding your user to the `video` group, and setting the
+    ownership of `/dev/kfd` to `root:video` with `660` permissions.
 
-- These libraries should be in the standard library locations, or in your
-`LD_LIBRARY_PATH`:
-* libhsakmt.so
-* libhsa-runtime64.so.1
-* libamdhip64.so
+- These libraries should be in the standard library locations, or in your `LD_LIBRARY_PATH`:
+    * libhsakmt.so
+    * libhsa-runtime64.so.1
+    * libamdhip64.so
 
 - And `ld.lld` should be in your `PATH`.
 
