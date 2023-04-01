@@ -1,20 +1,20 @@
 @testset "Globals" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
 
-function kernel(X)
-    ptr = Device.get_global_pointer(Val(:myglobal), Float32)
-    Base.unsafe_store!(ptr, 3f0)
-    nothing
-end
+    function kernel(X)
+        ptr = Device.get_global_pointer(Val(:myglobal), Float32)
+        Base.unsafe_store!(ptr, 3f0)
+        nothing
+    end
 
-mygbl_ptr = Ref{Any}()
-function gbl_init(gbl, mod, dev)
-    gbl_ptr = Base.unsafe_convert(Ptr{Float32}, gbl.ptr)
-    mygbl_ptr[] = gbl_ptr
+    mygbl_ptr = Ref{Any}()
+    function gbl_init(gbl, mod, dev)
+        gbl_ptr = Base.unsafe_convert(Ptr{Float32}, gbl.ptr)
+        mygbl_ptr[] = gbl_ptr
 
-    Base.unsafe_store!(gbl_ptr, 2f0)
-end
+        Base.unsafe_store!(gbl_ptr, 2f0)
+    end
 
-wait(@roc groupsize=1 global_hooks=(myglobal=gbl_init,) kernel(Int32(1)))
-@test Base.unsafe_load(mygbl_ptr[]) == 3f0
-
+    wait(@roc groupsize=1 global_hooks=(myglobal=gbl_init,) kernel(Int32(1)))
+    @test Base.unsafe_load(mygbl_ptr[]) == 3f0
 end

@@ -263,9 +263,8 @@ error will be re-thrown; only the first encountered error will be thrown. If
 `false`, errors will not be thrown.
 """
 function synchronize(queue::ROCQueue; errors::Bool=true)
-    if length(queue.active_kernels) == 0
-        return
-    end
+    isempty(queue.active_kernels) && return
+
     if errors
         kerns = copy(queue.active_kernels)
         while length(kerns) > 0

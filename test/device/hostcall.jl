@@ -1,8 +1,8 @@
-import AMDGPU.Device: HostCall, hostcall!
-
 @testset "Hostcall" begin
 
 @testset "Call: No return or arguments" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         hostcall!(sig)
         b[1] = a[1]
@@ -28,6 +28,8 @@ import AMDGPU.Device: HostCall, hostcall!
 end
 
 @testset "Call: Error" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         hostcall!(sig)
         b[1] = a[1]
@@ -60,6 +62,8 @@ end
 end
 
 @testset "Call: (0 args)" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         inc = hostcall!(sig)::Float32
         b[1] = a[1] + inc
@@ -82,6 +86,8 @@ end
 end
 
 @testset "Call: (1 arg)" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         inc = hostcall!(sig, 42f0)::Float32
         b[1] = a[1] + inc
@@ -104,6 +110,8 @@ end
 end
 
 @testset "Call: (2 homogeneous args)" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         inc = hostcall!(sig, 42f0, 3f0)::Float32
         b[1] = a[1] + inc
@@ -126,6 +134,8 @@ end
 end
 
 @testset "Call: (2 heterogeneous args)" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         inc = hostcall!(sig, 42f0, Int16(3))::Float32
         b[1] = a[1] + inc
@@ -148,6 +158,8 @@ end
 end
 
 @testset "Call: (2 heterogeneous args, return homogeneous tuple)" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         inc1, inc2 = hostcall!(sig, 42f0, Int16(3))::Tuple{Float32,Float32}
         b[1] = a[1] + inc1 + inc2
@@ -170,6 +182,8 @@ end
 end
 
 @testset "Call: (2 heterogeneous args, return heterogeneous tuple)" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         inc1, inc2 = hostcall!(sig, 42f0, Int16(3))::Tuple{Float32,Int64}
         b[1] = a[1] + inc1 + Float32(inc2)
@@ -192,6 +206,8 @@ end
 end
 
 @testset "Call: (2 hostcalls, 1 kernel)" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig1,sig2)
         inc1 = hostcall!(sig1, 3f0)::Float32
         inc2 = hostcall!(sig2, 4f0)::Float32
@@ -217,6 +233,8 @@ end
 end
 
 @testset "Call: (1 hostcall, 2 kernels)" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(a,b,sig)
         inc = hostcall!(sig, 3f0)::Float32
         b[1] = a[1] + inc

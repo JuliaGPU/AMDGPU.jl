@@ -29,6 +29,7 @@ if isdefined(TestSuite, :WrapArray)
 end
 
 import AMDGPU: allowscalar, @allowscalar
+import AMDGPU.Device: HostCall, hostcall!
 allowscalar(false)
 
 CI = parse(Bool, get(ENV, "CI", "false"))
