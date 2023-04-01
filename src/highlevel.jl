@@ -10,6 +10,14 @@ export @roc, rocconvert, rocfunction
 
 ## Devices
 
+"""
+    default_device()::ROCDevice
+
+Default device which will be used by default in tasks.
+Meaning when a task is created, it selects this device as default.
+
+All subsequent uses rely on [`device()`](@ref) for device selection.
+"""
 default_device() = Runtime.get_default_device()
 
 """
@@ -23,6 +31,12 @@ Set default device that will be used when creating new tasks.
 """
 default_device!(device::ROCDevice) = Runtime.set_default_device!(device)
 
+"""
+    device()::ROCDevice
+
+Get currently active device.
+This device is used when launching kernels via `@roc`.
+"""
 device() = task_local_state().device
 
 """
@@ -41,7 +55,14 @@ function device!(device::ROCDevice)
 end
 device!(f::Base.Callable, device::ROCDevice) = task_local_state!(f; device)
 
-devices(kind::Symbol=:gpu) =
+"""
+    devices(kind::Symbol = :gpu)
+
+Get list of all devices of the given `kind`.
+`kind` can be `:cpu`, `:gpu` or `:dsp`, although AMDGPU.jl supports
+execution only on `:gpu` devices.
+"""
+devices(kind::Symbol = :gpu) =
     filter!(d -> device_type(d) == kind, copy(Runtime.ALL_DEVICES))
 
 """

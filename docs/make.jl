@@ -1,5 +1,5 @@
-using Documenter, AMDGPU
-
+using AMDGPU
+using Documenter
 
 function main()
     ci = get(ENV, "CI", "") == "true"

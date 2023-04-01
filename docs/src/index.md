@@ -60,20 +60,20 @@ problematic on your system.
 ### Extra Setup Details
 
 Currently, the requirements to get everything working properly is a bit poorly
-documented in the upstream docs for any distro other than Ubuntu.  So here is a
-list of requirements I've found through the process of making this work:
+documented in the upstream docs for any distro other than Ubuntu.
+So here is a list of requirements I've found through the process of making this work:
 
-Make sure `/dev/kfd` has a group other than root that you can add your user to.
+- Make sure `/dev/kfd` has a group other than root that you can add your user to.
 I recommend adding your user to the `video` group, and setting the
 ownership of `/dev/kfd` to `root:video` with `660` permissions.
 
-These libraries should be in the standard library locations, or in your
+- These libraries should be in the standard library locations, or in your
 `LD_LIBRARY_PATH`:
 * libhsakmt.so
 * libhsa-runtime64.so.1
 * libamdhip64.so
 
-And `ld.lld` should be in your `PATH`.
+- And `ld.lld` should be in your `PATH`.
 
 In terms of Linux kernel versions, just pick the newest one you can. If
 building your own kernel, make sure all the regular AMDGPU and HSA options are
@@ -82,3 +82,16 @@ enabled.
 Once all of this is setup properly, you should be able to do `using AMDGPU`
 successfully. See the Quickstart documentation for an introduction to using
 AMDGPU.jl.
+
+#### Navi 2 (GFX103x) support
+
+ROCm stack officially supports only GFX1030 (6900XT).
+However, the ISA between GFX103x devices is nearly identical (if not identical).
+
+Therefore, if you have any other GFX103x device,
+you can override your gfx version with `HSA_OVERRIDE_GFX_VERSION=10.3.0` env variable
+before launching Julia and be able to use your device:
+
+```bash
+HSA_OVERRIDE_GFX_VERSION=10.3.0 julia --project=.
+```
