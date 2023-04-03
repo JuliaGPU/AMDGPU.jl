@@ -32,7 +32,7 @@ function Base.lock(f, x::LockedObject)
     end
 end
 
-# Load HSA Runtime
+# Load HSA Runtime.
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath("hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
