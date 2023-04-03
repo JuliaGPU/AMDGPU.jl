@@ -40,7 +40,7 @@ Julia support for programming AMD GPUs is currently provided by the [AMDGPU.jl p
 * [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for BLAS support (JLL available)
 * [rocFFT](https://github.com/ROCmSoftwarePlatform/rocFFT) for FFT support (No JLL yet)
 * [rocRAND](https://github.com/ROCmSoftwarePlatform/rocRAND) for RNG support (JLL available)
-* [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for DNN support (JLL available)
+* [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for DNN support (JLL available on Julia 1.9)
 
 Other ROCm packages are currently unused by AMDGPU.
 

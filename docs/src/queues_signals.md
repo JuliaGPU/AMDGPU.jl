@@ -43,10 +43,10 @@ use [`AMDGPU.active_kernels`](@ref).
 It will return a `Vector{ROCKernelSignal}`, which can be inspected to
 determine how many (and which) kernels are executing.
 
-Sometimes a kernel ever gets "stuck" and locks up the GPU (noticeable with 100%
-GPU usage in `rocm-smi`); you can kill the kernel and all other kernels in the
-queue with `kill_queue!(queue)`.
-This can be "safely" done to the default queue,
+If a kernel gets "stuck" and locks up the GPU (noticeable with 100% GPU usage in `rocm-smi`)
+you can kill it and all other kernels associated with the queue it is running on
+with [`AMDGPU.Runtime.kill_queue!(queue)`](@ref).
+This can be "safely" done to the default queue (obtained via [`AMDGPU.queue`](@ref)),
 since default queues are recreated as-needed.
 
 ```@docs
@@ -54,6 +54,9 @@ AMDGPU.queue
 AMDGPU.queue!
 AMDGPU.priority!
 AMDGPU.active_kernels
+AMDGPU.ROCQueue
+AMDGPU.Runtime.set_queue_pool_size!
+AMDGPU.Runtime.kill_queue!
 ```
 
 # Signals

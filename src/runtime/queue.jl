@@ -8,7 +8,20 @@ mutable struct ROCQueue
     running::Base.Event
     lock::Threads.ReentrantLock
 end
-ROCQueue(; kwargs...) = ROCQueue(AMDGPU.device(); kwargs...)
+
+"""
+    ROCQueue(; priority::Symbol=:normal, pooled::Bool=false)
+
+Create an HSA queue on the currently active device.
+
+!!! note
+    Users are encouraged to use this method,
+    instead of manually providing device since this one
+    correctly handles device changes.
+"""
+function ROCQueue(; priority::Symbol=:normal, pooled::Bool=false)
+    ROCQueue(AMDGPU.device(); priority, pooled)
+end
 
 get_handle(queue::ROCQueue) = reinterpret(Ptr{Cvoid}, queue.queue)
 
@@ -63,7 +76,19 @@ QueuePool() = QueuePool(
 
 const QUEUE_POOL = LockedObject(QueuePool())
 
-function set_alloc_queue_pool_max!(nums::NTuple{3, Int})
+"""
+    set_queue_pool_size!(nums::NTuple{3, Int})
+
+Set HSA queue pool max size for each priority.
+Restart Julia session for the changes to take effect.
+
+# Arguments:
+
+- `nums::NTuple{3, Int}`: Maximum number of queues for `:normal`,
+    `:low` and `:high` priority.
+    Providing `0` for specific priority, disables pool for it.
+"""
+function set_queue_pool_size!(nums::NTuple{3, Int})
     @set_preferences!("queue_pool_max_size" => [nums...])
     @info """Successfully set queue pool max size to `$nums` (:normal, :low, :high).
     Reset your Julia session for the changes to take effect."""
@@ -121,6 +146,30 @@ device_queue_max_size(device::AnyROCDevice) =
 device_queue_type(device::AnyROCDevice) =
     getinfo(HSA.QueueType, device, HSA.AGENT_INFO_QUEUE_TYPE)
 
+"""
+    ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=false)
+
+Create an HSA queue which will be used to
+instruct GPU hardware which kernels to launch.
+
+Each queue, spawns an error monitoring thread that's responsible
+for actually waiting on kernels and performing a cleanup after
+kernel finished its execution.
+
+!!! note "Oversubscribed Command Queues in GPUs"
+    Be careful, with the number of HSA queues in use.
+    When the number of allocated HSA queues is greater than
+    the number of hardware queues, the GPU wastes significant time
+    rotating between all allocated queues in search of ready tasks.
+
+# Arguments:
+
+- `device::ROCDevice`: Device on which to create queue.
+- `priority::Symbol`: Queue's priority. Can be `:normal`, `:low`, `:high`.
+- `pooled::Bool`: Whether to use pool when creating queues.
+    When `true`, queues are drawn from it on creation
+    and returned to pool instead of destroyed.
+"""
 function ROCQueue(device::ROCDevice; priority::Symbol=:normal, pooled::Bool=false)
     if !in(priority, (:normal, :low, :high))
         throw(ArgumentError(
@@ -238,6 +287,18 @@ function has_active_kernels(q::ROCQueue)
     end
 end
 
+"""
+    kill_queue!(queue::ROCQueue)
+
+Kill `queue` and propagate queue error to
+all waiter signals in case if there is one.
+
+If queue is in the pool, it will be removed from it.
+
+!!! note
+    No need to manually call this function during regular use,
+    it will be called automatically from [`ROCQueue`](@ref) finalizer.
+"""
 function kill_queue!(queue::ROCQueue)
     _, succ = @atomicreplace queue.active true => false
     succ || return
