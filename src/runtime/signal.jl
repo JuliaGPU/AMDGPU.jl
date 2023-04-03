@@ -13,7 +13,7 @@ const SIGNAL_POOL = LockedObject(SignalPool())
 function set_signal_pool_size!(num::Integer)
     @set_preferences!("signal_pool_max_size" => num)
     @info """Successfully set signal pool max size to `$num`.
-    Reset your Julia session for changes to take effect."""
+    Reset your Julia session for the changes to take effect."""
 end
 
 function get_pool_signal!()::Union{HSA.Signal, Nothing}
@@ -113,8 +113,8 @@ function Base.wait(
             (diff_time > timeout) && throw(SignalTimeoutException(signal))
         end
 
-        if queue !== nothing && queue.status !== HSA.STATUS_SUCCESS
-            throw(QueueError(queue))
+        if queue !== nothing
+            ensure_active(queue)
         end
 
         # Allow another scheduled task to run.

@@ -1,6 +1,8 @@
 using Base.FastMath
 
 @testset "Math Intrinsics" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     for T in (Float16, Float32, Float64)
         a = rand(T, 16) .* T(42)
         d_a = ROCArray(a)

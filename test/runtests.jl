@@ -46,7 +46,6 @@ AMDGPU.versioninfo()
 
 @info "Running tests with $(length(ws)) workers"
 
-push!(tests, "Core" => ()->include("pointer.jl"))
 push!(tests, "HSA" => ()->begin
     include("hsa/error.jl")
     include("hsa/utils.jl")
@@ -86,6 +85,7 @@ push!(tests, "Device Functions" => ()->begin
     # include("device/deps.jl")
     include("device/queries.jl")
 end)
+push!(tests, "Multitasking" => ()->include("tls.jl"))
 push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
 push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
 if CI
@@ -134,9 +134,9 @@ push!(tests, "MIOpen" => ()->begin
     end
 end)
 push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
-for name in keys(TestSuite.tests)
+for (i, name) in enumerate(keys(TestSuite.tests))
     push!(tests, "GPUArrays TestSuite - $name" =>
-                 ()->TestSuite.tests[name](ROCArray))
+        ()->TestSuite.tests[name](ROCArray))
 end
 
 function run_worker(w)

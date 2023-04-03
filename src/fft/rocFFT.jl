@@ -1,7 +1,8 @@
 module rocFFT
 
-using ..AMDGPU
-using ..AMDGPU: librocfft, mark!, wait!
+import ..AMDGPU
+import .AMDGPU: librocfft, mark!, wait!
+import ..HIP: hipStream_t
 
 using CEnum
 
@@ -13,8 +14,17 @@ include("librocfft.jl")
 include("util.jl")
 include("fft.jl")
 
-rocfft_setup()
-atexit(rocfft_cleanup)
-
+if AMDGPU.functional(:rocfft)
+    const INITIALIZED = Threads.Atomic{Int64}(0)
+    @eval function rocfft_setup_once()
+        if Threads.atomic_cas!(INITIALIZED, 0, 1) == 0
+            rocfft_setup()
+            atexit(rocfft_cleanup)
+        end
+    end
+else
+    @eval rocfft_setup_once() =
+        throw(ArgumentError("rocFFT is not functional"))
+end
 
 end

@@ -66,4 +66,7 @@
     hipErrorTbd
 end
 
+hipContext_t = Ptr{Cvoid}
+hipDevice_t = Ptr{Cvoid}
 hipStream_t = Ptr{Cvoid}
+hipEvent_t = Ptr{Cvoid}

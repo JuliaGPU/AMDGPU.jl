@@ -1,4 +1,6 @@
 @testset "Active kernels" begin
+    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
+
     function kernel(sig)
         hostcall!(sig)
         nothing

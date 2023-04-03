@@ -1,36 +1,62 @@
 # Queues
 
 Similar to CUDA streams, ROCm has the concept of queues, which are
-buffers used to instruct the GPU hardware which kernels to launch. ROCm queues
-are asynchronous, unlike CUDA streams. Each device has a default queue
-associated, which is accessible with `default_queue(device)` (or
-`default_queue()` for the default device's default queue). You can specify
-which queue to launch a kernel on with the `queue` argument to `@roc`:
+buffers used to instruct the GPU hardware which kernels to launch.
+ROCm queues are synchronous, like CUDA streams.
+
+Each device has a default queue associated,
+which is accessible with [`AMDGPU.queue`](@ref).
+
+To specify which queue to launch a kernel on:
+
+- Using [`AMDGPU.queue!`](@ref), which will execute given function and reset
+    to the original queue after completion:
 
 ```julia
-q = AMDGPU.ROCQueue(device)
+q = AMDGPU.ROCQueue()
+x = AMDGPU.queue!(() -> AMDGPU.ones(Float32, 16), q)
+```
+
+- Using `queue` argument to [`@roc`](@ref) macro:
+
+```julia
+q = AMDGPU.ROCQueue()
 @roc queue=q kernel(...)
 ```
 
-If you want to query which kernels are currently executing on a given queue,
-calling `AMDGPU.active_kernels(queue)` will return a `Vector{ROCKernelSignal}`,
-which can be inspected to determine how many (and which) kernels are executing
-by comparing the signals returned from `@roc`. You can also omit the `queue`
-argument, which will then check the default queue.
-
-Sometimes a kernel ever gets "stuck" and locks up the GPU (noticeable with 100%
-GPU usage in `rocm-smi`); you can kill the kernel and all other kernels in the
-queue with `kill_queue!(queue)`. This can be "safely" done to the default
-queue, since default queues are recreated as-needed.
-
 Queues also have an inherent priority, which allows control of kernel
 submission latency and on-device scheduling preference with respect to kernels
-submitted on other queues. There are three priorities: normal (the default), low, and high priority. These can be easily set at queue creation time:
+submitted on other queues.
+There are three priorities: normal (the default), low, and high priority.
+
+Priority of the default `queue` can be set with [`AMDGPU.priority!`](@ref).
+Alternatively, it can be set at queue creation time:
 
 ```julia
-low_prio_queue = ROCQueue(device; priority=:low)
-high_prio_queue = ROCQueue(device; priority=:high)
-normal_prio_queue = ROCQueue(device; priority=:normal) # or just omit "priority"
+low_prio_queue = ROCQueue(; priority=:low)
+high_prio_queue = ROCQueue(; priority=:high)
+normal_prio_queue = ROCQueue(; priority=:normal) # or just omit "priority"
+```
+
+To get kernels which are currently executing on a given queue,
+use [`AMDGPU.active_kernels`](@ref).
+It will return a `Vector{ROCKernelSignal}`, which can be inspected to
+determine how many (and which) kernels are executing.
+
+If a kernel gets "stuck" and locks up the GPU (noticeable with 100% GPU usage in `rocm-smi`)
+you can kill it and all other kernels associated with the queue it is running on
+with [`AMDGPU.Runtime.kill_queue!(queue)`](@ref).
+This can be "safely" done to the default queue (obtained via [`AMDGPU.queue`](@ref)),
+since default queues are recreated as-needed.
+
+```@docs
+AMDGPU.queue
+AMDGPU.queue!
+AMDGPU.priority!
+AMDGPU.active_kernels
+AMDGPU.ROCQueue
+AMDGPU.Runtime.set_queue_pool_size!
+AMDGPU.Runtime.kill_queue!
 ```
 
 # Signals

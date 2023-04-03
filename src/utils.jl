@@ -184,3 +184,14 @@ function getinfo(::Type{T}, object, query)::T where T
     getinfo(object, query, value) |> Runtime.check
     return value[]
 end
+
+function check end
+
+macro check(f)
+    quote
+        local err
+        err = $(esc(f::Expr))
+        $check(err)
+        err
+    end
+end

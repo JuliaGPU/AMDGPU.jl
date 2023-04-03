@@ -10,10 +10,59 @@ export @roc, rocconvert, rocfunction
 
 ## Devices
 
+"""
+    default_device()::ROCDevice
+
+Default device which will be used by default in tasks.
+Meaning when a task is created, it selects this device as default.
+
+All subsequent uses rely on [`device()`](@ref) for device selection.
+"""
 default_device() = Runtime.get_default_device()
+
+"""
+    default_device!(device::ROCDevice)
+
+Set default device that will be used when creating new tasks.
+
+!!! note
+    This does not change current device being used.
+    Refer to [`device!`](@ref) for that.
+"""
 default_device!(device::ROCDevice) = Runtime.set_default_device!(device)
 
-devices(kind::Symbol=:gpu) =
+"""
+    device()::ROCDevice
+
+Get currently active device.
+This device is used when launching kernels via `@roc`.
+"""
+device() = task_local_state().device
+
+"""
+    device!(device::ROCDevice)
+
+Switch current device being used.
+This switches only for a task inside which it is called.
+
+!!! note
+    To select default device that will be used when creating new tasks,
+    refer to [`default_device!`](@ref) for that.
+"""
+function device!(device::ROCDevice)
+    task_local_state!(; device)
+    return device
+end
+device!(f::Base.Callable, device::ROCDevice) = task_local_state!(f; device)
+
+"""
+    devices(kind::Symbol = :gpu)
+
+Get list of all devices of the given `kind`.
+`kind` can be `:cpu`, `:gpu` or `:dsp`, although AMDGPU.jl supports
+execution only on `:gpu` devices.
+"""
+devices(kind::Symbol = :gpu) =
     filter!(d -> device_type(d) == kind, copy(Runtime.ALL_DEVICES))
 
 """
@@ -68,11 +117,84 @@ end
 
 wavefrontsize(device::ROCDevice) = Runtime.device_wavefront_size(device)
 
-# Queues
+# Contexts
 
-default_queue() = default_queue(default_device())
-default_queue(device::ROCDevice) = Runtime.get_default_queue(device)
+context() = task_local_state().context
+function device(context::HIPContext)
+    return HIP.context!(context) do
+        HIP.device()
+    end
+end
+
+device_id(device::HIPDevice) = device.device_id
+HIPDevice(device::ROCDevice) = HIPDevice(device_id(device))
+HIPContext(device::ROCDevice) = HIPContext(HIPDevice(device))
+
+# Queues/Streams
+
+"""
+    queue()::ROCQueue
+
+Get task-local default queue for the currently active device.
+"""
+queue() = task_local_state().queue::ROCQueue
+@deprecate default_queue() queue()
+function queue(device::ROCDevice)
+    tls = task_local_state()
+    q = tls.queues[device_id(device)]
+    isnothing(q) || return q
+
+    tls.queues[device_id(device)] = ROCQueue(device)
+    return q
+end
+"""
+    queue!(f::Base.Callable, queue::ROCQueue)
+
+Change default queue, execute given function `f`
+and revert back to the original queue.
+
+# Returns
+
+Return value of the function `f`.
+"""
+queue!(f::Base.Callable, queue::ROCQueue) = task_local_state!(f; queue)
 device(queue::ROCQueue) = queue.device
+
+stream() = task_local_state().stream::HIPStream
+function stream!(stream::HIPStream)
+    task_local_state!(;stream)
+    return stream
+end
+stream!(f::Base.Callable, stream::HIPStream) = task_local_state!(f; stream)
+device(stream::HIPStream) = stream.device
+
+priority() = task_local_state().priority
+
+"""
+    priority!(priority::Symbol)
+
+Change the priority of the default queue.
+Accepted values are `:normal` (the default), `:low` and `:high`.
+"""
+function priority!(priority::Symbol)
+    task_local_state!(;priority)
+    return priority
+end
+
+"""
+    priority!(f::Base.Callable, priority::Symbol)
+
+Chnage the priority of default queue, execute `f` and
+revert to the original priority.
+Accepted values are `:normal` (the default), `:low` and `:high`.
+
+# Returns
+
+Return value of the function `f`.
+"""
+priority!(f::Base.Callable, priority::Symbol) = task_local_state!(f; priority)
+
+# Device ISAs
 
 default_isa(device::ROCDevice) = Runtime.default_isa(device)
 default_isa_architecture(device::ROCDevice) = Runtime.architecture(default_isa(device))
@@ -103,21 +225,21 @@ function create_executable(device, entry, obj; globals=())
 end
 
 function get_kernel_queue(;
-    queue::Union{ROCQueue, Nothing}, device::Union{ROCDevice, Nothing},
+    event_queue::Union{ROCQueue, Nothing}, device::Union{ROCDevice, Nothing},
 )
-    if !isnothing(queue) && !isnothing(device)
-        if queue.device != device
+    if !isnothing(event_queue) && !isnothing(device)
+        if event_queue.device != device
             error(
                 "Specified both `device` and `queue`, " *
                 "but `queue` is on a different device than `device`.\n" *
                 "In this case, only one argument can be specified.")
         else
-            return queue
+            return event_queue
         end
     end
-    isnothing(queue) && isnothing(device) && return default_queue()
-    isnothing(queue) && return default_queue(device)
-    queue
+    isnothing(event_queue) && isnothing(device) && return queue()
+    isnothing(event_queue) && return queue(device)
+    event_queue
 end
 
 ## Event creation
@@ -130,11 +252,12 @@ function create_event(kernel::ROCKernel;
     if signal isa ROCKernelSignal
         return signal
     end
-    kernel_queue = get_kernel_queue(; queue, device)
+    kernel_queue = get_kernel_queue(; event_queue=queue, device)
     return ROCKernelSignal(signal, kernel_queue, kernel; kwargs...)
 end
 
 ## Kernel creation
+
 """
     create_kernel(kernel::HostKernel, f, args::Tuple; kwargs...)
 
@@ -149,8 +272,8 @@ create_kernel(kernel::Runtime.HostKernel; kwargs...) =
 
 ## Kernel launch and barriers
 
-barrier_and!(signals::Vector) = barrier_and!(default_queue(), signals)
-barrier_or!(signals::Vector) = barrier_or!(default_queue(), signals)
+barrier_and!(signals::Vector) = barrier_and!(queue(), signals)
+barrier_or!(signals::Vector) = barrier_or!(queue(), signals)
 barrier_and!(queue::ROCQueue, signals::Vector{ROCKernelSignal}) =
     barrier_and!(queue, map(x->x.signal,signals))
 barrier_or!(queue::ROCQueue, signals::Vector{ROCKernelSignal}) =
@@ -163,14 +286,60 @@ barrier_or!(queue::ROCQueue, signals::Vector{ROCSignal}) =
     Runtime.launch_barrier!(HSA.BarrierOrPacket, queue, signals)
 
 """
-    active_kernels(queue) -> Vector{ROCKernelSignal}
+    active_kernels(queue::ROCQueue = queue()) -> Vector{ROCKernelSignal}
 
 Returns the set of actively-executing kernels on `queue`.
 """
-function active_kernels(queue::ROCQueue=default_queue())
-    lock(Runtime.RT_LOCK) do
-        copy(Runtime._active_kernels[queue])
+function active_kernels(queue::ROCQueue = queue())
+    isempty(queue.active_kernels) && return NO_ACTIVE_KERNELS
+    return Array(queue.active_kernels)
+end
+const NO_ACTIVE_KERNELS = ROCKernelSignal[]
+
+"""
+    synchronize(; errors::Bool=true)
+
+Blocks until all kernels currently executing on the default queue and stream
+have completed. See [`synchronize(::ROCQueue)`](@ref) for details on `errors`.
+"""
+function synchronize(; errors::Bool=true)
+    synchronize(queue(); errors)
+    synchronize(stream())
+end
+"""
+    synchronize(queue::ROCQueue; errors::Bool=true)
+
+Blocks until all kernels currently executing on `queue` have completed. If
+`errors` is `true`, then any kernels currently on the queue which throw an
+error will be re-thrown; only the first encountered error will be thrown. If
+`false`, errors will not be thrown.
+"""
+function synchronize(queue::ROCQueue; errors::Bool=true)
+    isempty(queue.active_kernels) && return
+
+    if errors
+        kerns = copy(queue.active_kernels)
+        while length(kerns) > 0
+            sig = first(kerns)
+            wait(sig; check_exceptions=true, cleanup=false)
+            Runtime.next!(kerns)
+        end
+    else
+        sig = Runtime.maybelast(queue.active_kernels)
+        if sig !== nothing
+            wait(sig; check_exceptions=false, cleanup=false)
+        end
     end
+    return
+end
+"""
+    synchronize(stream::HIPStream)
+
+Blocks until all kernels currently executing on `stream` have completed.
+"""
+function synchronize(stream::HIPStream)
+    HIP.hipStreamSynchronize(stream.stream) |> check
+    return
 end
 
 ## @roc interface
@@ -317,7 +486,7 @@ Keyword arguments that control general `@roc` behavior:
 
 Keyword arguments that affect various parts of `@roc`:
 - `device::ROCDevice = AMDGPU.default_device()`: The device to compile code for, and launch the kernel on.
-- `queue::ROCQueue = AMDGPU.default_queue(device)`: Which queue to associate the kernel (and its completion signal) with. May also be specified as `stream` for compatibility with CUDA.jl.
+- `queue::ROCQueue = AMDGPU.queue(device)`: Which queue to associate the kernel (and its completion signal) with. May also be specified as `stream` for compatibility with CUDA.jl.
 
 Keyword arguments that control kernel compilation via [`rocfunction`](@ref) and [`dynamic_rocfunction`](@ref):
 - `name::Union{String,Nothing} = nothing`: If not `nothing`, the name to use for the generated kernel.

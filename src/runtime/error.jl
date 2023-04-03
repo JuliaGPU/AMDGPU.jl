@@ -25,12 +25,12 @@ end
 Base.show(io::IO, err::HSAError) = print(io, "HSAError($(Int(err.code)), $(description(err)))")
 
 """
-    check(result)
+    check(result::AMDGPU.HSA.Status)
 
 Check the return code of an HSA call, and throw an `HSAError` exception
 if it is not the success code.
 """
-function check(result)
+function check(result::HSA.Status)
     if result != HSA.STATUS_SUCCESS
         throw(HSAError(result))
     end

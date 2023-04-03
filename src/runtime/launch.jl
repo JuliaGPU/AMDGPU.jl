@@ -39,11 +39,8 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             groupsize, gridsize = normalize_launch_dimensions(groupsize, gridsize)
 
             # launch kernel
-            lock($RT_LOCK)
-            try
-                push!($_active_kernels[signal.queue], signal)
-            finally
-                unlock($RT_LOCK)
+            Base.@lock signal.queue.lock begin
+                push!(signal.queue.active_kernels, signal)
             end
             launch_kernel!(signal.queue, signal.kernel, signal.signal, groupsize, gridsize)
 
@@ -52,6 +49,8 @@ unpreserve!(sig::ROCKernelSignal) = unpreserve!(sig.signal)
             for arg in args
                 $preserve!(signal, arg)
             end
+
+            notify(signal.queue.running)
         end
     end).args)
 
@@ -159,14 +158,9 @@ end
 
 function enqueue_packet!(f::Base.Callable, ::Type{T}, queue::ROCQueue) where T
     # Obtain the current queue write index and queue size
-    queue_ptr = @atomic queue.queue
-    active = @atomic queue.active
-    if !active || queue_ptr == C_NULL
-        status = queue.status
-        @assert status != HSA.STATUS_SUCCESS
-        throw(QueueError(queue_ptr, HSAError(status)))
-    end
-    _queue = unsafe_load(queue_ptr)
+    ensure_active(queue)
+    queue_ptr = queue.queue
+    _queue = unsafe_load(queue.queue)
     queue_size = _queue.size
     write_index = HSA.queue_add_write_index_scacq_screl(queue_ptr, UInt64(1))
 

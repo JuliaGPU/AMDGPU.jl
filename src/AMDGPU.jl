@@ -32,9 +32,9 @@ function Base.lock(f, x::LockedObject)
     end
 end
 
-# Load HSA Runtime
+# Load HSA Runtime.
 const libhsaruntime = "libhsa-runtime64.so.1"
-include(joinpath(@__DIR__, "hsa", "HSA.jl"))
+include(joinpath("hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
 
 # Load binary dependencies
@@ -42,12 +42,13 @@ include(joinpath(dirname(@__DIR__), "deps", "bindeps.jl"))
 
 # Utilities
 include("utils.jl")
+include("cache.jl")
 
 # Load HIP
 const libhip = "libamdhip64.so"
-if functional(:hip)
-    include(joinpath(@__DIR__, "hip", "HIP.jl"))
-end
+include(joinpath("hip", "HIP.jl"))
+import .HIP: HIPContext, HIPDevice, HIPStream
+export HIPContext, HIPDevice, HIPStream
 
 module Runtime
     using ..CEnum
@@ -60,34 +61,35 @@ module Runtime
     import TimespanLogging: timespan_start, timespan_finish
 
     import ..AMDGPU
-    import ..AMDGPU: getinfo, LockedObject
+    import ..AMDGPU: getinfo, LockedObject, HIP
 
     struct Adaptor end
 
     const RT_LOCK = Threads.ReentrantLock()
     const RT_EXITING = Ref{Bool}(false)
 
-    include("runtime/logging.jl")
-    include("runtime/error.jl")
-    include("runtime/thread-utils.jl")
-    include("runtime/device.jl")
-    include("runtime/queue.jl")
-    include("runtime/signal.jl")
-    include("runtime/dims.jl")
+    include(joinpath("runtime", "logging.jl"))
+    include(joinpath("runtime", "error.jl"))
+    include(joinpath("runtime", "thread-utils.jl"))
+    include(joinpath("runtime", "device.jl"))
+    include(joinpath("runtime", "linked-list.jl"))
+    include(joinpath("runtime", "queue.jl"))
+    include(joinpath("runtime", "signal.jl"))
+    include(joinpath("runtime", "dims.jl"))
     module Mem
-        include("runtime/memory.jl")
+        include(joinpath("runtime", "memory.jl"))
     end
-    include("runtime/executable.jl")
-    include("runtime/hashing.jl")
-    include("runtime/kernel.jl")
-    include("runtime/kernel-signal.jl")
-    include("runtime/launch.jl")
-    include("runtime/execution.jl")
-    include("runtime/sync.jl")
-    include("runtime/safe-load.jl")
-    include("runtime/fault.jl")
+    include(joinpath("runtime", "executable.jl"))
+    include(joinpath("runtime", "hashing.jl"))
+    include(joinpath("runtime", "kernel.jl"))
+    include(joinpath("runtime", "kernel-signal.jl"))
+    include(joinpath("runtime", "launch.jl"))
+    include(joinpath("runtime", "execution.jl"))
+    include(joinpath("runtime", "sync.jl"))
+    include(joinpath("runtime", "fault.jl"))
 end # module Runtime
 import .Runtime: Mem
+import .Runtime: ROCDevice, ROCQueue
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
@@ -142,13 +144,14 @@ module Compiler
     import .Runtime: Adaptor
     import .Runtime: Mem
 
-    include("compiler/device-libs.jl")
-    include("compiler/utils.jl")
-    include("compiler/global-hooks.jl")
-    include("compiler/codegen.jl")
-    include("compiler/occupancy.jl")
+    include(joinpath("compiler", "device-libs.jl"))
+    include(joinpath("compiler", "utils.jl"))
+    include(joinpath("compiler", "global-hooks.jl"))
+    include(joinpath("compiler", "codegen.jl"))
+    include(joinpath("compiler", "occupancy.jl"))
 end # module Compiler
 
+include("tls.jl")
 include("highlevel.jl")
 include("reflection.jl")
 
@@ -181,17 +184,13 @@ function hsaunref!()
 end
 
 # Load ROCm external libraries
-if functional(:hip)
-    functional(:rocblas) && include(joinpath(@__DIR__, "blas", "rocBLAS.jl"))
-    #functional(:rocsparse)  && include("sparse/rocSPARSE.jl")
-    #functional(:rocsolver)   && include("solver/rocSOLVER.jl")
-    #functional(:rocalution) && include("solver/rocALUTION.jl")
-    if functional(:rocrand)
-        include(joinpath(@__DIR__, "rand", "rocRAND.jl"))
-    end
-    functional(:rocfft) && include(joinpath(@__DIR__, "fft", "rocFFT.jl"))
-    functional(:MIOpen) && include("dnn/MIOpen.jl")
-end
+include(joinpath("blas", "rocBLAS.jl"))
+#include(joinpath("sparse", "rocSPARSE.jl")
+#include(joinpath("solver", "rocSOLVER.jl")
+#include(joinpath("solver", "rocALUTION.jl")
+include(joinpath("rand", "rocRAND.jl"))
+include(joinpath("fft", "rocFFT.jl"))
+include(joinpath("dnn", "MIOpen.jl"))
 
 include("random.jl")
 

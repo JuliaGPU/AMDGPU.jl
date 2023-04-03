@@ -1,5 +1,7 @@
 export HIPError
 
+import .AMDGPU: @check, check
+
 struct HIPError <: Exception
     code::hipError_t
     msg::AbstractString
@@ -138,17 +140,12 @@ function status_message(status)
     elseif status == hipErrorNotSupported
         return "hip API is not supported/implemented"
     else
-        return "unknown error"
+        return "unknown error ($(UInt32(status)))"
     end
 end
 
-macro check(hip_func)
-    quote
-        local err::hipError_t
-        err = $(esc(hip_func::Expr))
-        if err != hipSuccess && err != hipErrorNotReady
-            throw(HIPError(err))
-        end
-        err
+function check(err::hipError_t)
+    if err != hipSuccess && err != hipErrorNotReady
+        throw(HIPError(err))
     end
 end

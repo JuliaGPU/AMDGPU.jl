@@ -19,7 +19,7 @@ mutable struct ROCDevice
         return device
     end
 end
-ROCDevice() = get_default_device()
+ROCDevice() = AMDGPU.device()
 get_handle(device::ROCDevice) = device.agent.handle
 
 Base.:(==)(device1::ROCDevice, device2::ROCDevice) =
