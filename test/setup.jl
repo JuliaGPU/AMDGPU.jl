@@ -11,6 +11,10 @@ using SpecialFunctions
 using Test
 import NNlib
 
+# Import TestSuite from KernelAbstractions.
+import KernelAbstractions
+include(joinpath(pkgdir(KernelAbstractions), "test", "testsuite.jl"))
+
 using Random
 Random.seed!(1)
 

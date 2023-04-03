@@ -1,55 +1,42 @@
-
 module ROCKernels
 
+import KernelAbstractions: StaticArrays, Adapt
 import KernelAbstractions
 import AMDGPU
+import AMDGPU.Device: @device_override
 import UnsafeAtomicsLLVM
-
-struct ROCBackend <: KernelAbstractions.GPU
-end
-export ROCBackend
-
-
-KernelAbstractions.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
-KernelAbstractions.zeros(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.zeros(T, dims)
-KernelAbstractions.ones(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ones(T, dims)
-
-# Import through parent
-import KernelAbstractions: StaticArrays, Adapt
+# Import through parent.
 import .StaticArrays: MArray
 
-KernelAbstractions.get_backend(::AMDGPU.ROCArray) = ROCBackend()
-function KernelAbstractions.synchronize(::ROCBackend)
-    # TODO: Make this non-blocking
-    queue = AMDGPU.default_queue()
-    # Returns a ROCSignalSet containing signals
-    # TODO: Need to also sync HIP work
-    barrier = AMDGPU.barrier_and!(queue, AMDGPU.active_kernels(queue))
-    foreach(barrier.signals) do signal
-        AMDGPU.wait(signal; queue)
-    end
-end
+export ROCBackend
+
+struct ROCBackend <: KernelAbstractions.GPU end
 
 Adapt.adapt_storage(::ROCBackend, a::Array) = Adapt.adapt(AMDGPU.ROCArray, a)
 Adapt.adapt_storage(::ROCBackend, a::AMDGPU.ROCArray) = a
 Adapt.adapt_storage(::KernelAbstractions.CPU, a::AMDGPU.ROCArray) = convert(Array, a)
 
+KernelAbstractions.get_backend(::AMDGPU.ROCArray) = ROCBackend()
+KernelAbstractions.synchronize(::ROCBackend) = AMDGPU.synchronize()
+
+KernelAbstractions.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
+KernelAbstractions.zeros(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.zeros(T, dims)
+KernelAbstractions.ones(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ones(T, dims)
+
+function KernelAbstractions.priority!(::ROCBackend, priority::Symbol)
+    priority ∉ (:high, :normal, :low) && error(
+        "Priority `$priority` must be one of `:high`, `:normal`, `:low`.")
+    AMDGPU.priority!(priority)
+end
+
 ##
 # copyto!
 ##
 
-function KernelAbstractions.copyto!(backend::ROCBackend, A::AMDGPU.ROCArray{TA}, B::AMDGPU.ROCArray{TB}) where {TA, TB}
+function KernelAbstractions.copyto!(::ROCBackend, A, B)
     GC.@preserve A B begin
-        destptr = pointer(A)
-        srcptr  = pointer(B)
-        N       = length(A)
-        # signal  = ROCSignal()
-        #if TA === TB
-        #    AMDGPU.Mem.unsafe_copy3d!(destptr, srcptr, N; signal, async=true)
-        #else
-            # TODO: We should still be able to unsafe_copy3d with some checks
-            AMDGPU.HSA.memory_copy(destptr, srcptr, N) |> AMDGPU.Runtime.check
-        #end
+        # TODO: async copy
+        copyto!(A, 1, B, 1, length(A))
     end
     return nothing
 end
@@ -116,8 +103,6 @@ function (obj::Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=nothi
         obj.f(ctx, args...))
     return nothing
 end
-
-import AMDGPU.Device: @device_override
 
 import KernelAbstractions: CompilerMetadata, DynamicCheck, LinearIndices
 import KernelAbstractions: __index_Local_Linear, __index_Group_Linear, __index_Global_Linear, __index_Local_Cartesian, __index_Group_Cartesian, __index_Global_Cartesian, __validindex, __print
