@@ -1,4 +1,25 @@
 steps:
+  - label: "Documentation"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: 1.9-nightly
+    command: |
+      julia --project -e '
+        println("--- :julia: Instantiating project")
+        using Pkg
+        Pkg.instantiate()
+        Pkg.build()
+        Pkg.activate("docs")
+        Pkg.instantiate()
+        push!(LOAD_PATH, @__DIR__)
+
+        println("+++ :julia: Building documentation")
+        include("docs/make.jl")'
+    agents:
+      queue: "juliagpu"
+      rocm: "*"
+    if: build.message !~ /\[skip docs\]/
+    timeout_in_minutes: 10
   #  - label: "Julia 1.8 - GPUArrays 8"
   #    plugins:
   #      - JuliaCI/julia#v1:
@@ -135,28 +156,6 @@ steps:
   #     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
   #     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
   #     JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
-
-  - label: "Documentation"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: 1.9-nightly
-    command: |
-      julia --project -e '
-        println("--- :julia: Instantiating project")
-        using Pkg
-        Pkg.instantiate()
-        Pkg.build()
-        Pkg.activate("docs")
-        Pkg.instantiate()
-        push!(LOAD_PATH, @__DIR__)
-
-        println("+++ :julia: Building documentation")
-        include("docs/make.jl")'
-    agents:
-      queue: "juliagpu"
-      rocm: "*"
-    if: build.message !~ /\[skip docs\]/
-    timeout_in_minutes: 10
 
 env:
   JULIA_AMDGPU_LOGGING_ENABLED: true
