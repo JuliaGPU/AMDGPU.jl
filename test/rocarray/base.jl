@@ -1,8 +1,10 @@
 @testset "Base" begin
 
 @testset "ones/zeros" begin
-    @test AMDGPU.ones(4, 3) isa ROCArray
-    @test AMDGPU.zeros(3, 4) isa ROCArray
+    x = @inferred AMDGPU.ones(4, 3)
+    @test x isa ROCArray
+    x = @inferred AMDGPU.zeros(3, 4)
+    @test x isa ROCArray
 end
 
 @testset "view" begin

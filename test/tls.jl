@@ -16,22 +16,22 @@ function async_tls(f=()->nothing; init=false)
 end
 
 @testset "Basics" begin
-    device = AMDGPU.default_device()
+    device = @inferred AMDGPU.device()
     @test device isa ROCDevice
     @test device === AMDGPU.Runtime.get_default_device()
 
-    context = AMDGPU.context()
+    context = @inferred AMDGPU.context()
     @test context isa HIPContext
     @test AMDGPU.device_id(AMDGPU.device(context)) == AMDGPU.device_id(device)
 
-    queue = AMDGPU.queue()
+    queue = @inferred AMDGPU.queue()
     @test queue isa ROCQueue
 
-    stream = AMDGPU.stream()
+    stream = @inferred AMDGPU.stream()
     @test stream isa HIPStream
     @test AMDGPU.device_id(AMDGPU.device(context)) == AMDGPU.device_id(device)
 
-    tls = AMDGPU.task_local_state()
+    tls = @inferred AMDGPU.task_local_state()
     @test tls isa AMDGPU.TaskLocalState
     @test device === tls.device
     @test queue === tls.queue

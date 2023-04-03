@@ -90,7 +90,7 @@ end
 Returns the task-local state in the form of a `TaskLocalState`. Automatically
 picks a device, context, queue, and stream if they haven't already been selected.
 """
-task_local_state() =
+task_local_state()::TaskLocalState =
     get!(()->TaskLocalState(), task_local_storage(), :AMDGPU)
 
 """

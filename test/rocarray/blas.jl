@@ -18,7 +18,7 @@ end
         x = rand(T, 8)
         RA = ROCArray(A)
         Rx = ROCArray(x)
-        Rb = RA*Rx
+        Rb = RA * Rx
         @test A*x ≈ Array(Rb)
 
         # View into array

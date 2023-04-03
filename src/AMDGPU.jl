@@ -27,8 +27,16 @@ end
 LockedObject(payload) = LockedObject(ReentrantLock(), payload)
 
 function Base.lock(f, x::LockedObject)
-    Base.@lock x.lock begin
-        return f(x.payload)
+    # Base.@lock x.lock begin
+    #     return f(x.payload)
+    # end
+    lock(x.lock)
+    try
+        f(x.payload)
+    catch e
+        Core.println("LockedObject `$x` exception @ lock: `$e`.")
+    finally
+        unlock(x.lock)
     end
 end
 
