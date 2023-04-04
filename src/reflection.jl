@@ -14,7 +14,7 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
             io::IO, @nospecialize(func), @nospecialize(types);
             kernel::Bool=false, device=default_device(), kwargs...,
         )
-            source = FunctionSpec(typeof(func), Base.to_tuple_type(types))
+            source = methodinstance(typeof(func), Base.to_tuple_type(types))
             config = Compiler.compiler_config(
                 device; kernel, global_hooks=NamedTuple())
             job = CompilerJob(source, config)

@@ -38,7 +38,7 @@ end
 assert_counter = 0
 
 @generated function rocassert_fail(::Val{msg}, ::Val{file}, ::Val{line}) where {msg, file, line}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_void = LLVM.VoidType(ctx)
         T_int32 = LLVM.Int32Type(ctx)
         T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
@@ -48,7 +48,8 @@ assert_counter = 0
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
             global assert_counter
@@ -61,11 +62,10 @@ assert_counter = 0
 
             # invoke __assertfail and return
             # TODO: mark noreturn since we don't use ptxas?
-            assertfail_typ =
-                LLVM.FunctionType(T_void,
-                                 [T_pint8, T_pint8, T_int32, T_pint8, llvmtype(charSize)])
+            assertfail_typ = LLVM.FunctionType(
+                T_void, [T_pint8, T_pint8, T_int32, T_pint8, value_type(charSize)])
             assertfail = LLVM.Function(mod, "__assertfail", assertfail_typ)
-            call!(builder, assertfail, [message, file, line, func, charSize])
+            call!(builder, assertfail_typ, assertfail, [message, file, line, func, charSize])
             ret!(builder)
         end
 

@@ -28,15 +28,14 @@ atomic_store!(ptr::LLVMPtr, val, order=Val{:release}()) =
 # >   that points to either the global address space or the shared address space.
 
 @generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T) where {binop, T, A}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_val = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, ptr; ctx)
 
         T_typed_ptr = LLVM.PointerType(T_val, A)
-
         llvm_f, _ = create_function(T_val, [T_ptr, T_val])
 
-        Builder(ctx) do builder
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
@@ -96,15 +95,14 @@ for T in (Int32, Int64, UInt32, UInt64)
 end
 
 @generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_val = convert(LLVMType, T; ctx)
         T_ptr = convert(LLVMType, ptr; ctx)
 
         T_typed_ptr = LLVM.PointerType(T_val, A)
-
         llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
 
-        Builder(ctx) do builder
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
@@ -115,7 +113,6 @@ end
                                   #=single threaded=# false)
 
             rv = extract_value!(builder, res, 0)
-
             ret!(builder, rv)
         end
 

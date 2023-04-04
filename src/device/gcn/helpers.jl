@@ -3,7 +3,7 @@ _packet_names = fieldnames(HSA.KernelDispatchPacket)
 _packet_offsets = fieldoffset.(HSA.KernelDispatchPacket, 1:length(_packet_names))
 
 @generated function _intr(::Val{fname}, out_arg, inp_args...) where {fname,}
-    Context() do ctx
+    @dispose ctx=Context() begin
         inp_exprs = [:( inp_args[$i] ) for i in 1:length(inp_args)]
         inp_types = [inp_args...]
         out_type = convert(LLVMType, out_arg.parameters[1]; ctx)
@@ -16,7 +16,7 @@ _packet_offsets = fieldoffset.(HSA.KernelDispatchPacket, 1:length(_packet_names)
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
@@ -32,7 +32,7 @@ _packet_offsets = fieldoffset.(HSA.KernelDispatchPacket, 1:length(_packet_names)
                 end
             end
             params = map(x->bool_types[x[1]] ? trunc!(builder, x[2], T_bool) : x[2], enumerate(parameters(llvm_f)))
-            value = call!(builder, intr, [params...])
+            value = call!(builder, intr_ftype, intr, [params...])
             if out_arg === Type{Bool}
                 ret!(builder, zext!(builder, value, convert(LLVMType, Bool; ctx)))
             else
