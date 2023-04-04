@@ -120,9 +120,7 @@ end
 
 # compile to GCN
 function compile(@nospecialize(job::CompilerJob))
-    # compile
-    Runtime.@log_start(:compile, (;f=job.source.ft, tt=job.source.tt), nothing)
-    # TODO dispose
+    Runtime.@log_start(:compile, (;fspec=job.source.specTypes), nothing)
     JuliaContext() do ctx
         obj, meta = GPUCompiler.compile(:obj, job; ctx)
         # Find undefined globals and calculate sizes.
@@ -131,12 +129,12 @@ function compile(@nospecialize(job::CompilerJob))
             filter!(isextinit, collect(LLVM.globals(meta.ir))))
         entry = LLVM.name(meta.entry)
 
-        Runtime.@log_finish(:compile, (;f=job.source.ft, tt=job.source.tt), nothing)
+        Runtime.@log_finish(:compile, (;fspec=job.source.specTypes), nothing)
         return (; obj, entry, globals)
     end
 end
 function link(@nospecialize(job::CompilerJob), compiled)
-    Runtime.@log_start(:link, (;f=job.source.ft, tt=job.source.tt), nothing)
+    Runtime.@log_start(:link, (;fspec=job.source.specTypes), nothing)
     device = job.config.params.device
     global_hooks = job.config.params.global_hooks
     (;obj, entry, globals) = compiled
@@ -157,17 +155,17 @@ function link(@nospecialize(job::CompilerJob), compiled)
         end
         if hook !== nothing
             @debug "Initializing global $gname"
-            Runtime.@log_start(:global_init, (;f=job.source.ft, tt=job.source.tt, gname), nothing)
+            Runtime.@log_start(:global_init, (;fspec=job.source.specTypes, gname), nothing)
             gbl = Runtime.get_global(exe, gname)
             hook(gbl, mod, device)
-            Runtime.@log_finish(:global_init, (;f=job.source.ft, tt=job.source.tt, gname), nothing)
+            Runtime.@log_finish(:global_init, (;fspec=job.source.specTypes, gname), nothing)
         else
             @debug "Uninitialized global $gname"
             continue
         end
     end
 
-    Runtime.@log_finish(:link, (;f=job.source.ft, tt=job.source.tt), nothing)
+    Runtime.@log_finish(:link, (;fspec=job.source.specTypes), nothing)
     return fun
 end
 
