@@ -1,11 +1,12 @@
 module ROCKernels
 
-import KernelAbstractions: StaticArrays, Adapt
-import KernelAbstractions
 import AMDGPU
 import AMDGPU.Device: @device_override
+import KernelAbstractions
+import KernelAbstractions: Adapt, StaticArrays
+import LLVM
 import UnsafeAtomicsLLVM
-# Import through parent.
+
 import .StaticArrays: MArray
 
 export ROCBackend
