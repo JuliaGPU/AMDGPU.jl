@@ -36,7 +36,7 @@ atomic_store!(ptr::LLVMPtr, val, order=Val{:release}()) =
 
         llvm_f, _ = create_function(T_val, [T_ptr, T_val])
 
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
@@ -104,7 +104,7 @@ end
 
         llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
 
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 

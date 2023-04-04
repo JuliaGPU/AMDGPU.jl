@@ -122,24 +122,17 @@ end
 function compile(@nospecialize(job::CompilerJob))
     # compile
     Runtime.@log_start(:compile, (;f=job.source.ft, tt=job.source.tt), nothing)
-
-    method_instance, mi_meta = GPUCompiler.emit_julia(job)
+    # TODO dispose
     JuliaContext() do ctx
-        ir, ir_meta = GPUCompiler.emit_llvm(job, method_instance; ctx)
-        kernel = ir_meta.entry
-
-        obj, obj_meta = GPUCompiler.emit_asm(job, ir; format=LLVM.API.LLVMObjectFile)
-
-        # find undefined globals and calculate sizes
-        globals = map(gbl->Symbol(LLVM.name(gbl))=>llvmsize(eltype(llvmtype(gbl))),
-                      filter!(x->isextinit(x), collect(LLVM.globals(ir))))
-        entry = LLVM.name(kernel)
-
-        dispose(ir)
+        obj, meta = GPUCompiler.compile(:obj, job; ctx)
+        # Find undefined globals and calculate sizes.
+        globals = map(
+            gbl -> Symbol(LLVM.name(gbl)) => llvmsize(eltype(value_type(gbl))),
+            filter!(isextinit, collect(LLVM.globals(meta.ir))))
+        entry = LLVM.name(meta.entry)
 
         Runtime.@log_finish(:compile, (;f=job.source.ft, tt=job.source.tt), nothing)
-
-        return (;obj, entry, globals)
+        return (; obj, entry, globals)
     end
 end
 function link(@nospecialize(job::CompilerJob), compiled)
@@ -185,7 +178,7 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     to_init = []
     for gbl in LLVM.globals(mod)
         if startswith(LLVM.name(gbl), "__zeroinit")
-            as = LLVM.addrspace(llvmtype(gbl))
+            as = LLVM.addrspace(value_type(gbl))
             if as == AMDGPU.Device.AS.Local
                 push!(to_init, gbl)
             end
@@ -194,21 +187,22 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     if length(to_init) > 0
         ctx = LLVM.context(mod)
         T_void = LLVM.VoidType(ctx)
-        LLVM.@dispose builder=LLVM.Builder(ctx) begin
+        LLVM.@dispose builder=LLVM.IRBuilder(ctx) begin
             # Make these the first operations we do
             position!(builder, first(LLVM.instructions(first(LLVM.blocks(entry)))))
 
             # Use memset to clear all values to 0
             for gbl in to_init
-                sz = llvmsize(eltype(llvmtype(gbl)))
+                sz = llvmsize(eltype(value_type(gbl)))
                 if sz > 0
                     LLVM.memset!(builder, gbl, ConstantInt(UInt8(0); ctx), ConstantInt(sz; ctx), LLVM.alignment(gbl))
                 end
             end
 
             # Synchronize the workgroup to prevent races
+            sync_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
             sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
-            call!(builder, sync_f)
+            call!(builder, sync_ft, sync_f)
         end
     end
 
@@ -223,30 +217,34 @@ function emit_exception_user!(mod::LLVM.Module)
         ctx = LLVM.context(mod)
         ft = LLVM.FunctionType(LLVM.VoidType(ctx))
         fn = LLVM.Function(mod, "__fake_global_exception_flag_user", ft)
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(fn, "entry"; ctx)
             position!(builder, entry)
             T_nothing = LLVM.VoidType(ctx)
             T_i32 = LLVM.Int32Type(ctx)
             T_i64 = LLVM.Int64Type(ctx)
+
             T_signal_store = LLVM.FunctionType(T_nothing, [T_i64, T_i64, T_i32])
             signal_store = LLVM.Function(mod, "__ockl_hsa_signal_store", T_signal_store)
-            call!(builder, signal_store, [ConstantInt(0; ctx),
-                                          ConstantInt(0; ctx),
-                                          # __ATOMIC_RELEASE == 3
-                                          ConstantInt(Int32(3); ctx)])
+            call!(builder, T_signal_store, signal_store,
+                [ConstantInt(0; ctx), ConstantInt(0; ctx),
+                #= __ATOMIC_RELEASE == 3 =#
+                ConstantInt(Int32(3); ctx)])
+
             T_signal_load = LLVM.FunctionType(T_i64, [T_i64, T_i32])
             signal_load = LLVM.Function(mod, "__ockl_hsa_signal_load", T_signal_load)
-            loaded_value = call!(builder, signal_load, [ConstantInt(0; ctx),
-                                                        # __ATOMIC_ACQUIRE == 2
-                                                        ConstantInt(Int32(2); ctx)])
+            loaded_value = call!(builder, T_signal_load, signal_load,
+                [ConstantInt(0; ctx),
+                #= __ATOMIC_ACQUIRE == 2 =#
+                ConstantInt(Int32(2); ctx)])
+
             T_signal_cas = LLVM.FunctionType(T_i64, [T_i64, T_i64, T_i64, T_i32])
             signal_cas = LLVM.Function(mod, "__ockl_hsa_signal_cas", T_signal_cas)
-            loaded_value = call!(builder, signal_cas, [ConstantInt(0; ctx),
-                                                       ConstantInt(0; ctx),
-                                                       ConstantInt(0; ctx),
-                                                       # __ATOMIC_ACQ_REL == 4
-                                                       ConstantInt(Int32(4); ctx)])
+            loaded_value = call!(builder, T_signal_cas, signal_cas,
+                [ConstantInt(0; ctx), ConstantInt(0; ctx), ConstantInt(0; ctx),
+                 #= __ATOMIC_ACQ_REL == 4 =#
+                 ConstantInt(Int32(4); ctx)])
+
             ret!(builder)
         end
     end

@@ -24,19 +24,19 @@ const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signa
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             # get the kernel dispatch pointer
             intr_typ = LLVM.FunctionType(T_ptr_i8)
             intr = LLVM.Function(mod, "llvm.amdgcn.dispatch.ptr", intr_typ)
-            ptr = call!(builder, intr)
+            ptr = call!(builder, intr_typ, intr)
 
             # load the index
-            signal_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(completion_signal_base; ctx)])
+            signal_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(completion_signal_base; ctx)])
             signal_ptr = bitcast!(builder, signal_ptr_i8, T_ptr_i64)
-            signal = load!(builder, signal_ptr)
+            signal = load!(builder, T_int64, signal_ptr)
             ret!(builder, signal)
         end
 

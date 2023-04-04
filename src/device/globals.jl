@@ -27,7 +27,7 @@
         end
 
         # Generate IR that computes the global's address.
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 

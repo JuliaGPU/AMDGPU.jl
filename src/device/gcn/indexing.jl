@@ -9,14 +9,14 @@
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             # call the indexing intrinsic
             intr_typ = LLVM.FunctionType(T_int32)
             intr = LLVM.Function(mod, "llvm.amdgcn.$fname.id.$name", intr_typ)
-            idx = call!(builder, intr)
+            idx = call!(builder, intr_typ, intr)
 
             # attach range metadata
             range_metadata = MDNode([ConstantInt(UInt32(range.start); ctx),
@@ -34,30 +34,33 @@ end
     Context() do ctx
         T_int8 = LLVM.Int8Type(ctx)
         T_int32 = LLVM.Int32Type(ctx)
+
         _as = convert(Int, AS.Constant)
         T_ptr_i8 = LLVM.PointerType(T_int8, _as)
         T_ptr_i32 = LLVM.PointerType(T_int32, _as)
-        T_ptr_T = LLVM.PointerType(convert(LLVMType, T; ctx), _as)
+
+        T_T = convert(LLVMType, T; ctx)
+        T_ptr_T = LLVM.PointerType(T_T, _as)
 
         # create function
         llvm_f, _ = create_function(T_int32)
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
             # get the kernel dispatch pointer
             intr_typ = LLVM.FunctionType(T_ptr_i8)
             intr = LLVM.Function(mod, "llvm.amdgcn.dispatch.ptr", intr_typ)
-            ptr = call!(builder, intr)
+            ptr = call!(builder, intr_typ, intr)
 
             # load the index
-            offset = base+((off-1)*sizeof(T))
-            idx_ptr_i8 = inbounds_gep!(builder, ptr, [ConstantInt(offset; ctx)])
+            offset = base + ((off - 1) * sizeof(T))
+            idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset; ctx)])
             idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
-            idx_T = load!(builder, idx_ptr_T)
+            idx_T = load!(builder, T_T, idx_ptr_T)
             idx = zext!(builder, idx_T, T_int32)
 
             # attach range metadata

@@ -136,7 +136,7 @@ end
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
             equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
@@ -167,7 +167,7 @@ end
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        Builder(ctx) do builder
+        IRBuilder(ctx) do builder
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
             equiv = bitcast!(builder, parameters(llvm_f)[1], T_out_int)
