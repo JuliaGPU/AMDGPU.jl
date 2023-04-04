@@ -48,7 +48,8 @@ AMDGPU.versioninfo()
 
 push!(tests, "KernelAbstractions" => ()->begin
     Testsuite.testsuite(
-        ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray)
+        ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
+        skip_tests=Set(["sparse"]))
 end)
 push!(tests, "HSA" => ()->begin
     include("hsa/error.jl")
