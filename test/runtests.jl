@@ -46,6 +46,11 @@ AMDGPU.versioninfo()
 
 @info "Running tests with $(length(ws)) workers"
 
+push!(tests, "KernelAbstractions" => ()->begin
+    Testsuite.testsuite(
+        ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
+        skip_tests=Set(["sparse"]))
+end)
 push!(tests, "HSA" => ()->begin
     include("hsa/error.jl")
     include("hsa/utils.jl")
