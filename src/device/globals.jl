@@ -4,7 +4,7 @@
 # does not exist yet, then it is declared in the global memory address
 # space.
 @inline @generated function get_global_pointer(::Val{global_name}, ::Type{T})::LLVMPtr{T} where {global_name, T}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_global = convert(LLVMType, T; ctx)
         T_result = convert(LLVMType, Ptr{T}; ctx)
 
@@ -27,7 +27,7 @@
         end
 
         # Generate IR that computes the global's address.
-        IRBuilder(ctx) do builder
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 

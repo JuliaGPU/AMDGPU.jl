@@ -12,7 +12,7 @@
 const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signal,_packet_names)]
 
 @generated function _completion_signal()
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_int8 = LLVM.Int8Type(ctx)
         T_int64 = LLVM.Int64Type(ctx)
         _as = convert(Int, AS.Constant)
@@ -24,7 +24,7 @@ const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signa
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        IRBuilder(ctx) do builder
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 

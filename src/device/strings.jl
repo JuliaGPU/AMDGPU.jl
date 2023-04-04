@@ -1,7 +1,7 @@
 ## Device-side string utilities
 
 @generated function string_length(ex::Union{Ptr,LLVMPtr})
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_ex = convert(LLVMType, ex; ctx)
         T_ex_ptr = LLVM.PointerType(T_ex)
         T_i8 = LLVM.Int8Type(ctx)
@@ -10,7 +10,7 @@
         llvm_f, _ = create_function(T_i64, [T_ex])
         mod = LLVM.parent(llvm_f)
 
-        IRBuilder(ctx) do builder
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             check = BasicBlock(llvm_f, "check"; ctx)
             done = BasicBlock(llvm_f, "done"; ctx)

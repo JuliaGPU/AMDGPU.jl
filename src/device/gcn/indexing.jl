@@ -1,7 +1,7 @@
 # Indexing and dimensions
 
 @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_int32 = LLVM.Int32Type(ctx)
 
         # create function
@@ -9,7 +9,7 @@
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        IRBuilder(ctx) do builder
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
@@ -31,7 +31,7 @@
 end
 
 @generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
-    Context() do ctx
+    @dispose ctx=Context() begin
         T_int8 = LLVM.Int8Type(ctx)
         T_int32 = LLVM.Int32Type(ctx)
 
@@ -47,7 +47,7 @@ end
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        IRBuilder(ctx) do builder
+        @dispose builder=IRBuilder(ctx) begin
             entry = BasicBlock(llvm_f, "entry"; ctx)
             position!(builder, entry)
 
