@@ -21,32 +21,34 @@ LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASComplex}, k::Number) =
 LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASFloat}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)
 
-function LinearAlgebra.BLAS.dot(DX::ROCArray{T}, DY::ROCArray{T}) where T<:Union{Float32,Float64}
+function LinearAlgebra.BLAS.dot(DX::ROCArray{T}, DY::ROCArray{T}) where T <: Union{Float16, Float32, Float64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dot(n, DX, 1, DY, 1)
 end
 
-function LinearAlgebra.BLAS.dotc(DX::ROCArray{T}, DY::ROCArray{T}) where T<:Union{ComplexF32,ComplexF64}
+function LinearAlgebra.BLAS.dotc(DX::ROCArray{T}, DY::ROCArray{T}) where T <: ROCBLASComplex
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dotc(n, DX, 1, DY, 1)
 end
 
-function LinearAlgebra.BLAS.dot(DX::ROCArray{T}, DY::ROCArray{T}) where T<:Union{ComplexF32,ComplexF64}
+function LinearAlgebra.BLAS.dot(DX::ROCArray{T}, DY::ROCArray{T}) where T <: ROCBLASComplex
     dotc(DX, DY)
 end
 
-function LinearAlgebra.BLAS.dotu(DX::ROCArray{T}, DY::ROCArray{T}) where T<:Union{ComplexF32,ComplexF64}
+function LinearAlgebra.BLAS.dotu(DX::ROCArray{T}, DY::ROCArray{T}) where T <: ROCBLASComplex
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dotu(n, DX, 1, DY, 1)
 end
 
-LinearAlgebra.norm(x::ROCArray{T}) where T<:Union{ROCBLASFloat,ROCBLASComplex} = nrm2(length(x), x, 1)
+LinearAlgebra.norm(x::ROCArray{T}) where T <: ROCBLASFloat = nrm2(length(x), x, 1)
 LinearAlgebra.BLAS.asum(x::ROCBLASArray) = asum(length(x), x, 1)
 
-function LinearAlgebra.axpy!(alpha::Number, x::ROCArray{T}, y::ROCArray{T}) where T<:ROCBLASFloat
+function LinearAlgebra.axpy!(
+    alpha::Number, x::ROCArray{T}, y::ROCArray{T},
+) where T <: ROCBLASFloatWithHalf
     length(x)==length(y) || throw(DimensionMismatch(""))
     axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end
@@ -55,8 +57,6 @@ end
 Base.argmin(xs::ROCBLASArray{<:ROCBLASReal}) = iamin(xs)
 Base.argmax(xs::ROCBLASArray{<:ROCBLASReal}) = iamax(xs)
 =#
-
-
 
 ############
 #
@@ -105,8 +105,11 @@ end
 #########
 # GEMV
 ##########
-function gemv_wrapper!(y::ROCVector{T}, tA::Char, A::ROCMatrix{T}, x::ROCVector{T},
-                       alpha = one(T), beta = zero(T)) where T<:ROCBLASFloat
+
+function gemv_wrapper!(
+    y::ROCVector{T}, tA::Char, A::ROCMatrix{T}, x::ROCVector{T},
+    alpha = one(T), beta = zero(T),
+) where T <: ROCBLASFloat
     mA, nA = rocblas_size(tA, A)
     if nA != length(x)
         throw(DimensionMismatch("second dimension of A, $nA, does not match length of x, $(length(x))"))
@@ -124,8 +127,6 @@ LinearAlgebra.lmul!(Y::ROCVector{T}, A::LinearAlgebra.Transpose{<:Any, ROCMatrix
 LinearAlgebra.lmul!(Y::ROCVector{T}, A::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, B::ROCVector{T}) where T<:ROCBLASFloat = gemv_wrapper!(Y, 'T', A.parent, B)
 LinearAlgebra.lmul!(Y::ROCVector{T}, A::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, B::ROCVector{T}) where T<:ROCBLASComplex = gemv_wrapper!(Y, 'C', A.parent, B)
 
-
-
 ############
 #
 # BLAS 3
@@ -135,59 +136,55 @@ LinearAlgebra.lmul!(Y::ROCVector{T}, A::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T
 ########
 # GEMM
 ########
-function gemm_wrapper!(C::ROCVecOrMat{T}, tA::Char, tB::Char,
-                   A::ROCVecOrMat{T},
-                   B::ROCVecOrMat{T},
-                   alpha = one(T),
-                   beta = zero(T)) where T <: ROCBLASFloat
+function gemm_wrapper!(
+    C::ROCVecOrMat{T}, tA::Char, tB::Char,
+    A::ROCVecOrMat{T}, B::ROCVecOrMat{T},
+    alpha = one(T), beta = zero(T),
+) where T <: ROCBLASFloatWithHalf
     mA, nA = rocblas_size(tA, A)
     mB, nB = rocblas_size(tB, B)
 
-    if nA != mB
-        throw(DimensionMismatch("A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
-    end
-
-    if C === A || B === C
-        throw(ArgumentError("output matrix must not be aliased with input matrix"))
-    end
+    nA != mB && throw(DimensionMismatch(
+        "A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
+    (C === A || B === C) && throw(ArgumentError(
+        "output matrix must not be aliased with input matrix"))
 
     if mA == 0 || nA == 0 || nB == 0
-        if size(C) != (mA, nB)
-            throw(DimensionMismatch("C has dimensions $(size(C)), should have ($mA,$nB)"))
-        end
+        size(C) != (mA, nB) && throw(DimensionMismatch(
+            "C has dimensions $(size(C)), should have ($mA,$nB)"))
         return LinearAlgebra.rmul!(C, 0)
     end
-
     gemm!(tA, tB, alpha, A, B, beta, C)
 end
 
 # Mutating
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCVecOrMat{T}, B::ROCVecOrMat{T}) where T<:ROCBLASFloat = gemm_wrapper!(C, 'N', 'N', A, B)
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}) where T<:ROCBLASFloat =
+LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCVecOrMat{T}, B::ROCVecOrMat{T}) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'N', 'N', A, B)
+LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}) where T<:ROCBLASFloatWithHalf =
     gemm_wrapper!(C, 'T', 'N', parent(trA), B)
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloat =
+LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
     gemm_wrapper!(C, 'N', 'T', A, parent(trB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloat =
+LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
     gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB))
 LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, B::ROCMatrix{T}) where T<:ROCBLASReal =
     gemm_wrapper!(C, 'T', 'N', parent(adjA), B)
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}) where T<:ROCBLASFloat =
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}) where T<:ROCBLASFloatWithHalf =
     gemm_wrapper!(C, 'C', 'N', parent(adjA), B)
 LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}) where T<:ROCBLASReal =
     gemm_wrapper!(C, 'N', 'T', A, parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloat =
+LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
     gemm_wrapper!(C, 'N', 'C', A, parent(adjB))
 LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}) where T<:ROCBLASReal =
     gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloat =
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
     gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB))
 LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{T, <:ROCMatrix{T}}) where T<:ROCBLASReal =
     gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloat =
+LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
     gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB))
 LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{T, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASReal =
     gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T <: ROCBLASFloat =
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T <: ROCBLASFloatWithHalf =
     gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB))
 
 
