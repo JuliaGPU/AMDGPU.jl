@@ -9,9 +9,10 @@
 # License: MIT
 #
 
-const ROCBLASReal = Union{Float32,Float64}
-const ROCBLASComplex = Union{ComplexF32,ComplexF64}
+const ROCBLASReal = Union{Float32, Float64}
+const ROCBLASComplex = Union{ComplexF32, ComplexF64}
 const ROCBLASFloat = Union{ROCBLASReal, ROCBLASComplex}
+const ROCBLASFloatWithHalf = Union{Float16, ROCBLASFloat}
 
 # Utility functions
 
@@ -102,6 +103,7 @@ end
 
 for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
                              (:dot,:rocblas_sdot,:Float32),
+                             (:dot,:rocblas_hdot,:Float16),
                              (:dotc,:rocblas_zdotc,:ComplexF64),
                              (:dotc,:rocblas_cdotc,:ComplexF32),
                              (:dotu,:rocblas_zdotu,:ComplexF64),
@@ -159,6 +161,7 @@ end
 ## axpy
 for (fname, elty) in ((:rocblas_daxpy,:Float64),
                       (:rocblas_saxpy,:Float32),
+                      (:rocblas_haxpy,:Float16),
                       (:rocblas_zaxpy,:ComplexF64),
                       (:rocblas_caxpy,:ComplexF32))
     @eval begin
@@ -177,11 +180,10 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
     end
 end
 
-function axpy!(alpha::Ta,
-               x::ROCArray{T},
-               rx::Union{UnitRange{Ti},AbstractRange{Ti}},
-               y::ROCArray{T},
-               ry::Union{UnitRange{Ti},AbstractRange{Ti}}) where {T<:ROCBLASFloat,Ta<:Number,Ti<:Integer}
+function axpy!(
+    alpha::Ta, x::ROCArray{T}, rx::Union{UnitRange{Ti},AbstractRange{Ti}},
+    y::ROCArray{T}, ry::Union{UnitRange{Ti}, AbstractRange{Ti}},
+) where {T <: ROCBLASFloat, Ta <: Number, Ti <: Integer}
     length(rx)==length(ry) || throw(DimensionMismatch(""))
     if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
         throw(BoundsError())
