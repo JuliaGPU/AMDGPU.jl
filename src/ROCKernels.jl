@@ -20,6 +20,7 @@ Adapt.adapt_storage(::KernelAbstractions.CPU, a::AMDGPU.ROCArray) = convert(Arra
 KernelAbstractions.get_backend(::AMDGPU.ROCArray) = ROCBackend()
 KernelAbstractions.synchronize(::ROCBackend) = AMDGPU.synchronize()
 
+KernelAbstractions.unsafe_free!(x::AMDGPU.ROCArray) = AMDGPU.unsafe_free!(x)
 KernelAbstractions.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
 KernelAbstractions.zeros(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.zeros(T, dims)
 KernelAbstractions.ones(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ones(T, dims)
