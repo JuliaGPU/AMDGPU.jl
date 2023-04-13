@@ -62,9 +62,12 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     offset::Int
     syncstate::Runtime.SyncState
 
-    function ROCArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0) where {T,N}
+    function ROCArray{T,N}(
+        buf::Mem.Buffer, dims::Dims{N};
+        offset::Integer = 0, syncstate = Runtime.SyncState(),
+    ) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        xs = new{T,N}(buf, dims, offset, Runtime.SyncState())
+        xs = new{T,N}(buf, dims, offset, syncstate)
         Mem.retain(buf)
         finalizer(_safe_free!, xs)
         return xs
@@ -272,7 +275,7 @@ end
 end
 @inline function unsafe_contiguous_view(a::ROCArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
-    ROCArray{T,M}(a.buf, dims, offset=a.offset+offset)
+    ROCArray{T,M}(a.buf, dims; offset=a.offset+offset, syncstate=a.syncstate)
 end
 
 @inline function unsafe_view(A, I, ::NonContiguous)
@@ -293,8 +296,7 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     if N == M && dims == size(a)
         return a
     end
-
-    ROCArray{T,N}(a.buf, dims, offset=a.offset)
+    ROCArray{T,N}(a.buf, dims; offset=a.offset, syncstate=a.syncstate)
 end
 
 
@@ -386,7 +388,7 @@ zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
 @inline function _derived_array(::Type{T}, N::Int, a::ROCArray, osize::Dims) where {T}
-    return ROCArray{T,N}(a.buf, osize, offset=a.offset)
+    return ROCArray{T,N}(a.buf, osize; offset=a.offset, syncstate=a.syncstate)
 end
 
 ## reinterpret
@@ -530,6 +532,7 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     end
     new_buf = Mem.alloc(A.buf.device, bufsize)
     copy_size = min(length(A), n) * sizeof(T)
+    wait!(A)
     if copy_size > 0
         Mem.transfer!(new_buf, A.buf, copy_size)
     end

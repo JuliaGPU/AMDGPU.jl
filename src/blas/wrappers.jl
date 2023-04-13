@@ -752,7 +752,7 @@ for (fname, elty) in
             (; handle, stream) = library_state()
             $(fname)(
                 handle, rocblasop(transA), rocblasop(transB),
-                m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
+                m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
             mark!((A, B, C), stream)
             C
         end
@@ -860,13 +860,13 @@ for (fname, elty) in
          (:rocblas_cgemm_batched,:ComplexF32))
     @eval begin
         function gemm_batched!(
-            transA::Char, transB::Char, alpha::($elty), A, B, beta::($elty), C,
+            transA::Char, transB::Char,
+            alpha::($elty), A::ROCArray{$elty, 3},
+            B::ROCArray{$elty, 3}, beta::($elty), C::ROCArray{$elty, 3},
         )
             m, k, n, lda, ldb, ldc = _check_gemm_batched_dims(
                 transA, transB, A, B, C)
-            wait!(A)
-            wait!(B)
-            wait!(C)
+            wait!((A, B, C))
 
             batch_count = size(C, 3)
             a_broadcast = (size(A, 3) == 1) && (batch_count > 1)
@@ -879,7 +879,7 @@ for (fname, elty) in
             $(fname)(
                 handle, rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), Ab, lda, Bb, ldb, Ref(beta),
-                Cb, ldc, batch_count)
+                Cb, ldc, batch_count) |> check
             mark!((A, B, C), stream)
             C
         end
