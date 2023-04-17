@@ -71,10 +71,7 @@ Base.last(node::LinkedListNode) = lastnode(node).data
 
 function maybelast(list::LinkedList)
     head = @atomic(list.head)
-    if head === nothing
-        return nothing
-    end
-    return last(head)
+    isnothing(head) ? nothing : last(head)
 end
 
 function Base.length(list::LinkedList)
@@ -116,9 +113,9 @@ end
 
 function Base.iterate(list::LinkedList)
     head = @atomic list.head
-    isnothing(head) && nothing : (head.data, head.next)
+    isnothing(head) ? nothing : (head.data, head.next)
 end
 
 function Base.iterate(_::LinkedList, node)
-    isnothing(node) && nothing : (node.data, node.next)
+    isnothing(node) ? nothing : (node.data, node.next)
 end
