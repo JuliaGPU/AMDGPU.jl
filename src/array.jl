@@ -63,8 +63,8 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     syncstate::Runtime.SyncState
 
     function ROCArray{T,N}(
-        buf::Mem.Buffer, dims::Dims{N};
-        offset::Integer = 0, syncstate = Runtime.SyncState(),
+        buf::Mem.Buffer, dims::Dims{N}; offset::Integer = 0,
+        syncstate::Runtime.SyncState = Runtime.SyncState(),
     ) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
         xs = new{T,N}(buf, dims, offset, syncstate)
