@@ -98,16 +98,11 @@ function find_algorithm(
     cache = get_benchmark_cache(conv_type, conv_args, dev)
     isnothing(cache) || return cache
 
-    is_fwd = conv_type == Type{miopenConvFwdAlgorithm_t}
-    workspace_size = get_workspace_size(conv_type;
-        handle,
-        a_desc=(is_fwd ? b_desc : a_desc),
-        b_desc=(is_fwd ? a_desc : b_desc), conv_desc, c_desc)
-
-    workspace = Workspace(dev, workspace_size)
+    workspace = Workspace(dev, 0)
     perf_results = find_conv_algo(conv_type;
         handle, workspace, a, a_desc, b, b_desc, conv_desc, c, c_desc)
     set_benchmark_cache!(conv_type, conv_args, perf_results)
+    workspace = Workspace(dev, perf_results.memory)
 
     perf_results, workspace
 end

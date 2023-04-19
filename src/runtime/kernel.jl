@@ -37,7 +37,8 @@ end
 function ROCModule(exe::ROCExecutable)
     device = exe.device
     metadata = KernelMetadata[]
-    exceptions = Mem.alloc(device, sizeof(AMDGPU.Device.ExceptionEntry)*MAX_EXCEPTIONS; coherent=true)
+    bytesize = sizeof(AMDGPU.Device.ExceptionEntry) * MAX_EXCEPTIONS
+    exceptions = Mem.alloc(device, bytesize; coherent=true)
 
     mod = ROCModule(exe, metadata, exceptions)
     EXE_TO_MODULE_MAP[exe] = WeakRef(mod)

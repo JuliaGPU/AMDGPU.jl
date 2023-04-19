@@ -336,11 +336,7 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallba
 
     bytesize == 0 && return Buffer(C_NULL, C_NULL, C_NULL, 0, device, coherent, false)
 
-    region_kind = if coherent
-        :finegrained
-    else
-        :coarsegrained
-    end
+    region_kind = coherent ? :finegrained : :coarsegrained
 
     buf = nothing
     region = nothing
@@ -403,52 +399,45 @@ function alloc_or_retry!(f)
 end
 
 const ALL_ALLOCS = Threads.Atomic{Int64}(0)
-function alloc(device::ROCDevice, pool::ROCMemoryPool, bytesize::Integer)
-    if ALL_ALLOCS[] + bytesize > MEMORY_ALLOC_LIMIT
-        check(HSA.STATUS_ERROR_OUT_OF_RESOURCES)
-    end
+
+_alloc(p::ROCMemoryPool, bytesize::Integer, ptr_ref) = HSA.amd_memory_pool_allocate(p.pool, bytesize, 0, ptr_ref)
+_alloc(p::ROCMemoryRegion, bytesize::Integer, ptr_ref) = HSA.memory_allocate(p.region, bytesize, ptr_ref)
+
+_accessible(p::ROCMemoryRegion)::Bool = Runtime.region_host_accessible(p)
+_accessible(p::ROCMemoryPool)::Bool = Runtime.pool_accessible_by_all(p)
+
+function alloc(
+    device::ROCDevice, space::S, bytesize::Integer,
+) where S <: Union{ROCMemoryPool, ROCMemoryRegion}
     ptr_ref = Ref{Ptr{Cvoid}}()
-    alloc_or_retry!() do
-        HSA.amd_memory_pool_allocate(pool.pool, bytesize, 0, ptr_ref)
-    end
-    Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
-    AMDGPU.hsaref!()
+    alloc_or_retry!(() -> _alloc(space, bytesize, ptr_ref))
     ptr = ptr_ref[]
-    return Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, Runtime.pool_accessible_by_all(pool), true)
-end
-function alloc(device::ROCDevice, region::ROCMemoryRegion, bytesize::Integer)
-    if ALL_ALLOCS[] + bytesize > MEMORY_ALLOC_LIMIT
-        check(HSA.STATUS_ERROR_OUT_OF_RESOURCES)
-    end
-    ptr_ref = Ref{Ptr{Cvoid}}()
-    alloc_or_retry!() do
-        HSA.memory_allocate(region.region, bytesize, ptr_ref)
-    end
-    Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
     AMDGPU.hsaref!()
-    ptr = ptr_ref[]
-    return Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, Runtime.region_host_accessible(region), false)
+    Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
+    Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, _accessible(space), S <: ROCMemoryPool)
 end
+
 alloc(bytesize; kwargs...) = alloc(AMDGPU.device(), bytesize; kwargs...)
 
 @static if AMDGPU.hip_configured
-function alloc_hip(bytesize::Integer)
-    ptr_ref = Ref{Ptr{Cvoid}}()
-    # FIXME: Set HIP device
-    alloc_or_retry!() do
-        try
-            HIP.@check HIP.hipMalloc(ptr_ref, Csize_t(bytesize))
-            HSA.STATUS_SUCCESS
-        catch
-            # FIXME: Actually check error code
-            HSA.STATUS_ERROR_OUT_OF_RESOURCES
+    function alloc_hip(bytesize::Integer)
+        ptr_ref = Ref{Ptr{Cvoid}}()
+        # FIXME: Set HIP device
+        alloc_or_retry!() do
+            try
+                HIP.@check HIP.hipMalloc(ptr_ref, Csize_t(bytesize))
+                HSA.STATUS_SUCCESS
+            catch
+                # FIXME: Actually check error code
+                HSA.STATUS_ERROR_OUT_OF_RESOURCES
+            end
         end
+        AMDGPU.hsaref!()
+        ptr = ptr_ref[]
+        Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
+        Buffer(ptr, C_NULL, ptr, Int64(bytesize), AMDGPU.device(), false, true)
     end
-    AMDGPU.hsaref!()
-    ptr = ptr_ref[]
-    return Buffer(ptr, C_NULL, ptr, Int64(bytesize), AMDGPU.device(), false, true)
 end
-end # if AMDGPU.hip_configured
 
 function free(buf::Buffer)
     buf.ptr == C_NULL && return
