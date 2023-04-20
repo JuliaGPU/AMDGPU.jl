@@ -3,14 +3,14 @@
 softmax(x::T; dims) where T <: ROCArray = softmax!(similar(x), x; dims)
 
 softmax!(y::T, x::T; dims) where T <: ROCArray =
-    _softmax!(MIOPEN_SOFTMAX_FAST, y, x; dims)
+    _softmax!(MIOPEN_SOFTMAX_ACCURATE, y, x; dims)
 
 function ∇softmax(dy::T, y::T; dims) where T <: ROCArray
     ∇softmax!(similar(y), dy, y; dims)
 end
 
 function ∇softmax!(dx::T, dy::T, y::T; dims) where T <: ROCArray
-    _∇softmax!(MIOPEN_SOFTMAX_FAST, dx, dy, y; dims)
+    _∇softmax!(MIOPEN_SOFTMAX_ACCURATE, dx, dy, y; dims)
 end
 
 # Log-softmax.
@@ -53,8 +53,8 @@ function _softmax!(
 ) where T <: ROCArray
     sdims = _softmax_dims(x; dims)
     if isnothing(sdims)
-        return (algo == MIOPEN_SOFTMAX_FAST) ?
-            _softmax!(y, x; dims) : _logsoftmax!(y, x; dims)
+        return (algo == MIOPEN_SOFTMAX_LOG) ?
+            _logsoftmax!(y, x; dims) : _softmax!(y, x; dims)
     end
 
     AMDGPU.wait!((x, y))
@@ -71,8 +71,8 @@ function _∇softmax!(
 ) where T <: ROCArray
     sdims = _softmax_dims(y; dims)
     if isnothing(sdims)
-        return (algo == MIOPEN_SOFTMAX_FAST) ?
-            _∇softmax!(dx, dy, y; dims) : _∇logsoftmax!(dx, dy, y; dims)
+        return (algo == MIOPEN_SOFTMAX_LOG) ?
+            _∇logsoftmax!(dx, dy, y; dims) : _∇softmax!(dx, dy, y; dims)
     end
 
     AMDGPU.wait!((dx, dy, y))
