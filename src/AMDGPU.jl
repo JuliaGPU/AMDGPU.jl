@@ -51,7 +51,6 @@ import .HIP: HIPContext, HIPDevice, HIPStream
 export HIPContext, HIPDevice, HIPStream
 
 module Runtime
-
     using ..CEnum
     using Setfield
     import ..HSA
