@@ -8,9 +8,8 @@ struct ROCArrayBackend <: AbstractGPUBackend end
 
 struct ROCKernelContext <: AbstractKernelContext end
 
-function GPUArrays.gpu_call(::ROCArrayBackend, f, args, threads::Int, blocks::Int;
-                            name::Union{String,Nothing})
-    groupsize, gridsize = threads, blocks*threads
+function GPUArrays.gpu_call(::ROCArrayBackend, f, args, threads::Int, blocks::Int; name::Union{String,Nothing})
+    groupsize, gridsize = threads, blocks * threads
     wait(@roc groupsize=groupsize gridsize=gridsize f(ROCKernelContext(), args...))
 end
 function GPUArrays.gpu_call(::ROCArrayBackend, f, args; elements::Int, name::Union{String,Nothing}=nothing)
