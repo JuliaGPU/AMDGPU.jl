@@ -118,7 +118,7 @@ function _activation(
     y = similar(x)
     xdesc, ydesc = TensorDescriptor.((x, y))
     AMDGPU.wait!(x)
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     miopenActivationForward(
         handle, desc.handle, Ref{Float32}(1f0), xdesc.handle, x,
         Ref{Float32}(0f0), ydesc.handle, y) |> check
@@ -132,7 +132,7 @@ function _∇activation(
     dx = similar(x)
     xdesc, ydesc, dydesc, dxdesc = TensorDescriptor.((x, y, dy, dx))
     AMDGPU.wait!((x, y, dy))
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     miopenActivationBackward(
         handle, desc, Ref{Float32}(1f0), ydesc.handle, y,
         dydesc.handle, dy, xdesc.handle, x, Ref{Float32}(0f0),

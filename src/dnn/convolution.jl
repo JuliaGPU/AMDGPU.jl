@@ -122,7 +122,7 @@ function convolution!(
     w::ROCArray{T, N}, wdesc::TensorDescriptor,
     cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     perf_results, workspace = find_algorithm(
         miopenConvFwdAlgorithm_t, handle, conv_args,
         x, xdesc, w, wdesc, cdesc, y, ydesc)
@@ -167,7 +167,7 @@ function ∇convolution_weight!(
     x::ROCArray{T, N}, xdesc::TensorDescriptor,
     cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     perf_algo, workspace = find_algorithm(
         miopenConvBwdWeightsAlgorithm_t, handle, conv_args,
         dy, dydesc, x, xdesc, cdesc, ∇w, ∇wdesc)
@@ -211,7 +211,7 @@ function ∇convolution_data!(
     w::ROCArray{T, N}, wdesc::TensorDescriptor,
     cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     perf_algo, workspace = find_algorithm(
         miopenConvBwdDataAlgorithm_t, handle, conv_args,
         dy, dydesc, w, wdesc, cdesc, ∇x, ∇xdesc)

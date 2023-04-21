@@ -3,8 +3,8 @@ module MIOpen
 using ..AMDGPU
 import AMDGPU.Runtime.Mem
 import AMDGPU: ROCArray, ROCDevice, LockedObject
-import AMDGPU: HandleCache, HIP
-import .HIP: HIPContext, HIPStream, hipContext_t, hipStream_t, hipEvent_t
+import AMDGPU: HandleCache, HIP, library_state
+import .HIP: hipStream_t
 
 using CEnum
 using GPUArrays
@@ -84,42 +84,13 @@ end
 
 const IDLE_HANDLES = HandleCache{HIPContext, miopenHandle_t}()
 
-function library_state()
-    tls = AMDGPU.task_local_state()
+lib_state() = library_state(
+    :MIOpen, miopenHandle_t, IDLE_HANDLES,
+    create_handle, destroy_handle!,
+    (nh, s) -> check(miopenSetStream(nh, s)))
 
-    LibraryState = @NamedTuple{handle::miopenHandle_t, stream::HIPStream}
-    states = get!(task_local_storage(), :MIOpen) do
-        Dict{HIPContext, LibraryState}()
-    end::Dict{HIPContext, LibraryState}
-
-    @noinline function new_state(tls)
-        new_handle = pop!(() -> create_handle(), IDLE_HANDLES, tls.context)
-
-        finalizer(current_task()) do task
-            push!(IDLE_HANDLES, tls.context, new_handle) do
-                context!(tls.context) do
-                    destroy_handle!(new_handle)
-                end
-            end
-        end
-        miopenSetStream(new_handle, tls.stream) |> check
-
-        (; handle=new_handle, tls.stream)
-    end
-    state = get!(() -> new_state(tls), states, tls.context)
-
-    @noinline function update_stream(tls, state)
-        miopenSetStream(state.handle, tls.stream)
-    end
-    if state.stream != tls.stream
-        states[tls.context] = state = update_stream(tls, state)
-    end
-
-    return state
-end
-
-handle() = library_state().handle
-stream() = library_state().stream
+handle() = lib_state().handle
+stream() = lib_state().stream
 
 mutable struct Workspace
     data::Mem.Buffer

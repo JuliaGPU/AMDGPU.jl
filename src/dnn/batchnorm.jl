@@ -33,7 +33,7 @@ function batchnorm_training(
     μ_saved, ν_saved = similar(x, n_features), similar(x, n_features)
 
     AMDGPU.wait!((x, γ, β, μ, ν))
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     miopenBatchNormalizationForwardTraining(
         handle, mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle, γ, β, factor,
@@ -72,7 +72,7 @@ function batchnorm_inference(
     bndesc = derive_beta_gamma_descriptors(xdesc, mode)
 
     AMDGPU.wait!((x, γ, β, μ, ν))
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     miopenBatchNormalizationForwardInference(
         handle, mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle,
@@ -94,7 +94,7 @@ function ∇batchnorm(
     bndesc = derive_beta_gamma_descriptors(xdesc, mode)
 
     AMDGPU.wait!((x, dy, γ, β, μ_saved, ν_saved))
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     miopenBatchNormalizationBackward(
         handle, mode,
         Ref{Float32}(1f0), Ref{Float32}(0f0),

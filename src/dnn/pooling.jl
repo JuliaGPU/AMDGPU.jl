@@ -104,7 +104,7 @@ function pool!(
         wptr = C_NULL
     end
     AMDGPU.wait!((x, y))
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     miopenPoolingForward(
         handle, pdesc.handle, Ref{Float32}(alpha), xdesc.handle, x,
         Ref{Float32}(beta), ydesc.handle, y, do_backward,
@@ -121,7 +121,7 @@ function ∇pool!(
     pdesc::PoolingDescriptor; alpha = 1f0, beta = 0f0, workspace,
 ) where {T <: MIOPENFloat, N}
     AMDGPU.wait!((dx, dy, y, x))
-    (; handle, stream) = library_state()
+    (; handle, stream) = lib_state()
     miopenPoolingBackward(
         handle, pdesc.handle, Ref{Float32}(alpha),
         ydesc.handle, y, dydesc.handle, dy, xdesc.handle, x,

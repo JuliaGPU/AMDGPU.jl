@@ -42,13 +42,14 @@ include(joinpath(dirname(@__DIR__), "deps", "bindeps.jl"))
 
 # Utilities
 include("utils.jl")
-include("cache.jl")
 
 # Load HIP
 const libhip = "libamdhip64.so"
 include(joinpath("hip", "HIP.jl"))
 import .HIP: HIPContext, HIPDevice, HIPStream
 export HIPContext, HIPDevice, HIPStream
+
+include("cache.jl")
 
 module Runtime
     using ..CEnum
