@@ -1,8 +1,10 @@
 module MIOpen
 
-import AMDGPU
+using ..AMDGPU
 import AMDGPU.Runtime.Mem
 import AMDGPU: ROCArray, ROCDevice, LockedObject
+import AMDGPU: HandleCache, HIP, library_state
+import .HIP: hipStream_t
 
 using CEnum
 using GPUArrays
@@ -15,8 +17,6 @@ else
 end
 
 include("low_level.jl")
-
-const HANDLE = LockedObject(Ref{miopenHandle_t}(C_NULL))
 
 const STATUS_DESCRIPTORS = Dict(
     miopenStatusSuccess => "Success",
@@ -82,16 +82,15 @@ function destroy_handle!(handle::miopenHandle_t)
     nothing
 end
 
-function handle()
-    lock(HANDLE) do hdl
-        if hdl[] == C_NULL
-            new_handle = create_handle()
-            atexit(() -> destroy_handle!(new_handle))
-            hdl[] = new_handle
-        end
-        hdl[]
-    end
-end
+const IDLE_HANDLES = HandleCache{HIPContext, miopenHandle_t}()
+
+lib_state() = library_state(
+    :MIOpen, miopenHandle_t, IDLE_HANDLES,
+    create_handle, destroy_handle!,
+    (nh, s) -> check(miopenSetStream(nh, s)))
+
+handle() = lib_state().handle
+stream() = lib_state().stream
 
 mutable struct Workspace
     data::Mem.Buffer

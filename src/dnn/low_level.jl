@@ -1,5 +1,3 @@
-const miopenAcceleratorQueue_t = Cint
-
 struct miopenHandle end
 
 const miopenHandle_t = Ptr{miopenHandle}
@@ -36,7 +34,7 @@ function miopenCreate(handle)
 end
 
 function miopenCreateWithStream(handle, stream)
-    ccall((:miopenCreateWithStream, libMIOpen_path), miopenStatus_t, (Ptr{miopenHandle_t}, miopenAcceleratorQueue_t), handle, stream)
+    ccall((:miopenCreateWithStream, libMIOpen_path), miopenStatus_t, (Ptr{miopenHandle_t}, hipStream_t), handle, stream)
 end
 
 function miopenDestroy(handle)
@@ -44,11 +42,11 @@ function miopenDestroy(handle)
 end
 
 function miopenSetStream(handle, streamID)
-    ccall((:miopenSetStream, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenAcceleratorQueue_t), handle, streamID)
+    ccall((:miopenSetStream, libMIOpen_path), miopenStatus_t, (miopenHandle_t, hipStream_t), handle, streamID)
 end
 
 function miopenGetStream(handle, streamID)
-    ccall((:miopenGetStream, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{miopenAcceleratorQueue_t}), handle, streamID)
+    ccall((:miopenGetStream, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{hipStream_t}), handle, streamID)
 end
 
 function miopenSetAllocator(handle, allocator, deallocator, allocatorContext)

@@ -6,10 +6,7 @@ struct SyncState
     streams::Vector{Ptr{Cvoid}}
     lock::Threads.ReentrantLock
 end
-SyncState() =
-    SyncState(ROCKernelSignal[],
-              Ptr{Cvoid}[],
-              Threads.ReentrantLock())
+SyncState() = SyncState(ROCKernelSignal[], Ptr{Cvoid}[], Threads.ReentrantLock())
 
 struct WaitAdaptor end
 struct MarkAdaptor{S}
@@ -38,4 +35,4 @@ mark!(ss::SyncState, stream::HIP.HIPStream) =
     mark!(ss, stream.stream)
 
 wait!(x) = Adapt.adapt(WaitAdaptor(), x)
-mark!(x, s) = Adapt.adapt(MarkAdaptor(s), x)
+mark!(x, s) = Adapt.adapt(MarkAdaptor(s), x) # TODO constrain type of `s`

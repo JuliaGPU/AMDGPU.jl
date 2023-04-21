@@ -84,3 +84,42 @@ function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
         push!(f, cache, key, handle)
     end
 end
+
+# Copied from CUDA.jl/lib/cublas/CUBLAS.jl
+
+function library_state(
+    library_key::Symbol, ::Type{HandleType}, idle_handles,
+    create_handle::Function, destroy_handle::Function, set_stream::Function,
+) where HandleType
+    tls = AMDGPU.task_local_state()
+
+    LibraryState = @NamedTuple{handle::HandleType, stream::HIPStream}
+    states = get!(task_local_storage(), library_key) do
+        Dict{HIPContext, LibraryState}()
+    end::Dict{HIPContext, LibraryState}
+
+    @noinline function new_state(tls)
+        new_handle = pop!(
+            () -> create_handle(), idle_handles, tls.context)::HandleType
+
+        finalizer(current_task()) do task
+            push!(idle_handles, tls.context, new_handle) do
+                context!(tls.context) do
+                    destroy_handle!(new_handle)
+                end
+            end
+        end
+        set_stream(new_handle, tls.stream)
+        return (; handle=new_handle, tls.stream)
+    end
+    state = get!(() -> new_state(tls), states, tls.context)
+
+    @noinline function update_stream(tls, state)
+        set_stream(new_handle, tls.stream)
+        return (; state.handle, tls.stream)
+    end
+    if state.stream != tls.stream
+        states[tls.context] = state = update_stream(tls, state)
+    end
+    return state
+end

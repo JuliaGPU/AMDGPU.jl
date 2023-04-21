@@ -122,17 +122,17 @@ function convolution!(
     w::ROCArray{T, N}, wdesc::TensorDescriptor,
     cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
-    hdl = handle()
+    (; handle, stream) = lib_state()
     perf_results, workspace = find_algorithm(
-        miopenConvFwdAlgorithm_t, hdl, conv_args,
+        miopenConvFwdAlgorithm_t, handle, conv_args,
         x, xdesc, w, wdesc, cdesc, y, ydesc)
 
     AMDGPU.wait!((x, y, w))
     miopenConvolutionForward(
-        hdl, Ref{Float32}(1f0), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
+        handle, Ref{Float32}(1f0), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, Ref{Float32}(0f0), ydesc.handle, y,
         workspace.data.ptr, perf_results.memory) |> check
-    AMDGPU.mark!(y, C_NULL)
+    AMDGPU.mark!(y, stream)
     y
 end
 
@@ -167,16 +167,16 @@ function ∇convolution_weight!(
     x::ROCArray{T, N}, xdesc::TensorDescriptor,
     cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
-    hdl = handle()
+    (; handle, stream) = lib_state()
     perf_algo, workspace = find_algorithm(
-        miopenConvBwdWeightsAlgorithm_t, hdl, conv_args,
+        miopenConvBwdWeightsAlgorithm_t, handle, conv_args,
         dy, dydesc, x, xdesc, cdesc, ∇w, ∇wdesc)
     AMDGPU.wait!((∇w, dy, x))
     miopenConvolutionBackwardWeights(
-        hdl, Ref{Float32}(1f0), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
+        handle, Ref{Float32}(1f0), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, Ref{Float32}(0f0), ∇wdesc.handle, ∇w,
         workspace.data.ptr, perf_algo.memory) |> check
-    AMDGPU.mark!(∇w, C_NULL)
+    AMDGPU.mark!(∇w, stream)
     ∇w
 end
 
@@ -211,16 +211,16 @@ function ∇convolution_data!(
     w::ROCArray{T, N}, wdesc::TensorDescriptor,
     cdesc::ConvolutionDescriptor, conv_args::ConvolutionArgs,
 ) where {T <: MIOPENFloat, N}
-    hdl = handle()
+    (; handle, stream) = lib_state()
     perf_algo, workspace = find_algorithm(
-        miopenConvBwdDataAlgorithm_t, hdl, conv_args,
+        miopenConvBwdDataAlgorithm_t, handle, conv_args,
         dy, dydesc, w, wdesc, cdesc, ∇x, ∇xdesc)
     AMDGPU.wait!((∇x, dy, w))
     miopenConvolutionBackwardData(
-        hdl, Ref{Float32}(1f0), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
+        handle, Ref{Float32}(1f0), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, Ref{Float32}(0f0), ∇xdesc.handle, ∇x,
         workspace.data.ptr, perf_algo.memory) |> check
-    AMDGPU.mark!(∇x, C_NULL)
+    AMDGPU.mark!(∇x, stream)
     ∇x
 end
 
