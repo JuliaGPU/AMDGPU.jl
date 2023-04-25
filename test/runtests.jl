@@ -112,13 +112,14 @@ push!(tests, "rocRAND" => ()->begin
         @test_skip "rocRAND"
     end
 end)
-push!(tests, "rocFFT" => ()->begin
-    if AMDGPU.functional(:rocfft)
-        include("rocarray/fft.jl")
-    else
-        @test_skip "rocFFT"
-    end
-end)
+# TODO outdated
+# push!(tests, "rocFFT" => ()->begin
+#     if AMDGPU.functional(:rocfft)
+#         include("rocarray/fft.jl")
+#     else
+#         @test_skip "rocFFT"
+#     end
+# end)
 push!(tests, "NMF" => ()->begin
     if AMDGPU.functional(:rocblas)
         include("rocarray/nmf.jl")

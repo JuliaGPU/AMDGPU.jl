@@ -8,16 +8,22 @@ struct ROCArrayBackend <: AbstractGPUBackend end
 
 struct ROCKernelContext <: AbstractKernelContext end
 
-# TODO GPUArrays.launch_heuristic
+# TODO compare performance with and without it.
+# @inline function GPUArrays.launch_heuristic(
+#     ::ROCArrayBackend, f::F, args::Vararg{Any, N};
+#     elements::Int, elements_per_thread::Int,
+# ) where {F, N}
+#     kernel = @roc launch=false f(ROCKernelContext(), args...)
+#     (; groupsize) = AMDGPU.launch_configuration(kernel)
+#     threads = elements_per_thread > 1 ? groupsize : min(256, groupsize)
+#     blocks = ceil(Int, elements / threads)
+#     (; threads, blocks)
+# end
 
 function GPUArrays.gpu_call(::ROCArrayBackend, f, args, threads::Int, blocks::Int; name::Union{String, Nothing})
     groupsize, gridsize = threads, blocks * threads
     wait(@roc groupsize=groupsize gridsize=gridsize name=name f(ROCKernelContext(), args...))
 end
-
-# function GPUArrays.gpu_call(::ROCArrayBackend, f, args; elements::Int, name::Union{String, Nothing} = nothing)
-#     wait(@roc groupsize=min(elements, 64) gridsize=elements f(ROCKernelContext(), args...))
-# end
 
 ## on-device
 
