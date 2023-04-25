@@ -13,6 +13,7 @@ export ROCModule, ROCFunction
 
 const MAX_EXCEPTIONS = 256
 const EXE_TO_MODULE_MAP = IdDict{ROCExecutable, WeakRef}()
+
 mutable struct ROCModule
     exe::ROCExecutable
     metadata::Vector{KernelMetadata}

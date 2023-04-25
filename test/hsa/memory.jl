@@ -267,7 +267,7 @@ end
         @testset "Coherent Fallback" begin
             # This will still work because we fallback to coherent allocations
             A = ROCVector{UInt8}(undef, Int(coarsegrained_max+8))
-            @test A.buf.coherent
+            @test A.buf[].coherent
             A = nothing
         end
     else

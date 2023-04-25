@@ -21,118 +21,24 @@ struct Buffer
     device::ROCDevice
     coherent::Bool
     pool_alloc::Bool
-    # Unique ID used for refcounting.
-    _id::UInt64
 
     function Buffer(
         ptr::Ptr{Cvoid}, host_ptr::Ptr{Cvoid}, base_ptr::Ptr{Cvoid},
         bytesize::Int, device::ROCDevice, coherent::Bool, pool_alloc::Bool,
     )
-        _id = _buffer_id!()
-        new(ptr, host_ptr, base_ptr, bytesize, device, coherent, pool_alloc, _id)
+        new(ptr, host_ptr, base_ptr, bytesize, device, coherent, pool_alloc)
     end
 end
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf.ptr)
 
-function view(buf::Buffer, bytes::Int)
-    bytes > buf.bytesize && throw(BoundsError(buf, bytes))
-    return Buffer(buf.ptr+bytes,
-                  buf.host_ptr != C_NULL ? buf.host_ptr+bytes : C_NULL,
-                  buf.base_ptr,
-                  buf.bytesize-bytes, buf.device, buf.coherent, buf.pool_alloc)
+function view(buf::Buffer, bytesize::Int)
+    bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
+    host_ptr = buf.host_ptr != C_NULL ? (buf.host_ptr + bytesize) : C_NULL
+    return Buffer(
+        buf.ptr + bytesize, host_ptr, buf.base_ptr,
+        buf.bytesize - bytesize, buf.device, buf.coherent, buf.pool_alloc)
 end
-
-## refcounting
-
-const _ID_COUNTER = Threads.Atomic{UInt64}(0)
-const refcounts = Dict{UInt64, Int}()
-const liveness = Dict{UInt64, Bool}()
-const refcounts_lock = Threads.ReentrantLock()
-
-function _buffer_id!()::UInt64
-    return Threads.atomic_add!(_ID_COUNTER, UInt64(1))
-end
-
-function refcount(buf::Buffer)
-    Base.lock(refcounts_lock) do
-        get(refcounts, buf._id, 0)
-    end
-end
-
-"""
-    retain(buf::Buffer)
-
-Increase the refcount of a buffer.
-"""
-function retain(buf::Buffer)
-    Base.lock(refcounts_lock) do
-        live = get!(liveness, buf._id, true)
-        @assert live "Trying to retain dead buffer!"
-        count = get!(refcounts, buf._id, 0)
-        refcounts[buf._id] = count + 1
-    end
-    return
-end
-
-"""
-    release(buf::Buffer)
-
-Decrease the refcount of a buffer. Returns `true` if the refcount has dropped
-to 0, and some action needs to be taken.
-"""
-function release(buf::Buffer)
-    while !Base.trylock(refcounts_lock) end
-    try
-        count = refcounts[buf._id]
-        @assert count >= 1 "Buffer refcount dropping below 0!"
-        refcounts[buf._id] = count - 1
-        done = count == 1
-
-        live = liveness[buf._id]
-
-        if done
-            if live
-                free(buf)
-            end
-            untrack(buf)
-        end
-        return done
-    finally
-        Base.unlock(refcounts_lock)
-    end
-end
-
-"""
-    free_if_live(buf::Buffer)
-
-Frees the base pointer for `buf` if it is still live (not yet freed). Does not
-update refcounts.
-"""
-function free_if_live(buf::Buffer)
-    Base.lock(refcounts_lock) do
-        if liveness[buf._id]
-            liveness[buf._id] = false
-            free(buf)
-        end
-    end
-end
-
-"""
-    untrack(buf::Buffer)
-
-Removes refcount tracking information for a buffer.
-"""
-function untrack(buf::Buffer)
-    while !Base.trylock(refcounts_lock) end
-    try
-        delete!(liveness, buf._id)
-        delete!(refcounts, buf._id)
-    finally
-        Base.unlock(refcounts_lock)
-    end
-end
-
 
 ## memory info
 
@@ -375,6 +281,7 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallba
     end
     return buf
 end
+
 function alloc_or_retry!(f)
     for phase in 1:3
         if phase == 2
@@ -414,7 +321,9 @@ function alloc(
     ptr = ptr_ref[]
     AMDGPU.hsaref!()
     Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
-    Buffer(ptr, C_NULL, ptr, Int64(bytesize), device, _accessible(space), S <: ROCMemoryPool)
+    Buffer(
+        ptr, C_NULL, ptr, Int64(bytesize), device, _accessible(space),
+        S <: ROCMemoryPool)
 end
 
 alloc(bytesize; kwargs...) = alloc(AMDGPU.device(), bytesize; kwargs...)
@@ -450,13 +359,16 @@ function free(buf::Buffer)
                 @static if AMDGPU.hip_configured
                     # Actually HIP-backed
                     HIP.@check HIP.hipFree(buf.base_ptr)
+                    @debug "Freed $(Base.format_bytes(buf.bytesize)) @ $(buf.ptr) ptr from HIP"
                 end
             else
                 memory_check(HSA.amd_memory_pool_free(buf.base_ptr), buf.base_ptr)
+                @debug "Freed $(Base.format_bytes(buf.bytesize)) @ $(buf.ptr) ptr from pool"
             end
             Threads.atomic_sub!(ALL_ALLOCS, Int64(buf.bytesize))
         else
             memory_check(HSA.memory_free(buf.base_ptr), buf.base_ptr)
+            @debug "Freed $(Base.format_bytes(buf.bytesize)) @ $(buf.ptr) ptr"
         end
         AMDGPU.hsaunref!()
     else
@@ -777,8 +689,7 @@ Allocate space for `count` objects of type `T`.
 """
 function alloc(::Type{T}, count::Integer=1; alloc_kwargs...) where {T}
     check_type(Buffer, T)
-
-    return alloc(sizeof(T)*count; alloc_kwargs...)
+    return alloc(sizeof(T) * count; alloc_kwargs...)
 end
 
 """

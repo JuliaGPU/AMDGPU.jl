@@ -777,18 +777,15 @@ end
 # helper function to get a device array of device pointers
 function device_batch(batch::Array{T}) where {T<:ROCArray}
     E = eltype(T)
-    ROCArray([Base.unsafe_convert(Ptr{E}, arr.buf) for arr in batch])
+    ROCArray([Base.unsafe_convert(Ptr{E}, x) for x in batch])
 end
 
 function device_batch(x::AnyROCArray{T, 3}) where T
-    shift = size(x, 1) * size(x, 2) * sizeof(T)
-    ROCArray([
-        Base.unsafe_convert(Ptr{T}, AMDGPU.Mem.view(x.buf, shift * (i - 1)))
-        for i in 1:size(x, 3)])
+    ROCArray([Base.unsafe_convert(Ptr{T}, @view(x[:, :, i])) for i in 1:size(x, 3)])
 end
 
 function device_batch(x::AnyROCArray{T, 3}, batch_count::Int) where T
-    ptr = Base.unsafe_convert(Ptr{T}, x.buf)
+    ptr = Base.unsafe_convert(Ptr{T}, x)
     ROCArray([ptr for i in 1:batch_count])
 end
 

@@ -56,6 +56,7 @@ module Runtime
     using Setfield
     import ..HSA
     import ..Adapt
+    import ..GPUArrays
     using ..GPUCompiler
     import Preferences: @load_preference, @set_preferences!
     import TimespanLogging
