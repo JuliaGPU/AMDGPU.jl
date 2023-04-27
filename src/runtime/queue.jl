@@ -243,9 +243,7 @@ function monitor_queue(queue::ROCQueue)
             if length(kerns) > 0
                 # Notify waiters that queue is running
                 notify(queue.running)
-                sig = first(kerns)
-                next!(queue.active_kernels)
-                return sig
+                return first(kerns)
             else
                 # Reset event
                 reset(queue.running)
@@ -259,6 +257,10 @@ function monitor_queue(queue::ROCQueue)
                 wait(sig; check_exceptions=true, cleanup=true)
             catch err
                 @debug "Kernel exception" exception=(err,catch_backtrace())
+            end
+            # Move to the next kernel.
+            Base.@lock queue.lock begin
+                kerns = next!(kerns)
             end
         else
             wait(queue.running)
