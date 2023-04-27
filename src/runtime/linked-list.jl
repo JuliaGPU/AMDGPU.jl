@@ -41,7 +41,7 @@ function Base.empty!(list::LinkedList)
     @atomic list.head = nothing
     return list
 end
-Base.isempty(list::LinkedList) = @atomic(list.head) !== nothing
+Base.isempty(list::LinkedList) = @atomic(list.head) === nothing
 
 function Base.first(list::LinkedList)
     head = @atomic(list.head)
