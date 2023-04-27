@@ -119,14 +119,16 @@ function ROCKernel(kernel #= ::HostKernel =#; localmem::Int=0)
     group_segment_size = UInt32(group_segment_size + localmem)
     private_segment_size = executable_symbol_kernel_private_segment_size(exec_symbol)
     if private_segment_size > MAXIMUM_SCRATCH_ALLOCATION
-        @debug "Excessive scratch allocation requested\nReducing per-lane scratch to $(Int(MAXIMUM_SCRATCH_ALLOCATION)) bytes"
+        @debug """
+        Excessive scratch allocation requested: $(Base.format_bytes(private_segment_size)).
+        Reducing per-lane scratch to: $(Base.format_bytes(Int(MAXIMUM_SCRATCH_ALLOCATION))).
+        """
         private_segment_size = MAXIMUM_SCRATCH_ALLOCATION
     end
 
-    kernel = ROCKernel(device, exe, symbol, localmem, kernel_object,
-                       kernarg_segment_size, group_segment_size,
-                       private_segment_size, Ptr{Cvoid}(0))
-    return kernel
+    ROCKernel(device, exe, symbol, localmem, kernel_object,
+        kernarg_segment_size, group_segment_size,
+        private_segment_size, Ptr{Cvoid}(0))
 end
 
 "Sets the maximum amount of per-lane scratch memory that can be allocated for a
@@ -145,6 +147,6 @@ const MAXIMUM_SCRATCH_ALLOCATION = let
         set_max_scratch!(scratch)
         scratch
     else
-        UInt32(@load_preference("max_scratch", 8192))
+        UInt32(@load_preference("max_scratch", 16384))
     end
 end::UInt32
