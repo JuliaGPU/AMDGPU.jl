@@ -750,6 +750,7 @@ for (fname, elty) in
             ldc = max(1, stride(C, 2))
             wait!((A, B, C))
             (; handle, stream) = lib_state()
+            @info "blas $(Threads.threadid()), $(stream)"
             $(fname)(
                 handle, rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
