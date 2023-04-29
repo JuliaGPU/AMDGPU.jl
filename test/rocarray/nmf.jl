@@ -4,11 +4,9 @@
 
 function step(X, W, H)
     # H update
-    H = (H .* (W' * (X ./ (W * H)))
-         ./ (sum(W; dims=1))')
+    H = (H .* (W' * (X ./ (W * H))) ./ (sum(W; dims=1))')
     # W update
-    W = (W .* ((X ./ (W * H)) * (H'))
-         ./ (sum(H; dims=2)'))
+    W = (W .* ((X ./ (W * H)) * (H')) ./ (sum(H; dims=2)'))
     # error estimate
     X - W * H
 end

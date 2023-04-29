@@ -3,7 +3,7 @@
 import AMDGPU: Runtime, Compiler
 import .Runtime: ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal, ROCKernelSignal, HSAError
 import .Runtime: ROCDim, ROCDim3
-import .Runtime: wait!, mark!
+import .Runtime: wait!, hip_wait!, hsa_wait!, mark!
 import .Compiler: rocfunction
 
 export @roc, rocconvert, rocfunction
@@ -602,7 +602,7 @@ macro roc(ex...)
 
                     if $launch
                         if $wait
-                            foreach($wait!, ($(var_exprs...),))
+                            foreach($hip_wait!, ($(var_exprs...),))
                         end
                         local $kernel_instance = $create_kernel($kernel; $(kernel_kwargs...))
                         local $signal = $create_event(

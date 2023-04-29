@@ -332,4 +332,58 @@ function __init__()
     end
 end
 
+function _step(X, W, H)
+    # H = H .* (W' * (X ./ (W * H))) ./ (sum(W; dims=1))'
+    # W = W .* ((X ./ (W * H)) * (H')) ./ (sum(H; dims=2)')
+    # X - W * H
+    @info "1: W $(length(W.syncstate.signals)), $(length(W.syncstate.streams))"
+    @info "1: H $(length(H.syncstate.signals)), $(length(H.syncstate.streams))"
+    T = W * H
+    @info "2: X $(length(X.syncstate.signals)), $(length(X.syncstate.streams))"
+    @info "2: T $(length(T.syncstate.signals)), $(length(T.syncstate.streams))"
+    Y = X * T
+    @info "3: Y $(length(Y.syncstate.signals)), $(length(Y.syncstate.streams))"
+    return Y
+end
+
+function tt()
+    nrow = 1024 * 20
+    X = Base.rand(Float32, nrow, nrow)
+    W = Base.rand(Float32, nrow, nrow)
+    H = Base.rand(Float32, nrow, nrow)
+
+    @info "S1"
+    RX = ROCArray(X)
+    RW = ROCArray(W)
+    RH = ROCArray(H)
+    gpu_res = _step(RX, RW, RH)
+    @info "D1"
+    # Array(gpu_res)
+
+    # @sync begin
+    #     Threads.@spawn begin
+    #         @show Threads.threadid(), AMDGPU.queue(), AMDGPU.stream()
+    #         @info "S1"
+    #         RX = ROCArray(X)
+    #         RW = ROCArray(W)
+    #         RH = ROCArray(H)
+    #         gpu_res = _step(RX, RW, RH)
+    #         @info "D1"
+    #         Array(gpu_res)
+    #         return nothing
+    #     end
+    #     # Threads.@spawn begin
+    #     #     @info "S2"
+    #     #     RX = ROCArray(X)
+    #     #     RW = ROCArray(W)
+    #     #     RH = ROCArray(H)
+    #     #     gpu_res = _step(RX, RW, RH)
+    #     #     @info "D2"
+    #     #     Array(gpu_res)
+    #     #     return nothing
+    #     # end
+    # end
+    return
+end
+
 end # module
