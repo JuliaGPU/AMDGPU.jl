@@ -88,16 +88,16 @@ AMDGPU.versioninfo()
 # push!(tests, "Multitasking" => ()->include("tls.jl"))
 push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
 push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
-# if CI
-#     push!(tests, "ROCm libraries are functional" => ()->begin
-#         @test AMDGPU.functional(:rocblas)
-#         @test AMDGPU.functional(:rocrand)
-#         if !AMDGPU.use_artifacts
-#             # We don't have artifacts for these
-#             @test AMDGPU.functional(:rocfft)
-#         end
-#     end)
-# end
+if CI
+    push!(tests, "ROCm libraries are functional" => ()->begin
+        @test AMDGPU.functional(:rocblas)
+        @test AMDGPU.functional(:rocrand)
+        if !AMDGPU.use_artifacts
+            # We don't have artifacts for these
+            @test AMDGPU.functional(:rocfft)
+        end
+    end)
+end
 push!(tests, "rocBLAS" => ()->begin
     if AMDGPU.functional(:rocblas)
         include("rocarray/blas.jl")
@@ -112,13 +112,13 @@ push!(tests, "rocRAND" => ()->begin
         @test_skip "rocRAND"
     end
 end)
-# push!(tests, "rocFFT" => ()->begin
-#     if AMDGPU.functional(:rocfft)
-#         include("rocarray/fft.jl")
-#     else
-#         @test_skip "rocFFT"
-#     end
-# end)
+push!(tests, "rocFFT" => ()->begin
+    if AMDGPU.functional(:rocfft)
+        include("rocarray/fft.jl")
+    else
+        @test_skip "rocFFT"
+    end
+end)
 push!(tests, "NMF" => ()->begin
     if AMDGPU.functional(:rocblas)
         include("rocarray/nmf.jl")
@@ -135,7 +135,6 @@ push!(tests, "MIOpen" => ()->begin
 end)
 push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
 for (i, name) in enumerate(keys(TestSuite.tests))
-    i == 1 || continue
     push!(tests, "GPUArrays TestSuite - $name" =>
         ()->TestSuite.tests[name](ROCArray))
 end

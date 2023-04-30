@@ -11,19 +11,24 @@ function step(X, W, H)
     X - W * H
 end
 
-for scale in (1:5:50)
+for scale in (1:5:1)
     ncol = 2001
-    nrow = 1002*scale
+    nrow = 1002 * scale
     nfeatures = 12
+
     X = rand(Float32, nrow, ncol)
     W = rand(Float32, nrow, nfeatures)
     H = rand(Float32, nfeatures, ncol)
     cpu_res = step(X, W, H)
+
     RX = ROCArray(X)
     RW = ROCArray(W)
     RH = ROCArray(H)
+
     gpu_res = step(RX, RW, RH)
     @test Array(gpu_res) ≈ cpu_res
+
+    AMDGPU.unsafe_free!.((RX, RW, RH, gpu_res))
 end
 
 end

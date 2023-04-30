@@ -1,7 +1,7 @@
 module rocBLAS
 
 using ..AMDGPU
-import AMDGPU: wait!, mark!, librocblas, AnyROCArray
+import AMDGPU: hsa_wait!, mark!, librocblas, AnyROCArray
 import AMDGPU: HandleCache, HIP, library_state
 import .HIP: HIPContext, HIPStream, hipContext_t, hipStream_t, hipEvent_t
 

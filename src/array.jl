@@ -9,7 +9,6 @@ struct ROCArrayBackend <: AbstractGPUBackend end
 struct ROCKernelContext <: AbstractKernelContext end
 
 function GPUArrays.gpu_call(::ROCArrayBackend, f, args, threads::Int, blocks::Int; name::Union{String,Nothing})
-    @info "@roc $(Threads.threadid()), $(AMDGPU.queue()), $(AMDGPU.stream())"
     groupsize, gridsize = threads, blocks * threads
     @roc groupsize=groupsize gridsize=gridsize name=name f(ROCKernelContext(), args...)
 end
@@ -79,20 +78,21 @@ end
 
 unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf)
 
-wait!(x::ROCArray) = wait!(x.syncstate)
-hip_wait!(x::ROCArray) = wait!(x.syncstate; hip=true, hsa=false)
-hsa_wait!(x::ROCArray) = wait!(x.syncstate; hip=false, hsa=true)
-
 mark!(x::ROCArray, s) = mark!(x.syncstate, s)
-wait!(xs::Vector{<:ROCArray}) = foreach(wait!, xs)
-hip_wait!(xs::Vector{<:ROCArray}) = foreach(x -> wait!(x; hip=true, hsa=false), xs)
-hsa_wait!(xs::Vector{<:ROCArray}) = foreach(x -> wait!(x; hip=false, hsa=true), xs)
 mark!(xs::Vector{<:ROCArray}, s) = foreach(x -> mark!(x,s), xs)
-
-wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(wait!, xs)
 mark!(xs::NTuple{N,<:ROCArray} where N, s) = foreach(x -> mark!(x,s), xs)
-hip_wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(x -> wait!(x; hip=true, hsa=false), xs)
+
+wait!(x::ROCArray; hip::Bool = true, hsa::Bool = true) = wait!(x.syncstate; hip, hsa)
+wait!(xs::Vector{<:ROCArray}; hip::Bool = true, hsa::Bool = true) = foreach(x -> wait!(x; hip, hsa), xs)
+wait!(xs::NTuple{N,<:ROCArray} where N; hip::Bool = true, hsa::Bool = true) = foreach(x -> wait!(x; hip, hsa), xs)
+
+hsa_wait!(x::ROCArray) = wait!(x.syncstate; hip=false, hsa=true)
+hsa_wait!(xs::Vector{<:ROCArray}) = foreach(x -> wait!(x; hip=false, hsa=true), xs)
 hsa_wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(x -> wait!(x; hip=false, hsa=true), xs)
+
+hip_wait!(x::ROCArray) = wait!(x.syncstate; hip=true, hsa=false)
+hip_wait!(xs::Vector{<:ROCArray}) = foreach(x -> wait!(x; hip=true, hsa=false), xs)
+hip_wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(x -> wait!(x; hip=true, hsa=false), xs)
 
 function Adapt.adapt_storage(::Runtime.WaitAdaptor, x::ROCArray)
     Runtime.wait!(x.syncstate)
@@ -197,9 +197,8 @@ function Base.copyto!(dest::Array{T}, d_offset::Integer,
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
-    @info "CP $(length(source.syncstate.signals)), $(length(source.syncstate.streams))"
     wait!(source)
-    @info "CP Wait done"
+    synchronize()
     Mem.download!(pointer(dest, d_offset),
                   Mem.view(source.buf, source.offset + (s_offset-1)*sizeof(T)),
                   amount*sizeof(T))
