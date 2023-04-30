@@ -57,7 +57,7 @@ for (fname, elty) in ((:rocblas_dcopy,:Float64),
                            incx::Integer,
                            DY::ROCArray{$elty},
                            incy::Integer)
-              wait!((DX,DY))
+              hsa_wait!((DX,DY))
               (; handle, stream) = lib_state()
               $(fname)(handle, n, DX, incx, DY, incy) |> check
               mark!((DX,DY), stream)
@@ -76,7 +76,7 @@ for (fname, elty) in ((:rocblas_dscal,:Float64),
                        DA::$elty,
                        DX::ROCArray{$elty},
                        incx::Integer)
-            wait!(DX)
+            hsa_wait!(DX)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Ref(DA), DX, incx) |> check
             mark!(DX, stream)
@@ -92,7 +92,7 @@ for (fname, elty, celty) in ((:rocblas_sscal, :Float32, :ComplexF32),
                        DA::$elty,
                        DX::ROCArray{$celty},
                        incx::Integer)
-            wait!(DX)
+            hsa_wait!(DX)
             (; handle, stream) = lib_state()
             $(fname)(handle, 2*n, Ref(DA), DX, incx) |> check
             mark!(DX, stream)
@@ -115,7 +115,7 @@ for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
                         DY::ROCArray{$elty},
                         incy::Integer)
             result = Ref{$elty}()
-            wait!((DX,DY))
+            hsa_wait!((DX,DY))
             $(fname)(handle(), n, DX, incx, DY, incy, result) |> check
             return result[]
         end
@@ -132,7 +132,7 @@ for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
                       X::ROCArray{$elty},
                       incx::Integer)
             result = Ref{$ret_type}()
-            wait!(X)
+            hsa_wait!(X)
             $(fname)(handle(), n, X, incx, result) |> check
             return result[]
         end
@@ -151,7 +151,7 @@ for (fname, elty, ret_type) in ((:rocblas_dasum,:Float64,:Float64),
                       X::ROCArray{$elty},
                       incx::Integer)
             result = Ref{$ret_type}()
-            wait!(X)
+            hsa_wait!(X)
             $(fname)(handle(), n, X, incx, result) |> check
             return result[]
         end
@@ -171,7 +171,7 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
                        incx::Integer,
                        dy::ROCArray{$elty},
                        incy::Integer)
-            wait!((dx,dy))
+            hsa_wait!((dx,dy))
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Ref(alpha), dx, incx, dy, incy) |> check
             mark!((dx,dy), stream)
@@ -259,7 +259,7 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(X,1)
             incy = stride(Y,1)
-            wait!((A,X,Y))
+            hsa_wait!((A,X,Y))
             (; handle, stream) = lib_state()
             $(fname)(handle, roctrans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy) |> check
             mark!((A,X,Y), stream)
@@ -298,7 +298,7 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            wait!((A,x,y))
+            hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, roctrans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
             mark!((A,x,y), stream)
@@ -347,7 +347,7 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            wait!((A,x,y))
+            hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
             mark!((A,x,y), stream)
@@ -381,7 +381,7 @@ for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            wait!((A,x,y))
+            hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
             mark!((A,x,y), stream)
@@ -420,7 +420,7 @@ for (fname, elty) in ((:rocblas_dsbmv,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            wait!((A,x,y))
+            hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
             mark!((A,x,y), stream)
@@ -457,7 +457,7 @@ for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            wait!((A,x,y))
+            hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
             mark!((A,x,y), stream)
@@ -496,7 +496,7 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            wait!((A,x))
+            hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, k, A, lda, x, incx) |> check
             mark!((A,x), stream)
@@ -533,7 +533,7 @@ for (fname, elty) in ((:rocblas_stbsv,:Float32),
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            wait!((A,x))
+            hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, k, A, lda, x, incx) |> check
             mark!((A,x), stream)
@@ -571,7 +571,7 @@ for (fname, elty) in ((:rocblas_dtrmv,:Float64),
             rocdiag = rocblasdiag(diag)
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            wait!((A,x))
+            hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, A, lda, x, incx) |> check
             mark!((A,x), stream)
@@ -608,7 +608,7 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
             rocdiag = rocblasdiag(diag)
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            wait!((A,x))
+            hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, A, lda, x, incx) |> check
             mark!((A,x), stream)
@@ -640,7 +640,7 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            wait!((x,y,A))
+            hsa_wait!((x,y,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, m, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
             mark!((x,y,A), stream)
@@ -666,7 +666,7 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            wait!((x,A))
+            hsa_wait!((x,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, A, lda) |> check
             mark!((x,A), stream)
@@ -689,7 +689,7 @@ for (fname, elty) in ((:rocblas_zher,:ComplexF64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            wait!((x,A))
+            hsa_wait!((x,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, A, lda) |> check
             mark!((x,A), stream)
@@ -715,7 +715,7 @@ for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            wait!((x,y,A))
+            hsa_wait!((x,y,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
             mark!((x,y,A), stream)
@@ -748,9 +748,8 @@ for (fname, elty) in
             lda = max(1, stride(A, 2))
             ldb = max(1, stride(B, 2))
             ldc = max(1, stride(C, 2))
-            wait!((A, B, C))
+            hsa_wait!((A, B, C))
             (; handle, stream) = lib_state()
-            @info "blas $(Threads.threadid()), $(stream)"
             $(fname)(
                 handle, rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
@@ -867,7 +866,7 @@ for (fname, elty) in
         )
             m, k, n, lda, ldb, ldc = _check_gemm_batched_dims(
                 transA, transB, A, B, C)
-            wait!((A, B, C))
+            hsa_wait!((A, B, C))
 
             batch_count = size(C, 3)
             a_broadcast = (size(A, 3) == 1) && (batch_count > 1)
@@ -947,7 +946,7 @@ for (fname, elty) in
            strideB = stride(B, 3)
            strideC = stride(C, 3)
            batchCount = size(A, 3)
-           wait!((A,B,C))
+           hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, roctransA, roctransB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta), C, ldc, strideC, batchCount) |> check
            mark!((A,B,C), stream)
@@ -996,7 +995,7 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            wait!((A,B,C))
+            hsa_wait!((A,B,C))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
             mark!((A,B,C), stream)
@@ -1039,7 +1038,7 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
-           wait!((A,C))
+           hsa_wait!((A,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
            mark!((A,C), stream)
@@ -1082,7 +1081,7 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           wait!((A,B,C))
+           hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
            mark!((A,B,C), stream)
@@ -1119,7 +1118,7 @@ for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
-           wait!((A,C))
+           hsa_wait!((A,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
            mark!((A,C), stream)
@@ -1161,7 +1160,7 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            wait!((A,B,C))
+            hsa_wait!((A,B,C))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
             mark!((A,B,C), stream)
@@ -1207,7 +1206,7 @@ for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           wait!((A,B,C))
+           hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
            mark!((A,B,C), stream)
@@ -1250,7 +1249,7 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trmm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            wait!((A,B))
+            hsa_wait!((A,B))
             (; handle, stream) = lib_state()
             $(mmname)(
                 handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha),
@@ -1279,7 +1278,7 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            wait!((A,B))
+            hsa_wait!((A,B))
             (; handle, stream) = lib_state()
             $(smname)(handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha), A, lda, B, ldb) |> check
             mark!((A,B), stream)
@@ -1326,7 +1325,7 @@ for (fname, elty) in
             ldb = max(1,stride(B[1],2))
             Aptrs = device_batch(A)
             Bptrs = device_batch(B)
-            wait!((A,B))
+            hsa_wait!((A,B))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha), Aptrs, lda, Bptrs, ldb, length(A)) |> check
             mark!((A,B), stream)
@@ -1373,7 +1372,7 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           wait!((A,B,C))
+           hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, roctransa, roctransb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc) |> check
            mark!((A,B,C), stream)
@@ -1418,7 +1417,7 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             info  = ROCArray{Cint}(undef, length(A))
             pivotArray  = Pivot ? ROCArray{Int32}(undef, (n, length(A))) : C_NULL
-            wait!(A)
+            hsa_wait!(A)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Aptrs, lda, pivotArray, info, length(A)) |> check
             if( !Pivot )
@@ -1460,8 +1459,8 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
             info = ROCArray(zeros(Cint,length(A)))
-            wait!(A)
-            wait!(pivotArray)
+            hsa_wait!(A)
+            hsa_wait!(pivotArray)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A)) |> check
             mark!((A, pivotArray, info, C), stream)
@@ -1495,7 +1494,7 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
             info = ROCArray(zeros(Cint,length(A)))
-            wait!(A)
+            hsa_wait!(A)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Aptrs, lda, Cptrs, ldc, info, length(A)) |> check
             mark!((A, info, C), stream)
@@ -1523,7 +1522,7 @@ for (fname, elty) in
             end
             Tauptrs = device_batch(TauArray)
             info    = zero(Cint)
-            wait!(A)
+            hsa_wait!(A)
             (; handle, stream) = lib_state()
             $(fname)(handle, m, n, Aptrs, lda, Tauptrs, Ref(info), length(A)) |> check
             if( info != 0 )
@@ -1571,8 +1570,8 @@ for (fname, elty) in
             Cptrs = device_batch(C)
             info  = zero(Cint)
             infoarray = ROCArray(zeros(Cint, length(A)))
-            wait!(A)
-            wait!(C)
+            hsa_wait!(A)
+            hsa_wait!(C)
             (; handle, stream) = lib_state()
             $(fname)(handle, roctrans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, Ref(info), infoarray, length(A)) |> check
             if( info != 0 )
@@ -1609,7 +1608,7 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
            lda = max(1,stride(A,2))
            incx = stride(X,1)
            ldc = max(1,stride(C,2))
-           wait!((A,X,C))
+           hsa_wait!((A,X,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocside, m, n, A, lda, X, incx, C, ldc) |> check
            mark!((A,X,C), stream)
