@@ -118,7 +118,34 @@ function ROCKernel(kernel #= ::HostKernel =#; localmem::Int=0)
     group_segment_size = executable_symbol_kernel_group_segment_size(exec_symbol)
     group_segment_size = UInt32(group_segment_size + localmem)
     private_segment_size = executable_symbol_kernel_private_segment_size(exec_symbol)
+    if private_segment_size > MAXIMUM_SCRATCH_ALLOCATION
+        @debug """
+        Excessive scratch allocation requested: $(Base.format_bytes(private_segment_size)).
+        Reducing per-lane scratch to: $(Base.format_bytes(Int(MAXIMUM_SCRATCH_ALLOCATION))).
+        """
+        private_segment_size = MAXIMUM_SCRATCH_ALLOCATION
+    end
     ROCKernel(device, exe, symbol, localmem, kernel_object,
         kernarg_segment_size, group_segment_size,
         private_segment_size, Ptr{Cvoid}(0))
 end
+
+"Sets the maximum amount of per-lane scratch memory that can be allocated for a
+kernel. Consider setting this to a value below 2^14 if encountering
+`QueueError`s with the `HSA.STATUS_ERROR_OUT_OF_RESOURCES` code."
+set_max_scratch!(scratch::Integer) =
+    @set_preferences!("max_scratch"=>scratch)
+const MAXIMUM_SCRATCH_ALLOCATION = let
+    if haskey(ENV, "JULIA_AMDGPU_MAX_SCRATCH")
+        scratch = ENV["JULIA_AMDGPU_MAX_SCRATCH"]
+        scratch = if uppercase(scratch) == "MAX"
+            typemax(UInt32)
+        else
+            parse(UInt32, scratch)
+        end
+        set_max_scratch!(scratch)
+        scratch
+    else
+        UInt32(@load_preference("max_scratch", 8192))
+    end
+end::UInt32
