@@ -182,4 +182,38 @@ end
     @test refcount_live(A) == (0, false)
 end
 
+@testset "Skip host wait" begin
+    # HSA signals.
+
+    x = ROCArray(ones(16))
+    @test isempty(x.syncstate.signals)
+    @test isempty(x.syncstate.streams)
+    broadcast!(cos, x, x)
+    @test length(x.syncstate.signals) == 1
+    @test isempty(x.syncstate.streams)
+    broadcast!(cos, x, x)
+    # wait! before broadcast, skips waiting and we push new signal.
+    @test length(x.syncstate.signals) == 2
+    @test isempty(x.syncstate.streams)
+    broadcast!(cos, x, x)
+    # wait! before broadcast, skips waiting, leaves only last signal
+    # and we push new signal.
+    @test length(x.syncstate.signals) == 2
+    @test isempty(x.syncstate.streams)
+
+    # HIP streams.
+
+    x = ROCArray(ones(Float32, 16, 16))
+    y = ROCArray(zeros(Float32, 16, 16))
+    @test isempty(y.syncstate.signals)
+    @test isempty(y.syncstate.streams)
+    LinearAlgebra.mul!(y, x, x)
+    @test isempty(y.syncstate.signals)
+    @test length(y.syncstate.streams) == 1
+    LinearAlgebra.mul!(y, x, x)
+    @test isempty(y.syncstate.signals)
+    # Same stream, do not add more.
+    @test length(y.syncstate.streams) == 1
+end
+
 end

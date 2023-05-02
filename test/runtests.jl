@@ -46,46 +46,46 @@ AMDGPU.versioninfo()
 
 @info "Running tests with $(length(ws)) workers"
 
-# push!(tests, "HSA" => ()->begin
-#     include("hsa/error.jl")
-#     include("hsa/utils.jl")
-#     include("hsa/getinfo.jl")
-#     include("hsa/device.jl")
-#     include("hsa/queue.jl")
-#     include("hsa/memory.jl")
-#     include("hsa/hashing.jl")
-# end)
-# push!(tests, "Codegen" => ()->begin
-#     include("codegen/synchronization.jl")
-#     include("codegen/trap.jl")
-# end)
-# if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
-#     push!(tests, "Logging" => ()->include("logging.jl"))
-# else
-#     @warn """
-#     Logging is statically disabled, skipping logging tests.
-#     This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
-#     """
-#     @test_skip "Logging"
-# end
-# push!(tests, "Device Functions" => ()->begin
-#     include("device/launch.jl")
-#     include("device/array.jl")
-#     include("device/vadd.jl")
-#     include("device/memory.jl")
-#     include("device/indexing.jl")
-#     include("device/hostcall.jl")
-#     include("device/output.jl")
-#     include("device/globals.jl")
-#     include("device/math.jl")
-#     include("device/wavefront.jl")
-#     include("device/execution_control.jl")
-#     include("device/exceptions.jl")
-#     # FIXME segfaults in a weird way (on check_ir)
-#     # include("device/deps.jl")
-#     include("device/queries.jl")
-# end)
-# push!(tests, "Multitasking" => ()->include("tls.jl"))
+push!(tests, "HSA" => ()->begin
+    include("hsa/error.jl")
+    include("hsa/utils.jl")
+    include("hsa/getinfo.jl")
+    include("hsa/device.jl")
+    include("hsa/queue.jl")
+    include("hsa/memory.jl")
+    include("hsa/hashing.jl")
+end)
+push!(tests, "Codegen" => ()->begin
+    include("codegen/synchronization.jl")
+    include("codegen/trap.jl")
+end)
+if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
+    push!(tests, "Logging" => ()->include("logging.jl"))
+else
+    @warn """
+    Logging is statically disabled, skipping logging tests.
+    This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
+    """
+    @test_skip "Logging"
+end
+push!(tests, "Device Functions" => ()->begin
+    include("device/launch.jl")
+    include("device/array.jl")
+    include("device/vadd.jl")
+    include("device/memory.jl")
+    include("device/indexing.jl")
+    include("device/hostcall.jl")
+    include("device/output.jl")
+    include("device/globals.jl")
+    include("device/math.jl")
+    include("device/wavefront.jl")
+    include("device/execution_control.jl")
+    include("device/exceptions.jl")
+    # FIXME segfaults in a weird way (on check_ir)
+    # include("device/deps.jl")
+    include("device/queries.jl")
+end)
+push!(tests, "Multitasking" => ()->include("tls.jl"))
 push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
 push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
 if CI

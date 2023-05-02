@@ -11,7 +11,7 @@ function step(X, W, H)
     X - W * H
 end
 
-for scale in (1:5:1)
+for scale in (1:5:10)
     ncol = 2001
     nrow = 1002 * scale
     nfeatures = 12
