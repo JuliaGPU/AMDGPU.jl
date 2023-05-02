@@ -237,17 +237,17 @@ end
 
 function monitor_queue(queue::ROCQueue)
     kerns = queue.active_kernels::LinkedList{ROCKernelSignal}
-    while queue.active || length(kerns) > 0
+    while queue.active || !isempty(kerns)
         # Fetch oldest signal, if any
         sig = lock(queue.lock) do
-            if length(kerns) > 0
-                # Notify waiters that queue is running
-                notify(queue.running)
-                return first(kerns)
-            else
+            if isempty(kerns)
                 # Reset event
                 reset(queue.running)
                 return nothing
+            else
+                # Notify waiters that queue is running
+                notify(queue.running)
+                return first(kerns)
             end
         end
 
@@ -260,7 +260,7 @@ function monitor_queue(queue::ROCQueue)
             end
             # Move to the next kernel.
             Base.@lock queue.lock begin
-                kerns = next!(kerns)
+                next!(kerns)
             end
         else
             wait(queue.running)
