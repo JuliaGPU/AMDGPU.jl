@@ -40,6 +40,8 @@ The default device ID can be queried with [`AMDGPU.default_device_id`](@ref),
 which returns an `Int`.
 This value is bounded between `1` and `length(AMDGPU.devices())`,
 and device `1` is the default device when AMDGPU is first loaded.
+The ID of the device associated with the current task can be queried
+with [`AMDGPU.device_id`](@ref) and changed with [`AMDGPU.device_id!`](@ref).
 
 ```@docs
 AMDGPU.devices
@@ -47,6 +49,8 @@ AMDGPU.device
 AMDGPU.device!
 AMDGPU.default_device
 AMDGPU.default_device!
+AMDGPU.device_id
+AMDGPU.device_id!
 AMDGPU.default_device_id
 AMDGPU.default_device_id!
 ```
