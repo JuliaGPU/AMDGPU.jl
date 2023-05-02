@@ -4,16 +4,18 @@
 
 function step(X, W, H)
     # H update
-    H = (H .* (W' * (X ./ (W * H))) ./ (sum(W; dims=1))')
+    H = (H .* (W' * (X ./ (W * H)))
+         ./ (sum(W; dims=1))')
     # W update
-    W = (W .* ((X ./ (W * H)) * (H')) ./ (sum(H; dims=2)'))
+    W = (W .* ((X ./ (W * H)) * (H'))
+         ./ (sum(H; dims=2)'))
     # error estimate
     X - W * H
 end
 
-for scale in (1:5:10)
+for scale in (1:5:50)
     ncol = 2001
-    nrow = 1002 * scale
+    nrow = 1002*scale
     nfeatures = 12
 
     X = rand(Float32, nrow, ncol)
