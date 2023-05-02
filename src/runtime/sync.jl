@@ -25,7 +25,6 @@ function wait!(ss::SyncState; hip::Bool = true, hsa::Bool = true)
         hsa = hsa || !isempty(ss.streams) || !ss.same_queue
         # Force HIP wait if there are signals or if there are different streams.
         hip = hip || !isempty(ss.signals) || !ss.same_stream
-        @assert hsa || hip
 
         if hsa
             foreach(wait, ss.signals)
@@ -60,18 +59,32 @@ end
 
 function mark!(ss::SyncState, signal::ROCKernelSignal)
     lock(ss.lock) do
-        ss.same_queue &= isempty(ss.signals) ?
-            true : (ss.signals[end].queue == signal.queue)
-        push!(ss.signals, signal)
+        if isempty(ss.signals)
+            push!(ss.signals, signal)
+        else
+            last_signal = last(ss.signals)
+            # Add new signal only if it is not the same as the last one.
+            if last_signal.signal != signal.signal
+                ss.same_queue &= last_signal.queue == signal.queue
+                push!(ss.signals, signal)
+            end
+        end
     end
 end
 # TODO remove, every HIP-based library should use TLS state
 # and pass concrete streams instead of C_NULL.
 function mark!(ss::SyncState, stream::Ptr{Cvoid})
     lock(ss.lock) do
-        ss.same_stream &= isempty(ss.streams) ?
-            true : (ss.streams[end] == stream)
-        push!(ss.streams, stream)
+        if isempty(ss.streams)
+            push!(ss.streams, stream)
+        else
+            last_stream = last(ss.streams)
+            # Add new stream only if it is not the same as the last one.
+            if last_stream != stream
+                ss.same_stream &= last_stream == stream
+                push!(ss.streams, stream)
+            end
+        end
     end
 end
 mark!(ss::SyncState, stream::HIP.HIPStream) = mark!(ss, stream.stream)
