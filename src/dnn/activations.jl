@@ -122,7 +122,7 @@ function _activation(
     miopenActivationForward(
         handle, desc.handle, Ref{Float32}(1f0), xdesc.handle, x,
         Ref{Float32}(0f0), ydesc.handle, y) |> check
-    AMDGPU.mark!(y, stream)
+    AMDGPU.mark!(y, HIPEvent(stream))
     y
 end
 
@@ -137,6 +137,6 @@ function _∇activation(
         handle, desc, Ref{Float32}(1f0), ydesc.handle, y,
         dydesc.handle, dy, xdesc.handle, x, Ref{Float32}(0f0),
         dxdesc.handle, dx) |> check
-    AMDGPU.mark!(dx, stream)
+    AMDGPU.mark!(dx, HIPEvent(stream))
     dx
 end

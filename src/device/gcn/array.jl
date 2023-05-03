@@ -30,7 +30,7 @@ struct ROCDeviceArray{T,N,A} <: AbstractArray{T,N}
     ptr::LLVMPtr{T,A}
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N} = new(shape,ptr)
+    ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N} = new(shape, ptr)
 end
 
 # Define `khash` function to reduce runtime dispatches.
