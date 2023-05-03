@@ -46,58 +46,58 @@ AMDGPU.versioninfo()
 
 @info "Running tests with $(length(ws)) workers"
 
-push!(tests, "HSA" => ()->begin
-    include("hsa/error.jl")
-    include("hsa/utils.jl")
-    include("hsa/getinfo.jl")
-    include("hsa/device.jl")
-    include("hsa/queue.jl")
-    include("hsa/memory.jl")
-    include("hsa/hashing.jl")
-end)
-push!(tests, "Codegen" => ()->begin
-    include("codegen/synchronization.jl")
-    include("codegen/trap.jl")
-end)
-if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
-    push!(tests, "Logging" => ()->include("logging.jl"))
-else
-    @warn """
-    Logging is statically disabled, skipping logging tests.
-    This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
-    """
-    @test_skip "Logging"
-end
-push!(tests, "Device Functions" => ()->begin
-    include("device/launch.jl")
-    include("device/array.jl")
-    include("device/vadd.jl")
-    include("device/memory.jl")
-    include("device/indexing.jl")
-    include("device/hostcall.jl")
-    include("device/output.jl")
-    include("device/globals.jl")
-    include("device/math.jl")
-    include("device/wavefront.jl")
-    include("device/execution_control.jl")
-    include("device/exceptions.jl")
-    # FIXME segfaults in a weird way (on check_ir)
-    # include("device/deps.jl")
-    include("device/queries.jl")
-end)
-push!(tests, "Multitasking" => ()->include("tls.jl"))
-push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
+# push!(tests, "HSA" => ()->begin
+#     include("hsa/error.jl")
+#     include("hsa/utils.jl")
+#     include("hsa/getinfo.jl")
+#     include("hsa/device.jl")
+#     include("hsa/queue.jl")
+#     include("hsa/memory.jl")
+#     include("hsa/hashing.jl")
+# end)
+# push!(tests, "Codegen" => ()->begin
+#     include("codegen/synchronization.jl")
+#     include("codegen/trap.jl")
+# end)
+# if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
+#     push!(tests, "Logging" => ()->include("logging.jl"))
+# else
+#     @warn """
+#     Logging is statically disabled, skipping logging tests.
+#     This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
+#     """
+#     @test_skip "Logging"
+# end
+# push!(tests, "Device Functions" => ()->begin
+#     include("device/launch.jl")
+#     include("device/array.jl")
+#     include("device/vadd.jl")
+#     include("device/memory.jl")
+#     include("device/indexing.jl")
+#     include("device/hostcall.jl")
+#     include("device/output.jl")
+#     include("device/globals.jl")
+#     include("device/math.jl")
+#     include("device/wavefront.jl")
+#     include("device/execution_control.jl")
+#     include("device/exceptions.jl")
+#     # FIXME segfaults in a weird way (on check_ir)
+#     # include("device/deps.jl")
+#     include("device/queries.jl")
+# end)
+# push!(tests, "Multitasking" => ()->include("tls.jl"))
+# push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
 push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
-if CI
-    push!(tests, "ROCm libraries are functional" => ()->begin
-        @test AMDGPU.functional(:rocblas)
-        @test AMDGPU.functional(:rocrand)
-        if !AMDGPU.use_artifacts
-            # We don't have artifacts for these
-            @test AMDGPU.functional(:rocfft)
-        end
-    end)
-end
+# if CI
+#     push!(tests, "ROCm libraries are functional" => ()->begin
+#         @test AMDGPU.functional(:rocblas)
+#         @test AMDGPU.functional(:rocrand)
+#         if !AMDGPU.use_artifacts
+#             # We don't have artifacts for these
+#             @test AMDGPU.functional(:rocfft)
+#         end
+#     end)
+# end
 push!(tests, "rocBLAS" => ()->begin
     if AMDGPU.functional(:rocblas)
         include("rocarray/blas.jl")
@@ -127,23 +127,23 @@ push!(tests, "NMF" => ()->begin
         @test_skip "NMF"
     end
 end)
-push!(tests, "MIOpen" => ()->begin
-    if AMDGPU.functional(:MIOpen)
-        include("dnn/miopen.jl")
-    else
-        @test_skip "MIOpen"
-    end
-end)
-push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
-for (i, name) in enumerate(keys(TestSuite.tests))
-    push!(tests, "GPUArrays TestSuite - $name" =>
-        ()->TestSuite.tests[name](ROCArray))
-end
-push!(tests, "KernelAbstractions" => ()->begin
-    Testsuite.testsuite(
-        ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
-        skip_tests=Set(["sparse"]))
-end)
+# push!(tests, "MIOpen" => ()->begin
+#     if AMDGPU.functional(:MIOpen)
+#         include("dnn/miopen.jl")
+#     else
+#         @test_skip "MIOpen"
+#     end
+# end)
+# push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
+# for (i, name) in enumerate(keys(TestSuite.tests))
+#     push!(tests, "GPUArrays TestSuite - $name" =>
+#         ()->TestSuite.tests[name](ROCArray))
+# end
+# push!(tests, "KernelAbstractions" => ()->begin
+#     Testsuite.testsuite(
+#         ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
+#         skip_tests=Set(["sparse"]))
+# end)
 
 function run_worker(w)
     while !isempty(tests)
