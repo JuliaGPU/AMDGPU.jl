@@ -69,11 +69,7 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     end
 end
 
-function _safe_free!(xs::ROCArray)
-    # hip_wait!(xs)
-    _safe_free!(xs.buf)
-end
-
+_safe_free!(xs::ROCArray) = _safe_free!(xs.buf)
 function _safe_free!(buf::Mem.Buffer)
     Mem.release(buf)
     return
