@@ -63,7 +63,7 @@ function _softmax!(
     miopenSoftmaxForward_V2(
         handle, Ref{Float32}(1f0), xdesc.handle, x, Ref{Float32}(0f0),
         ydesc.handle, y, algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
-    AMDGPU.mark!(y, stream)
+    AMDGPU.mark!(y, HIPEvent(stream))
     y
 end
 
@@ -83,7 +83,7 @@ function _∇softmax!(
         handle, Ref{Float32}(1f0), ydesc.handle, y, dydesc.handle, dy,
         Ref{Float32}(0f0), dxdesc.handle, dx,
         algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
-    AMDGPU.mark!(dx, stream)
+    AMDGPU.mark!(dx, HIPEvent(stream))
     dx
 end
 

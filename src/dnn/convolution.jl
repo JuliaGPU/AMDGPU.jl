@@ -132,7 +132,7 @@ function convolution!(
         handle, Ref{Float32}(1f0), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, Ref{Float32}(0f0), ydesc.handle, y,
         workspace.data.ptr, perf_results.memory) |> check
-    AMDGPU.mark!(y, stream)
+    AMDGPU.mark!(y, HIPEvent(stream))
     y
 end
 
@@ -176,7 +176,7 @@ function ∇convolution_weight!(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, Ref{Float32}(0f0), ∇wdesc.handle, ∇w,
         workspace.data.ptr, perf_algo.memory) |> check
-    AMDGPU.mark!(∇w, stream)
+    AMDGPU.mark!(∇w, HIPEvent(stream))
     ∇w
 end
 
@@ -220,7 +220,7 @@ function ∇convolution_data!(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, Ref{Float32}(0f0), ∇xdesc.handle, ∇x,
         workspace.data.ptr, perf_algo.memory) |> check
-    AMDGPU.mark!(∇x, stream)
+    AMDGPU.mark!(∇x, HIPEvent(stream))
     ∇x
 end
 

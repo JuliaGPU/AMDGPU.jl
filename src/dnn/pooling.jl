@@ -109,7 +109,7 @@ function pool!(
         handle, pdesc.handle, Ref{Float32}(alpha), xdesc.handle, x,
         Ref{Float32}(beta), ydesc.handle, y, do_backward,
         wptr, wsize) |> check
-    AMDGPU.mark!(y, stream)
+    AMDGPU.mark!(y, HIPEvent(stream))
     y, workspace
 end
 
@@ -127,6 +127,6 @@ function ∇pool!(
         ydesc.handle, y, dydesc.handle, dy, xdesc.handle, x,
         Ref{Float32}(beta), dxdesc.handle, dx,
         (isnothing(workspace) ? C_NULL : workspace.data.ptr)) |> check
-    AMDGPU.mark!(dx, stream)
+    AMDGPU.mark!(dx, HIPEvent(stream))
     dx
 end

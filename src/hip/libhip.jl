@@ -42,6 +42,30 @@ function hipDeviceGetName(name::Ptr{Cuchar}, len::Cint, device::hipDevice_t)
           (Ptr{Cuchar}, Cint, hipDevice_t), name, len, device)
 end
 
+function hipEventCreate(event_ref::Ref{hipEvent_t})
+    ccall((:hipEventCreate, libhip), hipError_t, (Ptr{hipEvent_t},), event_ref)
+end
+
+function hipEventCreateWithFlags(event_ref::Ref{hipEvent_t}, flags::hipEventFlag_t)
+    ccall((:hipEventCreateWithFlags, libhip), hipError_t, (Ptr{hipEvent_t}, Cuint), event_ref, flags)
+end
+
+function hipEventDestroy(event::hipEvent_t)
+    ccall((:hipEventDestroy, libhip), hipError_t, (hipEvent_t,), event)
+end
+
+function hipEventRecord(event::hipEvent_t, stream::hipStream_t)
+    ccall((:hipEventRecord, libhip), hipError_t, (hipEvent_t, hipStream_t), event, stream)
+end
+
+function hipEventQuery(event::hipEvent_t)
+    ccall((:hipEventQuery, libhip), hipError_t, (hipEvent_t,), event)
+end
+
+function hipEventSynchronize(event::hipEvent_t)
+    ccall((:hipEventSynchronize, libhip), hipError_t, (hipEvent_t,), event)
+end
+
 function hipStreamCreateWithPriority(stream_ref::Ref{hipStream_t}, flags::Cuint, priority::Cint)
     ccall((:hipStreamCreateWithPriority, libhip), hipError_t,
           (Ptr{hipStream_t}, Cuint, Cint), stream_ref, flags, priority)

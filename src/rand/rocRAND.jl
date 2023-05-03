@@ -1,12 +1,14 @@
 module rocRAND
 
 import ..AMDGPU
-import .AMDGPU: ROCArray, HandleCache, librocrand, mark!, wait!
+import .AMDGPU: ROCArray, HandleCache, librocrand, mark!, wait!, library_state
 import ..HSA
 import ..HIP
-import .HIP: HIPContext, HIPStream, hipStream_t
+import .HIP: HIPContext, HIPStream, HIPEvent, hipStream_t
 
 using CEnum
+using GPUArrays
+using Random
 
 export rand_logn!, rand_poisson!, rand_logn, rand_poisson
 
@@ -21,43 +23,17 @@ end
 # stdlib Random integration
 include("random.jl")
 
-# Copied from CUDA.jl/lib/curand/CURAND.jl
+const IDLE_RNGS = HandleCache{HIPContext, RNG}()
 
-# cache for created, but unused handles
-const idle_rngs = HandleCache{HIPContext,RNG}()
+lib_state() = library_state(
+    :rocRAND, RNG, IDLE_RNGS,
+    () -> RNG(), r -> return, # RNG destroys itself in finalizer.
+    (nh, s) -> begin
+        Random.seed!(nh)
+        rocrand_set_stream(nh.handle, s)
+    end)
 
-function default_rng()
-    tls = AMDGPU.task_local_state()
-
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{rng::RNG}
-    states = get!(task_local_storage(), :rocRAND) do
-        Dict{HIPContext,LibraryState}()
-    end::Dict{HIPContext,LibraryState}
-
-    # get library state
-    @noinline function new_state(tls)
-        new_rng = pop!(idle_rngs, tls.context) do
-            RNG()
-        end
-
-        finalizer(current_task()) do task
-            push!(idle_rngs, tls.context, new_rng) do
-                # no need to do anything, as the RNG is collected by its finalizer
-            end
-        end
-
-        Random.seed!(new_rng)
-
-        rocrand_set_stream(new_rng.handle, tls.stream)
-
-        (; rng=new_rng)
-    end
-    state = get!(states, tls.context) do
-        new_state(tls)
-    end
-
-    return state.rng
-end
+handle() = lib_state().handle
+stream() = lib_state().stream
 
 end

@@ -1,5 +1,12 @@
+@cenum hipEventFlag_t::Cuint begin
+    hipEventDefault = 0
+    hipEventDisableTiming = 2
+    hipEventInterprocess = 4
+end
+
 @cenum hipError_t::UInt32 begin
     hipSuccess = 0
+    hipErrorInvalidValue = 1
     hipErrorOutOfMemory = 2
     hipErrorNotInitialized = 3
     hipErrorDeinitialized = 4
@@ -7,7 +14,17 @@
     hipErrorProfilerNotInitialized = 6
     hipErrorProfilerAlreadyStarted = 7
     hipErrorProfilerAlreadyStopped = 8
+    hipErrorInvalidConfiguration = 9
+    hipErrorInvalidPitchValue = 12
+    hipErrorInvalidSymbol = 13
+    hipErrorInvalidDevicePointer = 17
+    hipErrorInvalidMemcpyDirection = 21
     hipErrorInsufficientDriver = 35
+    hipErrorMissingConfiguration = 52
+    hipErrorPriorLaunchFailure = 53
+    hipErrorInvalidDeviceFunction = 98
+    hipErrorNoDevice = 100
+    hipErrorInvalidDevice = 101
     hipErrorInvalidImage = 200
     hipErrorInvalidContext = 201
     hipErrorContextAlreadyCurrent = 202
@@ -31,38 +48,37 @@
     hipErrorSharedObjectSymbolNotFound = 302
     hipErrorSharedObjectInitFailed = 303
     hipErrorOperatingSystem = 304
-    hipErrorSetOnActiveProcess = 305
     hipErrorInvalidHandle = 400
+    hipErrorIllegalState = 401
     hipErrorNotFound = 500
+    hipErrorNotReady = 600
     hipErrorIllegalAddress = 700
-    hipErrorInvalidSymbol = 701
-    # Runtime Error Codes start here.
-    hipErrorMissingConfiguration = 1001
-    hipErrorMemoryAllocation = 1002
-    hipErrorInitializationError = 1003
-    hipErrorLaunchFailure = 1004
-    hipErrorPriorLaunchFailure = 1005
-    hipErrorLaunchTimeOut = 1006
-    hipErrorLaunchOutOfResources = 1007
-    hipErrorInvalidDeviceFunction = 1008
-    hipErrorInvalidConfiguration = 1009
-    hipErrorInvalidDevice = 1010
-    hipErrorInvalidValue = 1011
-    hipErrorInvalidDevicePointer = 1017
-    hipErrorInvalidMemcpyDirection = 1021
-    hipErrorUnknown = 1030
-    hipErrorInvalidResourceHandle = 1033
-    hipErrorNotReady = 1034
-    hipErrorNoDevice = 1038
-    hipErrorPeerAccessAlreadyEnabled = 1050
-    hipErrorPeerAccessNotEnabled = 1051
+    hipErrorLaunchOutOfResources = 701
+    hipErrorLaunchTimeOut = 702
+    hipErrorPeerAccessAlreadyEnabled = 704
+    hipErrorPeerAccessNotEnabled = 705
+    hipErrorSetOnActiveProcess = 708
+    hipErrorContextIsDestroyed = 709
+    hipErrorAssert = 710
+    hipErrorHostMemoryAlreadyRegistered = 712
+    hipErrorHostMemoryNotRegistered = 713
+    hipErrorLaunchFailure = 719
+    hipErrorCooperativeLaunchTooLarge = 720
+    hipErrorNotSupported = 801
+    hipErrorStreamCaptureUnsupported = 900
+    hipErrorStreamCaptureInvalidated = 901
+    hipErrorStreamCaptureMerge = 902
+    hipErrorStreamCaptureUnmatched = 903
+    hipErrorStreamCaptureUnjoined = 904
+    hipErrorStreamCaptureIsolation = 905
+    hipErrorStreamCaptureImplicit = 906
+    hipErrorCapturedEvent = 907
+    hipErrorStreamCaptureWrongThread = 908
+    hipErrorGraphExecUpdateFailure = 910
+    hipErrorUnknown = 999
+    # HSA Runtime Error Codes start here.
     hipErrorRuntimeMemory = 1052
     hipErrorRuntimeOther = 1053
-    hipErrorHostMemoryAlreadyRegistered = 1061
-    hipErrorHostMemoryNotRegistered = 1062
-    hipErrorMapBufferObjectFailed = 1071
-    hipErrorAssert = 1081
-    hipErrorNotSupported = 1082
     hipErrorTbd
 end
 

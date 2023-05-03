@@ -38,7 +38,7 @@ function batchnorm_training(
         handle, mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle, γ, β, factor,
         μ, ν, ϵ, μ_saved, ν_saved) |> check
-    AMDGPU.mark!(y, stream)
+    AMDGPU.mark!(y, HIPEvent(stream))
     y, μ_saved, ν_saved
 end
 
@@ -77,7 +77,7 @@ function batchnorm_inference(
         handle, mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle,
         γ, β, μ, ν, ϵ) |> check
-    AMDGPU.mark!(y, stream)
+    AMDGPU.mark!(y, HIPEvent(stream))
     y
 end
 
@@ -101,7 +101,7 @@ function ∇batchnorm(
         Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, dydesc.handle, dy, dxdesc.handle, dx,
         bndesc.handle, γ, dγ, dβ, ϵ, μ_saved, ν_saved) |> check
-    AMDGPU.mark!((dx, dγ, dβ), stream)
+    AMDGPU.mark!((dx, dγ, dβ), HIPEvent(stream))
     dx, dγ, dβ
 end
 
