@@ -16,7 +16,7 @@ function GPUArrays.default_rng(::Type{<:ROCArray})
 end
 
 gpuarrays_rng() = GPUArrays.default_rng(ROCArray)
-const rocrand_rng = librocrand !== nothing ? rocRAND.default_rng : gpuarrays_rng
+const rocrand_rng = librocrand !== nothing ? rocRAND.handle : gpuarrays_rng
 
 # the interface is split in two levels:
 # - functions that extend the Random standard library, and take an RNG as first argument,

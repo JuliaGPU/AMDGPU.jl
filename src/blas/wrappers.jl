@@ -60,7 +60,7 @@ for (fname, elty) in ((:rocblas_dcopy,:Float64),
               hsa_wait!((DX,DY))
               (; handle, stream) = lib_state()
               $(fname)(handle, n, DX, incx, DY, incy) |> check
-              mark!((DX,DY), stream)
+              mark!((DX,DY), HIPEvent(stream))
               DY
         end
     end
@@ -79,7 +79,7 @@ for (fname, elty) in ((:rocblas_dscal,:Float64),
             hsa_wait!(DX)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Ref(DA), DX, incx) |> check
-            mark!(DX, stream)
+            mark!(DX, HIPEvent(stream))
             DX
         end
     end
@@ -95,7 +95,7 @@ for (fname, elty, celty) in ((:rocblas_sscal, :Float32, :ComplexF32),
             hsa_wait!(DX)
             (; handle, stream) = lib_state()
             $(fname)(handle, 2*n, Ref(DA), DX, incx) |> check
-            mark!(DX, stream)
+            mark!(DX, HIPEvent(stream))
             DX
         end
     end
@@ -174,7 +174,7 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
             hsa_wait!((dx,dy))
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Ref(alpha), dx, incx, dy, incy) |> check
-            mark!((dx,dy), stream)
+            mark!((dx,dy), HIPEvent(stream))
             dy
         end
     end
@@ -262,7 +262,7 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
             hsa_wait!((A,X,Y))
             (; handle, stream) = lib_state()
             $(fname)(handle, roctrans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy) |> check
-            mark!((A,X,Y), stream)
+            mark!((A,X,Y), HIPEvent(stream))
             Y
         end
         function gemv(trans::Char, alpha::($elty), A::ROCMatrix{$elty}, X::ROCVector{$elty})
@@ -301,7 +301,7 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
             hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, roctrans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), stream)
+            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function gbmv(trans::Char,
@@ -350,7 +350,7 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
             hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), stream)
+            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function symv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty}, x::ROCVector{$elty})
@@ -384,7 +384,7 @@ for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
             hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), stream)
+            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function hemv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty},
@@ -423,7 +423,7 @@ for (fname, elty) in ((:rocblas_dsbmv,:Float64),
             hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), stream)
+            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function sbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -460,7 +460,7 @@ for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
             hsa_wait!((A,x,y))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), stream)
+            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function hbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -499,7 +499,7 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
             hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, k, A, lda, x, incx) |> check
-            mark!((A,x), stream)
+            mark!((A,x), HIPEvent(stream))
             x
         end
         function tbmv(uplo::Char,
@@ -536,7 +536,7 @@ for (fname, elty) in ((:rocblas_stbsv,:Float32),
             hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, k, A, lda, x, incx) |> check
-            mark!((A,x), stream)
+            mark!((A,x), HIPEvent(stream))
             x
         end
         function tbsv(uplo::Char,
@@ -574,7 +574,7 @@ for (fname, elty) in ((:rocblas_dtrmv,:Float64),
             hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, A, lda, x, incx) |> check
-            mark!((A,x), stream)
+            mark!((A,x), HIPEvent(stream))
             x
         end
         function trmv(uplo::Char,
@@ -611,7 +611,7 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
             hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, A, lda, x, incx) |> check
-            mark!((A,x), stream)
+            mark!((A,x), HIPEvent(stream))
             x
         end
         function trsv(uplo::Char,
@@ -643,7 +643,7 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
             hsa_wait!((x,y,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, m, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
-            mark!((x,y,A), stream)
+            mark!((x,y,A), HIPEvent(stream))
             A
         end
     end
@@ -669,7 +669,7 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
             hsa_wait!((x,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, A, lda) |> check
-            mark!((x,A), stream)
+            mark!((x,A), HIPEvent(stream))
             A
         end
     end
@@ -692,7 +692,7 @@ for (fname, elty) in ((:rocblas_zher,:ComplexF64),
             hsa_wait!((x,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, A, lda) |> check
-            mark!((x,A), stream)
+            mark!((x,A), HIPEvent(stream))
             A
         end
     end
@@ -718,7 +718,7 @@ for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
             hsa_wait!((x,y,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
-            mark!((x,y,A), stream)
+            mark!((x,y,A), HIPEvent(stream))
             A
         end
     end
@@ -753,7 +753,7 @@ for (fname, elty) in
             $(fname)(
                 handle, rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-            mark!((A, B, C), stream)
+            mark!((A, B, C), HIPEvent(stream))
             C
         end
         function gemm(transA::Char,
@@ -880,7 +880,7 @@ for (fname, elty) in
                 handle, rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), Ab, lda, Bb, ldb, Ref(beta),
                 Cb, ldc, batch_count) |> check
-            mark!((A, B, C), stream)
+            mark!((A, B, C), HIPEvent(stream))
             C
         end
         function gemm_batched(
@@ -949,7 +949,7 @@ for (fname, elty) in
            hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, roctransA, roctransB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta), C, ldc, strideC, batchCount) |> check
-           mark!((A,B,C), stream)
+           mark!((A,B,C), HIPEvent(stream))
            C
         end
         function gemm_strided_batched(transA::Char,
@@ -998,7 +998,7 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
             hsa_wait!((A,B,C))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-            mark!((A,B,C), stream)
+            mark!((A,B,C), HIPEvent(stream))
             C
         end
         function symm(side::Char,
@@ -1041,7 +1041,7 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
            hsa_wait!((A,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
-           mark!((A,C), stream)
+           mark!((A,C), HIPEvent(stream))
            C
         end
     end
@@ -1084,7 +1084,7 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
            hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-           mark!((A,B,C), stream)
+           mark!((A,B,C), HIPEvent(stream))
            C
        end
        function hemm(uplo::Char,
@@ -1121,7 +1121,7 @@ for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
            hsa_wait!((A,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
-           mark!((A,C), stream)
+           mark!((A,C), HIPEvent(stream))
            C
        end
        function herk(uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty})
@@ -1163,7 +1163,7 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
             hsa_wait!((A,B,C))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-            mark!((A,B,C), stream)
+            mark!((A,B,C), HIPEvent(stream))
             C
         end
     end
@@ -1209,7 +1209,7 @@ for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
            hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-           mark!((A,B,C), stream)
+           mark!((A,B,C), HIPEvent(stream))
            C
        end
        function her2k(uplo::Char,
@@ -1254,7 +1254,7 @@ for (mmname, smname, elty) in
             $(mmname)(
                 handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha),
                 A, lda, B, ldb) |> check
-            mark!((A,B), stream)
+            mark!((A,B), HIPEvent(stream))
             B
         end
         function trmm(
@@ -1281,7 +1281,7 @@ for (mmname, smname, elty) in
             hsa_wait!((A,B))
             (; handle, stream) = lib_state()
             $(smname)(handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha), A, lda, B, ldb) |> check
-            mark!((A,B), stream)
+            mark!((A,B), HIPEvent(stream))
             B
         end
         function trsm(
@@ -1328,7 +1328,7 @@ for (fname, elty) in
             hsa_wait!((A,B))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha), Aptrs, lda, Bptrs, ldb, length(A)) |> check
-            mark!((A,B), stream)
+            mark!((A,B), HIPEvent(stream))
             B
         end
         function trsm_batched(side::Char,
@@ -1375,7 +1375,7 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
            hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, roctransa, roctransb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc) |> check
-           mark!((A,B,C), stream)
+           mark!((A,B,C), HIPEvent(stream))
            C
        end
        function geam(transa::Char,
@@ -1423,8 +1423,9 @@ for (fname, elty) in
             if( !Pivot )
                 pivotArray = ROCArray(zeros(Cint, (n, length(A))))
             end
-            mark!((A, info), stream)
-            pivotArray != C_NULL && mark!(pivotArray, stream)
+            event = HIPEvent(stream)
+            mark!((A, info), event)
+            pivotArray != C_NULL && mark!(pivotArray, event)
             pivotArray, info, A
         end
         function getrf_batched(A::Array{ROCMatrix{$elty},1},
@@ -1463,7 +1464,7 @@ for (fname, elty) in
             hsa_wait!(pivotArray)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A)) |> check
-            mark!((A, pivotArray, info, C), stream)
+            mark!((A, pivotArray, info, C), HIPEvent(stream))
             pivotArray, info, C
         end
     end
@@ -1497,7 +1498,7 @@ for (fname, elty) in
             hsa_wait!(A)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Aptrs, lda, Cptrs, ldc, info, length(A)) |> check
-            mark!((A, info, C), stream)
+            mark!((A, info, C), HIPEvent(stream))
             info, C
         end
     end
@@ -1528,7 +1529,7 @@ for (fname, elty) in
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
-            mark!((A, TauArray), stream)
+            mark!((A, TauArray), HIPEvent(stream))
             TauArray, A
         end
         function geqrf_batched(A::Array{ROCMatrix{$elty},1})
@@ -1577,7 +1578,7 @@ for (fname, elty) in
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
-            mark!((A, C, infoarray), stream)
+            mark!((A, C, infoarray), HIPEvent(stream))
             A, C, infoarray
         end
         function gels_batched(trans::Char,
@@ -1611,7 +1612,7 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
            hsa_wait!((A,X,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocside, m, n, A, lda, X, incx, C, ldc) |> check
-           mark!((A,X,C), stream)
+           mark!((A,X,C), HIPEvent(stream))
            C
        end
        function dgmm(mode::Char,

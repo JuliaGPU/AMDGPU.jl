@@ -113,9 +113,7 @@ function Base.wait(
             (diff_time > timeout) && throw(SignalTimeoutException(signal))
         end
 
-        if queue !== nothing
-            ensure_active(queue)
-        end
+        isnothing(queue) || ensure_active(queue)
 
         # Allow another scheduled task to run.
         # This is especially needed in the case

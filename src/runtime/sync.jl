@@ -3,14 +3,14 @@ import ..AMDGPU: hip_configured
 "Tracks HSA signals and HIP streams to sync against."
 mutable struct SyncState
     signals::Vector{ROCKernelSignal}
-    streams::Vector{Ptr{Cvoid}}
+    events::Vector{HIP.HIPEvent}
     lock::Threads.ReentrantLock
 
     same_queue::Bool
     same_stream::Bool
 end
 SyncState() = SyncState(
-    ROCKernelSignal[], Ptr{Cvoid}[], Threads.ReentrantLock(), true, true)
+    ROCKernelSignal[], HIP.HIPEvent[], Threads.ReentrantLock(), true, true)
 
 struct WaitAdaptor end
 struct HIPWaitAdaptor end
@@ -22,7 +22,7 @@ end
 function wait!(ss::SyncState; hip::Bool = true, hsa::Bool = true)
     lock(ss.lock) do
         # Force HSA wait if there are streams or if there are different queues.
-        hsa = hsa || !isempty(ss.streams) || !ss.same_queue
+        hsa = hsa || !isempty(ss.events) || !ss.same_queue
         # Force HIP wait if there are signals or if there are different streams.
         hip = hip || !isempty(ss.signals) || !ss.same_stream
 
@@ -33,24 +33,18 @@ function wait!(ss::SyncState; hip::Bool = true, hsa::Bool = true)
             # If not waiting on HSA, keep last signal if any.
             # This will force a syncronization if HSA kernel is still running,
             # but HIP stream was added to syncstate.
-            if !isempty(ss.signals)
-                ss.signals = [ss.signals[end]]
-            end
+            isempty(ss.signals) || (ss.signals = [last(ss.signals)];)
         end
         ss.same_queue = true
 
         if hip
-            for s in ss.streams
-                AMDGPU.HIP.@check AMDGPU.HIP.hipStreamSynchronize(s)
-            end
-            empty!(ss.streams)
+            foreach(AMDGPU.HIP.synchronize, ss.events)
+            empty!(ss.events)
         else
             # If not waiting on HIP, keep last stream if any.
             # This will force a syncronization if HIP kernel is still running,
             # but HSA signal was added to syncstate.
-            if !isempty(ss.streams)
-                ss.streams = [ss.streams[end]]
-            end
+            isempty(ss.events) || (ss.events = [last(ss.events)];)
         end
         ss.same_stream = true
     end
@@ -71,23 +65,16 @@ function mark!(ss::SyncState, signal::ROCKernelSignal)
         end
     end
 end
-# TODO remove, every HIP-based library should use TLS state
-# and pass concrete streams instead of C_NULL.
-function mark!(ss::SyncState, stream::Ptr{Cvoid})
+
+function mark!(ss::SyncState, event::HIP.HIPEvent)
     lock(ss.lock) do
-        if isempty(ss.streams)
-            push!(ss.streams, stream)
-        else
-            last_stream = last(ss.streams)
-            # Add new stream only if it is not the same as the last one.
-            if last_stream != stream
-                ss.same_stream &= last_stream == stream
-                push!(ss.streams, stream)
-            end
+        if !isempty(ss.events)
+            last_event = last(ss.events)
+            last_event.stream != event.stream && (ss.same_stream &= false;)
         end
+        push!(ss.events, event)
     end
 end
-mark!(ss::SyncState, stream::HIP.HIPStream) = mark!(ss, stream.stream)
 
 wait!(x) = Adapt.adapt(WaitAdaptor(), x)
 mark!(x, s) = Adapt.adapt(MarkAdaptor(s), x) # TODO constrain type of `s`
