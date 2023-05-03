@@ -198,8 +198,7 @@ end
 wait(event::HIPEvent) = hipEventSynchronize(event.handle) |> check
 
 function synchronize(event::HIPEvent)
-    done = non_blocking_synchronize(event)
-    done || wait(event)
+    non_blocking_synchronize(event) || wait(event)
     return
 end
 
@@ -210,7 +209,6 @@ function HIPEvent(stream::hipStream_t; do_record::Bool = true)
     do_record && record(event)
 
     finalizer(event) do e
-        # synchronize(e) # Should synchronize?
         hipEventDestroy(e.handle) |> check
     end
     event
