@@ -127,23 +127,23 @@ push!(tests, "NMF" => ()->begin
         @test_skip "NMF"
     end
 end)
-# push!(tests, "MIOpen" => ()->begin
-#     if AMDGPU.functional(:MIOpen)
-#         include("dnn/miopen.jl")
-#     else
-#         @test_skip "MIOpen"
-#     end
-# end)
-# push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
-# for (i, name) in enumerate(keys(TestSuite.tests))
-#     push!(tests, "GPUArrays TestSuite - $name" =>
-#         ()->TestSuite.tests[name](ROCArray))
-# end
-# push!(tests, "KernelAbstractions" => ()->begin
-#     Testsuite.testsuite(
-#         ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
-#         skip_tests=Set(["sparse"]))
-# end)
+push!(tests, "MIOpen" => ()->begin
+    if AMDGPU.functional(:MIOpen)
+        include("dnn/miopen.jl")
+    else
+        @test_skip "MIOpen"
+    end
+end)
+push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
+for (i, name) in enumerate(keys(TestSuite.tests))
+    push!(tests, "GPUArrays TestSuite - $name" =>
+        ()->TestSuite.tests[name](ROCArray))
+end
+push!(tests, "KernelAbstractions" => ()->begin
+    Testsuite.testsuite(
+        ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
+        skip_tests=Set(["sparse"]))
+end)
 
 function run_worker(w)
     while !isempty(tests)

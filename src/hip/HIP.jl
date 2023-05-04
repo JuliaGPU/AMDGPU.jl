@@ -113,6 +113,8 @@ function HIPStream(priority::Symbol = :normal)
     return stream
 end
 
+default_stream() = HIPStream(convert(hipStream_t, C_NULL), :normal, device())
+
 """
     HIPStream(stream::hipStream_t)
 

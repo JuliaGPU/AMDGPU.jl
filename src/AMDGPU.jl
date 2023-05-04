@@ -78,7 +78,24 @@ module Runtime
     include(joinpath("runtime", "signal.jl"))
     include(joinpath("runtime", "dims.jl"))
     module Mem
-        include(joinpath("runtime", "memory.jl"))
+        import AMDGPU
+        import AMDGPU: HSA
+        if AMDGPU.hip_configured
+            import AMDGPU: HIP
+        end
+        import AMDGPU: Runtime
+        import .Runtime: ROCDevice, ROCSignal, ROCMemoryRegion, ROCMemoryPool, ROCDim, ROCDim3
+        import .Runtime: DEVICES, check, get_region, get_memory_pool, get_handle
+
+        using Preferences
+
+        abstract type AbstractAMDBuffer end
+
+        include(joinpath("runtime", "memory", "utils.jl"))
+        include(joinpath("runtime", "memory", "memory.jl"))
+        include(joinpath("runtime", "memory", "pooled.jl"))
+        include(joinpath("runtime", "memory", "hip.jl"))
+        include(joinpath("runtime", "memory", "refcount.jl"))
     end
     include(joinpath("runtime", "executable.jl"))
     include(joinpath("runtime", "hashing.jl"))

@@ -1,19 +1,7 @@
 # Raw memory management
 # Copied from CUDAdrv.jl
 
-import AMDGPU
-import AMDGPU: HSA
-if AMDGPU.hip_configured
-    import AMDGPU: HIP
-end
-import AMDGPU: Runtime
-import .Runtime: ROCDevice, ROCSignal, ROCMemoryRegion, ROCMemoryPool, ROCDim, ROCDim3
-import .Runtime: DEVICES, check, get_region, get_memory_pool, get_handle
-using Preferences
-
-## buffer type
-
-struct Buffer
+struct Buffer <: AbstractAMDBuffer
     ptr::Ptr{Cvoid}
     host_ptr::Ptr{Cvoid}
     base_ptr::Ptr{Cvoid}
@@ -21,8 +9,7 @@ struct Buffer
     device::ROCDevice
     coherent::Bool
     pool_alloc::Bool
-    # Unique ID used for refcounting.
-    _id::UInt64
+    _id::UInt64 # Unique ID used for refcounting.
 
     function Buffer(
         ptr::Ptr{Cvoid}, host_ptr::Ptr{Cvoid}, base_ptr::Ptr{Cvoid},
@@ -35,140 +22,15 @@ end
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf.ptr)
 
-function view(buf::Buffer, bytes::Int)
-    bytes > buf.bytesize && throw(BoundsError(buf, bytes))
-    return Buffer(buf.ptr+bytes,
-                  buf.host_ptr != C_NULL ? buf.host_ptr+bytes : C_NULL,
-                  buf.base_ptr,
-                  buf.bytesize-bytes, buf.device, buf.coherent, buf.pool_alloc)
+function view(buf::Buffer, bytesize::Int)
+    bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
+    host_ptr = buf.host_ptr != C_NULL ? (buf.host_ptr + bytesize) : C_NULL
+    Buffer(
+        buf.ptr + bytesize, host_ptr, buf.base_ptr,
+        buf.bytesize - bytesize, buf.device, buf.coherent, buf.pool_alloc)
 end
-
-## refcounting
-
-const _ID_COUNTER = Threads.Atomic{UInt64}(0)
-const refcounts = Dict{UInt64, Int}()
-const liveness = Dict{UInt64, Bool}()
-const refcounts_lock = Threads.ReentrantLock()
-
-function _buffer_id!()::UInt64
-    return Threads.atomic_add!(_ID_COUNTER, UInt64(1))
-end
-
-function refcount(buf::Buffer)
-    Base.lock(refcounts_lock) do
-        get(refcounts, buf._id, 0)
-    end
-end
-
-"""
-    retain(buf::Buffer)
-
-Increase the refcount of a buffer.
-"""
-function retain(buf::Buffer)
-    Base.lock(refcounts_lock) do
-        live = get!(liveness, buf._id, true)
-        @assert live "Trying to retain dead buffer!"
-        count = get!(refcounts, buf._id, 0)
-        refcounts[buf._id] = count + 1
-    end
-    return
-end
-
-"""
-    release(buf::Buffer)
-
-Decrease the refcount of a buffer. Returns `true` if the refcount has dropped
-to 0, and some action needs to be taken.
-"""
-function release(buf::Buffer)
-    while !Base.trylock(refcounts_lock) end
-    try
-        count = refcounts[buf._id]
-        @assert count >= 1 "Buffer refcount dropping below 0!"
-        refcounts[buf._id] = count - 1
-        done = count == 1
-
-        live = liveness[buf._id]
-
-        if done
-            if live
-                free(buf)
-            end
-            untrack(buf)
-        end
-        return done
-    finally
-        Base.unlock(refcounts_lock)
-    end
-end
-
-"""
-    free_if_live(buf::Buffer)
-
-Frees the base pointer for `buf` if it is still live (not yet freed). Does not
-update refcounts.
-"""
-function free_if_live(buf::Buffer)
-    Base.lock(refcounts_lock) do
-        if liveness[buf._id]
-            liveness[buf._id] = false
-            free(buf)
-        end
-    end
-end
-
-"""
-    untrack(buf::Buffer)
-
-Removes refcount tracking information for a buffer.
-"""
-function untrack(buf::Buffer)
-    while !Base.trylock(refcounts_lock) end
-    try
-        delete!(liveness, buf._id)
-        delete!(refcounts, buf._id)
-    finally
-        Base.unlock(refcounts_lock)
-    end
-end
-
 
 ## memory info
-
-"""
-    info()
-
-Returns a tuple of two integers, indicating respectively the free and total amount of memory
-(in bytes) available for allocation on the device.
-"""
-function info()
-    free_ref = Ref{Csize_t}()
-    total_ref = Ref{Csize_t}()
-    # FIXME: I'm not sure HSA has an API for this...
-    return convert(Int, free_ref[]), convert(Int, total_ref[])
-end
-
-"""
-    free()
-
-Returns the free amount of memory (in bytes), available for allocation on the device.
-"""
-free() = info()[1]
-
-"""
-    total()
-
-Returns the total amount of memory (in bytes), available for allocation on the device.
-"""
-total() = info()[2]
-
-"""
-    used()
-
-Returns the used amount of memory (in bytes), allocated on the device.
-"""
-used() = total()-free()
 
 """
     pointerinfo(ptr::Ptr)
@@ -226,47 +88,6 @@ function unlock(ptr::Ptr)
     HSA.amd_memory_unlock(Ptr{Cvoid}(ptr)) |> check
 end
 unlock(a::Array) = unlock(pointer(a))
-
-## generic interface (for documentation purposes)
-
-"""
-Allocate linear memory on the device and return a buffer to the allocated memory. The
-allocated memory is suitably aligned for any kind of variable. The memory will not be freed
-automatically, use [`free(::Buffer)`](@ref) for that.
-"""
-function alloc end
-
-"""
-Free device memory.
-"""
-function free end
-
-"""
-Initialize device memory with a repeating value.
-"""
-function set! end
-
-"""
-Upload memory from host to device.
-Executed asynchronously on `queue` if `async` is true.
-"""
-function upload end
-@doc (@doc upload) upload!
-
-"""
-Download memory from device to host.
-Executed asynchronously on `queue` if `async` is true.
-"""
-function download end
-@doc (@doc download) download!
-
-"""
-Transfer memory from device to device.
-Executed asynchronously on `queue` if `async` is true.
-"""
-function transfer end
-@doc (@doc transfer) transfer!
-
 
 ## pointer-based
 
@@ -375,28 +196,6 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallba
     end
     return buf
 end
-function alloc_or_retry!(f)
-    for phase in 1:3
-        if phase == 2
-            GC.gc(false)
-            yield()
-        elseif phase == 3
-            GC.gc(true)
-            yield()
-        end
-        status = f()
-        @debug "Allocation phase $phase: $status"
-        if status == HSA.STATUS_SUCCESS
-            break
-        elseif status == HSA.STATUS_ERROR_OUT_OF_RESOURCES || status == HSA.STATUS_ERROR_INVALID_ALLOCATION
-            if phase == 3
-                check(status)
-            end
-        else
-            check(status)
-        end
-    end
-end
 
 const ALL_ALLOCS = Threads.Atomic{Int64}(0)
 
@@ -422,7 +221,6 @@ alloc(bytesize; kwargs...) = alloc(AMDGPU.device(), bytesize; kwargs...)
 @static if AMDGPU.hip_configured
     function alloc_hip(bytesize::Integer)
         ptr_ref = Ref{Ptr{Cvoid}}()
-        # FIXME: Set HIP device
         alloc_or_retry!() do
             try
                 HIP.@check HIP.hipMalloc(ptr_ref, Csize_t(bytesize))
@@ -466,6 +264,7 @@ function free(buf::Buffer)
     Runtime.@log_finish(:free, (;ptr=buf.ptr), nothing)
     return
 end
+
 # N.B. We try to keep this from yielding or throwing, since this usually runs
 # in a finalizer
 function memory_check(status::HSA.Status, ptr::Ptr{Cvoid})
@@ -477,118 +276,6 @@ function memory_check(status::HSA.Status, ptr::Ptr{Cvoid})
         return false
     end
     return true
-end
-
-struct PoolAllocation
-    addr::Ptr{Cvoid}
-    refs::Threads.Atomic{Int}
-end
-PoolAllocation(addr) =
-    PoolAllocation(addr, Threads.Atomic{Int}(1))
-Base.hash(p::PoolAllocation) = hash(p.addr, hash(PoolAllocation))
-Base.isequal(p1::P, p2::P) where P<:PoolAllocation = p1.addr == p2.addr
-
-const ALLOC_POOL_BINNED = IdDict{ROCDevice,Dict{Int,Vector{Ptr{Cvoid}}}}()
-const ALLOC_POOL_PTR_BIN_MAP = Dict{Ptr{Cvoid},Int}()
-const ALLOC_POOL_SHARED = IdDict{ROCDevice,Dict{UInt64,PoolAllocation}}()
-const ALLOC_POOL_LOCK = Threads.SpinLock()
-const ALLOC_POOL_MAX_SIZE = Ref{Int}(64)
-const ALLOC_POOL_MAX_BINS = 8
-
-function alloc_pooled(device::ROCDevice, key::UInt64, kind::Symbol, bytesize::Integer)
-    @assert kind == :kernarg "Pooled non-kernarg allocations not implemented"
-
-    if bytesize == 0
-        return C_NULL, false
-    end
-
-    # Try to grab from pool
-    Base.lock(ALLOC_POOL_LOCK) do
-        # Try to grab a shared allocation
-        device_dict_shared = get!(()->Dict{UInt64,PoolAllocation}(), ALLOC_POOL_SHARED, device)
-        if (alloc = get(device_dict_shared, key, nothing)) !== nothing
-            Threads.atomic_add!(alloc.refs, 1)
-            return alloc.addr, false
-        end
-        # Fallback, try to grab a binned (unshared) allocation
-        device_dict_binned = get!(ALLOC_POOL_BINNED, device) do
-            d = Dict{Int,Vector{Ptr{Cvoid}}}()
-            for bin in 1:ALLOC_POOL_MAX_BINS
-                d[bin] = Vector{Ptr{Cvoid}}()
-            end
-            d
-        end
-        bin_min = ceil(Int, log2(bytesize))
-        if bin_min <= ALLOC_POOL_MAX_BINS
-            # Find any compatible allocation
-            bin = findfirst(bin->bin >= bin_min && length(device_dict_binned[bin]) > 0, bin_min:ALLOC_POOL_MAX_BINS)
-            if bin !== nothing
-                ptr = pop!(device_dict_binned[bin])
-                ALLOC_POOL_PTR_BIN_MAP[ptr] = bin
-                return ptr, true
-            end
-        end
-
-        # No available allocations to grab, make a new one
-        Base.unlock(ALLOC_POOL_LOCK)
-
-        if bin_min <= ALLOC_POOL_MAX_BINS
-            # Round-up bytesize to allow reuse in bins
-            bytesize = 2^bin_min
-        end
-
-        # N.B. We use the region API because kernarg allocations don't
-        # show up in the memory pools API
-        kernarg_region = Runtime.get_region(device, :kernarg)
-        kernarg_address = Ref{Ptr{Nothing}}(Ptr{Nothing}(0))
-        alloc_or_retry!() do
-            HSA.memory_allocate(kernarg_region.region,
-                                bytesize,
-                                kernarg_address)
-        end
-
-        Base.lock(ALLOC_POOL_LOCK)
-
-        # Try to share this allocation
-        if length(device_dict_shared) < ALLOC_POOL_MAX_SIZE[]
-            device_dict_shared[key] = PoolAllocation(kernarg_address[])
-        end
-
-        return kernarg_address[], true
-    end
-end
-
-function free_pooled(device::ROCDevice, key::UInt64, kind::Symbol, ptr::Ptr{Cvoid})
-    # Return to pool
-    Runtime.@spinlock ALLOC_POOL_LOCK begin
-        # Check if this pointer is a shared allocation
-        device_dict_shared = get!(()->Dict{UInt64,PoolAllocation}(), ALLOC_POOL_SHARED, device)
-        if (alloc = get(device_dict_shared, key, nothing)) !== nothing
-            if Threads.atomic_sub!(alloc.refs, 1) == 1
-                # TODO: Don't delete unless we're out of space
-                delete!(device_dict_shared, key)
-                # TODO: Consider putting into a bin if power-of-two bytesize
-                check(HSA.memory_free(ptr))
-            end
-            return
-        end
-        # Check if this pointer is a binned allocation
-        if !haskey(ALLOC_POOL_PTR_BIN_MAP, ptr)
-            # Not binned or shared
-            check(HSA.memory_free(ptr))
-            return
-        end
-        bin = ALLOC_POOL_PTR_BIN_MAP[ptr]
-        allocs = ALLOC_POOL_BINNED[device][bin]
-        if length(allocs) < ALLOC_POOL_MAX_SIZE[]
-            # Save for later
-            push!(allocs, ptr)
-        else
-            # No free space
-            check(HSA.memory_free(ptr))
-        end
-        return
-    end
 end
 
 """
