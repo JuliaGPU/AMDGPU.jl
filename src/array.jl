@@ -52,13 +52,13 @@ end
 #
 
 mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
-    buf::Mem.Buffer
+    buf::Mem.HIPBuffer
     dims::Dims{N}
     offset::Int
     syncstate::Runtime.SyncState
 
     function ROCArray{T,N}(
-        buf::Mem.Buffer, dims::Dims{N}; offset::Integer = 0,
+        buf::Mem.HIPBuffer, dims::Dims{N}; offset::Integer = 0,
         syncstate::Runtime.SyncState = Runtime.SyncState(),
     ) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
@@ -70,12 +70,8 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
 end
 
 _safe_free!(xs::ROCArray) = _safe_free!(xs.buf)
-function _safe_free!(buf::Mem.Buffer)
-    Mem.release(buf)
-    return
-end
-
-unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf)
+_safe_free!(buf::Mem.HIPBuffer) = Mem.release(buf; stream=default_stream())
+unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf; stream=stream())
 
 mark!(x::ROCArray, s) = mark!(x.syncstate, s)
 mark!(xs::Vector{<:ROCArray}, s) = foreach(x -> mark!(x,s), xs)
@@ -133,8 +129,10 @@ AnyROCVecOrMat{T} = Union{AnyROCVector{T}, AnyROCMatrix{T}}
 
 # type and dimensionality specified, accepting dims as tuples of Ints
 function ROCArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-    buf = Mem.alloc(prod(dims)*sizeof(T))
-    ROCArray{T,N}(buf, dims)
+    buf, event = Mem.HIPBuffer(prod(dims) * sizeof(T); stream=stream())
+    x = ROCArray{T, N}(buf, dims)
+    isnothing(event) || mark!(x, event)
+    return x
 end
 
 # type and dimensionality specified, accepting dims as series of Ints
@@ -148,7 +146,8 @@ ROCArray{T}(::UndefInitializer, dims::Integer...) where {T} =
 # from Base arrays
 function ROCArray{T,N}(x::Array{T,N}, dims::Dims{N}) where {T,N}
     r = ROCArray{T,N}(undef, dims)
-    Mem.upload!(r.buf, pointer(x), sizeof(x))
+    event = Mem.upload!(r.buf, pointer(x), sizeof(x); stream=stream())
+    isnothing(event) || mark!(r, event)
     return r
 end
 
@@ -187,45 +186,51 @@ ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = xs
 
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
-
 ## memory operations
 
-function Base.copyto!(dest::Array{T}, d_offset::Integer,
-                      source::ROCArray{T}, s_offset::Integer,
-                      amount::Integer) where T
+function Base.copyto!(
+    dest::Array{T}, d_offset::Integer,
+    source::ROCArray{T}, s_offset::Integer, amount::Integer,
+) where T
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
     wait!(source)
     synchronize()
-    Mem.download!(pointer(dest, d_offset),
-                  Mem.view(source.buf, source.offset + (s_offset-1)*sizeof(T)),
-                  amount*sizeof(T))
+    event = Mem.download!(
+        pointer(dest, d_offset),
+        Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
+        amount * sizeof(T); stream=stream())
+    isnothing(event) || mark!(source, event)
     dest
 end
-function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
-                      source::Array{T}, s_offset::Integer,
-                      amount::Integer) where T
+function Base.copyto!(
+    dest::ROCArray{T}, d_offset::Integer,
+    source::Array{T}, s_offset::Integer, amount::Integer,
+) where T
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
     wait!(dest)
-    Mem.upload!(Mem.view(dest.buf, dest.offset + (d_offset-1)*sizeof(T)),
-                pointer(source, s_offset),
-                amount*sizeof(T))
+    event = Mem.upload!(
+        Mem.view(dest.buf, dest.offset + (d_offset - 1) * sizeof(T)),
+        pointer(source, s_offset), amount * sizeof(T); stream=stream())
+    isnothing(event) || mark!(dest, event)
     dest
 end
-function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
-                      source::ROCArray{T}, s_offset::Integer,
-                      amount::Integer) where T
+function Base.copyto!(
+    dest::ROCArray{T}, d_offset::Integer,
+    source::ROCArray{T}, s_offset::Integer, amount::Integer,
+) where T
     amount == 0 && return dest
-    @boundscheck checkbounds(dest, d_offset+amount-1)
-    @boundscheck checkbounds(source, s_offset+amount-1)
-    wait!(dest)
-    wait!(source)
-    Mem.transfer!(Mem.view(dest.buf, dest.offset + (d_offset-1)*sizeof(T)),
-                  Mem.view(source.buf, source.offset + (s_offset-1)*sizeof(T)),
-                  amount*sizeof(T))
+    @boundscheck checkbounds(dest, d_offset + amount - 1)
+    @boundscheck checkbounds(source, s_offset + amount - 1)
+    wait!((dest, source))
+    event = Mem.transfer!(
+        Mem.view(dest.buf, dest.offset + (d_offset - 1) * sizeof(T)),
+        Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
+        amount * sizeof(T); stream=stream())
+    isnothing(event) || mark!((dest, source), event)
     dest
 end
 
@@ -239,10 +244,11 @@ end
 function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; device=default_device(), lock::Bool=true) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
-    device_ptr = lock ? Mem.lock(ptr, sz, device) : ptr
-    buf = Mem.Buffer(device_ptr, Ptr{Cvoid}(ptr), device_ptr, sz, device, false, false)
+    # TODO lock
+    buf = Mem.HIPBuffer(Ptr{Cvoid}(ptr), sz)
     return ROCArray{T, N}(buf, dims)
 end
+
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
@@ -534,9 +540,8 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     end
 
     # TODO: add additional space to allow for quicker resizing
-    if n == length(A)
-        return A
-    end
+    n == length(A) && return A
+
     maxsize = n * sizeof(T)
     bufsize = if Base.isbitsunion(T)
         # type tag array past the data
@@ -544,12 +549,14 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     else
         maxsize
     end
-    new_buf = Mem.alloc(A.buf.device, bufsize)
+    new_buf, event = Mem.HIPBuffer(bufsize; stream=stream())
     copy_size = min(length(A), n) * sizeof(T)
+
     wait!(A)
-    if copy_size > 0
-        Mem.transfer!(new_buf, A.buf, copy_size)
-    end
+    isnothing(event) || HIP.synchronize(event)
+    event = copy_size == 0 ? nothing :
+        Mem.transfer!(new_buf, A.buf, copy_size; stream=stream())
+    isnothing(event) || HIP.synchronize(event)
 
     # Release old buffer
     _safe_free!(A.buf)

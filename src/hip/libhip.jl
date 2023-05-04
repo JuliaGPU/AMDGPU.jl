@@ -98,3 +98,23 @@ end
 function hipFree(ptr::Ptr{Cvoid})
     ccall((:hipFree, libhip), hipError_t, (Ptr{Cvoid},), ptr)
 end
+
+function hipMallocAsync(ptr::Ref{Ptr{Cvoid}}, sz::Csize_t, stream::hipStream_t)
+    ccall((:hipMallocAsync, libhip), hipError_t, (Ptr{Ptr{Cvoid}}, Csize_t, hipStream_t), ptr, sz, stream)
+end
+
+function hipFreeAsync(ptr::Ptr{Cvoid}, stream::hipStream_t)
+    ccall((:hipFreeAsync, libhip), hipError_t, (Ptr{Cvoid}, hipStream_t), ptr, stream)
+end
+
+function hipMemcpyHtoDAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Csize_t, stream::hipStream_t)
+    ccall((:hipMemcpyHtoDAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
+end
+
+function hipMemcpyDtoHAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Csize_t, stream::hipStream_t)
+    ccall((:hipMemcpyDtoHAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
+end
+
+function hipMemcpyDtoDAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Csize_t, stream::hipStream_t)
+    ccall((:hipMemcpyDtoDAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
+end
