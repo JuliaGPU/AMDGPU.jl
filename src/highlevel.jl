@@ -169,6 +169,7 @@ Return value of the function `f`.
 queue!(f::Base.Callable, queue::ROCQueue) = task_local_state!(f; queue)
 device(queue::ROCQueue) = queue.device
 
+default_stream() = HIP.default_stream()
 stream() = task_local_state().stream::HIPStream
 function stream!(stream::HIPStream)
     task_local_state!(;stream)
