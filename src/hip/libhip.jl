@@ -118,3 +118,7 @@ end
 function hipMemcpyDtoDAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Csize_t, stream::hipStream_t)
     ccall((:hipMemcpyDtoDAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
 end
+
+function hipMemGetInfo(free::Ref{Csize_t}, total::Ref{Csize_t})
+    ccall((:hipMemGetInfo, libhip), hipError_t, (Ptr{Csize_t}, Ptr{Csize_t}), free, total)
+end

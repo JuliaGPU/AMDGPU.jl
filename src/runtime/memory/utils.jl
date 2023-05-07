@@ -1,3 +1,36 @@
+const ALL_ALLOCS = Threads.Atomic{Int64}(0)
+
+"""
+Set a limit for total GPU memory allocations.
+
+Remove setting from `LocalPreference.toml` to disable allocation limit.
+"""
+set_memory_alloc_limit!(limit::Integer) =
+    @set_preferences!("memory_alloc_limit" => limit)
+
+const MEMORY_ALLOC_LIMIT =
+    @load_preference("memory_alloc_limit", typemax(Int))
+
+function ensure_enough_memory!(bytesize::Int)
+    MEMORY_ALLOC_LIMIT == typemax(Int) && return
+
+    ALL_ALLOCS[] + bytesize ≤ MEMORY_ALLOC_LIMIT && return
+
+    GC.gc(false)
+    ALL_ALLOCS[] + bytesize ≤ MEMORY_ALLOC_LIMIT && return
+
+    GC.gc(true)
+    ALL_ALLOCS[] + bytesize ≤ MEMORY_ALLOC_LIMIT || error(
+    """
+    Not enough GPU memory.
+    Requested: $(Base.format_bytes(bytesize)).
+    Currently allocated: $(Base.format_bytes(ALL_ALLOCS[])).
+    Current allocation limit: $(Base.format_bytes(MEMORY_ALLOC_LIMIT)).
+
+    Use `set_memory_alloc_limit!` to change or disable allocation limit.
+    """)
+end
+
 function alloc_or_retry!(f)
     for phase in 1:3
         if phase == 2
@@ -9,8 +42,8 @@ function alloc_or_retry!(f)
         end
 
         status = f()
-
         @debug "Allocation phase $phase: $status"
+
         if status == HSA.STATUS_SUCCESS
             break
         elseif status == HSA.STATUS_ERROR_OUT_OF_RESOURCES || status == HSA.STATUS_ERROR_INVALID_ALLOCATION
@@ -30,7 +63,7 @@ Returns a tuple of two integers, indicating respectively the free and total amou
 function info()
     free_ref = Ref{Csize_t}()
     total_ref = Ref{Csize_t}()
-    # FIXME: I'm not sure HSA has an API for this...
+    HIP.hipMemGetInfo(free_ref, total_ref) |> HIP.check
     return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 
