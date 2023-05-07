@@ -103,31 +103,6 @@ const USE_SLOW_ALLOCATION_FALLBACK = let
     end
 end
 
-"Enables or disables using hipMalloc/hipFree for non-coherent allocations."
-enable_hip_malloc_override!(flag::Bool) = @set_preferences!("use_hip_malloc_override" => flag)
-const USE_HIP_MALLOC_OVERRIDE = let
-    if haskey(ENV, "JULIA_AMDGPU_USE_HIP_MALLOC_OVERRIDE")
-        flag = parse(Bool, ENV["JULIA_AMDGPU_USE_HIP_MALLOC_OVERRIDE"])
-        enable_hip_malloc_override!(flag)
-        flag
-    else
-        @load_preference("use_hip_malloc_override", false)
-    end
-end
-
-"Sets a limit for total GPU memory allocations."
-set_memory_alloc_limit!(limit::Integer) =
-    @set_preferences!("memory_alloc_limit" => limit)
-const MEMORY_ALLOC_LIMIT = let
-    if haskey(ENV, "JULIA_AMDGPU_MEMORY_ALLOC_LIMIT")
-        limit = parse(Int, ENV["JULIA_AMDGPU_MEMORY_ALLOC_LIMIT"])
-        set_memory_alloc_limit!(limit)
-        limit
-    else
-        @load_preference("memory_alloc_limit", typemax(Int))
-    end
-end
-
 """
     alloc(bytesize::Integer; coherent=false) -> Buffer
 
@@ -167,16 +142,11 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallba
             @debug "Allocating $(Base.format_bytes(bytesize)) from $region"
             buf = alloc(device, region, bytesize)
         else
-            if USE_HIP_MALLOC_OVERRIDE
-                @debug "Allocating $(Base.format_bytes(bytesize)) from HIP"
-                buf = alloc_hip(bytesize)
-            else
-                region = get_memory_pool(device, region_kind)
-                @debug "Allocating $(Base.format_bytes(bytesize)) from $region"
-                buf = alloc(device, region, bytesize)
-                # This is a no-op and we need to make sure that we use the right region instead
-                # check(HSA.memory_assign_agent(buf.ptr, device.agent, HSA.ACCESS_PERMISSION_RW))
-            end
+            region = get_memory_pool(device, region_kind)
+            @debug "Allocating $(Base.format_bytes(bytesize)) from $region"
+            buf = alloc(device, region, bytesize)
+            # This is a no-op and we need to make sure that we use the right region instead
+            # check(HSA.memory_assign_agent(buf.ptr, device.agent, HSA.ACCESS_PERMISSION_RW))
         end
     catch err
         if slow_fallback &&
@@ -197,8 +167,6 @@ function alloc(device::ROCDevice, bytesize::Integer; coherent=false, slow_fallba
     return buf
 end
 
-const ALL_ALLOCS = Threads.Atomic{Int64}(0)
-
 _alloc(p::ROCMemoryPool, bytesize::Integer, ptr_ref) = HSA.amd_memory_pool_allocate(p.pool, bytesize, 0, ptr_ref)
 _alloc(p::ROCMemoryRegion, bytesize::Integer, ptr_ref) = HSA.memory_allocate(p.region, bytesize, ptr_ref)
 
@@ -209,7 +177,10 @@ function alloc(
     device::ROCDevice, space::S, bytesize::Integer,
 ) where S <: Union{ROCMemoryPool, ROCMemoryRegion}
     ptr_ref = Ref{Ptr{Cvoid}}()
+
+    ensure_enough_memory!(bytesize)
     alloc_or_retry!(() -> _alloc(space, bytesize, ptr_ref))
+
     ptr = ptr_ref[]
     AMDGPU.hsaref!()
     Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
@@ -218,25 +189,6 @@ end
 
 alloc(bytesize; kwargs...) = alloc(AMDGPU.device(), bytesize; kwargs...)
 
-@static if AMDGPU.hip_configured
-    function alloc_hip(bytesize::Integer)
-        ptr_ref = Ref{Ptr{Cvoid}}()
-        alloc_or_retry!() do
-            try
-                HIP.@check HIP.hipMalloc(ptr_ref, Csize_t(bytesize))
-                HSA.STATUS_SUCCESS
-            catch
-                # FIXME: Actually check error code
-                HSA.STATUS_ERROR_OUT_OF_RESOURCES
-            end
-        end
-        AMDGPU.hsaref!()
-        ptr = ptr_ref[]
-        Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
-        Buffer(ptr, C_NULL, ptr, Int64(bytesize), AMDGPU.device(), false, true)
-    end
-end
-
 function free(buf::Buffer)
     buf.ptr == C_NULL && return
 
@@ -244,14 +196,7 @@ function free(buf::Buffer)
     if buf.host_ptr == C_NULL
         # HSA-backed
         if buf.pool_alloc
-            if USE_HIP_MALLOC_OVERRIDE
-                @static if AMDGPU.hip_configured
-                    # Actually HIP-backed
-                    HIP.@check HIP.hipFree(buf.base_ptr)
-                end
-            else
-                memory_check(HSA.amd_memory_pool_free(buf.base_ptr), buf.base_ptr)
-            end
+            memory_check(HSA.amd_memory_pool_free(buf.base_ptr), buf.base_ptr)
             Threads.atomic_sub!(ALL_ALLOCS, Int64(buf.bytesize))
         else
             memory_check(HSA.memory_free(buf.base_ptr), buf.base_ptr)
