@@ -1,3 +1,22 @@
+const _POOL_STATUS = AMDGPU.LockedObject(Dict{HIP.HIPDevice, Base.RefValue{Bool}}())
+
+function pool_status(dev::HIP.HIPDevice)
+    Base.lock(_POOL_STATUS) do ps
+        get!(ps, dev, Ref(false))
+    end
+end
+
+function mark_pool!(dev::HIP.HIPDevice)
+    status = pool_status(dev)
+    status[] && return
+
+    # TODO add alloc limiter
+    HIP.attribute!(
+        HIP.memory_pool(dev), HIP.hipMemPoolAttrReleaseThreshold,
+        typemax(UInt64))
+    status[] = true
+end
+
 struct HIPBuffer <: AbstractAMDBuffer
     device::ROCDevice
     ptr::Ptr{Cvoid}
@@ -9,6 +28,7 @@ function HIPBuffer(bytesize::Int; stream::HIP.HIPStream)
     dev = AMDGPU.device()
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!()), nothing
 
+    mark_pool!(HIP.device())
     ensure_enough_memory!(bytesize)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
