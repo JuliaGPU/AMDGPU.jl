@@ -1,3 +1,32 @@
+@cenum hipMemAllocationHandleType begin
+    hipMemHandleTypeNone
+    hipMemHandleTypePosixFileDescriptor
+    hipMemHandleTypeWin32
+    hipMemHandleTypeWin32Kmt
+end
+
+@cenum hipMemAllocationType begin
+    hipMemAllocationTypeInvalid
+    hipMemAllocationTypePinned
+    hipMemAllocationTypeMax
+end
+
+@cenum hipMemLocationType begin
+    hipMemLocationTypeInvalid
+    hipMemLocationTypeDevice
+end
+
+@cenum hipMemPoolAttr begin
+    hipMemPoolReuseFollowEventDependencies
+    hipMemPoolReuseAllowOpportunistic
+    hipMemPoolReuseAllowInternalDependencies
+    hipMemPoolAttrReleaseThreshold
+    hipMemPoolAttrReservedMemCurrent
+    hipMemPoolAttrReservedMemHigh
+    hipMemPoolAttrUsedMemCurrent
+    hipMemPoolAttrUsedMemHigh
+end
+
 @cenum hipEventFlag_t::Cuint begin
     hipEventDefault = 0
     hipEventDisableTiming = 2
@@ -8,7 +37,9 @@ end
     hipSuccess = 0
     hipErrorInvalidValue = 1
     hipErrorOutOfMemory = 2
+    hipErrorMemoryAllocation = 2
     hipErrorNotInitialized = 3
+    hipErrorInitializationError = 3
     hipErrorDeinitialized = 4
     hipErrorProfilerDisabled = 5
     hipErrorProfilerNotInitialized = 6
@@ -83,6 +114,24 @@ end
 end
 
 hipContext_t = Ptr{Cvoid}
+
 hipDevice_t = Ptr{Cvoid}
+
 hipStream_t = Ptr{Cvoid}
+
 hipEvent_t = Ptr{Cvoid}
+
+hipMemPool_t = Ptr{Cvoid}
+
+struct hipMemLocation
+    type::hipMemLocationType
+    id::Cint
+end
+
+struct hipMemPoolProps
+    allocType::hipMemAllocationType
+    handleTypes::hipMemAllocationHandleType
+    location::hipMemLocation
+    win32SecurityAttributes::Ptr{Cvoid}
+    reserved::NTuple{64,Cuchar}
+end

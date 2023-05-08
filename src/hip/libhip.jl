@@ -99,26 +99,72 @@ function hipFree(ptr::Ptr{Cvoid})
     ccall((:hipFree, libhip), hipError_t, (Ptr{Cvoid},), ptr)
 end
 
-function hipMallocAsync(ptr::Ref{Ptr{Cvoid}}, sz::Csize_t, stream::hipStream_t)
-    ccall((:hipMallocAsync, libhip), hipError_t, (Ptr{Ptr{Cvoid}}, Csize_t, hipStream_t), ptr, sz, stream)
+function hipMallocAsync(ptr, sz, stream)
+    @ccall libhip.hipMallocAsync(
+        ptr::Ptr{Ptr{Cvoid}}, sz::Csize_t, stream::hipStream_t)::hipError_t
 end
 
-function hipFreeAsync(ptr::Ptr{Cvoid}, stream::hipStream_t)
-    ccall((:hipFreeAsync, libhip), hipError_t, (Ptr{Cvoid}, hipStream_t), ptr, stream)
+function hipFreeAsync(ptr, stream)
+    @ccall libhip.hipFreeAsync(ptr::Ptr{Cvoid}, stream::hipStream_t)::hipError_t
 end
 
-function hipMemcpyHtoDAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Csize_t, stream::hipStream_t)
-    ccall((:hipMemcpyHtoDAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
+function hipMemcpyHtoDAsync(dst, src, sz, stream)
+    @ccall libhip.hipMemcpyHtoDAsync(
+        dst::Ptr{Cvoid}, src::Ptr{Cvoid},
+        sz::Csize_t, stream::hipStream_t)::hipError_t
 end
 
-function hipMemcpyDtoHAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Csize_t, stream::hipStream_t)
-    ccall((:hipMemcpyDtoHAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
+function hipMemcpyDtoHAsync(dst, src, sz, stream)
+    @ccall libhip.hipMemcpyDtoHAsync(
+        dst::Ptr{Cvoid}, src::Ptr{Cvoid},
+        sz::Csize_t, stream::hipStream_t)::hipError_t
 end
 
-function hipMemcpyDtoDAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Csize_t, stream::hipStream_t)
-    ccall((:hipMemcpyDtoDAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
+function hipMemcpyDtoDAsync(dst, src, sz, stream)
+    @ccall libhip.hipMemcpyDtoDAsync(
+        dst::Ptr{Cvoid}, src::Ptr{Cvoid},
+        sz::Csize_t, stream::hipStream_t)::hipError_t
 end
 
 function hipMemGetInfo(free::Ref{Csize_t}, total::Ref{Csize_t})
     ccall((:hipMemGetInfo, libhip), hipError_t, (Ptr{Csize_t}, Ptr{Csize_t}), free, total)
+end
+
+function hipDeviceGetDefaultMemPool(pool, device_id)
+    @ccall libhip.hipDeviceGetDefaultMemPool(
+        pool::Ref{hipMemPool_t}, device_id::Cint)::hipError_t
+end
+
+function hipDeviceGetMemPool(pool, device_id)
+    @ccall libhip.hipDeviceGetMemPool(
+        pool::Ref{hipMemPool_t}, device_id::Cint)::hipError_t
+end
+
+function hipDeviceSetMemPool(device_id, pool)
+    @ccall libhip.hipDeviceSetMemPool(
+        device_id::Cint, pool::hipMemPool_t)::hipError_t
+end
+
+function hipMemPoolTrimTo(pool, min_bytes_to_hold)
+    @ccall libhip.hipMemPoolTrimTo(
+        pool::hipMemPool_t, min_bytes_to_hold::Csize_t)::hipError_t
+end
+
+function hipMemPoolSetAttribute(pool, attr, value)
+    @ccall libhip.hipMemPoolSetAttribute(
+        pool::hipMemPool_t, attr::hipMemPoolAttr, value::Ptr{Cvoid})::hipError_t
+end
+
+function hipMemPoolGetAttribute(pool, attr, value)
+    @ccall libhip.hipMemPoolGetAttribute(
+        pool::hipMemPool_t, attr::hipMemPoolAttr, value::Ptr{Cvoid})::hipError_t
+end
+
+function hipMemPoolCreate(pool, props)
+    @ccall libhip.hipMemPoolCreate(
+        pool::Ptr{hipMemPool_t}, props::Ptr{hipMemPoolProps})::hipError_t
+end
+
+function hipMemPoolDestroy(pool)
+    @ccall libhip.hipMemPoolDestroy(pool::hipMemPool_t)::hipError_t
 end
