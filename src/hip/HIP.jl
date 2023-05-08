@@ -12,18 +12,24 @@ struct HIPDevice
     device::hipDevice_t
     device_id::Cint
 end
+
 function HIPDevice(device_id::Integer)
     device_ref = Ref{hipDevice_t}()
     hipDeviceGet(device_ref, Cint(device_id-1)) |> check
     return HIPDevice(device_ref[], device_id)
 end
+
+device_id(d::HIPDevice) = Cint(d.device_id - 1)
+
 Base.unsafe_convert(::Type{Ptr{T}}, device::HIPDevice) where T =
     reinterpret(Ptr{T}, device.device)
+
 function name(device::HIPDevice)
     name_vec = zeros(Cuchar, 64)
     hipDeviceGetName(pointer(name_vec), Cint(64), device.device) |> check
     return String(name_vec)
 end
+
 function Base.show(io::IO, device::HIPDevice)
     print(io, "HIPDevice(name=\"$(name(device))\", id=$(device.device_id))")
 end
@@ -216,5 +222,7 @@ function HIPEvent(stream::hipStream_t; do_record::Bool = true)
     event
 end
 HIPEvent(stream::HIPStream; do_record::Bool = true) = HIPEvent(stream.stream; do_record)
+
+include("pool.jl")
 
 end

@@ -14,11 +14,11 @@ function HIPBuffer(bytesize::Int; stream::HIP.HIPStream)
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
         try
-            HIP.hipMallocAsync(ptr_ref, Csize_t(bytesize), stream.stream) |> HIP.check
+            HIP.hipMallocAsync(ptr_ref, Csize_t(bytesize), stream) |> HIP.check
             ptr_ref[] == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             HSA.STATUS_SUCCESS
         catch err
-            @error "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize)); Allocated: $(Base.format_bytes(ALL_ALLOCS[]))" exception=(err, catch_backtrace())
+            @error "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize)); Used: $(Base.format_bytes(ALL_ALLOCS[]))" exception=(err, catch_backtrace())
             HSA.STATUS_ERROR_OUT_OF_RESOURCES
         end
     end
@@ -44,28 +44,25 @@ end
 
 function free(buf::HIPBuffer; stream::HIP.HIPStream)
     buf.ptr == C_NULL && return
-    HIP.hipFreeAsync(buf.ptr, stream.stream) |> HIP.check
+    HIP.hipFreeAsync(buf, stream) |> HIP.check
     Threads.atomic_sub!(ALL_ALLOCS, Int64(buf.bytesize))
     return
 end
 
 function upload!(dst::HIPBuffer, src::Ptr, bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return nothing
-    HIP.hipMemcpyHtoDAsync(
-        dst.ptr, Ptr{Cvoid}(src), Csize_t(bytesize), stream.stream) |> HIP.check
+    HIP.hipMemcpyHtoDAsync(dst, src, bytesize, stream) |> HIP.check
     HIP.HIPEvent(stream)
 end
 
 function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return nothing
-    HIP.hipMemcpyDtoHAsync(
-        Ptr{Cvoid}(dst), src.ptr, Csize_t(bytesize), stream.stream) |> HIP.check
+    HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream) |> HIP.check
     HIP.HIPEvent(stream)
 end
 
 function transfer!(dst::HIPBuffer, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return nothing
-    HIP.hipMemcpyDtoDAsync(
-        dst.ptr, src.ptr, Csize_t(bytesize), stream.stream) |> HIP.check
+    HIP.hipMemcpyDtoDAsync(dst, src, bytesize, stream) |> HIP.check
     HIP.HIPEvent(stream)
 end
