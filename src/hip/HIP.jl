@@ -21,6 +21,8 @@ end
 
 device_id(d::HIPDevice) = Cint(d.device_id - 1)
 
+Base.hash(dev::HIPDevice, h::UInt) = hash(dev.device, h)
+
 Base.unsafe_convert(::Type{Ptr{T}}, device::HIPDevice) where T =
     reinterpret(Ptr{T}, device.device)
 
