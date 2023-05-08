@@ -1,30 +1,30 @@
-@cenum hipMemAllocationHandleType begin
-    hipMemHandleTypeNone
-    hipMemHandleTypePosixFileDescriptor
-    hipMemHandleTypeWin32
-    hipMemHandleTypeWin32Kmt
+@cenum hipMemAllocationHandleType::UInt32 begin
+    hipMemHandleTypeNone = 0
+    hipMemHandleTypePosixFileDescriptor = 1
+    hipMemHandleTypeWin32 = 2
+    hipMemHandleTypeWin32Kmt = 4
 end
 
-@cenum hipMemAllocationType begin
-    hipMemAllocationTypeInvalid
-    hipMemAllocationTypePinned
-    hipMemAllocationTypeMax
+@cenum hipMemAllocationType::UInt32 begin
+    hipMemAllocationTypeInvalid = 0
+    hipMemAllocationTypePinned = 1
+    hipMemAllocationTypeMax = 2147483647
 end
 
-@cenum hipMemLocationType begin
-    hipMemLocationTypeInvalid
-    hipMemLocationTypeDevice
+@cenum hipMemLocationType::UInt32 begin
+    hipMemLocationTypeInvalid = 0
+    hipMemLocationTypeDevice = 1
 end
 
-@cenum hipMemPoolAttr begin
-    hipMemPoolReuseFollowEventDependencies
-    hipMemPoolReuseAllowOpportunistic
-    hipMemPoolReuseAllowInternalDependencies
-    hipMemPoolAttrReleaseThreshold
-    hipMemPoolAttrReservedMemCurrent
-    hipMemPoolAttrReservedMemHigh
-    hipMemPoolAttrUsedMemCurrent
-    hipMemPoolAttrUsedMemHigh
+@cenum hipMemPoolAttr::UInt32 begin
+    hipMemPoolReuseFollowEventDependencies = 1
+    hipMemPoolReuseAllowOpportunistic = 2
+    hipMemPoolReuseAllowInternalDependencies = 3
+    hipMemPoolAttrReleaseThreshold = 4
+    hipMemPoolAttrReservedMemCurrent = 5
+    hipMemPoolAttrReservedMemHigh = 6
+    hipMemPoolAttrUsedMemCurrent = 7
+    hipMemPoolAttrUsedMemHigh = 8
 end
 
 @cenum hipEventFlag_t::Cuint begin
