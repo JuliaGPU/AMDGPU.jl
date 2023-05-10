@@ -1,59 +1,3 @@
-const ALL_ALLOCS = Threads.Atomic{Int64}(0)
-
-"""
-Set a limit for total GPU memory allocations.
-
-Remove setting from `LocalPreference.toml` to disable allocation limit.
-"""
-set_memory_alloc_limit!(limit::Integer) =
-    @set_preferences!("memory_alloc_limit" => limit)
-
-const MEMORY_ALLOC_LIMIT =
-    @load_preference("memory_alloc_limit", typemax(Int))
-
-function ensure_enough_memory!(bytesize::Int)
-    MEMORY_ALLOC_LIMIT == typemax(Int) && return
-
-    ALL_ALLOCS[] + bytesize ≤ MEMORY_ALLOC_LIMIT && return
-
-    GC.gc(false)
-    ALL_ALLOCS[] + bytesize ≤ MEMORY_ALLOC_LIMIT && return
-
-    GC.gc(true)
-    ALL_ALLOCS[] + bytesize ≤ MEMORY_ALLOC_LIMIT || error(
-    """
-    Not enough GPU memory.
-    Requested: $(Base.format_bytes(bytesize)).
-    Currently allocated: $(Base.format_bytes(ALL_ALLOCS[])).
-    Current allocation limit: $(Base.format_bytes(MEMORY_ALLOC_LIMIT)).
-
-    Use `set_memory_alloc_limit!` to change or disable allocation limit.
-    """)
-end
-
-function alloc_or_retry!(f)
-    for phase in 1:3
-        if phase == 2
-            GC.gc(false)
-            yield()
-        elseif phase == 3
-            GC.gc(true)
-            yield()
-        end
-
-        status = f()
-        @debug "Allocation phase $phase: $status"
-
-        if status == HSA.STATUS_SUCCESS
-            break
-        elseif status == HSA.STATUS_ERROR_OUT_OF_RESOURCES || status == HSA.STATUS_ERROR_INVALID_ALLOCATION
-            phase == 3 && check(status)
-        else
-            check(status)
-        end
-    end
-end
-
 """
     info()
 
@@ -86,7 +30,136 @@ total() = info()[2]
 
 Returns the used amount of memory (in bytes), allocated on the device.
 """
-used() = total()-free()
+used() = total() - free()
+
+const ALL_ALLOCS = Threads.Atomic{Int64}(0)
+
+function parse_memory_limit(limit_str::String)
+    limit_str == "none" && return typemax(UInt64)
+
+    units = ("%", "MiB", "GiB")
+
+    value, unit = split(limit_str) # TODO check length 2 before split
+    unit in units || throw(ArgumentError("""
+    Memory limit must be specified in `$units` units, but `$unit` was given.
+    """))
+
+    total_memory = total()
+    limit = if unit == "%"
+        v = parse(Int, value)
+        0 < v ≤ 100 || throw(ArgumentError("""
+        Invalid percentage value for memory limit `$v`.
+        Must be in (0, 100] range.
+        """))
+        floor(UInt64, total_memory * (v / 100))
+    else
+        scale = unit == "MiB" ? (1024^2) : (1024^3)
+        parse(UInt64, value) * scale
+    end
+
+    limit > total_memory && throw(ArgumentError("""
+    Memory limit `$(Base.format_bytes(limit))` is bigger than the actual memory `$(Base.format_bytes(total_memory))`.
+    Set to `none` to disable memory limit.
+    """))
+
+    limit
+end
+
+"""
+Set a hard limit for total GPU memory allocations.
+"""
+set_memory_alloc_limit!(limit::String) =
+    @set_preferences!("hard_memory_limit" => limit)
+
+const HARD_MEMORY_LIMIT = parse_memory_limit(
+    @load_preference("hard_memory_limit", "none"))
+
+function ensure_enough_memory!(bytesize::Int)
+    HARD_MEMORY_LIMIT == typemax(Int) && return
+
+    function is_compact()
+        # Ensure allocations tracked on the Julia side stay within limit.
+        compact_allocs = (ALL_ALLOCS[] + bytesize ≤ HARD_MEMORY_LIMIT)
+        # Ensure memory pool stays within hard limit.
+        compact_pool = free() - bytesize ≥ total() - HARD_MEMORY_LIMIT
+        compact_allocs, compact_pool
+    end
+
+    compact_allocs, compact_pool = is_compact()
+    status = (compact_allocs && compact_pool) ?
+        HSA.STATUS_SUCCESS : HSA.STATUS_ERROR_OUT_OF_RESOURCES
+    status == HSA.STATUS_SUCCESS && return
+
+    stream = AMDGPU.stream()
+    pool = HIP.memory_pool(stream.device)
+
+    phase = 1
+    while true
+        if phase == 1
+            if !compact_allocs
+                AMDGPU.synchronize(; errors=false)
+                GC.gc(false)
+            end
+            HIP.synchronize(stream)
+            compact_pool || HIP.trim(pool, HARD_MEMORY_LIMIT - bytesize)
+        elseif phase == 2
+            compact_pool || HIP.trim(pool, max(0, HARD_MEMORY_LIMIT - bytesize * 2))
+        elseif phase == 3
+            compact_pool || HIP.trim(pool, HARD_MEMORY_LIMIT ÷ 2)
+        elseif phase == 4
+            AMDGPU.synchronize(; errors=false)
+            GC.gc(true)
+            HIP.synchronize(stream)
+            compact_pool || HIP.trim(pool, max(0, HARD_MEMORY_LIMIT ÷ 2))
+        elseif phase == 5 # Last attempt to stay within limits.
+            HIP.reclaim()
+        else
+            break
+        end
+        phase += 1
+
+        compact_allocs, compact_pool = is_compact()
+        # TODO !compact_allocs && (1 < phase < 4) && (phase = 4;)
+        status = (compact_allocs && compact_pool) ?
+            HSA.STATUS_SUCCESS : HSA.STATUS_ERROR_OUT_OF_RESOURCES
+        status == HSA.STATUS_SUCCESS && break
+    end
+    status |> check
+    return
+end
+
+function alloc_or_retry!(f)
+    status = f()
+    status == HSA.STATUS_SUCCESS && return
+
+    stream = AMDGPU.stream()
+
+    phase = 1
+    while true
+        if phase == 1
+            HIP.synchronize(stream)
+        elseif phase == 2
+            HIP.device_synchronize()
+        elseif phase == 3
+            @assert false
+            GC.gc(false)
+            HIP.device_synchronize()
+        elseif phase == 4
+            GC.gc(true)
+            HIP.device_synchronize()
+        elseif phase == 5
+            HIP.trim(HIP.memory_pool(stream.device))
+        else
+            break
+        end
+        phase += 1
+
+        status = f()
+        status == HSA.STATUS_SUCCESS && break
+    end
+    check(status)
+    return
+end
 
 """
 Allocate linear memory on the device and return a buffer to the allocated memory. The

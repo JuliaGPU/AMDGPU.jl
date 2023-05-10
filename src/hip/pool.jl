@@ -56,3 +56,7 @@ end
 function memory_pool!(dev::HIPDevice, pool::HIPMemoryPool)
     hipDeviceSetMemPool(device_id(dev), pool) |> check
 end
+
+used_memory(pool::HIPMemoryPool) = attribute(UInt64, pool, hipMemPoolAttrUsedMemCurrent)
+
+reserved_memory(pool::HIPMemoryPool) = attribute(UInt64, pool, hipMemPoolAttrReservedMemCurrent)
