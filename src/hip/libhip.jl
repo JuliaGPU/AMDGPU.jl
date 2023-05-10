@@ -33,8 +33,8 @@ function hipSetDevice(device_id::Cint)
     ccall((:hipSetDevice, libhip), hipError_t, (Cint,), device_id)
 end
 
-function hipDeviceGetCount(count_ref::Ref{Cint})
-    ccall((:hipDeviceGetCount, libhip), hipError_t, (Ptr{Cint},), count_ref)
+function hipGetDeviceCount(count_ref)
+    @ccall libhip.hipGetDeviceCount(count_ref::Ptr{Cint})::hipError_t
 end
 
 function hipDeviceGetName(name::Ptr{Cuchar}, len::Cint, device::hipDevice_t)
@@ -62,8 +62,8 @@ function hipEventQuery(event::hipEvent_t)
     ccall((:hipEventQuery, libhip), hipError_t, (hipEvent_t,), event)
 end
 
-function hipEventSynchronize(event::hipEvent_t)
-    ccall((:hipEventSynchronize, libhip), hipError_t, (hipEvent_t,), event)
+function hipEventSynchronize(event)
+    @ccall libhip.hipEventSynchronize(event::hipEvent_t)::hipError_t
 end
 
 function hipStreamCreateWithPriority(stream_ref::Ref{hipStream_t}, flags::Cuint, priority::Cint)
@@ -75,8 +75,8 @@ function hipStreamGetPriority(stream::hipStream_t, priority::Ref{Cint})
     ccall((:hipStreamGetPriority, libhip), hipError_t, (hipStream_t, Ptr{Cint}), stream, priority)
 end
 
-function hipStreamSynchronize(stream::hipStream_t)
-    ccall((:hipStreamSynchronize, libhip), hipError_t, (hipStream_t,), stream)
+function hipStreamSynchronize(stream)
+    @ccall libhip.hipStreamSynchronize(stream::hipStream_t)::hipError_t
 end
 
 function hipStreamDestroy(stream::hipStream_t)
@@ -167,4 +167,14 @@ end
 
 function hipMemPoolDestroy(pool)
     @ccall libhip.hipMemPoolDestroy(pool::hipMemPool_t)::hipError_t
+end
+
+function hipDeviceGetLimit(value, limit)
+    @ccall libhip.hipDeviceGetLimit(
+        value::Ptr{Csize_t}, limit::hipLimit_t)::hipError_t
+end
+
+function hipDeviceSetLimit(limit, value)
+    @ccall libhip.hipDeviceSetLimit(
+        limit::hipLimit_t, value::Csize_t)::hipError_t
 end

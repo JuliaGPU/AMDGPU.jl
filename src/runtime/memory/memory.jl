@@ -178,7 +178,6 @@ function alloc(
 ) where S <: Union{ROCMemoryPool, ROCMemoryRegion}
     ptr_ref = Ref{Ptr{Cvoid}}()
 
-    ensure_enough_memory!(bytesize)
     alloc_or_retry!(() -> _alloc(space, bytesize, ptr_ref))
 
     ptr = ptr_ref[]
