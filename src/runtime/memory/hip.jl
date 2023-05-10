@@ -1,19 +1,61 @@
-const _POOL_STATUS = AMDGPU.LockedObject(Dict{HIP.HIPDevice, Base.RefValue{Bool}}())
+const _POOL_STATUS = AMDGPU.LockedObject(
+    Dict{HIP.HIPDevice, Base.RefValue{Union{Nothing, Bool}}}())
 
 function pool_status(dev::HIP.HIPDevice)
     Base.lock(_POOL_STATUS) do ps
-        get!(ps, dev, Ref(false))
+        get!(ps, dev, Ref{Union{Nothing, Bool}}(nothing))
+    end
+end
+
+const __pool_cleanup = Ref{Task}()
+function pool_cleanup()
+    idle_counters = Base.fill(0, HIP.ndevices())
+    devices = HIP.devices()
+    while true
+        for (i, dev) in enumerate(devices)
+            status = pool_status(dev)
+            isnothing(status[]) && continue
+
+            if status[]::Bool
+                idle_counters[i] = 0
+            else
+                idle_counters[i] += 1
+            end
+            status[] = false
+
+            if idle_counters[i] == 5
+                old_device = HIP.device()
+                old_device != dev && HIP.device!(dev)
+                HIP.reclaim()
+                old_device != dev && HIP.device!(old_device)
+            end
+        end
+
+        try
+            sleep(60)
+        catch ex
+            if ex isa EOFError
+                # If we get EOF here, it's because Julia is shutting down,
+                # so we should just exit the loop.
+                break
+            else
+                rethrow()
+            end
+        end
     end
 end
 
 function mark_pool!(dev::HIP.HIPDevice)
     status = pool_status(dev)
-    status[] && return
-
-    # TODO add alloc limiter
-    HIP.attribute!(
-        HIP.memory_pool(dev), HIP.hipMemPoolAttrReleaseThreshold,
-        typemax(UInt64))
+    if isnothing(status[])
+        # Default to `0` which is the default value in HIP.
+        limit = parse_memory_limit(@load_preference("soft_memory_limit", "0 MiB"))
+        HIP.attribute!(
+            HIP.memory_pool(dev), HIP.hipMemPoolAttrReleaseThreshold, limit)
+        if !isassigned(__pool_cleanup)
+            __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
+        end
+    end
     status[] = true
 end
 
@@ -24,6 +66,7 @@ struct HIPBuffer <: AbstractAMDBuffer
     _id::UInt64 # Unique ID used for refcounting.
 end
 
+# TODO migrate MIOpen workspace to HIP allocs
 function HIPBuffer(bytesize::Int; stream::HIP.HIPStream)
     dev = AMDGPU.device()
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!()), nothing
@@ -38,13 +81,15 @@ function HIPBuffer(bytesize::Int; stream::HIP.HIPStream)
             ptr_ref[] == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             HSA.STATUS_SUCCESS
         catch err
-            @error "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize)); Used: $(Base.format_bytes(ALL_ALLOCS[]))" exception=(err, catch_backtrace())
+            @debug "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize)); Used: $(Base.format_bytes(ALL_ALLOCS[]))" exception=(err, catch_backtrace())
             HSA.STATUS_ERROR_OUT_OF_RESOURCES
         end
     end
     ptr = ptr_ref[]
     @assert ptr != C_NULL "hipMallocAsync resulted in C_NULL for $(Base.format_bytes(bytesize))"
 
+    # TODO remove?
+    @assert free() ≥ total() - HARD_MEMORY_LIMIT "free()=$(Base.format_bytes(free())) vs total() - HARD_MEMORY_LIMIT=$(Base.format_bytes(total() - HARD_MEMORY_LIMIT))"
     Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
 
     event = HIP.HIPEvent(stream)

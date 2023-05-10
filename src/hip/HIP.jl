@@ -19,7 +19,37 @@ function HIPDevice(device_id::Integer)
     return HIPDevice(device_ref[], device_id)
 end
 
+function ndevices()
+    count_ref = Ref{Cint}()
+    hipGetDeviceCount(count_ref) |> check
+    count_ref[]
+end
+
+devices() = [HIPDevice(i) for i in 1:ndevices()]
+
 device_id(d::HIPDevice) = Cint(d.device_id - 1)
+
+function stack_size()
+    value = Ref{Csize_t}()
+    hipDeviceGetLimit(value, hipLimitStackSize) |> check
+    value[]
+end
+
+function stack_size!(value::Integer)
+    hipDeviceSetLimit(hipLimitStackSize, value) |> check
+end
+
+# TODO heap_size tweaking available since 5.5?
+
+function heap_size()
+    value = Ref{Csize_t}()
+    hipDeviceGetLimit(value, hipLimitMallocHeapSize) |> check
+    value[]
+end
+
+function heap_size!(value::Integer)
+    hipDeviceSetLimit(hipLimitMallocHeapSize, value) |> check
+end
 
 Base.hash(dev::HIPDevice, h::UInt) = hash(dev.device, h)
 
@@ -131,6 +161,10 @@ Device is the default device that's currently in use.
 """
 HIPStream(stream::hipStream_t) = HIPStream(stream, priority(stream), device())
 
+function synchronize(stream::HIPStream)
+    hipStreamSynchronize(stream) |> check
+end
+
 Base.unsafe_convert(::Type{Ptr{T}}, stream::HIPStream) where T =
     reinterpret(Ptr{T}, stream.stream)
 function Base.show(io::IO, stream::HIPStream)
@@ -170,6 +204,9 @@ end
 
 Base.:(==)(a::HIPEvent, b::HIPEvent) = a.handle == b.handle
 
+Base.unsafe_convert(::Type{Ptr{T}}, event::HIPEvent) where T =
+    reinterpret(Ptr{T}, event.handle)
+
 function record(event::HIPEvent)
     hipEventRecord(event.handle, event.stream) |> check
     return event
@@ -205,7 +242,7 @@ function non_blocking_synchronize(event::HIPEvent)
     return false
 end
 
-wait(event::HIPEvent) = hipEventSynchronize(event.handle) |> check
+wait(event::HIPEvent) = hipEventSynchronize(event) |> check
 
 function synchronize(event::HIPEvent)
     non_blocking_synchronize(event) || wait(event)
@@ -226,5 +263,14 @@ end
 HIPEvent(stream::HIPStream; do_record::Bool = true) = HIPEvent(stream.stream; do_record)
 
 include("pool.jl")
+
+function device_synchronize()
+    hipDeviceSynchronize() |> check
+end
+
+function reclaim(bytes_to_keep::Integer = 0)
+    device_synchronize()
+    trim(memory_pool(device()), bytes_to_keep)
+end
 
 end

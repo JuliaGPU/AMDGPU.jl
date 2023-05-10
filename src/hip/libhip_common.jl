@@ -1,3 +1,9 @@
+@cenum hipLimit_t::UInt32 begin
+    hipLimitStackSize = 0
+    hipLimitPrintfFifoSize = 1
+    hipLimitMallocHeapSize = 2
+end
+
 @cenum hipMemAllocationHandleType::UInt32 begin
     hipMemHandleTypeNone = 0
     hipMemHandleTypePosixFileDescriptor = 1
