@@ -2,8 +2,7 @@ struct PoolAllocation
     addr::Ptr{Cvoid}
     refs::Threads.Atomic{Int}
 end
-PoolAllocation(addr) =
-    PoolAllocation(addr, Threads.Atomic{Int}(1))
+PoolAllocation(addr) = PoolAllocation(addr, Threads.Atomic{Int}(1))
 Base.hash(p::PoolAllocation) = hash(p.addr, hash(PoolAllocation))
 Base.isequal(p1::P, p2::P) where P<:PoolAllocation = p1.addr == p2.addr
 
@@ -13,6 +12,8 @@ const ALLOC_POOL_SHARED = IdDict{ROCDevice,Dict{UInt64,PoolAllocation}}()
 const ALLOC_POOL_LOCK = Threads.SpinLock()
 const ALLOC_POOL_MAX_SIZE = Ref{Int}(64)
 const ALLOC_POOL_MAX_BINS = 8
+
+const POOLED_ALLOCS = Threads.Atomic{Int64}(0)
 
 function alloc_pooled(device::ROCDevice, key::UInt64, kind::Symbol, bytesize::Integer)
     @assert kind == :kernarg "Pooled non-kernarg allocations not implemented"
@@ -60,11 +61,10 @@ function alloc_pooled(device::ROCDevice, key::UInt64, kind::Symbol, bytesize::In
         # show up in the memory pools API
         kernarg_region = Runtime.get_region(device, :kernarg)
         kernarg_address = Ref{Ptr{Nothing}}(Ptr{Nothing}(0))
-        alloc_or_retry!() do
-            HSA.memory_allocate(kernarg_region.region,
-                                bytesize,
-                                kernarg_address)
+        run_or_cleanup!() do
+            HSA.memory_allocate(kernarg_region.region, bytesize, kernarg_address)
         end
+        Threads.atomic_add!(POOLED_ALLOCS, Int64(bytesize))
 
         Base.lock(ALLOC_POOL_LOCK)
 

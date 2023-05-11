@@ -72,25 +72,30 @@ function HIPBuffer(bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!()), nothing
 
     mark_pool!(HIP.device())
-    ensure_enough_memory!(bytesize)
+    run_or_cleanup!() do
+        HARD_MEMORY_LIMIT == typemax(Int) && return HSA.STATUS_SUCCESS
+
+        pool = HIP.memory_pool(stream.device)
+        used, reserved = HIP.used_memory(pool), HIP.reserved_memory(pool)
+
+        will_grow = used + bytesize > reserved
+        will_overgrow = (reserved + bytesize - (reserved - used)) > HARD_MEMORY_LIMIT
+        (will_grow && will_overgrow) ? HSA.STATUS_ERROR_OUT_OF_RESOURCES : HSA.STATUS_SUCCESS
+    end
 
     ptr_ref = Ref{Ptr{Cvoid}}()
-    alloc_or_retry!() do
+    run_or_cleanup!() do
         try
-            HIP.hipMallocAsync(ptr_ref, Csize_t(bytesize), stream) |> HIP.check
+            HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
             ptr_ref[] == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             HSA.STATUS_SUCCESS
         catch err
-            @debug "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize)); Used: $(Base.format_bytes(ALL_ALLOCS[]))" exception=(err, catch_backtrace())
+            @debug "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize))." exception=(err, catch_backtrace())
             HSA.STATUS_ERROR_OUT_OF_RESOURCES
         end
     end
     ptr = ptr_ref[]
     @assert ptr != C_NULL "hipMallocAsync resulted in C_NULL for $(Base.format_bytes(bytesize))"
-
-    # TODO remove?
-    @assert free() ≥ total() - HARD_MEMORY_LIMIT "free()=$(Base.format_bytes(free())) vs total() - HARD_MEMORY_LIMIT=$(Base.format_bytes(total() - HARD_MEMORY_LIMIT))"
-    Threads.atomic_add!(ALL_ALLOCS, Int64(bytesize))
 
     event = HIP.HIPEvent(stream)
     buffer = HIPBuffer(dev, ptr, bytesize, _buffer_id!())
@@ -110,7 +115,6 @@ end
 function free(buf::HIPBuffer; stream::HIP.HIPStream)
     buf.ptr == C_NULL && return
     HIP.hipFreeAsync(buf, stream) |> HIP.check
-    Threads.atomic_sub!(ALL_ALLOCS, Int64(buf.bytesize))
     return
 end
 
