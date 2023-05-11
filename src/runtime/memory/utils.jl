@@ -74,61 +74,7 @@ set_memory_alloc_limit!(limit::String) =
 const HARD_MEMORY_LIMIT = parse_memory_limit(
     @load_preference("hard_memory_limit", "none"))
 
-function ensure_enough_memory!(bytesize::Int)
-    HARD_MEMORY_LIMIT == typemax(Int) && return
-
-    function is_compact()
-        # Ensure allocations tracked on the Julia side stay within limit.
-        compact_allocs = (ALL_ALLOCS[] + bytesize ≤ HARD_MEMORY_LIMIT)
-        # Ensure memory pool stays within hard limit.
-        compact_pool = free() - bytesize ≥ total() - HARD_MEMORY_LIMIT
-        compact_allocs, compact_pool
-    end
-
-    compact_allocs, compact_pool = is_compact()
-    status = (compact_allocs && compact_pool) ?
-        HSA.STATUS_SUCCESS : HSA.STATUS_ERROR_OUT_OF_RESOURCES
-    status == HSA.STATUS_SUCCESS && return
-
-    stream = AMDGPU.stream()
-    pool = HIP.memory_pool(stream.device)
-
-    phase = 1
-    while true
-        if phase == 1
-            if !compact_allocs
-                AMDGPU.synchronize(; errors=false)
-                GC.gc(false)
-            end
-            HIP.synchronize(stream)
-            compact_pool || HIP.trim(pool, HARD_MEMORY_LIMIT - bytesize)
-        elseif phase == 2
-            compact_pool || HIP.trim(pool, max(0, HARD_MEMORY_LIMIT - bytesize * 2))
-        elseif phase == 3
-            compact_pool || HIP.trim(pool, HARD_MEMORY_LIMIT ÷ 2)
-        elseif phase == 4
-            AMDGPU.synchronize(; errors=false)
-            GC.gc(true)
-            HIP.synchronize(stream)
-            compact_pool || HIP.trim(pool, max(0, HARD_MEMORY_LIMIT ÷ 2))
-        elseif phase == 5 # Last attempt to stay within limits.
-            HIP.reclaim()
-        else
-            break
-        end
-        phase += 1
-
-        compact_allocs, compact_pool = is_compact()
-        # TODO !compact_allocs && (1 < phase < 4) && (phase = 4;)
-        status = (compact_allocs && compact_pool) ?
-            HSA.STATUS_SUCCESS : HSA.STATUS_ERROR_OUT_OF_RESOURCES
-        status == HSA.STATUS_SUCCESS && break
-    end
-    status |> check
-    return
-end
-
-function alloc_or_retry!(f)
+function run_or_cleanup!(f)
     status = f()
     status == HSA.STATUS_SUCCESS && return
 
@@ -139,14 +85,13 @@ function alloc_or_retry!(f)
         if phase == 1
             HIP.synchronize(stream)
         elseif phase == 2
-            HIP.device_synchronize()
+            AMDGPU.synchronize(; errors=false)
         elseif phase == 3
-            @assert false
             GC.gc(false)
-            HIP.device_synchronize()
+            HIP.synchronize(stream)
         elseif phase == 4
             GC.gc(true)
-            HIP.device_synchronize()
+            HIP.synchronize(stream)
         elseif phase == 5
             HIP.trim(HIP.memory_pool(stream.device))
         else
@@ -157,6 +102,19 @@ function alloc_or_retry!(f)
         status = f()
         status == HSA.STATUS_SUCCESS && break
     end
+
+    if status != HSA.STATUS_SUCCESS
+        # TODO add hsa & total pool size?
+        pool = HIP.memory_pool(stream.device)
+        @warn """
+        Failed to successfully execute function and free resources for it.
+        Reporting current memory usage:
+        - HIP pool used: $(Base.format_bytes(HIP.used_memory(pool))).
+        - HIP pool reserved: $(Base.format_bytes(HIP.reserved_memory(pool))).
+        - Hard memory limit: $(Base.format_bytes(HARD_MEMORY_LIMIT)).
+        """
+    end
+
     check(status)
     return
 end

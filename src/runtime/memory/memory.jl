@@ -178,7 +178,7 @@ function alloc(
 ) where S <: Union{ROCMemoryPool, ROCMemoryRegion}
     ptr_ref = Ref{Ptr{Cvoid}}()
 
-    alloc_or_retry!(() -> _alloc(space, bytesize, ptr_ref))
+    run_or_cleanup!(() -> _alloc(space, bytesize, ptr_ref))
 
     ptr = ptr_ref[]
     AMDGPU.hsaref!()
@@ -196,10 +196,10 @@ function free(buf::Buffer)
         # HSA-backed
         if buf.pool_alloc
             memory_check(HSA.amd_memory_pool_free(buf.base_ptr), buf.base_ptr)
-            Threads.atomic_sub!(ALL_ALLOCS, Int64(buf.bytesize))
         else
             memory_check(HSA.memory_free(buf.base_ptr), buf.base_ptr)
         end
+        Threads.atomic_sub!(ALL_ALLOCS, Int64(buf.bytesize))
         AMDGPU.hsaunref!()
     else
         # Wrapped

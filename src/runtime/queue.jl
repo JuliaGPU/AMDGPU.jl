@@ -273,6 +273,16 @@ function ensure_active(queue::ROCQueue)
     if !queue.active
         throw(QueueError(queue))
     elseif queue.status != HSA.STATUS_SUCCESS
+        pool = HIP.memory_pool(HIP.device())
+        @warn """
+        Queue status: $(queue.status).
+        - HSA allocations: $(Base.format_bytes(Mem.ALL_ALLOCS[])).
+        - Total Pooled allocations: $(Base.format_bytes(Mem.POOLED_ALLOCS[])).
+        - HIP pool used: $(Base.format_bytes(HIP.used_memory(pool))).
+        - HIP pool reserved: $(Base.format_bytes(HIP.reserved_memory(pool))).
+        - Hard memory limit: $(Base.format_bytes(Mem.HARD_MEMORY_LIMIT)).
+        """
+
         # We track status updates from the queue callback
         kill_queue!(queue)
         @goto check
