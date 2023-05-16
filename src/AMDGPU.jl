@@ -158,6 +158,7 @@ module Compiler
     import ..AMDGPU: AS
     import ..Runtime
     import ..Device
+    import ..HIP
     import .Runtime: ROCDevice, ROCModule, ROCFunction
     import .Runtime: Adaptor
     import .Runtime: Mem
@@ -166,6 +167,7 @@ module Compiler
     include(joinpath("compiler", "utils.jl"))
     include(joinpath("compiler", "global-hooks.jl"))
     include(joinpath("compiler", "codegen.jl"))
+    include(joinpath("compiler", "hip_codegen.jl"))
     include(joinpath("compiler", "occupancy.jl"))
 end # module Compiler
 
@@ -347,6 +349,66 @@ function __init__()
             """
         end
     end
+end
+
+f() = return
+
+function vadd(y, x)
+    i = workitemIdx().x + (workgroupIdx().x - 1) * workgroupDim().x
+    @inbounds y[i] += x[i]
+    return nothing
+end
+
+function set_one!(x)
+    i = workitemIdx().x + (workgroupIdx().x - 1) * workgroupDim().x
+    @inbounds x[i] += Int32(3)
+    return nothing
+end
+
+function tt()
+    stream = AMDGPU.stream()
+
+    # fun = Compiler.hipfunction(f)
+    # HIP.hipModuleLaunchKernel(
+    #     fun, 1, 1, 1, 1, 1, 1,
+    #     0, stream, Ptr{Ptr{Cvoid}}(), Ptr{Ptr{Cvoid}}()) |> HIP.check
+    # AMDGPU.synchronize()
+
+    x = ROCArray{Int32}(undef, 128)
+    fill!(x, 0)
+
+    fun_args = map(rocconvert, (x,))
+    fun_tt = Tuple{map(Core.Typeof, fun_args)...}
+    fun = Compiler.hipfunction(set_one!, fun_tt)
+
+    args_refs = [Base.RefValue(i) for i in fun_args]
+    args_ptrs = [Base.unsafe_convert(Ptr{Cvoid}, i) for i in args_refs]
+    @show Array(x)
+    HIP.hipModuleLaunchKernel(
+        fun, 128, 1, 1, 1, 1, 1,
+        0, stream, args_ptrs, Ptr{Ptr{Cvoid}}()) |> HIP.check
+    AMDGPU.synchronize()
+    @show Array(x)
+
+    # y = ROCArray{Int32}(undef, 128)
+    # fill!(x, 1)
+    # fill!(y, 1)
+
+    # fun_args = map(rocconvert, (x, y))
+    # fun_tt = Tuple{map(Core.Typeof, fun_args)...}
+    # fun = Compiler.hipfunction(vadd, fun_tt)
+
+    # args_refs = [Base.RefValue(i) for i in fun_args]
+    # args_ptrs = [Base.unsafe_convert(Ptr{Cvoid}, i) for i in args_refs]
+    # HIP.hipModuleLaunchKernel(
+    #     fun, 128, 1, 1, 1, 1, 1,
+    #     0, stream, args_ptrs, Ptr{Ptr{Cvoid}}()) |> HIP.check
+    # AMDGPU.synchronize()
+
+    # @show Array(x)
+    # @show Array(y)
+
+    return
 end
 
 end # module
