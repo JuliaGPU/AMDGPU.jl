@@ -72,16 +72,6 @@ function HIPBuffer(bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!()), nothing
 
     mark_pool!(HIP.device())
-    run_or_cleanup!() do
-        HARD_MEMORY_LIMIT == typemax(Int) && return HSA.STATUS_SUCCESS
-
-        pool = HIP.memory_pool(stream.device)
-        used, reserved = HIP.used_memory(pool), HIP.reserved_memory(pool)
-
-        will_grow = used + bytesize > reserved
-        will_overgrow = (reserved + bytesize - (reserved - used)) > HARD_MEMORY_LIMIT
-        (will_grow && will_overgrow) ? HSA.STATUS_ERROR_OUT_OF_RESOURCES : HSA.STATUS_SUCCESS
-    end
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     run_or_cleanup!() do
@@ -135,3 +125,30 @@ function transfer!(dst::HIPBuffer, src::HIPBuffer, bytesize::Int; stream::HIP.HI
     HIP.hipMemcpyDtoDAsync(dst, src, bytesize, stream) |> HIP.check
     HIP.HIPEvent(stream)
 end
+
+struct HostBuffer <: AbstractAMDBuffer
+    ptr::Ptr{Cvoid}
+    bytesize::Int
+end
+
+HostBuffer() = HostBuffer(C_NULL, 0)
+
+Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where T = convert(Ptr{T}, buf.ptr)
+
+function HostBuffer(bytesize::Integer, flags = 0)
+    bytesize == 0 && return HostBuffer()
+
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    HIP.hipHostMalloc(ptr_ref, bytesize, flags) |> HIP.check
+    HostBuffer(ptr_ref[], bytesize)
+end
+
+function free(buf::HostBuffer)
+    buf.ptr == C_NULL && return
+    HIP.hipHostFree(buf) |> HIP.check
+    return
+end
+
+# TODO
+# introduce hipPtr and define unsafe_copyto! for all buffers
+# instead of upload!, download!, transfer!.
