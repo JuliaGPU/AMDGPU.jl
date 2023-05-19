@@ -17,7 +17,7 @@ end
 # Check for exceptions on every synchronization.
 function check_exceptions()
     for (dev, buf) in _exception_flags
-        ptr = convert(Ptr{Int}, buf)
+        ptr = Base.unsafe_convert(Ptr{Int}, buf)
         flag = unsafe_load(ptr)
         if flag != 0
             unsafe_store!(ptr, 0)

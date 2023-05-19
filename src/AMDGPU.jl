@@ -361,13 +361,13 @@ f() = return
 
 function vadd(y, x)
     i = workitemIdx().x + (workgroupIdx().x - 1) * workgroupDim().x
-    @inbounds y[i] += x[i]
+    y[i] += x[i]
     return nothing
 end
 
 function set_one!(x)
     i = workitemIdx().x + (workgroupIdx().x - 1) * workgroupDim().x
-    @inbounds x[i] += Int32(3)
+    x[i] += 3
     return nothing
 end
 
@@ -376,6 +376,7 @@ function tt()
 
     ker = Compiler.hipfunction(f)
     ker(; stream)
+    Compiler.check_exceptions()
     AMDGPU.synchronize()
 
     x = ROCArray(fill(Int32(0), 128))
@@ -385,6 +386,7 @@ function tt()
 
     @show Array(x)
     ker(x; block_dim=128, stream)
+    Compiler.check_exceptions()
     AMDGPU.synchronize()
     @show Array(x)
 

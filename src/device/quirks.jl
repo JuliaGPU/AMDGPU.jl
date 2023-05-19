@@ -2,8 +2,8 @@
 
 macro print_and_throw(arg)
     quote
-        str = $alloc_string($(Val(Symbol(arg))))
-        $device_report_exception(reinterpret(Ptr{Cchar}, str))
+        # str = $alloc_string($(Val(Symbol(arg))))
+        # $device_report_exception(reinterpret(Ptr{Cchar}, str))
         # FIXME: Report exception frames
         signal_exception()
     end
