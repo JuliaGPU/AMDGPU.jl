@@ -121,6 +121,11 @@ function hipHostFree(ptr)
     ccall((:hipHostFree, libhip), hipError_t, (Ptr{Cvoid},), ptr)
 end
 
+function hipHostGetDevicePointer(devPtr, hstPtr, flags)
+    ccall((:hipHostGetDevicePointer, libhip), hipError_t,
+        (Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, Cuint), devPtr, hstPtr, flags)
+end
+
 function hipMallocAsync(ptr, sz, stream)
     ccall((:hipMallocAsync, libhip), hipError_t,
         (Ptr{Ptr{Cvoid}}, Csize_t, hipStream_t),

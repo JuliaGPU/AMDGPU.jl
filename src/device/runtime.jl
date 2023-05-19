@@ -1,14 +1,18 @@
 # ROCm-specific runtime libraries
 
-
 ## GPU runtime library
 
 # reset the runtime cache from global scope, so that any change triggers recompilation
 GPUCompiler.reset_runtime()
 
+@inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
+
+exception_flag() = kernel_state().exception_flag
+
 signal_exception() = device_signal_exception()
+
 function device_signal_exception()
-    flag_ptr = get_global_pointer(Val(:__global_exception_flag), Int64)
+    flag_ptr = exception_flag()
     unsafe_store!(flag_ptr, 1)
 
     # stop this wavefront

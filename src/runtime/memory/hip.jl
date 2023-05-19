@@ -150,5 +150,13 @@ function free(buf::HostBuffer)
 end
 
 # TODO
-# introduce hipPtr and define unsafe_copyto! for all buffers
-# instead of upload!, download!, transfer!.
+# - introduce hipPtr.
+# - use Base.convert instead of `device_ptr`.
+# - define unsafe_copyto! for all buffers instead of upload!, etc.
+
+function device_ptr(buf::HostBuffer)
+    buf.ptr == C_NULL && return C_NULL
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    HIP.hipHostGetDevicePointer(ptr_ref, buf.ptr, 0) |> HIP.check
+    ptr_ref[]
+end
