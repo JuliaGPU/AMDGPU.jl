@@ -15,7 +15,7 @@ GPUCompiler.ci_cache(@nospecialize(::HIPCompilerJob)) = AMDGPU.ci_cache
 
 GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
-# TODO add KernelState
+GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
 
 function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
@@ -42,13 +42,18 @@ function compiler_config(
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
-function hipfunction(f::F, tt::Type = Tuple{}) where {F <: Core.Function}
+function hipfunction(f::F, tt::TT = Tuple{}) where {F <: Core.Function, TT}
     dev = HIP.device()
     cache = compiler_cache(dev)
     config = compiler_config(dev)
 
     fun = GPUCompiler.cached_compilation(
         cache, config, F, tt, hipcompile, hiplink)
+
+    # TODO cache HIPKernel instance to avoid re-creating exceptions
+    exception_ptr = create_exception!(fun.mod)
+    state = AMDGPU.KernelState(exception_ptr)
+    Runtime.HIPKernel{F, tt}(f, fun, state)
 end
 
 function hipcompile(@nospecialize(job::CompilerJob))
@@ -64,10 +69,10 @@ function hipcompile(@nospecialize(job::CompilerJob))
         run_and_collect(
             `$compiler_path $target_arch $bc_input -o $obj_output`)
 
-        # # TODO remove
-        # bc_readable = "$(LLVM.name(meta.entry)).ll"
-        # run_and_collect(
-        #     `$(joinpath(dirname(AMDGPU.lld_path), "llvm-dis")) $bc_input -o /home/pxl-th/$(bc_readable)`)
+        # TODO remove
+        bc_readable = "$(LLVM.name(meta.entry)).ll"
+        run_and_collect(
+            `$(joinpath(dirname(AMDGPU.lld_path), "llvm-dis")) $bc_input -o /home/pxl-th/$(bc_readable)`)
 
         globals = filter(isextinit, collect(LLVM.globals(ir))) .|> LLVM.name
 

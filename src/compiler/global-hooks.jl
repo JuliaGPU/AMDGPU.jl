@@ -31,11 +31,6 @@ default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
     end
     Base.unsafe_store!(gbl_ptr, hc)
 end
-default_global_hooks[:__global_exception_flag] = (gbl, mod, device) -> begin
-    # initialize global exception flag
-    gbl_ptr = Base.unsafe_convert(Ptr{Int64}, gbl)
-    Base.unsafe_store!(gbl_ptr, 0)
-end
 default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
     # initialize exception ring buffer
     gbl_ptr = Base.unsafe_convert(Ptr{Ptr{ExceptionEntry}}, gbl)

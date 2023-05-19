@@ -32,6 +32,10 @@ function Base.lock(f, x::LockedObject)
     end
 end
 
+struct KernelState
+    exception_flag::Ptr{Cvoid}
+end
+
 # Load HSA Runtime.
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath("hsa", "HSA.jl"))
@@ -103,6 +107,7 @@ module Runtime
     include(joinpath("runtime", "kernel-signal.jl"))
     include(joinpath("runtime", "launch.jl"))
     include(joinpath("runtime", "execution.jl"))
+    include(joinpath("runtime", "hip-execution.jl"))
     include(joinpath("runtime", "sync.jl"))
     include(joinpath("runtime", "fault.jl"))
 end # module Runtime
@@ -165,6 +170,7 @@ module Compiler
 
     include(joinpath("compiler", "device-libs.jl"))
     include(joinpath("compiler", "utils.jl"))
+    include(joinpath("compiler", "exceptions.jl"))
     include(joinpath("compiler", "global-hooks.jl"))
     include(joinpath("compiler", "codegen.jl"))
     include(joinpath("compiler", "hip_codegen.jl"))
@@ -368,45 +374,29 @@ end
 function tt()
     stream = AMDGPU.stream()
 
-    # fun = Compiler.hipfunction(f)
-    # HIP.hipModuleLaunchKernel(
-    #     fun, 1, 1, 1, 1, 1, 1,
-    #     0, stream, Ptr{Ptr{Cvoid}}(), Ptr{Ptr{Cvoid}}()) |> HIP.check
-    # AMDGPU.synchronize()
+    ker = Compiler.hipfunction(f)
+    ker(; stream)
+    AMDGPU.synchronize()
 
-    x = ROCArray{Int32}(undef, 128)
-    fill!(x, 0)
-
+    x = ROCArray(fill(Int32(0), 128))
     fun_args = map(rocconvert, (x,))
     fun_tt = Tuple{map(Core.Typeof, fun_args)...}
-    fun = Compiler.hipfunction(set_one!, fun_tt)
+    ker = Compiler.hipfunction(set_one!, fun_tt)
 
-    args_refs = [Base.RefValue(i) for i in fun_args]
-    args_ptrs = [Base.unsafe_convert(Ptr{Cvoid}, i) for i in args_refs]
     @show Array(x)
-    HIP.hipModuleLaunchKernel(
-        fun, 128, 1, 1, 1, 1, 1,
-        0, stream, args_ptrs, Ptr{Ptr{Cvoid}}()) |> HIP.check
+    ker(x; block_dim=128, stream)
     AMDGPU.synchronize()
     @show Array(x)
 
-    # y = ROCArray{Int32}(undef, 128)
-    # fill!(x, 1)
-    # fill!(y, 1)
+    y = ROCArray(fill(Int32(1), 128))
 
-    # fun_args = map(rocconvert, (x, y))
-    # fun_tt = Tuple{map(Core.Typeof, fun_args)...}
-    # fun = Compiler.hipfunction(vadd, fun_tt)
-
-    # args_refs = [Base.RefValue(i) for i in fun_args]
-    # args_ptrs = [Base.unsafe_convert(Ptr{Cvoid}, i) for i in args_refs]
-    # HIP.hipModuleLaunchKernel(
-    #     fun, 128, 1, 1, 1, 1, 1,
-    #     0, stream, args_ptrs, Ptr{Ptr{Cvoid}}()) |> HIP.check
-    # AMDGPU.synchronize()
-
-    # @show Array(x)
-    # @show Array(y)
+    fun_args = map(rocconvert, (x, y))
+    fun_tt = Tuple{map(Core.Typeof, fun_args)...}
+    ker = Compiler.hipfunction(vadd, fun_tt)
+    ker(x, y; block_dim=128, stream)
+    AMDGPU.synchronize()
+    @show Array(x)
+    @show Array(y)
 
     return
 end

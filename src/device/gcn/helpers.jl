@@ -80,7 +80,6 @@ const fntypes = Dict{Type,Symbol}(
 
 import ExprTools
 
-# TODO have separate method_table for HIP
 macro device_override(ex)
     esc(quote
         $GPUCompiler.@override(AMDGPU.method_table, $ex)
