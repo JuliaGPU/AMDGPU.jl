@@ -27,3 +27,12 @@ struct HIPFunction
 end
 
 Base.unsafe_convert(::Type{hipFunction_t}, fun::HIPFunction) = fun.handle
+
+function launch_configuration(
+    fun::HIPFunction; shmem::Integer = 0, max_block_size::Integer = 0,
+)
+    grid_size_ref, block_size_ref = Ref{Cint}(), Ref{Cint}()
+    hipModuleOccupancyMaxPotentialBlockSize(
+        grid_size_ref, block_size_ref, fun, shmem, max_block_size) |> check
+    return (grid_size=grid_size_ref[], block_size=block_size_ref[])
+end

@@ -162,14 +162,13 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
     reduce_groups = cld(length(Rreduce), reduce_items)
 
     # determine the launch configuration
-    items = reduce_items
-    groups = reduce_groups*other_groups
-    gridsize = items*groups
+    blocks = reduce_items
+    grid = reduce_groups * other_groups
 
     # perform the actual reduction
     if reduce_groups == 1
         # we can cover the dimensions to reduce using a single group
-        @roc gridsize=gridsize groupsize=items partial_mapreduce_device(
+        @roc griddim=grid blockdim=blocks partial_mapreduce_device(
             f, op, init, Val(items), Rreduce, Rother, R′, A)
     else
         # we need multiple steps to cover all values to reduce
@@ -178,7 +177,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
             # without an explicit initializer we need to copy from the output container
             partial .= R
         end
-        @roc gridsize=gridsize groupsize=items partial_mapreduce_device(
+        @roc griddim=grid blockdim=blocks partial_mapreduce_device(
             f, op, init, Val(items), Rreduce, Rother, partial, A)
 
         GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)

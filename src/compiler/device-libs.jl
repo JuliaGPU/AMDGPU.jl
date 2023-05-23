@@ -13,6 +13,7 @@ function load_and_link!(mod, path)
         name == "__ockl_hsa_signal_store" && continue
         name == "__ockl_hsa_signal_load" && continue
         startswith(name, "__ockl_hsa_signal") && continue
+
         attrs = function_attributes(f)
         inline = true
         noinline_attr = EnumAttribute("noinline"; ctx)
@@ -82,10 +83,15 @@ function link_device_libs!(target, mod::LLVM.Module)
     try
         load_and_link!(mod, lib)
     catch err
-        @warn "Failed to load/link OCLC core library for ISA $(target.dev_isa)" err=err
+        @warn "Failed to load/link OCLC core library `$lib` for ISA $(target.dev_isa)." err=err
     end
 
-    # 3. Load options libraries
+    # 3. Load OCLC ABI library (required for printing).
+    lib = locate_lib("oclc_abi_version_500")
+    @assert lib !== nothing
+    load_and_link!(mod, lib)
+
+    # 4. Load options libraries
     options = Dict(
         :finite_only => false,
         :unsafe_math => false,

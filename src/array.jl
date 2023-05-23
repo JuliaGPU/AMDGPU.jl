@@ -8,9 +8,11 @@ struct ROCArrayBackend <: AbstractGPUBackend end
 
 struct ROCKernelContext <: AbstractKernelContext end
 
-function GPUArrays.gpu_call(::ROCArrayBackend, f, args, threads::Int, blocks::Int; name::Union{String,Nothing})
-    groupsize, gridsize = threads, blocks * threads
-    @roc groupsize=groupsize gridsize=gridsize name=name f(ROCKernelContext(), args...)
+function GPUArrays.gpu_call(
+    ::ROCArrayBackend, f, args, threads::Int, blocks::Int;
+    name::Union{String, Nothing},
+)
+    @roc griddim=blocks blockdim=threads name=name f(ROCKernelContext(), args...)
 end
 
 ## on-device
@@ -202,6 +204,7 @@ function Base.copyto!(
         Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
         amount * sizeof(T); stream=stream())
     isnothing(event) || mark!(source, event)
+    HIP.synchronize(event)
     dest
 end
 function Base.copyto!(
