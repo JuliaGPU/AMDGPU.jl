@@ -259,3 +259,11 @@ function hipModuleLaunchKernel(
         func, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
         sharedMemBytes, stream, kernelParams, extra)
 end
+
+function hipModuleOccupancyMaxPotentialBlockSize(
+    gridSize, blockSize, f, dynSharedMemPerBlk, blockSizeLimit,
+)
+    ccall((:hipModuleOccupancyMaxPotentialBlockSize, libhip), hipError_t,
+        (Ptr{Cint}, Ptr{Cint}, hipFunction_t, Csize_t, Cint),
+        gridSize, blockSize, f, dynSharedMemPerBlk, blockSizeLimit)
+end

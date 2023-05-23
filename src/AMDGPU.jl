@@ -155,27 +155,20 @@ export sync_workgroup
 module Compiler
     using ..GPUCompiler
     using ..LLVM
-    import ..Adapt
     import Core: LLVMPtr
-    using Printf
 
     import ..AMDGPU
     import ..AMDGPU: AS
     import ..Runtime
     import ..Device
     import ..HIP
-    import .Runtime: ROCDevice, ROCModule, ROCFunction
-    import .Runtime: Adaptor
-    import .Runtime: Mem
+    import ..Mem
 
     include(joinpath("compiler", "device-libs.jl"))
     include(joinpath("compiler", "utils.jl"))
     include(joinpath("compiler", "exceptions.jl"))
-    include(joinpath("compiler", "global-hooks.jl"))
     include(joinpath("compiler", "codegen.jl"))
-    include(joinpath("compiler", "hip_codegen.jl"))
-    include(joinpath("compiler", "occupancy.jl"))
-end # module Compiler
+end
 
 include("tls.jl")
 include("highlevel.jl")
@@ -221,9 +214,9 @@ include(joinpath("dnn", "MIOpen.jl"))
 include("random.jl")
 
 # KernelAbstractions
-include("ROCKernels.jl")
-import .ROCKernels: ROCBackend
-export ROCBackend
+# include("ROCKernels.jl")
+# import .ROCKernels: ROCBackend
+# export ROCBackend
 
 function __init__()
     atexit() do
@@ -371,36 +364,39 @@ function set_one!(x)
     return nothing
 end
 
+function printing(x)
+    res = Device.@hipprintln("Hello")
+    x[1] = res
+    return nothing
+end
+
 function tt()
     stream = AMDGPU.stream()
 
-    ker = Compiler.hipfunction(f)
-    ker(; stream)
+    @roc f()
     Compiler.check_exceptions()
-    AMDGPU.synchronize()
+    AMDGPU.synchronize(stream)
+
+    x = ROCArray(fill(Int64(0), 1))
+    @roc printing(x)
+    Compiler.check_exceptions()
+    AMDGPU.synchronize(stream)
+    @show Array(x)
 
     x = ROCArray(fill(Int32(0), 128))
-    fun_args = map(rocconvert, (x,))
-    fun_tt = Tuple{map(Core.Typeof, fun_args)...}
-    ker = Compiler.hipfunction(set_one!, fun_tt)
-
-    @show Array(x)
-    ker(x; block_dim=128, stream)
+    @roc blockdim=128 set_one!(x)
     Compiler.check_exceptions()
-    AMDGPU.synchronize()
+    AMDGPU.synchronize(stream)
     @show Array(x)
 
     y = ROCArray(fill(Int32(1), 128))
-
-    fun_args = map(rocconvert, (x, y))
-    fun_tt = Tuple{map(Core.Typeof, fun_args)...}
-    ker = Compiler.hipfunction(vadd, fun_tt)
-    ker(x, y; block_dim=128, stream)
-    AMDGPU.synchronize()
+    @roc blockdim=128 vadd(x, y)
+    Compiler.check_exceptions()
+    AMDGPU.synchronize(stream)
     @show Array(x)
     @show Array(y)
 
     return
 end
 
-end # module
+end

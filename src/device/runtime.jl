@@ -9,10 +9,7 @@ GPUCompiler.reset_runtime()
 
 exception_flag() = kernel_state().exception_flag
 
-# NOTE This is emitted by GPUCompiler.
-signal_exception() = device_signal_exception()
-
-function device_signal_exception()
+function signal_exception()
     ptr = exception_flag()
     if ptr !== C_NULL
         unsafe_store!(convert(Ptr{Int}, ptr), 1)
