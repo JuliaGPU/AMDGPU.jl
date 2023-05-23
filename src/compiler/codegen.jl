@@ -42,10 +42,10 @@ function compiler_config(
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
-function hipfunction(f::F, tt::TT = Tuple{}) where {F <: Core.Function, TT}
+function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
     dev = HIP.device()
     cache = compiler_cache(dev)
-    config = compiler_config(dev)
+    config = compiler_config(dev; kwargs...)
 
     fun = GPUCompiler.cached_compilation(
         cache, config, F, tt, hipcompile, hiplink)
@@ -59,29 +59,49 @@ function hipfunction(f::F, tt::TT = Tuple{}) where {F <: Core.Function, TT}
     return kernel::Runtime.HIPKernel{F, tt}
 end
 
+function create_executable(obj)
+    @assert AMDGPU.lld_path != "" "ld.lld was not found; cannot link kernel"
+    path_exe = mktemp() do path_o, io_o
+        write(io_o, obj)
+        flush(io_o)
+        path_exe = path_o * ".exe"
+        run(`$(AMDGPU.lld_path) -shared -o $path_exe $path_o`)
+        path_exe
+    end
+    return read(path_exe)
+end
+
 function hipcompile(@nospecialize(job::CompilerJob))
     JuliaContext() do ctx
-        ir, meta = GPUCompiler.compile(:llvm, job; ctx)
-
-        bc_input = tempname(cleanup=false) * ".bc"
-        obj_output = tempname(cleanup=false) * ".o"
-        write(bc_input, ir)
-
-        # # TODO remove
-        # bc_readable = "$(LLVM.name(meta.entry)).ll"
-        # run_and_collect(
-        #     `$(joinpath(dirname(AMDGPU.lld_path), "llvm-dis")) $bc_input -o /home/pxl-th/$(bc_readable)`)
-
-        compiler_path = joinpath(dirname(AMDGPU.lld_path), "clang")
-        target_arch = `-target amdgcn-amd-amdhsa -mcpu=$(job.config.target.dev_isa)`
-        command = `$compiler_path $target_arch $bc_input -o $obj_output`
-        run_and_collect(command)
-
-        globals = filter(isextinit, collect(LLVM.globals(ir))) .|> LLVM.name
-
-        (; obj=read(obj_output), entry=LLVM.name(meta.entry), globals)
+        obj, meta = GPUCompiler.compile(:obj, job; ctx)
+        globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+        (; obj=create_executable(codeunits(obj)), entry=LLVM.name(meta.entry), globals)
     end
 end
+
+# function hipcompile(@nospecialize(job::CompilerJob))
+#     JuliaContext() do ctx
+#         ir, meta = GPUCompiler.compile(:llvm, job; ctx)
+
+#         bc_input = tempname(cleanup=false) * ".bc"
+#         obj_output = tempname(cleanup=false) * ".o"
+#         write(bc_input, ir)
+
+#         # # TODO remove
+#         # bc_readable = "$(LLVM.name(meta.entry)).ll"
+#         # run_and_collect(
+#         #     `$(joinpath(dirname(AMDGPU.lld_path), "llvm-dis")) $bc_input -o /home/pxl-th/$(bc_readable)`)
+
+#         compiler_path = joinpath(dirname(AMDGPU.lld_path), "clang")
+#         target_arch = `-target amdgcn-amd-amdhsa -mcpu=$(job.config.target.dev_isa)`
+#         command = `$compiler_path $target_arch $bc_input -o $obj_output`
+#         run_and_collect(command)
+
+#         globals = filter(isextinit, collect(LLVM.globals(ir))) .|> LLVM.name
+
+#         (; obj=read(obj_output), entry=LLVM.name(meta.entry), globals)
+#     end
+# end
 
 function hiplink(@nospecialize(job::CompilerJob), compiled)
     (; obj, entry, globals) = compiled

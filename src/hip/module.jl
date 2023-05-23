@@ -1,7 +1,7 @@
 mutable struct HIPModule
     handle::hipModule_t
 
-    function HIPModule(data::Vector{UInt8})
+    function HIPModule(data)
         mod_ref = Ref{hipModule_t}()
         hipModuleLoadData(mod_ref, data) |> check
         mod = new(mod_ref[])

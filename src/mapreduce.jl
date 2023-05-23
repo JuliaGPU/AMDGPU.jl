@@ -169,7 +169,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
     if reduce_groups == 1
         # we can cover the dimensions to reduce using a single group
         @roc griddim=grid blockdim=blocks partial_mapreduce_device(
-            f, op, init, Val(items), Rreduce, Rother, R′, A)
+            f, op, init, Val(blocks), Rreduce, Rother, R′, A)
     else
         # we need multiple steps to cover all values to reduce
         partial = similar(R, (size(R)..., reduce_groups))
@@ -178,7 +178,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
             partial .= R
         end
         @roc griddim=grid blockdim=blocks partial_mapreduce_device(
-            f, op, init, Val(items), Rreduce, Rother, partial, A)
+            f, op, init, Val(blocks), Rreduce, Rother, partial, A)
 
         GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
     end

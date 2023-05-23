@@ -210,30 +210,6 @@ default_isa(device::ROCDevice) = Runtime.default_isa(device)
 default_isa_architecture(device::ROCDevice) = Runtime.architecture(default_isa(device))
 default_isa_features(device::ROCDevice) = Runtime.features(default_isa(device))
 
-## Executable creation
-
-function create_executable(device, entry, obj; globals=())
-    # link with ld.lld
-    @assert lld_path != "" "ld.lld was not found; cannot link kernel"
-    path_exe = mktemp() do path_o, io_o
-        write(io_o, obj)
-        flush(io_o)
-        path_exe = path_o*".exe"
-        if lld_artifact
-            LLD_jll.lld() do lld
-                run(`$lld -flavor gnu -shared -o $path_exe $path_o`)
-            end
-        else
-            run(`$lld_path -shared -o $path_exe $path_o`)
-        end
-        path_exe
-    end
-    data = read(path_exe)
-    rm(path_exe)
-
-    return ROCExecutable(device, data, entry; globals=globals)
-end
-
 function get_kernel_queue(;
     event_queue::Union{ROCQueue, Nothing}, device::Union{ROCDevice, Nothing},
 )
