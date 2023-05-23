@@ -377,11 +377,11 @@ function tt()
     Compiler.check_exceptions()
     AMDGPU.synchronize(stream)
 
-    x = ROCArray(fill(Int64(0), 1))
-    @roc printing(x)
-    Compiler.check_exceptions()
-    AMDGPU.synchronize(stream)
-    @show Array(x)
+    # x = ROCArray(fill(Int64(0), 1))
+    # @roc printing(x)
+    # Compiler.check_exceptions()
+    # AMDGPU.synchronize(stream)
+    # @show Array(x)
 
     x = ROCArray(fill(Int32(0), 128))
     @roc blockdim=128 set_one!(x)
@@ -395,6 +395,10 @@ function tt()
     AMDGPU.synchronize(stream)
     @show Array(x)
     @show Array(y)
+
+    # x = ones(Int64, 16)
+    # @show x
+    # @show sum(x)
 
     return
 end
