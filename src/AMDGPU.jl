@@ -1,7 +1,5 @@
 module AMDGPU
 
-### Imports ###
-
 using CEnum
 using Libdl
 using LLVM, LLVM.Interop
@@ -10,8 +8,6 @@ using GPUArrays
 using Adapt
 import LinearAlgebra
 import Core: LLVMPtr
-
-### Exports ###
 
 export ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal
 export has_rocm_gpu
@@ -34,6 +30,7 @@ end
 
 struct KernelState
     exception_flag::Ptr{Cvoid}
+    output_context::Ptr{Cvoid}
 end
 
 # Load HSA Runtime.
@@ -167,7 +164,9 @@ module Compiler
     include(joinpath("compiler", "device-libs.jl"))
     include(joinpath("compiler", "utils.jl"))
     include(joinpath("compiler", "exceptions.jl"))
+    include(joinpath("compiler", "output_context.jl"))
     include(joinpath("compiler", "codegen.jl"))
+    include(joinpath("compiler", "hostcalls.jl"))
 end
 
 include("tls.jl")
@@ -364,41 +363,55 @@ function set_one!(x)
     return nothing
 end
 
-function printing(x)
-    res = Device.@hipprintln("Hello")
-    x[1] = res
+function printing()
+    Device.@rocprint("Hello world!\n")
     return nothing
 end
 
-function tt()
+function test()
     stream = AMDGPU.stream()
 
-    @roc f()
+    # @roc f()
+    # Compiler.check_exceptions()
+    # AMDGPU.synchronize(stream)
+
+    @roc printing()
     Compiler.check_exceptions()
     AMDGPU.synchronize(stream)
 
-    # x = ROCArray(fill(Int64(0), 1))
-    # @roc printing(x)
+    # x = ROCArray(fill(Int32(0), 128))
+    # @roc blockdim=128 set_one!(x)
     # Compiler.check_exceptions()
     # AMDGPU.synchronize(stream)
     # @show Array(x)
 
-    x = ROCArray(fill(Int32(0), 128))
-    @roc blockdim=128 set_one!(x)
-    Compiler.check_exceptions()
-    AMDGPU.synchronize(stream)
-    @show Array(x)
-
-    y = ROCArray(fill(Int32(1), 128))
-    @roc blockdim=128 vadd(x, y)
-    Compiler.check_exceptions()
-    AMDGPU.synchronize(stream)
-    @show Array(x)
-    @show Array(y)
+    # y = ROCArray(fill(Int32(1), 128))
+    # @roc blockdim=128 vadd(x, y)
+    # Compiler.check_exceptions()
+    # AMDGPU.synchronize(stream)
+    # @show Array(x)
+    # @show Array(y)
 
     # x = ones(Int64, 16)
     # @show x
     # @show sum(x)
+
+    return
+end
+
+function pp()
+    """
+    1. Create global output context.
+    2. At KerneState creation, store its pointer.
+    3. 
+    """
+    dev = AMDGPU.device()
+    oc = Device.OutputContext(stdout; device=dev)
+    @show sizeof(Ptr{AMDGPU.Device.GLOBAL_OUTPUT_CONTEXT_TYPE})
+    @show sizeof(Device.GLOBAL_OUTPUT_CONTEXT_TYPE)
+
+    oc_ptr = Compiler.create_output_context!()
+    @show oc_ptr
 
     return
 end

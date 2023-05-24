@@ -37,12 +37,27 @@ Device is the default device that's currently in use.
 """
 HIPStream(stream::hipStream_t) = HIPStream(stream, priority(stream), device())
 
+function isdone(stream::HIPStream)
+    query = hipStreamQuery(stream)
+    if query == hipSuccess
+        return true
+    elseif query == hipErrorNotReady
+        return false
+    else
+        throw(HIPError(query))
+    end
+end
+
+wait(stream::HIPStream) = hipStreamSynchronize(stream) |> check
+
 function synchronize(stream::HIPStream)
-    hipStreamSynchronize(stream) |> check
+    non_blocking_synchronize(stream) || wait(stream)
+    return
 end
 
 Base.unsafe_convert(::Type{Ptr{T}}, stream::HIPStream) where T =
     reinterpret(Ptr{T}, stream.stream)
+
 function Base.show(io::IO, stream::HIPStream)
     print(io, "HIPStream(device=$(stream.device), ptr=$(repr(UInt64(stream.stream))), priority=$(stream.priority))")
 end

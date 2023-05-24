@@ -25,8 +25,8 @@ const DEVICE_ERR_SENTINEL = 5
 "Fatal error on host thread accessing the signal."
 const HOST_ERR_SENTINEL = 6
 
-const DEFAULT_HOSTCALL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
-const DEFAULT_HOSTCALL_LATENCY = Ref{Float64}(0.01)
+const DEFAULT_HOSTCALL_TIMEOUT = nothing
+const DEFAULT_HOSTCALL_LATENCY = 0.01
 
 include("hostcall_signal_helpers.jl")
 
@@ -35,14 +35,16 @@ include("hostcall_signal_helpers.jl")
 
 GPU-compatible struct for making hostcalls.
 """
-struct HostCall{RT,AT}
+struct HostCall{RT, AT}
     signal_handle::UInt64
-    buf_ptr::LLVMPtr{UInt8,AS.Global}
+    buf_ptr::LLVMPtr{UInt8, AS.Global}
     buf_len::UInt
 end
 
-function HostCall(RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
-                  device=AMDGPU.device(), buf_len=nothing)
+function HostCall(
+    RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
+    device = AMDGPU.default_device(), buf_len = nothing,
+)
     if isnothing(buf_len)
         buf_len = 0
         for T in AT.parameters
@@ -52,10 +54,10 @@ function HostCall(RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
     end
 
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
-    buf = Mem.alloc(device, buf_len; coherent=true)
-    buf_ptr = LLVMPtr{UInt8,AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
+    buf = Mem.alloc(device, buf_len; coherent=true) # TODO move to HIP
+    buf_ptr = LLVMPtr{UInt8, AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
     host_signal_store!(HSA.Signal(signal_handle), READY_SENTINEL)
-    HostCall{RT,AT}(signal_handle, buf_ptr, buf_len)
+    HostCall{RT, AT}(signal_handle, buf_ptr, buf_len)
 end
 
 "Calls the host function stored in `hc` with arguments `args`."
@@ -94,8 +96,9 @@ macro device_execution_gate(mode, exec_ex)
     elseif mode == :wave
         push!(ex.args, quote
             # Must be on first lane of each wavefront of each group
-            if Core.Intrinsics.urem_int($workitemIdx().x - UInt32(1),
-                                        $wavefrontsize()) != 0
+            is_not_first_lane = Core.Intrinsics.urem_int(
+                $workitemIdx().x - UInt32(1), $wavefrontsize()) != 0
+            if is_not_first_lane
                 @goto gated_done
             end
         end)
@@ -139,7 +142,7 @@ end
         T = args[i]
         sz = sizeof(T)
         # FIXME: Use proper alignment
-        ptr = :(reinterpret(LLVMPtr{$T,AS.Global}, hc.buf_ptr+$off-1))
+        ptr = :(reinterpret(LLVMPtr{$T,AS.Global}, hc.buf_ptr + $off - 1))
         push!(ex.args, :(Base.unsafe_store!($ptr, args[$i])))
         off += sz
     end
@@ -155,7 +158,9 @@ end
     hostcall_device_trigger_and_return!(Val{:group}(), hc::HostCall)
 end
 
-@inline @generated function hostcall_device_trigger_and_return!(::Val{mode}, hc::HostCall{RT, AT}) where {mode, RT, AT}
+@inline @generated function hostcall_device_trigger_and_return!(
+    ::Val{mode}, hc::HostCall{RT, AT},
+) where {mode, RT, AT}
     ex = Expr(:block)
     @gensym shmem buf_ptr ret_ptr hostcall_return
 
@@ -164,6 +169,7 @@ end
             # FIXME: This is not valid without the @inline
             # $shmem = $alloc_local($hostcall_return, $RT, 1)
             # But this is fine (if slower)
+            # TODO fixxxx!
             $shmem = $get_global_pointer($(Val{hostcall_return}()), $RT)
         end
 
@@ -174,7 +180,7 @@ end
             $hostcall_device_signal_wait(hc.signal_handle, $HOST_MSG_SENTINEL)
             # Get return buffer and load first value
             if $RT !== Nothing
-                $buf_ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global},AS.Global},hc.buf_ptr)
+                $buf_ptr = reinterpret(LLVMPtr{LLVMPtr{$RT,AS.Global}, AS.Global}, hc.buf_ptr)
                 $ret_ptr = unsafe_load($buf_ptr)
                 if UInt64($ret_ptr) == 0
                     $device_signal_store!(hc.signal_handle, $DEVICE_ERR_SENTINEL)
@@ -214,9 +220,9 @@ end
         # FIXME: Use correct alignment
         push!(ex.args, quote
             lref = Ref{$T}()
-            HSA.memory_copy(reinterpret(Ptr{Cvoid}, Base.unsafe_convert(Ptr{$T}, lref)),
-                            reinterpret(Ptr{Cvoid}, hc.buf_ptr+$off - 1),
-                            $sz) |> Runtime.check
+            HSA.memory_copy(
+                reinterpret(Ptr{Cvoid}, Base.unsafe_convert(Ptr{$T}, lref)),
+                reinterpret(Ptr{Cvoid}, hc.buf_ptr + $off - 1), $sz) |> Runtime.check
             lref[]
         end)
         off += sz
@@ -263,13 +269,17 @@ hostcall will fail with undefined behavior.
 
 Note: This API is currently experimental and is subject to change at any time.
 """
-function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; return_task::Bool = false,
-                  device=AMDGPU.device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
-                  timeout=nothing, continuous=false, buf_len=nothing)
+function HostCall(
+    func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple};
+    return_task::Bool = false, device = AMDGPU.default_device(),
+    maxlat = DEFAULT_HOSTCALL_LATENCY, timeout = nothing,
+    continuous = false, buf_len = nothing,
+)
     # Create raw HSA signal to avoid ROCSignal finalizer
     # being called too early in the HostCall task.
     signal_ref = Ref{HSA.Signal}()
-    HSA.signal_create(1, 0, C_NULL, signal_ref) |> Runtime.check
+    # HSA.signal_create(1, 0, C_NULL, signal_ref) |> Runtime.check
+    HSA.amd_signal_create(1, 0, C_NULL, HSA.AMD_SIGNAL_IPC, signal_ref) |> Runtime.check
     signal = signal_ref[]
     AMDGPU.hsaref!()
 
@@ -280,21 +290,23 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
         ret_len = 0
         try
             while true
-                if !hostcall_host_wait(signal; maxlat=maxlat, timeout=timeout)
+                # TODO not returning until we quit
+                rt = hostcall_host_wait(signal; maxlat=maxlat, timeout=timeout)
+                if !rt
                     throw(HostCallException("Hostcall: Timeout on signal $signal"))
                 end
+
                 if length(argtypes.parameters) > 0
                     args = try
                         hostcall_host_read_args(hc)
                     catch err
                         throw(HostCallException("Error getting arguments", err))
                     end
-                    @debug "Hostcall: Got arguments of length $(length(args))"
                 else
                     args = ()
                 end
                 ret = try
-                    func(args...,)
+                    func(args...,) # args not used in output hostcall?
                 catch err
                     throw(HostCallException("Error executing host function", err))
                 end
@@ -304,7 +316,7 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
                 if !isbits(ret)
                     throw(HostCallException("Host function result not isbits: $(typeof(ret))"))
                 end
-                @debug "Hostcall: Host function returning value of type $(typeof(ret))"
+
                 try
                     if isassigned(ret_buf) && (ret_len < sizeof(ret))
                         Mem.free(ret_buf[])
@@ -329,7 +341,6 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
                 catch err
                     throw(HostCallException("Error returning hostcall result", err))
                 end
-                @debug "Hostcall: Host function return completed"
                 continuous || break
             end
         catch err
@@ -369,20 +380,27 @@ function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; r
     end
 end
 
-function hostcall_host_wait(signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_LATENCY[], timeout=DEFAULT_HOSTCALL_TIMEOUT[])
-    @debug "Hostcall: Waiting on signal $signal_handle"
+function hostcall_host_wait(
+    signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_LATENCY,
+    timeout=DEFAULT_HOSTCALL_TIMEOUT,
+)
+    res::Bool = false
     start_time = time_ns()
+
     while !Runtime.RT_EXITING[]
         prev = host_signal_load(signal_handle)
+
+        # If device-sourced message is available,
+        # lock on host to prevent further writes from the device.
+        # If successfully locked on host, done waiting.
         if prev == DEVICE_MSG_SENTINEL
             prev = host_signal_cmpxchg!(
                 signal_handle, DEVICE_MSG_SENTINEL, HOST_LOCK_SENTINEL)
             if prev == DEVICE_MSG_SENTINEL
-                @debug "Hostcall: Device message on signal $signal_handle"
-                return true
+                res = true
+                break
             end
         elseif prev == DEVICE_ERR_SENTINEL
-            @debug "Hostcall: Device error on signal $signal_handle"
             throw(HostCallException("Device error on signal $signal_handle"))
         end
 
@@ -390,10 +408,15 @@ function hostcall_host_wait(signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_L
             now_time = time_ns()
             diff_time = (now_time - start_time) / 10^9
             if diff_time > timeout
-                @debug "Hostcall: Signal wait timeout on signal $signal_handle"
-                return false
+                res = false
+                break
             end
         end
-        sleep(maxlat)
+
+        # TODO hangs the task?
+        # sleep(maxlat)
+        Libc.systemsleep(0.001)
+        yield()
     end
+    return res
 end

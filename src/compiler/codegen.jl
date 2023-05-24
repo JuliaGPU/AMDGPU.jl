@@ -22,6 +22,7 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
+    @show undefined_fns
     invoke(GPUCompiler.link_libraries!,
            Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
            job, mod, undefined_fns)
@@ -53,7 +54,8 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
     h = hash(fun, hash(f, hash(tt)))
     kernel = get!(_kernel_instances, h) do
         exception_ptr = create_exception!(fun.mod)
-        state = AMDGPU.KernelState(exception_ptr)
+        output_context_ptr = create_output_context!()
+        state = AMDGPU.KernelState(exception_ptr, output_context_ptr)
         Runtime.HIPKernel{F, tt}(f, fun, state)
     end
     return kernel::Runtime.HIPKernel{F, tt}
@@ -75,37 +77,13 @@ function hipcompile(@nospecialize(job::CompilerJob))
     JuliaContext() do ctx
         obj, meta = GPUCompiler.compile(:obj, job; ctx)
         globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+        @show globals
         (; obj=create_executable(codeunits(obj)), entry=LLVM.name(meta.entry), globals)
     end
 end
 
-# function hipcompile(@nospecialize(job::CompilerJob))
-#     JuliaContext() do ctx
-#         ir, meta = GPUCompiler.compile(:llvm, job; ctx)
-
-#         bc_input = tempname(cleanup=false) * ".bc"
-#         obj_output = tempname(cleanup=false) * ".o"
-#         write(bc_input, ir)
-
-#         # # TODO remove
-#         # bc_readable = "$(LLVM.name(meta.entry)).ll"
-#         # run_and_collect(
-#         #     `$(joinpath(dirname(AMDGPU.lld_path), "llvm-dis")) $bc_input -o /home/pxl-th/$(bc_readable)`)
-
-#         compiler_path = joinpath(dirname(AMDGPU.lld_path), "clang")
-#         target_arch = `-target amdgcn-amd-amdhsa -mcpu=$(job.config.target.dev_isa)`
-#         command = `$compiler_path $target_arch $bc_input -o $obj_output`
-#         run_and_collect(command)
-
-#         globals = filter(isextinit, collect(LLVM.globals(ir))) .|> LLVM.name
-
-#         (; obj=read(obj_output), entry=LLVM.name(meta.entry), globals)
-#     end
-# end
-
 function hiplink(@nospecialize(job::CompilerJob), compiled)
     (; obj, entry, globals) = compiled
-
     mod = HIP.HIPModule(obj)
     HIP.HIPFunction(mod, entry)
 end

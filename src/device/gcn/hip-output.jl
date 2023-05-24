@@ -31,12 +31,9 @@ end
             printf_begin_typ = LLVM.FunctionType(T_int64)
             printf_begin = LLVM.Function(
                 mod, "__ockl_fprintf_stdout_begin", printf_begin_typ)
-            call!(builder, printf_begin_typ, printf_begin)
+            descriptor = call!(builder, printf_begin_typ, printf_begin)
 
-            descriptor = LLVM.ConstantInt(T_int64, 3)
-            ret!(builder, descriptor)
-
-            println(mod)
+            # println(mod)
 
             # # Append `fmt` string.
             # fmt_str = globalstring_ptr!(builder, String(fmt))
@@ -56,6 +53,9 @@ end
             # 2. append string (fmt)
             # 3. foreach arg append arg
             # """
+
+            descriptor = LLVM.ConstantInt(T_int64, 3)
+            ret!(builder, descriptor)
         end
 
         call_function(llvm_f, Int64, Tuple{arg_types...}, arg_exprs...)
