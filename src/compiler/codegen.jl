@@ -43,26 +43,30 @@ function compiler_config(
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
+const hipfunction_lock = ReentrantLock()
+
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
-    dev = HIP.device()
-    cache = compiler_cache(dev)
-    config = compiler_config(dev; kwargs...)
+    Base.@lock hipfunction_lock begin
+        dev = HIP.device()
+        cache = compiler_cache(dev)
+        config = compiler_config(dev; kwargs...)
 
-    fun = GPUCompiler.cached_compilation(
-        cache, config, F, tt, hipcompile, hiplink)
+        fun = GPUCompiler.cached_compilation(
+            cache, config, F, tt, hipcompile, hiplink)
 
-    h = hash(fun, hash(f, hash(tt)))
-    kernel = get!(_kernel_instances, h) do
-        exception_ptr = create_exception!(fun.mod)
-        output_context_ptr = create_output_context!()
-        state = AMDGPU.KernelState(exception_ptr, output_context_ptr)
-        Runtime.HIPKernel{F, tt}(f, fun, state)
+        h = hash(fun, hash(f, hash(tt)))
+        kernel = get!(_kernel_instances, h) do
+            exception_ptr = create_exception!(fun.mod)
+            output_context_ptr = create_output_context!()
+            state = AMDGPU.KernelState(exception_ptr, output_context_ptr)
+            Runtime.HIPKernel{F, tt}(f, fun, state)
+        end
+        return kernel::Runtime.HIPKernel{F, tt}
     end
-    return kernel::Runtime.HIPKernel{F, tt}
 end
 
 function create_executable(obj)
-    @assert AMDGPU.lld_path != "" "ld.lld was not found; cannot link kernel"
+    @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
     path_exe = mktemp() do path_o, io_o
         write(io_o, obj)
         flush(io_o)
@@ -77,7 +81,6 @@ function hipcompile(@nospecialize(job::CompilerJob))
     JuliaContext() do ctx
         obj, meta = GPUCompiler.compile(:obj, job; ctx)
         globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
-        @show globals
         (; obj=create_executable(codeunits(obj)), entry=LLVM.name(meta.entry), globals)
     end
 end

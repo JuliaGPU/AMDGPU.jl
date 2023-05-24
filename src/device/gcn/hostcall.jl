@@ -290,9 +290,7 @@ function HostCall(
         ret_len = 0
         try
             while true
-                # TODO not returning until we quit
-                rt = hostcall_host_wait(signal; maxlat=maxlat, timeout=timeout)
-                if !rt
+                if !hostcall_host_wait(signal; maxlat=maxlat, timeout=timeout)
                     throw(HostCallException("Hostcall: Timeout on signal $signal"))
                 end
 
@@ -413,9 +411,7 @@ function hostcall_host_wait(
             end
         end
 
-        # TODO hangs the task?
-        # sleep(maxlat)
-        Libc.systemsleep(0.001)
+        Libc.systemsleep(maxlat)
         yield()
     end
     return res

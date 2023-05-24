@@ -371,47 +371,30 @@ end
 function test()
     stream = AMDGPU.stream()
 
-    # @roc f()
-    # Compiler.check_exceptions()
-    # AMDGPU.synchronize(stream)
+    @roc f()
+    Compiler.check_exceptions()
+    AMDGPU.synchronize(stream)
 
     @roc printing()
     Compiler.check_exceptions()
     AMDGPU.synchronize(stream)
 
-    # x = ROCArray(fill(Int32(0), 128))
-    # @roc blockdim=128 set_one!(x)
-    # Compiler.check_exceptions()
-    # AMDGPU.synchronize(stream)
-    # @show Array(x)
+    x = ROCArray(fill(Int32(0), 128))
+    @roc blockdim=128 set_one!(x)
+    Compiler.check_exceptions()
+    AMDGPU.synchronize(stream)
+    @show Array(x)
 
-    # y = ROCArray(fill(Int32(1), 128))
-    # @roc blockdim=128 vadd(x, y)
-    # Compiler.check_exceptions()
-    # AMDGPU.synchronize(stream)
-    # @show Array(x)
-    # @show Array(y)
+    y = ROCArray(fill(Int32(1), 128))
+    @roc blockdim=128 vadd(x, y)
+    Compiler.check_exceptions()
+    AMDGPU.synchronize(stream)
+    @show Array(x)
+    @show Array(y)
 
     # x = ones(Int64, 16)
     # @show x
     # @show sum(x)
-
-    return
-end
-
-function pp()
-    """
-    1. Create global output context.
-    2. At KerneState creation, store its pointer.
-    3. 
-    """
-    dev = AMDGPU.device()
-    oc = Device.OutputContext(stdout; device=dev)
-    @show sizeof(Ptr{AMDGPU.Device.GLOBAL_OUTPUT_CONTEXT_TYPE})
-    @show sizeof(Device.GLOBAL_OUTPUT_CONTEXT_TYPE)
-
-    oc_ptr = Compiler.create_output_context!()
-    @show oc_ptr
 
     return
 end
