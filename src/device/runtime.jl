@@ -15,6 +15,10 @@ function output_context()
     convert(Ptr{GLOBAL_OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
 end
 
+function printf_output_context()
+    convert(Ptr{PRINTF_OUTPUT_CONTEXT_TYPE}, kernel_state().printf_output_context)
+end
+
 function signal_exception()
     ptr = exception_flag()
     if ptr !== C_NULL
@@ -29,33 +33,48 @@ function signal_exception()
 end
 
 # function device_string_to_host(ex)
-#     # We get a ReadOnlyMemoryError on the host without making a copy because the data is pinned to the device
-#     ex_ptr = reinterpret(LLVMPtr{UInt8,1}, ex)
+#     # We get a ReadOnlyMemoryError on the host without
+#     # making a copy because the data is pinned to the device.
+#     ex_ptr = reinterpret(LLVMPtr{UInt8, 1}, ex)
 #     ex_len = string_length(ex_ptr)
 #     # TODO: Don't use an expensive host malloc
-#     ex_str = reinterpret(LLVMPtr{UInt8,1}, device_malloc(Csize_t(ex_len+1)))
-#     if reinterpret(UInt64, ex_str) == 0
-#         @rocprintf("Device-to-host string conversion failed\n")
+#     ex_str = reinterpret(LLVMPtr{UInt8, 1}, device_malloc(Csize_t(ex_len + 1)))
+#     if reinterpret(UInt64, ex_str) == 0 # nullptr
+#         @rocprint("Device-to-host string conversion failed\n")
 #         return reinterpret(Cstring, 0)
 #     end
 #     memcpy!(ex_str, ex_ptr, ex_len)
-#     unsafe_store!(ex_str+ex_len, UInt8(0))
+#     unsafe_store!(ex_str + ex_len, UInt8(0))
 #     reinterpret(Cstring, ex_str)
 # end
 
+"""
+TODO
+- device_malloc
+- device free
+- get_global_pointer __global_exception_ring
+"""
+function report_exception(ex)
+    return
+end
 # report_exception(ex) = device_report_exception(ex)
 # function device_report_exception(ex::Ptr{Cchar})
 #     # Add kernel ID and exception string to exception ring buffer
 #     ring_ptr = get_global_pointer(Val(:__global_exception_ring), LLVMPtr{ExceptionEntry,AS.Global})
 #     ring_ptr = unsafe_load(ring_ptr)
 #     our_signal = _completion_signal()
+
 #     prev = UInt64(1)
 #     while prev != UInt64(0)
 #         # Try to write to this slot, and skip if we fail (because another wavefront wrote first)
-#         prev = atomic_cas!(reinterpret(LLVMPtr{UInt64,AS.Global}, ring_ptr), UInt64(0), our_signal)
+#         prev = atomic_cas!(
+#             reinterpret(LLVMPtr{UInt64,AS.Global}, ring_ptr),
+#             UInt64(0), our_signal)
 #         if prev == UInt64(0)
 #             ex_str = device_string_to_host(ex)
-#             Base.unsafe_store!(reinterpret(LLVMPtr{UInt64,AS.Global}, ring_ptr+sizeof(UInt64)), reinterpret(UInt64, ex_str))
+#             Base.unsafe_store!(
+#                 reinterpret(LLVMPtr{UInt64,AS.Global}, ring_ptr + sizeof(UInt64)),
+#                 reinterpret(UInt64, ex_str))
 #             break
 #         elseif prev == UInt64(1)
 #             # Tail slot, give up
