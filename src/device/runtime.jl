@@ -7,7 +7,13 @@ GPUCompiler.reset_runtime()
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
 
-exception_flag() = kernel_state().exception_flag
+function exception_flag()
+    convert(Ptr{Int}, kernel_state().exception_flag)
+end
+
+function output_context()
+    convert(Ptr{GLOBAL_OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
+end
 
 function signal_exception()
     ptr = exception_flag()

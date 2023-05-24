@@ -14,7 +14,7 @@ function record(event::HIPEvent)
 end
 
 function isdone(event::HIPEvent)
-    query = hipEventQuery(event.handle)
+    query = hipEventQuery(event)
     if query == hipSuccess
         return true
     elseif query == hipErrorNotReady
@@ -57,7 +57,7 @@ function HIPEvent(stream::hipStream_t; do_record::Bool = true)
     do_record && record(event)
 
     finalizer(event) do e
-        hipEventDestroy(e.handle) |> check
+        hipEventDestroy(e) |> check
     end
     event
 end
