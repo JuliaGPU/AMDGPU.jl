@@ -58,7 +58,9 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
         kernel = get!(_kernel_instances, h) do
             exception_ptr = create_exception!(fun.mod)
             output_context_ptr = create_output_context!()
-            state = AMDGPU.KernelState(exception_ptr, output_context_ptr)
+            printf_output_context_ptr = create_printf_output_context!()
+            state = AMDGPU.KernelState(
+                exception_ptr, output_context_ptr, printf_output_context_ptr)
             Runtime.HIPKernel{F, tt}(f, fun, state)
         end
         return kernel::Runtime.HIPKernel{F, tt}
@@ -81,6 +83,7 @@ function hipcompile(@nospecialize(job::CompilerJob))
     JuliaContext() do ctx
         obj, meta = GPUCompiler.compile(:obj, job; ctx)
         globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+        @show globals
         (; obj=create_executable(codeunits(obj)), entry=LLVM.name(meta.entry), globals)
     end
 end

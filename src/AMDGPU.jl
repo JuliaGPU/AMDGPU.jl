@@ -31,6 +31,7 @@ end
 struct KernelState
     exception_flag::Ptr{Cvoid}
     output_context::Ptr{Cvoid}
+    printf_output_context::Ptr{Cvoid}
 end
 
 # Load HSA Runtime.
@@ -150,9 +151,11 @@ export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup
 
 module Compiler
+    import Core: LLVMPtr
+
     using ..GPUCompiler
     using ..LLVM
-    import Core: LLVMPtr
+    using Printf
 
     import ..AMDGPU
     import ..AMDGPU: AS
@@ -364,9 +367,21 @@ function set_one!(x)
 end
 
 function printing()
-    Device.@rocprint("Hello world!\n")
+    Device.@rocprintln("Hello world!")
     return nothing
 end
+
+function fprinting()
+    x = 42
+    Device.@rocprintf("Hello world! %d\n", x)
+    return nothing
+end
+
+"""
+TODO
+- exceptions rings
+- device malloc/free
+"""
 
 function test()
     stream = AMDGPU.stream()
@@ -376,6 +391,10 @@ function test()
     AMDGPU.synchronize(stream)
 
     @roc printing()
+    Compiler.check_exceptions()
+    AMDGPU.synchronize(stream)
+
+    @roc fprinting()
     Compiler.check_exceptions()
     AMDGPU.synchronize(stream)
 
@@ -392,10 +411,17 @@ function test()
     @show Array(x)
     @show Array(y)
 
-    # x = ones(Int64, 16)
-    # @show x
-    # @show sum(x)
+    x = ones(Float32, 16)
+    @show x
+    @show sum(x)
+    @show sin.(x)
 
+    return
+end
+
+function mm()
+    ptr = Compiler.create_printf_output_context!()
+    @show ptr
     return
 end
 

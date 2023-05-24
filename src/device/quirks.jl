@@ -49,8 +49,9 @@ end
     @print_and_throw "sincos(x) is only defined for finite x."
 
 # multidimensional.jl
-@device_override Base.@propagate_inbounds function Base.getindex(iter::CartesianIndices{N,R},
-                                                                 I::Vararg{Int, N}) where {N,R}
+@device_override Base.@propagate_inbounds function Base.getindex(
+    iter::CartesianIndices{N,R}, I::Vararg{Int, N},
+) where {N,R}
     @boundscheck checkbounds(iter, I...)
     index = map(iter.indices, I) do r, i
         @inbounds getindex(r, i)
@@ -60,8 +61,9 @@ end
 
 # range.jl
 @eval begin
-    @device_override function Base.StepRangeLen{T,R,S,L}(ref::R, step::S, len::Integer,
-                                                         offset::Integer=1) where {T,R,S,L}
+    @device_override function Base.StepRangeLen{T,R,S,L}(
+        ref::R, step::S, len::Integer, offset::Integer=1,
+    ) where {T,R,S,L}
         if T <: Integer && !isinteger(ref + step)
             @print_and_throw("StepRangeLen{<:Integer} cannot have non-integer step")
         end
@@ -70,15 +72,15 @@ end
         offset = convert(L, offset)
         L1 = oneunit(typeof(len))
         L1 <= offset <= max(L1, len) || @print_and_throw("StepRangeLen: offset must be in [1,...]")
-        $(
-            Expr(:new, :(StepRangeLen{T,R,S,L}), :ref, :step, :len, :offset)
-        )
+        $(Expr(:new, :(StepRangeLen{T,R,S,L}), :ref, :step, :len, :offset))
     end
 end
 
 # LinearAlgebra
 @static if VERSION >= v"1.8-"
-    @device_override function Base.setindex!(D::LinearAlgebra.Diagonal, v, i::Int, j::Int)
+    @device_override function Base.setindex!(
+        D::LinearAlgebra.Diagonal, v, i::Int, j::Int,
+    )
         @boundscheck checkbounds(D, i, j)
         if i == j
             @inbounds D.diag[i] = v
