@@ -22,7 +22,7 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
-    @show undefined_fns
+    # @show undefined_fns
     invoke(GPUCompiler.link_libraries!,
            Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
            job, mod, undefined_fns)
@@ -59,8 +59,11 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
             exception_ptr = create_exception!(fun.mod)
             output_context_ptr = create_output_context!()
             printf_output_context_ptr = create_printf_output_context!()
+            malloc_hc = create_malloc_hostcall!()
+            free_hc = create_free_hostcall!()
             state = AMDGPU.KernelState(
-                exception_ptr, output_context_ptr, printf_output_context_ptr)
+                exception_ptr, output_context_ptr,
+                printf_output_context_ptr, malloc_hc, free_hc)
             Runtime.HIPKernel{F, tt}(f, fun, state)
         end
         return kernel::Runtime.HIPKernel{F, tt}
@@ -83,7 +86,7 @@ function hipcompile(@nospecialize(job::CompilerJob))
     JuliaContext() do ctx
         obj, meta = GPUCompiler.compile(:obj, job; ctx)
         globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
-        @show globals
+        # @show globals
         (; obj=create_executable(codeunits(obj)), entry=LLVM.name(meta.entry), globals)
     end
 end

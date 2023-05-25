@@ -32,6 +32,8 @@ struct KernelState
     exception_flag::Ptr{Cvoid}
     output_context::Ptr{Cvoid}
     printf_output_context::Ptr{Cvoid}
+    malloc_hc::Ptr{Cvoid}
+    free_hc::Ptr{Cvoid}
 end
 
 # Load HSA Runtime.
@@ -137,7 +139,7 @@ module Device
     include(joinpath("device", "runtime.jl"))
     include(joinpath("device", "quirks.jl"))
 end
-import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame
+import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame, report_exception_name
 import .Device: ROCDeviceArray, AS, HostCall, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
@@ -168,6 +170,7 @@ module Compiler
     include(joinpath("compiler", "utils.jl"))
     include(joinpath("compiler", "exceptions.jl"))
     include(joinpath("compiler", "output_context.jl"))
+    include(joinpath("compiler", "dynamic_memory.jl"))
     include(joinpath("compiler", "codegen.jl"))
     include(joinpath("compiler", "hostcalls.jl"))
 end
@@ -377,51 +380,63 @@ function fprinting()
     return nothing
 end
 
-"""
-TODO
-- exceptions rings
-- device malloc/free
-"""
+function dyn_mem()
+    bytesize::Csize_t = 128
+    ptr = Device.malloc(bytesize)
+    Device.@rocprintf(
+        "Device malloc %u bytes @ %u address.\n",
+        bytesize, UInt64(ptr))
+    Device.free(ptr)
+    return nothing
+end
 
 function test()
     stream = AMDGPU.stream()
 
-    @roc f()
-    Compiler.check_exceptions()
+    # @roc dyn_mem()
+    # AMDGPU.synchronize(stream)
+
+    # @roc f()
+    # AMDGPU.synchronize(stream)
+
+    # @roc printing()
+    # AMDGPU.synchronize(stream)
+
+    # @roc griddim=8 blockdim=1 fprinting()
+    # AMDGPU.synchronize(stream)
+
+    # x = ROCArray(fill(Int32(0), 128))
+    # @roc blockdim=128 set_one!(x)
+    # AMDGPU.synchronize(stream)
+    # @show Array(x)
+
+    # y = ROCArray(fill(Int32(1), 128))
+    # @roc blockdim=128 vadd(x, y)
+    # AMDGPU.synchronize(stream)
+    # @show Array(x)
+    # @show Array(y)
+
+    # x = ones(Float32, 16)
+    # @show x
+    # @show sum(x)
+    # @show sin.(x)
+
+    @show pointer_from_objref(Int32)
+    @show unsafe_pointer_to_objref(pointer_from_objref(Int32))
+
+    @show pointer_from_objref(Base.Cstring)
+    @show unsafe_pointer_to_objref(pointer_from_objref(Base.Cstring))
+    println()
+    println()
+    println()
+
+    x = ROCArray(fill(Int32(0), 1))
+    @roc griddim=2 blockdim=1 set_one!(x)
+    # TODO make non blocking if exception happens
+        # yield always in non blocking sync?
+    sleep(0.1)
     AMDGPU.synchronize(stream)
 
-    @roc printing()
-    Compiler.check_exceptions()
-    AMDGPU.synchronize(stream)
-
-    @roc griddim=8 blockdim=1 fprinting()
-    Compiler.check_exceptions()
-    AMDGPU.synchronize(stream)
-
-    x = ROCArray(fill(Int32(0), 128))
-    @roc blockdim=128 set_one!(x)
-    Compiler.check_exceptions()
-    AMDGPU.synchronize(stream)
-    @show Array(x)
-
-    y = ROCArray(fill(Int32(1), 128))
-    @roc blockdim=128 vadd(x, y)
-    Compiler.check_exceptions()
-    AMDGPU.synchronize(stream)
-    @show Array(x)
-    @show Array(y)
-
-    x = ones(Float32, 16)
-    @show x
-    @show sum(x)
-    @show sin.(x)
-
-    return
-end
-
-function mm()
-    ptr = Compiler.create_output_context!()
-    @show ptr
     return
 end
 
