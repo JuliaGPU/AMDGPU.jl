@@ -12,7 +12,7 @@ function exception_flag()
 end
 
 function output_context()
-    convert(Ptr{GLOBAL_OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
+    convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
 end
 
 function printf_output_context()

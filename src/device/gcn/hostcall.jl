@@ -250,11 +250,14 @@ function Base.showerror(io::IO, err::HostCallException)
     err.bt !== nothing && Base.show_backtrace(io, err.bt)
 end
 
-const NAMED_PERDEVICE_HOSTCALLS = Dict{Runtime.ROCDevice, Dict{Symbol, HostCall}}()
+const NAMED_PERDEVICE_HOSTCALLS = Dict{
+    Runtime.ROCDevice, Dict{Symbol, Tuple{HostCall, Mem.HostBuffer}}}()
 
-function named_perdevice_hostcall(func, device::Runtime.ROCDevice, name::Symbol)
+function named_perdevice_hostcall(func, dev::Runtime.ROCDevice, name::Symbol)
     lock(Runtime.RT_LOCK) do
-        hcs = get!(()->Dict{Symbol, HostCall}(), NAMED_PERDEVICE_HOSTCALLS, device)
+        hcs = get!(
+            () -> Dict{Symbol, Tuple{HostCall, Mem.HostBuffer}}(),
+            NAMED_PERDEVICE_HOSTCALLS, dev)
         return get!(func, hcs, name)
     end
 end
