@@ -372,8 +372,8 @@ function printing()
 end
 
 function fprinting()
-    x = 42
-    Device.@rocprintf("Hello world! %d\n", x)
+    i = workgroupIdx().x
+    Device.@rocprintf("Hello world from %d grid.\n", i)
     return nothing
 end
 
@@ -394,7 +394,7 @@ function test()
     Compiler.check_exceptions()
     AMDGPU.synchronize(stream)
 
-    @roc fprinting()
+    @roc griddim=8 blockdim=1 fprinting()
     Compiler.check_exceptions()
     AMDGPU.synchronize(stream)
 
@@ -420,7 +420,7 @@ function test()
 end
 
 function mm()
-    ptr = Compiler.create_printf_output_context!()
+    ptr = Compiler.create_output_context!()
     @show ptr
     return
 end

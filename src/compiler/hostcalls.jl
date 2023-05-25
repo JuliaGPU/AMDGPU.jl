@@ -1,32 +1,5 @@
 const default_global_hooks = Dict{Symbol, Function}()
 
-# default_global_hooks[:__global_printf_context] = (gbl, mod, device) -> begin
-#     # initialize global printf context
-#     # Return type of Int to force synchronizing behavior
-#     ret_type = Int
-#     args_type = Tuple{LLVMPtr{UInt8, AS.Global}}
-#     gbl_ptr = Base.unsafe_convert(Ptr{HostCall{ret_type, args_type}}, gbl)
-
-#     hc = Device.named_perdevice_hostcall(device, :__global_printf) do
-#         HostCall(ret_type, args_type; device, continuous=true, buf_len=2^16, timeout=nothing) do _
-#             fmt, all_args = unsafe_load(reinterpret(
-#                 LLVMPtr{AMDGPU.Device.ROCPrintfBuffer, AS.Global}, hc.buf_ptr))
-
-#             for args in all_args
-#                 args = map(x -> x isa Cstring ? unsafe_string(x) : x, args)
-#                 @debug "@rocprintf with $fmt and $(args)"
-#                 try
-#                     @eval @printf($fmt, $(args...))
-#                 catch err
-#                     @error "@rocprintf error" exception=(err,catch_backtrace())
-#                 end
-#             end
-#             return 0
-#         end
-#     end
-#     Base.unsafe_store!(gbl_ptr, hc)
-# end
-
 # One-time initialization.
 # Store in KernelState gbl ptr.
 # default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
