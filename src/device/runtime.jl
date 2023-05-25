@@ -40,11 +40,11 @@ end
 function device_string_to_host(ex::Ptr{Cchar})
     # We get a ReadOnlyMemoryError on the host without
     # making a copy because the data is pinned to the device.
-    ex_ptr = reinterpret(LLVMPtr{UInt8, 1}, ex)
+    ex_ptr = reinterpret(LLVMPtr{UInt8, AS.Global}, ex)
     ex_len = string_length(ex_ptr)
     # TODO: Don't use an expensive host malloc
     # Allocate strlen + null termination.
-    ex_str = reinterpret(LLVMPtr{UInt8, 1}, malloc(Csize_t(ex_len + 1)))
+    ex_str = reinterpret(LLVMPtr{UInt8, AS.Global}, malloc(Csize_t(ex_len + 1)))
     # If allocation failed (returned nullptr) - print message.
     if reinterpret(UInt64, ex_str) == 0
         @rocprint("Device-to-host string conversion failed.\n")
