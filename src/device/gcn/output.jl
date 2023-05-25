@@ -97,10 +97,10 @@ struct ROCPrintfBuffer end
 
 Base.sizeof(::ROCPrintfBuffer) = 0
 
-Base.unsafe_store!(::LLVMPtr{ROCPrintfBuffer,as} where as, x) = nothing
+Base.unsafe_store!(::LLVMPtr{ROCPrintfBuffer, AS.Global}, x) = nothing
 
 # TODO add docs about format.
-function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, as} where as)
+function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
     ptr = reinterpret(Ptr{UInt64}, ptr)
 
     # Read number of argument blocks in buffer.
@@ -110,7 +110,6 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, as} where as)
     # Read pointer to format string.
     fmt_ptr = Ptr{UInt64}(unsafe_load(ptr))
     ptr += sizeof(UInt64)
-
     # Read format string length.
     fmt_len = unsafe_load(ptr)
     ptr += sizeof(UInt64)
@@ -130,16 +129,15 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, as} where as)
         while true
             # Read argument type
             T_ptr = Ptr{UInt64}(unsafe_load(ptr))
-            # Core.println("T_ptr: ", T_ptr)
+            Core.println("T_ptr       ", T_ptr)
             ptr += sizeof(UInt64)
-            # Core.println("ptr: ", ptr)
             if UInt64(T_ptr) == 0
                 # Terminator
                 break
             end
+            Core.println("Cstring ptr ", pointer_from_objref(Cstring))
             T = unsafe_pointer_to_objref(T_ptr)
-            # Core.println("T: ", T)
-
+            Core.println("T ", T)
             # Read argument.
             arg = unsafe_load(reinterpret(Ptr{T}, ptr))
             push!(args, arg)
@@ -152,7 +150,7 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, as} where as)
     return (fmt, all_args)
 end
 
-function _rocprintf_fmt(ptr, fmt_ptr, fmt_len)
+function _rocprintf_fmt(ptr::LLVMPtr{UInt64, AS.Global}, fmt_ptr, fmt_len::Int64)
     unsafe_store!(ptr, reinterpret(UInt64, fmt_ptr))
     ptr += sizeof(UInt64)
     unsafe_store!(ptr, UInt64(fmt_len))
@@ -160,18 +158,16 @@ function _rocprintf_fmt(ptr, fmt_ptr, fmt_len)
     return ptr
 end
 
-@generated function _pointer_from_type(::Type{T}) where T
+function _pointer_from_type(::Type{T}) where T
     UInt64(pointer_from_objref(T))
 end
 
-function _rocprintf_arg(ptr, arg::T) where T
-    T_ptr = _pointer_from_type(T)
-    unsafe_store!(ptr, T_ptr)
+function _rocprintf_arg(ptr::LLVMPtr{UInt64, AS.Global}, arg::T) where T
+    unsafe_store!(ptr, _pointer_from_type(T))
     ptr += sizeof(UInt64)
 
-    unsafe_store!(reinterpret(LLVMPtr{T, 1}, ptr), arg)
+    unsafe_store!(reinterpret(LLVMPtr{T, AS.Global}, ptr), arg)
     ptr += sizeof(arg)
-
     return ptr
 end
 
@@ -220,5 +216,7 @@ macro rocprintf(args...)
     # Submit & unlock hostcall buffer.
     push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
     push!(ex.args, :(nothing))
-    ex
+    return quote
+        $ex
+    end
 end

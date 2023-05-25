@@ -399,11 +399,11 @@ function test()
     # @roc f()
     # AMDGPU.synchronize(stream)
 
-    # @roc printing()
-    # AMDGPU.synchronize(stream)
+    @roc printing()
+    AMDGPU.synchronize(stream)
 
-    # @roc griddim=8 blockdim=1 fprinting()
-    # AMDGPU.synchronize(stream)
+    @roc griddim=8 blockdim=1 fprinting()
+    AMDGPU.synchronize(stream)
 
     # x = ROCArray(fill(Int32(0), 128))
     # @roc blockdim=128 set_one!(x)
@@ -420,15 +420,6 @@ function test()
     # @show x
     # @show sum(x)
     # @show sin.(x)
-
-    @show pointer_from_objref(Int32)
-    @show unsafe_pointer_to_objref(pointer_from_objref(Int32))
-
-    @show pointer_from_objref(Base.Cstring)
-    @show unsafe_pointer_to_objref(pointer_from_objref(Base.Cstring))
-    println()
-    println()
-    println()
 
     x = ROCArray(fill(Int32(0), 1))
     @roc griddim=2 blockdim=1 set_one!(x)
