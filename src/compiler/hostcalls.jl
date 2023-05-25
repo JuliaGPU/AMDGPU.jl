@@ -1,6 +1,3 @@
-const default_global_hooks = Dict{Symbol, Function}()
-
-# One-time initialization.
 # Store in KernelState gbl ptr.
 # default_global_hooks[:__global_exception_ring] = (gbl, mod, device) -> begin
 #     # initialize exception ring buffer

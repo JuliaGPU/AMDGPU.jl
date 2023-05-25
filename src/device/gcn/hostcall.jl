@@ -162,15 +162,11 @@ end
     ::Val{mode}, hc::HostCall{RT, AT},
 ) where {mode, RT, AT}
     ex = Expr(:block)
-    @gensym shmem buf_ptr ret_ptr hostcall_return
+    @gensym shmem buf_ptr ret_ptr
 
     push!(ex.args, quote
         if $RT !== Nothing
-            # FIXME: This is not valid without the @inline
-            # $shmem = $alloc_local($hostcall_return, $RT, 1)
-            # But this is fine (if slower)
-            # TODO fixxxx!
-            $shmem = $get_global_pointer($(Val{hostcall_return}()), $RT)
+            $shmem = $alloc_local(:hostcall_return, $RT, 1)
         end
 
         @device_execution_gate $mode begin
@@ -281,8 +277,7 @@ function HostCall(
     # Create raw HSA signal to avoid ROCSignal finalizer
     # being called too early in the HostCall task.
     signal_ref = Ref{HSA.Signal}()
-    # HSA.signal_create(1, 0, C_NULL, signal_ref) |> Runtime.check
-    HSA.amd_signal_create(1, 0, C_NULL, HSA.AMD_SIGNAL_IPC, signal_ref) |> Runtime.check
+    HSA.signal_create(1, 0, C_NULL, signal_ref) |> Runtime.check
     signal = signal_ref[]
     AMDGPU.hsaref!()
 
@@ -307,7 +302,7 @@ function HostCall(
                     args = ()
                 end
                 ret = try
-                    func(args...,) # args not used in output hostcall?
+                    func(args...,)
                 catch err
                     throw(HostCallException("Error executing host function", err))
                 end
