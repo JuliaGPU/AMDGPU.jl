@@ -117,12 +117,10 @@ function _activation(
 ) where T <: MIOPENFloat
     y = similar(x)
     xdesc, ydesc = TensorDescriptor.((x, y))
-    AMDGPU.wait!(x)
     (; handle, stream) = lib_state()
     miopenActivationForward(
         handle, desc.handle, Ref{Float32}(1f0), xdesc.handle, x,
         Ref{Float32}(0f0), ydesc.handle, y) |> check
-    AMDGPU.mark!(y, HIPEvent(stream))
     y
 end
 
@@ -131,12 +129,10 @@ function _∇activation(
 ) where T <: MIOPENFloat
     dx = similar(x)
     xdesc, ydesc, dydesc, dxdesc = TensorDescriptor.((x, y, dy, dx))
-    AMDGPU.wait!((x, y, dy))
     (; handle, stream) = lib_state()
     miopenActivationBackward(
         handle, desc, Ref{Float32}(1f0), ydesc.handle, y,
         dydesc.handle, dy, xdesc.handle, x, Ref{Float32}(0f0),
         dxdesc.handle, dx) |> check
-    AMDGPU.mark!(dx, HIPEvent(stream))
     dx
 end

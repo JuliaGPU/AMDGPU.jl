@@ -40,9 +40,7 @@ for (f,T) in ((:rocrand_generate, :UInt32), (:rocrand_generate_char,:Cuchar),
               (:rocrand_generate_uniform_double, :Float64), (:rocrand_generate_uniform_half, :Float16))
     @eval begin
         function Random.rand!(rng::RNG, A::ROCArray{$(T)})
-            wait!(A)
             $(f)(rng, A, length(A))
-            mark!(A, HIPEvent(stream()))
             return A
         end
     end
@@ -50,16 +48,13 @@ end
 
 # some functions need pow2 lengths: use a padded array and copy back to the original one
 function inplace_pow2(A, f)
-    wait!(A)
     len = length(A)
     if len > 1 && ispow2(len)
         f(A)
-        mark!(A, HIPEvent(stream()))
     else
         padlen = max(2, nextpow(2, len))
         B = similar(A, padlen)
         f(B)
-        mark!(B, HIPEvent(stream()))
         copyto!(A, 1, B, 1, len)
         AMDGPU.unsafe_free!(B)
     end

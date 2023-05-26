@@ -32,13 +32,11 @@ function batchnorm_training(
     # For backward pass.
     μ_saved, ν_saved = similar(x, n_features), similar(x, n_features)
 
-    AMDGPU.wait!((x, γ, β, μ, ν))
     (; handle, stream) = lib_state()
     miopenBatchNormalizationForwardTraining(
         handle, mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle, γ, β, factor,
         μ, ν, ϵ, μ_saved, ν_saved) |> check
-    AMDGPU.mark!(y, HIPEvent(stream))
     y, μ_saved, ν_saved
 end
 
@@ -71,13 +69,11 @@ function batchnorm_inference(
     xdesc, ydesc = TensorDescriptor4D.((x, y))
     bndesc = derive_beta_gamma_descriptors(xdesc, mode)
 
-    AMDGPU.wait!((x, γ, β, μ, ν))
     (; handle, stream) = lib_state()
     miopenBatchNormalizationForwardInference(
         handle, mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle,
         γ, β, μ, ν, ϵ) |> check
-    AMDGPU.mark!(y, HIPEvent(stream))
     y
 end
 
@@ -93,7 +89,6 @@ function ∇batchnorm(
     xdesc, dxdesc, dydesc = TensorDescriptor4D.((x, dx, dy))
     bndesc = derive_beta_gamma_descriptors(xdesc, mode)
 
-    AMDGPU.wait!((x, dy, γ, β, μ_saved, ν_saved))
     (; handle, stream) = lib_state()
     miopenBatchNormalizationBackward(
         handle, mode,
@@ -101,7 +96,6 @@ function ∇batchnorm(
         Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, dydesc.handle, dy, dxdesc.handle, dx,
         bndesc.handle, γ, dγ, dβ, ϵ, μ_saved, ν_saved) |> check
-    AMDGPU.mark!((dx, dγ, dβ), HIPEvent(stream))
     dx, dγ, dβ
 end
 

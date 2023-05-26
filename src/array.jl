@@ -57,14 +57,12 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     buf::Mem.HIPBuffer
     dims::Dims{N}
     offset::Int
-    syncstate::Runtime.SyncState
 
     function ROCArray{T,N}(
         buf::Mem.HIPBuffer, dims::Dims{N}; offset::Integer = 0,
-        syncstate::Runtime.SyncState = Runtime.SyncState(),
     ) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        xs = new{T,N}(buf, dims, offset, syncstate)
+        xs = new{T,N}(buf, dims, offset)
         Mem.retain(buf)
         finalizer(_safe_free!, xs)
         return xs
@@ -74,39 +72,6 @@ end
 _safe_free!(xs::ROCArray) = _safe_free!(xs.buf)
 _safe_free!(buf::Mem.HIPBuffer) = Mem.release(buf; stream=default_stream())
 unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf; stream=stream())
-
-mark!(x::ROCArray, s) = mark!(x.syncstate, s)
-mark!(xs::Vector{<:ROCArray}, s) = foreach(x -> mark!(x,s), xs)
-mark!(xs::NTuple{N,<:ROCArray} where N, s) = foreach(x -> mark!(x,s), xs)
-
-wait!(x::ROCArray; hip::Bool = true, hsa::Bool = true) = wait!(x.syncstate; hip, hsa)
-wait!(xs::Vector{<:ROCArray}; hip::Bool = true, hsa::Bool = true) = foreach(x -> wait!(x; hip, hsa), xs)
-wait!(xs::NTuple{N,<:ROCArray} where N; hip::Bool = true, hsa::Bool = true) = foreach(x -> wait!(x; hip, hsa), xs)
-
-hsa_wait!(x::ROCArray) = wait!(x.syncstate; hip=false, hsa=true)
-hsa_wait!(xs::Vector{<:ROCArray}) = foreach(x -> wait!(x; hip=false, hsa=true), xs)
-hsa_wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(x -> wait!(x; hip=false, hsa=true), xs)
-
-hip_wait!(x::ROCArray) = wait!(x.syncstate; hip=true, hsa=false)
-hip_wait!(xs::Vector{<:ROCArray}) = foreach(x -> wait!(x; hip=true, hsa=false), xs)
-hip_wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(x -> wait!(x; hip=true, hsa=false), xs)
-
-function Adapt.adapt_storage(::Runtime.WaitAdaptor, x::ROCArray)
-    Runtime.wait!(x.syncstate)
-    x
-end
-function Adapt.adapt_storage(::Runtime.HIPWaitAdaptor, x::ROCArray)
-    Runtime.wait!(x.syncstate; hip=true, hsa=false)
-    x
-end
-function Adapt.adapt_storage(::Runtime.HSAWaitAdaptor, x::ROCArray)
-    Runtime.wait!(x.syncstate; hip=false, hsa=true)
-    x
-end
-function Adapt.adapt_storage(ma::Runtime.MarkAdaptor, x::ROCArray)
-    Runtime.mark!(x.syncstate, ma.s)
-    x
-end
 
 """
     device(A::ROCArray) -> ROCDevice
@@ -131,10 +96,8 @@ AnyROCVecOrMat{T} = Union{AnyROCVector{T}, AnyROCMatrix{T}}
 
 # type and dimensionality specified, accepting dims as tuples of Ints
 function ROCArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-    buf, event = Mem.HIPBuffer(prod(dims) * sizeof(T); stream=stream())
-    x = ROCArray{T, N}(buf, dims)
-    isnothing(event) || mark!(x, event)
-    return x
+    buf, _ = Mem.HIPBuffer(prod(dims) * sizeof(T); stream=stream())
+    ROCArray{T, N}(buf, dims)
 end
 
 # type and dimensionality specified, accepting dims as series of Ints
@@ -148,8 +111,7 @@ ROCArray{T}(::UndefInitializer, dims::Integer...) where {T} =
 # from Base arrays
 function ROCArray{T,N}(x::Array{T,N}, dims::Dims{N}) where {T,N}
     r = ROCArray{T,N}(undef, dims)
-    event = Mem.upload!(r.buf, pointer(x), sizeof(x); stream=stream())
-    isnothing(event) || mark!(r, event)
+    Mem.upload!(r.buf, pointer(x), sizeof(x); stream=stream())
     return r
 end
 
@@ -177,9 +139,9 @@ ROCArray{T,N}(x::AbstractArray{S,N}) where {T,N,S} =
     ROCArray{T,N}(convert(Array{T}, x), size(x))
 
 # underspecified constructors
+ROCArray(A::AbstractArray{T,N}) where {T,N} = ROCArray{T,N}(A)
 ROCArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = ROCArray{T,N}(xs)
 (::Type{ROCArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = ROCArray{S,N}(x)
-ROCArray(A::AbstractArray{T,N}) where {T,N} = ROCArray{T,N}(A)
 
 # idempotency
 ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = xs
@@ -197,14 +159,11 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
-    wait!(source)
-    synchronize()
     event = Mem.download!(
         pointer(dest, d_offset),
         Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
         amount * sizeof(T); stream=stream())
-    isnothing(event) || mark!(source, event)
-    HIP.synchronize(event)
+    isnothing(event) || HIP.synchronize(event)
     dest
 end
 function Base.copyto!(
@@ -214,11 +173,9 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
-    wait!(dest)
-    event = Mem.upload!(
+    Mem.upload!(
         Mem.view(dest.buf, dest.offset + (d_offset - 1) * sizeof(T)),
         pointer(source, s_offset), amount * sizeof(T); stream=stream())
-    isnothing(event) || mark!(dest, event)
     dest
 end
 function Base.copyto!(
@@ -228,12 +185,10 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-    wait!((dest, source))
-    event = Mem.transfer!(
+    Mem.transfer!(
         Mem.view(dest.buf, dest.offset + (d_offset - 1) * sizeof(T)),
         Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
         amount * sizeof(T); stream=stream())
-    isnothing(event) || mark!((dest, source), event)
     dest
 end
 
@@ -244,7 +199,7 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
-function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; device=device(), lock::Bool=true) where {T,N}
+function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; lock::Bool=true) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
     # TODO lock
@@ -298,7 +253,7 @@ end
 end
 @inline function unsafe_contiguous_view(a::ROCArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
-    ROCArray{T,M}(a.buf, dims; offset=a.offset+offset, syncstate=a.syncstate)
+    ROCArray{T,M}(a.buf, dims; offset=a.offset + offset)
 end
 
 @inline function unsafe_view(A, I, ::NonContiguous)
@@ -319,7 +274,7 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     if N == M && dims == size(a)
         return a
     end
-    ROCArray{T,N}(a.buf, dims; offset=a.offset, syncstate=a.syncstate)
+    ROCArray{T,N}(a.buf, dims; offset=a.offset)
 end
 
 
@@ -411,7 +366,7 @@ zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
 @inline function _derived_array(::Type{T}, N::Int, a::ROCArray, osize::Dims) where {T}
-    return ROCArray{T,N}(a.buf, osize; offset=a.offset, syncstate=a.syncstate)
+    return ROCArray{T,N}(a.buf, osize; offset=a.offset)
 end
 
 ## reinterpret
@@ -552,14 +507,12 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     else
         maxsize
     end
-    new_buf, event = Mem.HIPBuffer(bufsize; stream=stream())
-    copy_size = min(length(A), n) * sizeof(T)
+    new_buf, _ = Mem.HIPBuffer(bufsize; stream=stream())
 
-    wait!(A)
-    isnothing(event) || HIP.synchronize(event)
-    event = copy_size == 0 ? nothing :
+    copy_size = min(length(A), n) * sizeof(T)
+    if copy_size > 0
         Mem.transfer!(new_buf, A.buf, copy_size; stream=stream())
-    isnothing(event) || HIP.synchronize(event)
+    end
 
     # Release old buffer
     _safe_free!(A.buf)

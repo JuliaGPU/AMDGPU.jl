@@ -3,7 +3,6 @@
 import AMDGPU: Runtime, Compiler
 import .Runtime: ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal, ROCKernelSignal, HSAError
 import .Runtime: ROCDim, ROCDim3
-import .Runtime: wait!, hip_wait!, hsa_wait!, mark!
 import .Compiler: hipfunction
 
 export @roc, rocconvert
@@ -210,122 +209,15 @@ default_isa(device::ROCDevice) = Runtime.default_isa(device)
 default_isa_architecture(device::ROCDevice) = Runtime.architecture(default_isa(device))
 default_isa_features(device::ROCDevice) = Runtime.features(default_isa(device))
 
-function get_kernel_queue(;
-    event_queue::Union{ROCQueue, Nothing}, device::Union{ROCDevice, Nothing},
-)
-    if !isnothing(event_queue) && !isnothing(device)
-        if event_queue.device != device
-            error(
-                "Specified both `device` and `queue`, " *
-                "but `queue` is on a different device than `device`.\n" *
-                "In this case, only one argument can be specified.")
-        else
-            return event_queue
-        end
-    end
-    isnothing(event_queue) && isnothing(device) && return queue()
-    isnothing(event_queue) && return queue(device)
-    event_queue
-end
-
-## Event creation
-function create_event(kernel::ROCKernel;
-    signal::Union{ROCKernelSignal, ROCSignal} = ROCSignal(),
-    device::Union{ROCDevice, Nothing} = nothing,
-    queue::Union{ROCQueue, Nothing} = nothing,
-    kwargs...,
-)
-    if signal isa ROCKernelSignal
-        return signal
-    end
-    kernel_queue = get_kernel_queue(; event_queue=queue, device)
-    return ROCKernelSignal(signal, kernel_queue, kernel; kwargs...)
-end
-
-## Kernel creation
-
 """
-    create_kernel(kernel::HostKernel, f, args::Tuple; kwargs...)
-
-Constructs a `ROCKernel` object from a compiled kernel described by `kernel`.
-`f` is the function being called, and `args` is the `Tuple` of arguments that
-`f` is called with.
-
-See [`@roc`](@ref) for the list of available keyword arguments.
-"""
-create_kernel(kernel::Runtime.HostKernel; kwargs...) =
-    ROCKernel(kernel; kwargs...)
-
-## Kernel launch and barriers
-
-barrier_and!(signals::Vector) = barrier_and!(queue(), signals)
-barrier_or!(signals::Vector) = barrier_or!(queue(), signals)
-barrier_and!(queue::ROCQueue, signals::Vector{ROCKernelSignal}) =
-    barrier_and!(queue, map(x->x.signal,signals))
-barrier_or!(queue::ROCQueue, signals::Vector{ROCKernelSignal}) =
-    barrier_or!(queue, map(x->x.signal,signals))
-barrier_and!(queue::ROCQueue, signals::Vector{HSA.Signal}) = barrier_and!(queue, map(ROCSignal, signals))
-barrier_or!(queue::ROCQueue, signals::Vector{HSA.Signal}) = barrier_or!(queue, map(ROCSignal, signals))
-barrier_and!(queue::ROCQueue, signals::Vector{ROCSignal}) =
-    Runtime.launch_barrier!(HSA.BarrierAndPacket, queue, signals)
-barrier_or!(queue::ROCQueue, signals::Vector{ROCSignal}) =
-    Runtime.launch_barrier!(HSA.BarrierOrPacket, queue, signals)
-
-"""
-    active_kernels(queue::ROCQueue = queue()) -> Vector{ROCKernelSignal}
-
-Returns the set of actively-executing kernels on `queue`.
-"""
-function active_kernels(queue::ROCQueue = queue())
-    isempty(queue.active_kernels) && return NO_ACTIVE_KERNELS
-    return Array(queue.active_kernels)
-end
-const NO_ACTIVE_KERNELS = ROCKernelSignal[]
-
-"""
-    synchronize(; errors::Bool=true)
-
-Blocks until all kernels currently executing on the default queue and stream
-have completed. See [`synchronize(::ROCQueue)`](@ref) for details on `errors`.
-"""
-function synchronize(; errors::Bool=true)
-    synchronize(queue(); errors)
-    synchronize(stream())
-end
-"""
-    synchronize(queue::ROCQueue; errors::Bool=true)
-
-Blocks until all kernels currently executing on `queue` have completed. If
-`errors` is `true`, then any kernels currently on the queue which throw an
-error will be re-thrown; only the first encountered error will be thrown. If
-`false`, errors will not be thrown.
-"""
-function synchronize(queue::ROCQueue; errors::Bool=true)
-    isempty(queue.active_kernels) && return
-
-    if errors
-        kerns = copy(queue.active_kernels)
-        while length(kerns) > 0
-            sig = first(kerns)
-            wait(sig; check_exceptions=true, cleanup=false)
-            Runtime.next!(kerns)
-        end
-    else
-        sig = Runtime.maybelast(queue.active_kernels)
-        if sig !== nothing
-            wait(sig; check_exceptions=false, cleanup=false)
-        end
-    end
-    return
-end
-"""
-    synchronize(stream::HIPStream)
+    synchronize(stream::HIPStream = stream())
 
 Blocks until all kernels currently executing on `stream` have completed.
 """
-function synchronize(stream::HIPStream)
+function synchronize(stream::HIPStream = stream())
     Compiler.check_exceptions()
     HIP.hipStreamSynchronize(stream.stream) |> check
+    Compiler.check_exceptions()
     return
 end
 
@@ -409,6 +301,7 @@ macro roc(ex...)
     end)
 end
 
+# TODO
 # launch config
 
 launch_configuration(kern::Runtime.HostKernel; kwargs...) =
