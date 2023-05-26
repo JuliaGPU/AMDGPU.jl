@@ -25,7 +25,7 @@ const DEVICE_ERR_SENTINEL = 5
 "Fatal error on host thread accessing the signal."
 const HOST_ERR_SENTINEL = 6
 
-const DEFAULT_HOSTCALL_TIMEOUT = nothing
+const DEFAULT_HOSTCALL_TIMEOUT = Ref{Union{Float64, Nothing}}(nothing)
 const DEFAULT_HOSTCALL_LATENCY = 0.01
 
 include("hostcall_signal_helpers.jl")
@@ -378,7 +378,7 @@ end
 
 function hostcall_host_wait(
     signal_handle::HSA.Signal; maxlat=DEFAULT_HOSTCALL_LATENCY,
-    timeout=DEFAULT_HOSTCALL_TIMEOUT,
+    timeout=DEFAULT_HOSTCALL_TIMEOUT[],
 )
     res::Bool = false
     start_time = time_ns()
