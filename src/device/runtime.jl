@@ -29,11 +29,9 @@ end
 
 function signal_exception()
     ptr = exception_flag()
-    if ptr !== C_NULL
-        unsafe_store!(convert(Ptr{Int}, ptr), 1)
-    else
-        @rocprintln("ERROR: Failed to signal exception on the device! Please file a bug.")
-    end
+    unsafe_store!(convert(Ptr{Int}, ptr), 1)
+    # Without endpgm we'll get hardware exception.
+    endpgm()
     return
 end
 

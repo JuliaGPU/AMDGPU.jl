@@ -6,10 +6,6 @@ macro print_and_throw(args...)
         #   Use mode that will execute on every thread.
         #   Otherwise we risk missing print reports.
         @rocprintln("ERROR: ", $(args...), ".")
-        signal_exception()
-        # TODO requires GPUCompiler to emit:
-        #   endpgm -> trap
-        # instead of only trap.
         throw(nothing)
     end
 end

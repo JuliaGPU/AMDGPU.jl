@@ -57,11 +57,12 @@ function _softmax!(
             _logsoftmax!(y, x; dims) : _softmax!(y, x; dims)
     end
 
-    xdesc, ydesc = TensorDescriptor.((reshape(x, sdims), reshape(y, sdims)))
+    xr, yr = reshape(x, sdims), reshape(y, sdims)
+    xdesc, ydesc = TensorDescriptor.((xr, yr))
     (; handle, stream) = lib_state()
     miopenSoftmaxForward_V2(
-        handle, Ref{Float32}(1f0), xdesc.handle, x, Ref{Float32}(0f0),
-        ydesc.handle, y, algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
+        handle, Ref{Float32}(1f0), xdesc.handle, xr, Ref{Float32}(0f0),
+        ydesc.handle, yr, algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
     y
 end
 
