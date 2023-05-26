@@ -87,6 +87,7 @@ end
 function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
                                  A::Union{AbstractArray,Broadcast.Broadcasted};
                                  init=nothing) where {F, OP, T}
+    # @device_code dir="/home/pxl-th/$name-devcode" @roc launch=false name=name f(ROCKernelContext(), args...)
     Base.check_reducedims(R, A)
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
 

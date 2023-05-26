@@ -437,13 +437,13 @@ function test()
     # @show sin.(x)
 
     x = ROCArray(fill(Int32(0), 1))
-    @device_code dir="./here" @roc launch=false set_one!(x)
+    # @device_code dir="./here" @roc launch=false set_one!(x)
 
-    # @roc griddim=2 blockdim=1 set_one!(x)
-    # # TODO make non blocking if exception happens
-    #     # yield always in non blocking sync?
-    # sleep(0.1)
-    # AMDGPU.synchronize()
+    @roc griddim=2 blockdim=1 set_one!(x)
+    # TODO make non blocking if exception happens
+        # yield always in non blocking sync?
+    sleep(1)
+    AMDGPU.synchronize()
 
     return
 end

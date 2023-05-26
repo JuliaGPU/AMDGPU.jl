@@ -103,7 +103,8 @@ end
 function hiplink(@nospecialize(job::CompilerJob), compiled)
     (; obj, entry, globals) = compiled
     mod = HIP.HIPModule(obj)
-    HIP.HIPFunction(mod, entry)
+    fun = HIP.HIPFunction(mod, entry)
+    fun
 end
 
 function run_and_collect(cmd)

@@ -202,7 +202,7 @@ end
 function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; lock::Bool=true) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
-    # TODO lock
+    # TODO hipHostRegister on the ptr if it is on the host
     buf = Mem.HIPBuffer(Ptr{Cvoid}(ptr), sz)
     return ROCArray{T, N}(buf, dims)
 end
@@ -493,9 +493,12 @@ Note that this operation is only supported on managed buffers, i.e., not on
 arrays that are created by `unsafe_wrap`.
 """
 function Base.resize!(A::ROCVector{T}, n::Integer) where T
-    if A.buf.host_ptr != C_NULL
-        throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
-    end
+    # TODO
+    #   1. Specialize ROCArray on storage type.
+    #   2. Check that it is not HostBuffer.
+    # if A.buf.host_ptr != C_NULL
+    #     throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
+    # end
 
     # TODO: add additional space to allow for quicker resizing
     n == length(A) && return A

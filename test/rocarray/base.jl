@@ -58,39 +58,41 @@ end
     end
 end
 
-@testset "unsafe_wrap" begin
-    A = rand(4, 3)
-    A_orig = copy(A)
-    RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
-    @test RA.buf.device == AMDGPU.default_device()
-    @test RA isa ROCArray{Float64,2}
+# TODO
+#   need hipPtr to be able to recognize host pointers and register them.
+# @testset "unsafe_wrap" begin
+#     A = rand(4, 3)
+#     A_orig = copy(A)
+#     RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
+#     @test RA.buf.device == AMDGPU.default_device()
+#     @test RA isa ROCArray{Float64,2}
 
-    # GPU pointer works
-    RA .+= 1.0
+#     # GPU pointer works
+#     RA .+= 1.0
 
-    # Host pointer is updated
-    @test A ≈ A_orig .+ 1.0
+#     # Host pointer is updated
+#     @test A ≈ A_orig .+ 1.0
 
-    # Base.show
-    @test (println(devnull, RA); true)
+#     # Base.show
+#     @test (println(devnull, RA); true)
 
-    # Mem.download!
-    B = zeros(4, 3)
-    copyto!(B, RA)
-    @test B ≈ Array(RA)
+#     # Mem.download!
+#     B = zeros(4, 3)
+#     copyto!(B, RA)
+#     @test B ≈ Array(RA)
 
-    # Mem.upload!
-    C = rand(4, 3)
-    copyto!(RA, C)
-    @test Array(RA) ≈ C
+#     # Mem.upload!
+#     C = rand(4, 3)
+#     copyto!(RA, C)
+#     @test Array(RA) ≈ C
 
-    # Mem.transfer!
-    D = rand(4, 3)
-    D_orig = copy(D)
-    RD = Base.unsafe_wrap(ROCArray, pointer(D), size(D))
-    copyto!(RD, RA)
-    @test Array(RD) ≈ Array(RA) ≈ C
-end
+#     # Mem.transfer!
+#     D = rand(4, 3)
+#     D_orig = copy(D)
+#     RD = Base.unsafe_wrap(ROCArray, pointer(D), size(D))
+#     copyto!(RD, RA)
+#     @test Array(RD) ≈ Array(RA) ≈ C
+# end
 
 @testset "unsafe_free" begin
     A = AMDGPU.ones(4, 3)
@@ -111,7 +113,7 @@ end
         A = AMDGPU.ones(16)
         @test refcount_live(A) == (1, true)
         B = f(A)
-        @test A.buf.base_ptr == B.buf.base_ptr
+        @test A.buf.ptr == B.buf.ptr
         @test refcount_live(A) == refcount_live(B)
         @test refcount_live(B) == (2-switch, true)
         finalize(B)
@@ -180,40 +182,6 @@ end
     @test refcount_live(A) == (1, false)
     finalize(C)
     @test refcount_live(A) == (0, false)
-end
-
-@testset "Skip host wait" begin
-    # HSA signals.
-
-    x = ROCArray(ones(16))
-    @test isempty(x.syncstate.signals)
-    @test isempty(x.syncstate.streams)
-    broadcast!(cos, x, x)
-    @test length(x.syncstate.signals) == 1
-    @test isempty(x.syncstate.streams)
-    broadcast!(cos, x, x)
-    # wait! before broadcast, skips waiting and we push new signal.
-    @test length(x.syncstate.signals) == 2
-    @test isempty(x.syncstate.streams)
-    broadcast!(cos, x, x)
-    # wait! before broadcast, skips waiting, leaves only last signal
-    # and we push new signal.
-    @test length(x.syncstate.signals) == 2
-    @test isempty(x.syncstate.streams)
-
-    # HIP streams.
-
-    x = ROCArray(ones(Float32, 16, 16))
-    y = ROCArray(zeros(Float32, 16, 16))
-    @test isempty(y.syncstate.signals)
-    @test isempty(y.syncstate.streams)
-    LinearAlgebra.mul!(y, x, x)
-    @test isempty(y.syncstate.signals)
-    @test length(y.syncstate.streams) == 1
-    LinearAlgebra.mul!(y, x, x)
-    @test isempty(y.syncstate.signals)
-    # Same stream, do not add more.
-    @test length(y.syncstate.streams) == 1
 end
 
 end

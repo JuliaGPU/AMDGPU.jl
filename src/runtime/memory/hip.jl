@@ -93,7 +93,7 @@ function HIPBuffer(bytesize::Int; stream::HIP.HIPStream)
 end
 
 HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int) = HIPBuffer(
-    AMDGPU.device(), ptr, bytesize, _buffer_id())
+    AMDGPU.device(), ptr, bytesize, _buffer_id!())
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::HIPBuffer) where T = convert(Ptr{T}, buf.ptr)
 
