@@ -199,7 +199,7 @@ macro rocprintf(args...)
         # Calculate total write size per args block.
         $write_size =
             $hostcall_device_args_size($(map(esc, args)...)) + # Space for arguments.
-            $(length(args)) * sizeof(UInt64) + # Space for type tags.
+            $(length(args)) * sizeof(UInt64) + # Space for type tags. # TODO what if args are less than uint64?
             sizeof(UInt64) # Space for terminator.
         # TODO account for offset for different modes.
     end
@@ -216,7 +216,5 @@ macro rocprintf(args...)
     # Submit & unlock hostcall buffer.
     push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
     push!(ex.args, :(nothing))
-    return quote
-        $ex
-    end
+    ex
 end

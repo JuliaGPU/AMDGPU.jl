@@ -1,10 +1,9 @@
 module rocRAND
 
 import ..AMDGPU
-import .AMDGPU: ROCArray, HandleCache, librocrand, mark!, wait!, library_state
-import ..HSA
+import .AMDGPU: ROCArray, HandleCache, librocrand, library_state
 import ..HIP
-import .HIP: HIPContext, HIPStream, HIPEvent, hipStream_t
+import .HIP: HIPContext, HIPStream, hipStream_t
 
 using CEnum
 using GPUArrays

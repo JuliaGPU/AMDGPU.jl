@@ -108,7 +108,6 @@ module Runtime
     include(joinpath("runtime", "launch.jl"))
     include(joinpath("runtime", "execution.jl"))
     include(joinpath("runtime", "hip-execution.jl"))
-    include(joinpath("runtime", "sync.jl"))
     include(joinpath("runtime", "fault.jl"))
 end # module Runtime
 import .Runtime: Mem
@@ -390,43 +389,61 @@ function dyn_mem()
     return nothing
 end
 
+function ppp()
+    ptr = Device.alloc_string(Val(Symbol("HEY!")))
+    str = Device.device_string_to_host(reinterpret(Ptr{Cchar}, ptr))
+    Device.@rocprintf("String %s\n", str)
+    Device.free(reinterpret(Ptr{Cvoid}, str))
+    return nothing
+end
+
+"""
+TODO
+- occupancy API
+- update highlevel stuf to remove roc queues, etc
+- tests
+"""
+
 function test()
-    stream = AMDGPU.stream()
+    # @roc ppp()
+    # AMDGPU.synchronize()
 
     # @roc dyn_mem()
-    # AMDGPU.synchronize(stream)
+    # AMDGPU.synchronize()
 
     # @roc f()
-    # AMDGPU.synchronize(stream)
+    # AMDGPU.synchronize()
 
-    @roc printing()
-    AMDGPU.synchronize(stream)
+    # @roc printing()
+    # AMDGPU.synchronize()
 
-    @roc griddim=8 blockdim=1 fprinting()
-    AMDGPU.synchronize(stream)
+    # @roc griddim=8 blockdim=1 fprinting()
+    # AMDGPU.synchronize()
 
     # x = ROCArray(fill(Int32(0), 128))
     # @roc blockdim=128 set_one!(x)
-    # AMDGPU.synchronize(stream)
+    # AMDGPU.synchronize()
     # @show Array(x)
 
     # y = ROCArray(fill(Int32(1), 128))
     # @roc blockdim=128 vadd(x, y)
-    # AMDGPU.synchronize(stream)
+    # AMDGPU.synchronize()
     # @show Array(x)
     # @show Array(y)
 
     # x = ones(Float32, 16)
     # @show x
-    # @show sum(x)
+    # @show sum(sin.(x))
     # @show sin.(x)
 
     x = ROCArray(fill(Int32(0), 1))
-    @roc griddim=2 blockdim=1 set_one!(x)
-    # TODO make non blocking if exception happens
-        # yield always in non blocking sync?
-    sleep(0.1)
-    AMDGPU.synchronize(stream)
+    @device_code dir="./here" @roc launch=false set_one!(x)
+
+    # @roc griddim=2 blockdim=1 set_one!(x)
+    # # TODO make non blocking if exception happens
+    #     # yield always in non blocking sync?
+    # sleep(0.1)
+    # AMDGPU.synchronize()
 
     return
 end

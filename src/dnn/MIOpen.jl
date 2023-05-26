@@ -4,7 +4,7 @@ using ..AMDGPU
 import AMDGPU.Runtime.Mem
 import AMDGPU: ROCArray, ROCDevice, LockedObject
 import AMDGPU: HandleCache, HIP, library_state
-import .HIP: HIPEvent, hipStream_t
+import .HIP: hipStream_t
 
 using CEnum
 using GPUArrays

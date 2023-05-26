@@ -1,7 +1,7 @@
 module rocFFT
 
 import ..AMDGPU
-import .AMDGPU: librocfft, mark!, wait!
+import .AMDGPU: librocfft
 import ..HIP: hipStream_t
 
 using CEnum
@@ -13,6 +13,8 @@ version() = VersionNumber(rocfft_version_major, rocfft_version_minor, rocfft_ver
 include("librocfft.jl")
 include("util.jl")
 include("fft.jl")
+
+# TODO use TLS library state
 
 if AMDGPU.functional(:rocfft)
     const INITIALIZED = Threads.Atomic{Int64}(0)

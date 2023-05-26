@@ -47,39 +47,35 @@ end
 
 # Level 1
 ## copy
-for (fname, elty) in ((:rocblas_dcopy,:Float64),
-                      (:rocblas_scopy,:Float32),
-                      (:rocblas_zcopy,:ComplexF64),
-                      (:rocblas_ccopy,:ComplexF32))
+for (fname, elty) in (
+    (:rocblas_dcopy,:Float64),
+    (:rocblas_scopy,:Float32),
+    (:rocblas_zcopy,:ComplexF64),
+    (:rocblas_ccopy,:ComplexF32),
+)
     @eval begin
-        function blascopy!(n::Integer,
-                           DX::ROCArray{$elty},
-                           incx::Integer,
-                           DY::ROCArray{$elty},
-                           incy::Integer)
-              hsa_wait!((DX,DY))
-              (; handle, stream) = lib_state()
-              $(fname)(handle, n, DX, incx, DY, incy) |> check
-              mark!((DX,DY), HIPEvent(stream))
-              DY
+        function blascopy!(
+            n::Integer, DX::ROCArray{$elty}, incx::Integer,
+            DY::ROCArray{$elty}, incy::Integer,
+        )
+            (; handle, stream) = lib_state()
+            $(fname)(handle, n, DX, incx, DY, incy) |> check
+            DY
         end
     end
 end
 
 ## scal
-for (fname, elty) in ((:rocblas_dscal,:Float64),
-                      (:rocblas_sscal,:Float32),
-                      (:rocblas_zscal,:ComplexF64),
-                      (:rocblas_cscal,:ComplexF32))
+for (fname, elty) in (
+    (:rocblas_dscal,:Float64),
+    (:rocblas_sscal,:Float32),
+    (:rocblas_zscal,:ComplexF64),
+    (:rocblas_cscal,:ComplexF32),
+)
     @eval begin
-        function scal!(n::Integer,
-                       DA::$elty,
-                       DX::ROCArray{$elty},
-                       incx::Integer)
-            hsa_wait!(DX)
+        function scal!(n::Integer, DA::$elty, DX::ROCArray{$elty}, incx::Integer)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Ref(DA), DX, incx) |> check
-            mark!(DX, HIPEvent(stream))
             DX
         end
     end
@@ -88,14 +84,9 @@ end
 for (fname, elty, celty) in ((:rocblas_sscal, :Float32, :ComplexF32),
                              (:rocblas_dscal, :Float64, :ComplexF64))
     @eval begin
-        function scal!(n::Integer,
-                       DA::$elty,
-                       DX::ROCArray{$celty},
-                       incx::Integer)
-            hsa_wait!(DX)
+        function scal!(n::Integer, DA::$elty, DX::ROCArray{$celty}, incx::Integer)
             (; handle, stream) = lib_state()
             $(fname)(handle, 2*n, Ref(DA), DX, incx) |> check
-            mark!(DX, HIPEvent(stream))
             DX
         end
     end
@@ -109,13 +100,11 @@ for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
                              (:dotu,:rocblas_zdotu,:ComplexF64),
                              (:dotu,:rocblas_cdotu,:ComplexF32))
     @eval begin
-        function $jname(n::Integer,
-                        DX::ROCArray{$elty},
-                        incx::Integer,
-                        DY::ROCArray{$elty},
-                        incy::Integer)
+        function $jname(
+            n::Integer, DX::ROCArray{$elty}, incx::Integer,
+            DY::ROCArray{$elty}, incy::Integer,
+        )
             result = Ref{$elty}()
-            hsa_wait!((DX,DY))
             $(fname)(handle(), n, DX, incx, DY, incy, result) |> check
             return result[]
         end
@@ -128,11 +117,8 @@ for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
                                 (:rocblas_dznrm2,:ComplexF64,:Float64),
                                 (:rocblas_scnrm2,:ComplexF32,:Float32))
     @eval begin
-        function nrm2(n::Integer,
-                      X::ROCArray{$elty},
-                      incx::Integer)
+        function nrm2(n::Integer, X::ROCArray{$elty}, incx::Integer)
             result = Ref{$ret_type}()
-            hsa_wait!(X)
             $(fname)(handle(), n, X, incx, result) |> check
             return result[]
         end
@@ -147,11 +133,8 @@ for (fname, elty, ret_type) in ((:rocblas_dasum,:Float64,:Float64),
                                 (:rocblas_dzasum,:ComplexF64,:Float64),
                                 (:rocblas_scasum,:ComplexF32,:Float32))
     @eval begin
-        function asum(n::Integer,
-                      X::ROCArray{$elty},
-                      incx::Integer)
+        function asum(n::Integer, X::ROCArray{$elty}, incx::Integer)
             result = Ref{$ret_type}()
-            hsa_wait!(X)
             $(fname)(handle(), n, X, incx, result) |> check
             return result[]
         end
@@ -165,16 +148,12 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
                       (:rocblas_zaxpy,:ComplexF64),
                       (:rocblas_caxpy,:ComplexF32))
     @eval begin
-        function axpy!(n::Integer,
-                       alpha::($elty),
-                       dx::ROCArray{$elty},
-                       incx::Integer,
-                       dy::ROCArray{$elty},
-                       incy::Integer)
-            hsa_wait!((dx,dy))
+        function axpy!(
+            n::Integer, alpha::($elty), dx::ROCArray{$elty}, incx::Integer,
+            dy::ROCArray{$elty}, incy::Integer,
+        )
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Ref(alpha), dx, incx, dy, incy) |> check
-            mark!((dx,dy), HIPEvent(stream))
             dy
         end
     end
@@ -188,8 +167,10 @@ function axpy!(
     if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
         throw(BoundsError())
     end
-    axpy!(length(rx), convert(T, alpha), pointer(x)+(first(rx)-1)*sizeof(T),
-          step(rx), pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
+    axpy!(
+        length(rx), convert(T, alpha),
+        pointer(x) + (first(rx) - 1) * sizeof(T), step(rx),
+        pointer(y) + (first(ry) - 1) * sizeof(T), step(ry))
     y
 end
 
@@ -244,12 +225,10 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
                       (:rocblas_zgemv,:ComplexF64),
                       (:rocblas_cgemv,:ComplexF32))
     @eval begin
-        function gemv!(trans::Char,
-                       alpha::($elty),
-                       A::ROCMatrix{$elty},
-                       X::ROCVector{$elty},
-                       beta::($elty),
-                       Y::ROCVector{$elty})
+        function gemv!(
+            trans::Char, alpha::($elty), A::ROCMatrix{$elty}, X::ROCVector{$elty},
+            beta::($elty), Y::ROCVector{$elty},
+        )
             # handle trans
             roctrans = rocblasop(trans)
             m,n = size(A)
@@ -257,12 +236,9 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
             length(X) == (trans == 'N' ? n : m) && length(Y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
             # compute increments
             lda = max(1,stride(A,2))
-            incx = stride(X,1)
-            incy = stride(Y,1)
-            hsa_wait!((A,X,Y))
+            incx, incy = stride(X,1), stride(Y,1)
             (; handle, stream) = lib_state()
             $(fname)(handle, roctrans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy) |> check
-            mark!((A,X,Y), HIPEvent(stream))
             Y
         end
         function gemv(trans::Char, alpha::($elty), A::ROCMatrix{$elty}, X::ROCVector{$elty})
@@ -280,48 +256,35 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
                       (:rocblas_zgbmv,:ComplexF64),
                       (:rocblas_cgbmv,:ComplexF32))
     @eval begin
-        function gbmv!(trans::Char,
-                       m::Integer,
-                       kl::Integer,
-                       ku::Integer,
-                       alpha::($elty),
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty},
-                       beta::($elty),
-                       y::ROCVector{$elty})
+        function gbmv!(
+            trans::Char, m::Integer, kl::Integer, ku::Integer, alpha::($elty),
+            A::ROCMatrix{$elty}, x::ROCVector{$elty}, beta::($elty), y::ROCVector{$elty},
+        )
             # handle trans
             roctrans = rocblasop(trans)
-            n = size(A,2)
+            n = size(A, 2)
             # check dimensions
             length(x) == (trans == 'N' ? n : m) && length(y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
             # compute increments
-            lda = max(1,stride(A,2))
-            incx = stride(x,1)
-            incy = stride(y,1)
-            hsa_wait!((A,x,y))
+            lda = max(1, stride(A, 2))
+            incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
             $(fname)(handle, roctrans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), HIPEvent(stream))
             y
         end
-        function gbmv(trans::Char,
-                      m::Integer,
-                      kl::Integer,
-                      ku::Integer,
-                      alpha::($elty),
-                      A::ROCMatrix{$elty},
-                      x::ROCVector{$elty})
+        function gbmv(
+            trans::Char, m::Integer, kl::Integer, ku::Integer, alpha::($elty),
+            A::ROCMatrix{$elty}, x::ROCVector{$elty},
+        )
             # TODO: fix gbmv bug in julia
             n = size(A,2)
             leny = trans == 'N' ? m : n
             gbmv!(trans, m, kl, ku, alpha, A, x, zero($elty), similar(x, $elty, leny))
         end
-        function gbmv(trans::Char,
-                      m::Integer,
-                      kl::Integer,
-                      ku::Integer,
-                      A::ROCMatrix{$elty},
-                      x::ROCVector{$elty})
+        function gbmv(
+            trans::Char, m::Integer, kl::Integer, ku::Integer,
+            A::ROCMatrix{$elty}, x::ROCVector{$elty},
+        )
             gbmv(trans, m, kl, ku, one($elty), A, x)
         end
     end
@@ -334,23 +297,18 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
                       (:rocblas_csymv,:ComplexF32))
     # Note that the complex symv are not BLAS but auiliary functions in LAPACK
     @eval begin
-        function symv!(uplo::Char,
-                       alpha::($elty),
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty},
-                       beta::($elty),
-                       y::ROCVector{$elty})
+        function symv!(
+            uplo::Char, alpha::($elty), A::ROCMatrix{$elty}, x::ROCVector{$elty},
+            beta::($elty), y::ROCVector{$elty},
+        )
             rocuplo = rocblasfill(uplo)
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if m != length(x) || m != length(y) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
-            incx = stride(x,1)
-            incy = stride(y,1)
-            hsa_wait!((A,x,y))
+            lda = max(1, stride(A, 2))
+            incx, incy = stride(x, 1), stride(y,1)
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function symv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty}, x::ROCVector{$elty})
@@ -367,24 +325,19 @@ end
 for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
                       (:rocblas_chemv,:ComplexF32))
     @eval begin
-        function hemv!(uplo::Char,
-                       alpha::$elty,
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty},
-                       beta::$elty,
-                       y::ROCVector{$elty})
+        function hemv!(
+            uplo::Char, alpha::$elty, A::ROCMatrix{$elty}, x::ROCVector{$elty},
+            beta::$elty, y::ROCVector{$elty},
+        )
             # TODO: fix dimension check bug in julia
             rocuplo = rocblasfill(uplo)
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if m != length(x) || m != length(y) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
-            incx = stride(x,1)
-            incy = stride(y,1)
-            hsa_wait!((A,x,y))
+            lda = max(1, stride(A, 2))
+            incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function hemv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty},
@@ -404,26 +357,20 @@ end
 for (fname, elty) in ((:rocblas_dsbmv,:Float64),
                       (:rocblas_ssbmv,:Float32))
     @eval begin
-        function sbmv!(uplo::Char,
-                       k::Integer,
-                       alpha::($elty),
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty},
-                       beta::($elty),
-                       y::ROCVector{$elty})
+        function sbmv!(
+            uplo::Char, k::Integer, alpha::($elty), A::ROCMatrix{$elty},
+            x::ROCVector{$elty}, beta::($elty), y::ROCVector{$elty},
+        )
             rocuplo = rocblasfill(uplo)
             m, n = size(A)
             #if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
             if n != length(x) || n != length(y) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
-            incx = stride(x,1)
-            incy = stride(y,1)
-            hsa_wait!((A,x,y))
+            lda = max(1, stride(A, 2))
+            incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function sbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -442,25 +389,19 @@ end
 for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
                       (:rocblas_chbmv,:ComplexF32))
     @eval begin
-        function hbmv!(uplo::Char,
-                       k::Integer,
-                       alpha::($elty),
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty},
-                       beta::($elty),
-                       y::ROCVector{$elty})
+        function hbmv!(
+            uplo::Char, k::Integer, alpha::($elty), A::ROCMatrix{$elty},
+            x::ROCVector{$elty}, beta::($elty), y::ROCVector{$elty},
+        )
             rocuplo = rocblasfill(uplo)
             m, n = size(A)
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
             if n != length(x) || n != length(y) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
-            incx = stride(x,1)
-            incy = stride(y,1)
-            hsa_wait!((A,x,y))
+            lda = max(1,stride(A, 2))
+            incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
-            mark!((A,x,y), HIPEvent(stream))
             y
         end
         function hbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -481,12 +422,10 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
                       (:rocblas_ztbmv,:ComplexF64),
                       (:rocblas_ctbmv,:ComplexF32))
     @eval begin
-        function tbmv!(uplo::Char,
-                       trans::Char,
-                       diag::Char,
-                       k::Integer,
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty})
+        function tbmv!(
+            uplo::Char, trans::Char, diag::Char, k::Integer,
+            A::ROCMatrix{$elty}, x::ROCVector{$elty},
+        )
             rocuplo  = rocblasfill(uplo)
             roctrans = rocblasop(trans)
             rocdiag  = rocblasdiag(diag)
@@ -496,17 +435,14 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, k, A, lda, x, incx) |> check
-            mark!((A,x), HIPEvent(stream))
             x
         end
-        function tbmv(uplo::Char,
-                      trans::Char,
-                      diag::Char,
-                      A::ROCMatrix{$elty},
-                      x::ROCVector{$elty})
+        function tbmv(
+            uplo::Char, trans::Char, diag::Char,
+            A::ROCMatrix{$elty}, x::ROCVector{$elty},
+        )
             tbmv!(uplo, trans, diag, A, copy(x))
         end
     end
@@ -518,12 +454,10 @@ for (fname, elty) in ((:rocblas_stbsv,:Float32),
                       (:rocblas_ztbsv,:ComplexF64),
                       (:rocblas_ctbsv,:ComplexF32))
     @eval begin
-        function tbsv!(uplo::Char,
-                       trans::Char,
-                       diag::Char,
-                       k::Integer,
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty})
+        function tbsv!(
+            uplo::Char, trans::Char, diag::Char, k::Integer,
+            A::ROCMatrix{$elty}, x::ROCVector{$elty},
+        )
             rocuplo  = rocblasfill(uplo)
             roctrans = rocblasop(trans)
             rocdiag  = rocblasdiag(diag)
@@ -533,18 +467,14 @@ for (fname, elty) in ((:rocblas_stbsv,:Float32),
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, k, A, lda, x, incx) |> check
-            mark!((A,x), HIPEvent(stream))
             x
         end
-        function tbsv(uplo::Char,
-                      trans::Char,
-                      diag::Char,
-                      k::Integer,
-                      A::ROCMatrix{$elty},
-                      x::ROCVector{$elty})
+        function tbsv(
+            uplo::Char, trans::Char, diag::Char, k::Integer,
+            A::ROCMatrix{$elty}, x::ROCVector{$elty},
+        )
             tbsv!(uplo, trans, diag, k, A, copy(x))
         end
     end
@@ -556,11 +486,9 @@ for (fname, elty) in ((:rocblas_dtrmv,:Float64),
                       (:rocblas_ztrmv,:ComplexF64),
                       (:rocblas_ctrmv,:ComplexF32))
     @eval begin
-        function trmv!(uplo::Char,
-                       trans::Char,
-                       diag::Char,
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty})
+        function trmv!(
+            uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty},
+        )
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if n != length(x)
@@ -571,17 +499,11 @@ for (fname, elty) in ((:rocblas_dtrmv,:Float64),
             rocdiag = rocblasdiag(diag)
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, A, lda, x, incx) |> check
-            mark!((A,x), HIPEvent(stream))
             x
         end
-        function trmv(uplo::Char,
-                      trans::Char,
-                      diag::Char,
-                      A::ROCMatrix{$elty},
-                      x::ROCVector{$elty})
+        function trmv(uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
             trmv!(uplo, trans, diag, A, copy(x))
         end
     end
@@ -593,11 +515,7 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
                       (:rocblas_ztrsv,:ComplexF64),
                       (:rocblas_ctrsv,:ComplexF32))
     @eval begin
-        function trsv!(uplo::Char,
-                       trans::Char,
-                       diag::Char,
-                       A::ROCMatrix{$elty},
-                       x::ROCVector{$elty})
+        function trsv!(uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if n != length(x)
@@ -608,17 +526,11 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
             rocdiag = rocblasdiag(diag)
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            hsa_wait!((A,x))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, rocdiag, n, A, lda, x, incx) |> check
-            mark!((A,x), HIPEvent(stream))
             x
         end
-        function trsv(uplo::Char,
-                      trans::Char,
-                      diag::Char,
-                      A::ROCMatrix{$elty},
-                      x::ROCVector{$elty})
+        function trsv(uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
             trsv!(uplo, trans, diag, A, copy(x))
         end
     end
@@ -630,20 +542,15 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
                       (:rocblas_zgerc,:ComplexF64),
                       (:rocblas_cgerc,:ComplexF32))
     @eval begin
-        function ger!(alpha::$elty,
-                      x::ROCVector{$elty},
-                      y::ROCVector{$elty},
-                      A::ROCMatrix{$elty})
+        function ger!(alpha::$elty, x::ROCVector{$elty}, y::ROCVector{$elty}, A::ROCMatrix{$elty})
             m, n = size(A)
             m == length(x) || throw(DimensionMismatch(""))
             n == length(y) || throw(DimensionMismatch(""))
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            hsa_wait!((x,y,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, m, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
-            mark!((x,y,A), HIPEvent(stream))
             A
         end
     end
@@ -656,20 +563,15 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
                       (:rocblas_zsyr,:ComplexF64),
                       (:rocblas_csyr,:ComplexF32))
     @eval begin
-        function syr!(uplo::Char,
-                      alpha::$elty,
-                      x::ROCVector{$elty},
-                      A::ROCMatrix{$elty})
+        function syr!(uplo::Char, alpha::$elty, x::ROCVector{$elty}, A::ROCMatrix{$elty})
             rocuplo = rocblasfill(uplo)
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            hsa_wait!((x,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, A, lda) |> check
-            mark!((x,A), HIPEvent(stream))
             A
         end
     end
@@ -679,20 +581,15 @@ end
 for (fname, elty) in ((:rocblas_zher,:ComplexF64),
                       (:rocblas_cher,:ComplexF32))
     @eval begin
-        function her!(uplo::Char,
-                      alpha::$elty,
-                      x::ROCVector{$elty},
-                      A::ROCMatrix{$elty})
+        function her!(uplo::Char, alpha::$elty, x::ROCVector{$elty}, A::ROCMatrix{$elty})
             rocuplo = rocblasfill(uplo)
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            hsa_wait!((x,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, A, lda) |> check
-            mark!((x,A), HIPEvent(stream))
             A
         end
     end
@@ -702,11 +599,10 @@ end
 for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
                       (:rocblas_cher2,:ComplexF32))
     @eval begin
-        function her2!(uplo::Char,
-                      alpha::$elty,
-                      x::ROCVector{$elty},
-                      y::ROCVector{$elty},
-                      A::ROCMatrix{$elty})
+        function her2!(
+            uplo::Char, alpha::$elty, x::ROCVector{$elty},
+            y::ROCVector{$elty}, A::ROCMatrix{$elty},
+        )
             rocuplo = rocblasfill(uplo)
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
@@ -715,10 +611,8 @@ for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            hsa_wait!((x,y,A))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
-            mark!((x,y,A), HIPEvent(stream))
             A
         end
     end
@@ -748,27 +642,21 @@ for (fname, elty) in
             lda = max(1, stride(A, 2))
             ldb = max(1, stride(B, 2))
             ldc = max(1, stride(C, 2))
-            hsa_wait!((A, B, C))
             (; handle, stream) = lib_state()
             $(fname)(
                 handle, rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-            mark!((A, B, C), HIPEvent(stream))
             C
         end
-        function gemm(transA::Char,
-                      transB::Char,
-                      alpha::($elty),
-                      A::ROCMatrix{$elty},
-                      B::ROCMatrix{$elty})
+        function gemm(
+            transA::Char, transB::Char, alpha::($elty),
+            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+        )
             gemm!(transA, transB, alpha, A, B, zero($elty),
                   similar(B, $elty, (size(A, transA == 'N' ? 1 : 2),
                                      size(B, transB == 'N' ? 2 : 1))))
         end
-        function gemm(transA::Char,
-                      transB::Char,
-                      A::ROCMatrix{$elty},
-                      B::ROCMatrix{$elty})
+        function gemm(transA::Char, transB::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
             gemm(transA, transB, one($elty), A, B)
         end
     end
@@ -866,7 +754,6 @@ for (fname, elty) in
         )
             m, k, n, lda, ldb, ldc = _check_gemm_batched_dims(
                 transA, transB, A, B, C)
-            hsa_wait!((A, B, C))
 
             batch_count = size(C, 3)
             a_broadcast = (size(A, 3) == 1) && (batch_count > 1)
@@ -880,7 +767,6 @@ for (fname, elty) in
                 handle, rocblasop(transA), rocblasop(transB),
                 m, n, k, Ref(alpha), Ab, lda, Bb, ldb, Ref(beta),
                 Cb, ldc, batch_count) |> check
-            mark!((A, B, C), HIPEvent(stream))
             C
         end
         function gemm_batched(
@@ -920,17 +806,14 @@ for (fname, elty) in
          (:rocblas_zgemmStridedBatched,:ComplexF64),
          (:rocblas_cgemmStridedBatched,:ComplexF32))
     @eval begin
-        function gemm_strided_batched!(transA::Char,
-                               transB::Char,
-                               alpha::($elty),
-                               A::ROCArray{$elty, 3},
-                               B::ROCArray{$elty, 3},
-                               beta::($elty),
-                               C::ROCArray{$elty, 3})
+        function gemm_strided_batched!(
+            transA::Char, transB::Char, alpha::($elty),
+            A::ROCArray{$elty, 3}, B::ROCArray{$elty, 3},
+            beta::($elty), C::ROCArray{$elty, 3},
+        )
            m = size(A, transA == 'N' ? 1 : 2)
            k = size(A, transA == 'N' ? 2 : 1)
            n = size(B, transB == 'N' ? 2 : 1)
-
            @assert size(A, 3) == size(B, 3) == size(C, 3) "Batch size mismatch"
 
            if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
@@ -946,24 +829,20 @@ for (fname, elty) in
            strideB = stride(B, 3)
            strideC = stride(C, 3)
            batchCount = size(A, 3)
-           hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, roctransA, roctransB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta), C, ldc, strideC, batchCount) |> check
-           mark!((A,B,C), HIPEvent(stream))
            C
         end
-        function gemm_strided_batched(transA::Char,
-                      transB::Char,
-                      alpha::($elty),
-                      A::ROCArray{$elty, 3},
-                      B::ROCArray{$elty, 3})
+        function gemm_strided_batched(
+            transA::Char, transB::Char, alpha::($elty),
+            A::ROCArray{$elty, 3}, B::ROCArray{$elty, 3},
+        )
             C = similar(B, (size(A, transA == 'N' ? 1 : 2), size(B, transB == 'N' ? 2 : 1), size(A, 3)))
-            gemm_strided_batched!(transA, transB, alpha, A, B, zero($elty), C )
+            gemm_strided_batched!(transA, transB, alpha, A, B, zero($elty), C)
         end
-        function gemm_strided_batched(transA::Char,
-                      transB::Char,
-                      A::ROCArray{$elty, 3},
-                      B::ROCArray{$elty, 3})
+        function gemm_strided_batched(
+            transA::Char, transB::Char, A::ROCArray{$elty, 3}, B::ROCArray{$elty, 3},
+        )
             gemm_strided_batched(transA, transB, one($elty), A, B)
         end
     end
@@ -976,13 +855,11 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
                       (:rocblas_csymm,:ComplexF32))
     # TODO: fix julia dimension checks in symm!
     @eval begin
-        function symm!(side::Char,
-                       uplo::Char,
-                       alpha::($elty),
-                       A::ROCMatrix{$elty},
-                       B::ROCMatrix{$elty},
-                       beta::($elty),
-                       C::ROCMatrix{$elty})
+        function symm!(
+            side::Char, uplo::Char, alpha::($elty),
+            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+            beta::($elty), C::ROCMatrix{$elty},
+        )
             rocside = rocblasside(side)
             rocuplo = rocblasfill(uplo)
             k, nA = size(A)
@@ -995,23 +872,17 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            hsa_wait!((A,B,C))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-            mark!((A,B,C), HIPEvent(stream))
             C
         end
-        function symm(side::Char,
-                      uplo::Char,
-                      alpha::($elty),
-                      A::ROCMatrix{$elty},
-                      B::ROCMatrix{$elty})
+        function symm(
+            side::Char, uplo::Char, alpha::($elty),
+            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+        )
             symm!(side, uplo, alpha, A, B, zero($elty), similar(B))
         end
-        function symm(side::Char,
-                      uplo::Char,
-                      A::ROCMatrix{$elty},
-                      B::ROCMatrix{$elty})
+        function symm(side::Char, uplo::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
             symm(side, uplo, one($elty), A, B)
         end
     end
@@ -1022,113 +893,93 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
                       (:rocblas_ssyrk,:Float32),
                       (:rocblas_zsyrk,:ComplexF64),
                       (:rocblas_csyrk,:ComplexF32))
-   @eval begin
-       function syrk!(uplo::Char,
-                      trans::Char,
-                      alpha::($elty),
-                      A::ROCVecOrMat{$elty},
-                      beta::($elty),
-                      C::ROCMatrix{$elty})
-           rocuplo = rocblasfill(uplo)
-           roctrans = rocblasop(trans)
-           mC, n = size(C)
-           if mC != n throw(DimensionMismatch("C must be square")) end
-           nn = size(A, trans == 'N' ? 1 : 2)
-           if nn != n throw(DimensionMismatch("syrk!")) end
-           k  = size(A, trans == 'N' ? 2 : 1)
-           lda = max(1,stride(A,2))
-           ldc = max(1,stride(C,2))
-           hsa_wait!((A,C))
-           (; handle, stream) = lib_state()
-           $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
-           mark!((A,C), HIPEvent(stream))
-           C
+    @eval begin
+        function syrk!(
+            uplo::Char, trans::Char, alpha::($elty),
+            A::ROCVecOrMat{$elty}, beta::($elty), C::ROCMatrix{$elty},
+        )
+            rocuplo = rocblasfill(uplo)
+            roctrans = rocblasop(trans)
+            mC, n = size(C)
+            if mC != n throw(DimensionMismatch("C must be square")) end
+            nn = size(A, trans == 'N' ? 1 : 2)
+            if nn != n throw(DimensionMismatch("syrk!")) end
+            k  = size(A, trans == 'N' ? 2 : 1)
+            lda = max(1,stride(A,2))
+            ldc = max(1,stride(C,2))
+            (; handle, stream) = lib_state()
+            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
+            C
         end
     end
 end
-function syrk(uplo::Char,
-              trans::Char,
-              alpha::Number,
-              A::ROCVecOrMat)
+function syrk(uplo::Char, trans::Char, alpha::Number, A::ROCVecOrMat)
     T = eltype(A)
     n = size(A, trans == 'N' ? 1 : 2)
     syrk!(uplo, trans, convert(T,alpha), A, zero(T), similar(A, T, (n, n)))
 end
-syrk(uplo::Char, trans::Char, A::ROCVecOrMat) = syrk(uplo, trans,
-                                                              one(eltype(A)),
-                                                              A)
+syrk(uplo::Char, trans::Char, A::ROCVecOrMat) = syrk(uplo, trans, one(eltype(A)), A)
 
 ## hemm
 for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
                       (:rocblas_chemm,:ComplexF32))
-   @eval begin
-       function hemm!(side::Char,
-                      uplo::Char,
-                      alpha::($elty),
-                      A::ROCMatrix{$elty},
-                      B::ROCMatrix{$elty},
-                      beta::($elty),
-                      C::ROCMatrix{$elty})
-           rocside = rocblasside(side)
-           rocuplo = rocblasfill(uplo)
-           mA, nA = size(A)
-           m, n = size(B)
-           mC, nC = size(C)
-           if mA != nA throw(DimensionMismatch("A must be square")) end
-           if ((m != mC) || (n != nC)) throw(DimensionMismatch("B and C must have same dimensions")) end
-           if ((side == 'L') && (mA != m)) throw(DimensionMismatch("")) end
-           if ((side == 'R') && (mA != n)) throw(DimensionMismatch("")) end
-           lda = max(1,stride(A,2))
-           ldb = max(1,stride(B,2))
-           ldc = max(1,stride(C,2))
-           hsa_wait!((A,B,C))
-           (; handle, stream) = lib_state()
-           $(fname)(handle, rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-           mark!((A,B,C), HIPEvent(stream))
-           C
-       end
-       function hemm(uplo::Char,
-                     trans::Char,
-                     alpha::($elty),
-                     A::ROCMatrix{$elty},
-                     B::ROCMatrix{$elty})
-           m,n = size(B)
-           hemm!( uplo, trans, alpha, A, B, zero($elty), similar(B, $elty, (m,n) ) )
-       end
-       hemm( uplo::Char, trans::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty}) = hemm( uplo, trans, one($elty), A, B)
+    @eval begin
+        function hemm!(
+            side::Char, uplo::Char, alpha::($elty), A::ROCMatrix{$elty},
+            B::ROCMatrix{$elty}, beta::($elty), C::ROCMatrix{$elty},
+        )
+            rocside = rocblasside(side)
+            rocuplo = rocblasfill(uplo)
+            mA, nA = size(A)
+            m, n = size(B)
+            mC, nC = size(C)
+            if mA != nA throw(DimensionMismatch("A must be square")) end
+            if ((m != mC) || (n != nC)) throw(DimensionMismatch("B and C must have same dimensions")) end
+            if ((side == 'L') && (mA != m)) throw(DimensionMismatch("")) end
+            if ((side == 'R') && (mA != n)) throw(DimensionMismatch("")) end
+            lda = max(1,stride(A,2))
+            ldb = max(1,stride(B,2))
+            ldc = max(1,stride(C,2))
+            (; handle, stream) = lib_state()
+            $(fname)(handle, rocside, rocuplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+            C
+        end
+        function hemm(uplo::Char, trans::Char, alpha::($elty), A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
+            m,n = size(B)
+            hemm!( uplo, trans, alpha, A, B, zero($elty), similar(B, $elty, (m,n) ) )
+        end
+        hemm( uplo::Char, trans::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty}) =
+            hemm( uplo, trans, one($elty), A, B)
     end
 end
 
 ## herk
 for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
                       (:rocblas_cherk,:ComplexF32))
-   @eval begin
-       function herk!(uplo::Char,
-                      trans::Char,
-                      alpha::($elty),
-                      A::ROCVecOrMat{$elty},
-                      beta::($elty),
-                      C::ROCMatrix{$elty})
-           rocuplo = rocblasfill(uplo)
-           roctrans = rocblasop(trans)
-           mC, n = size(C)
-           if mC != n throw(DimensionMismatch("C must be square")) end
-           nn = size(A, trans == 'N' ? 1 : 2)
-           if nn != n throw(DimensionMismatch("syrk!")) end
-           k  = size(A, trans == 'N' ? 2 : 1)
-           lda = max(1,stride(A,2))
-           ldc = max(1,stride(C,2))
-           hsa_wait!((A,C))
-           (; handle, stream) = lib_state()
-           $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
-           mark!((A,C), HIPEvent(stream))
-           C
-       end
-       function herk(uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty})
-           n = size(A, trans == 'N' ? 1 : 2)
-           herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
-       end
-       herk(uplo::Char, trans::Char, A::ROCVecOrMat{$elty}) = herk(uplo, trans, one($elty), A)
+    @eval begin
+        function herk!(
+            uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty},
+            beta::($elty), C::ROCMatrix{$elty},
+        )
+            rocuplo = rocblasfill(uplo)
+            roctrans = rocblasop(trans)
+            mC, n = size(C)
+            if mC != n throw(DimensionMismatch("C must be square")) end
+            nn = size(A, trans == 'N' ? 1 : 2)
+            if nn != n throw(DimensionMismatch("syrk!")) end
+            k  = size(A, trans == 'N' ? 2 : 1)
+            lda = max(1,stride(A,2))
+            ldc = max(1,stride(C,2))
+            (; handle, stream) = lib_state()
+            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
+            C
+        end
+        function herk(uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty})
+            n = size(A, trans == 'N' ? 1 : 2)
+            herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
+        end
+        herk(uplo::Char, trans::Char, A::ROCVecOrMat{$elty}) =
+            herk(uplo, trans, one($elty), A)
    end
 end
 
@@ -1138,13 +989,10 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
                       (:rocblas_zsyr2k,:ComplexF64),
                       (:rocblas_csyr2k,:ComplexF32))
     @eval begin
-        function syr2k!(uplo::Char,
-                        trans::Char,
-                        alpha::($elty),
-                        A::ROCVecOrMat{$elty},
-                        B::ROCVecOrMat{$elty},
-                        beta::($elty),
-                        C::ROCMatrix{$elty})
+        function syr2k!(
+            uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty},
+            B::ROCVecOrMat{$elty}, beta::($elty), C::ROCMatrix{$elty},
+        )
             # TODO: check size of B in julia (syr2k!)
             rocuplo = rocblasfill(uplo)
             roctrans = rocblasop(trans)
@@ -1160,36 +1008,28 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            hsa_wait!((A,B,C))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-            mark!((A,B,C), HIPEvent(stream))
             C
         end
     end
 end
-function syr2k(uplo::Char,
-               trans::Char,
-               alpha::Number,
-               A::ROCVecOrMat,
-               B::ROCVecOrMat)
+function syr2k(uplo::Char, trans::Char, alpha::Number, A::ROCVecOrMat, B::ROCVecOrMat)
     T = eltype(A)
     n = size(A, trans == 'N' ? 1 : 2)
     syr2k!(uplo, trans, convert(T,alpha), A, B, zero(T), similar(A, T, (n, n)))
 end
-syr2k(uplo::Char, trans::Char, A::ROCVecOrMat, B::ROCVecOrMat) = syr2k(uplo, trans, one(eltype(A)), A, B)
+syr2k(uplo::Char, trans::Char, A::ROCVecOrMat, B::ROCVecOrMat) =
+    syr2k(uplo, trans, one(eltype(A)), A, B)
 
 ## her2k
 for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
                               (:rocblas_cher2k,:ComplexF32,:Float32))
-   @eval begin
-       function her2k!(uplo::Char,
-                       trans::Char,
-                       alpha::($elty1),
-                       A::ROCVecOrMat{$elty1},
-                       B::ROCVecOrMat{$elty1},
-                       beta::($elty2),
-                       C::ROCMatrix{$elty1})
+    @eval begin
+        function her2k!(
+            uplo::Char, trans::Char, alpha::($elty1), A::ROCVecOrMat{$elty1},
+            B::ROCVecOrMat{$elty1}, beta::($elty2), C::ROCMatrix{$elty1},
+        )
            # TODO: check size of B in julia (her2k!)
            rocuplo = rocblasfill(uplo)
            roctrans = rocblasop(trans)
@@ -1206,24 +1046,19 @@ for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocuplo, roctrans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
-           mark!((A,B,C), HIPEvent(stream))
            C
-       end
-       function her2k(uplo::Char,
-                      trans::Char,
-                      alpha::($elty1),
-                      A::ROCVecOrMat{$elty1},
-                      B::ROCVecOrMat{$elty1})
+        end
+        function her2k(
+            uplo::Char, trans::Char, alpha::($elty1),
+            A::ROCVecOrMat{$elty1}, B::ROCVecOrMat{$elty1},
+        )
            n = size(A, trans == 'N' ? 1 : 2)
            her2k!(uplo, trans, alpha, A, B, zero($elty2), similar(A, $elty1, (n,n)))
-       end
-       her2k(uplo::Char,
-             trans::Char,
-             A::ROCVecOrMat{$elty1},
-             B::ROCVecOrMat{$elty1}) = her2k(uplo, trans, one($elty1), A, B)
+        end
+        her2k(uplo::Char, trans::Char, A::ROCVecOrMat{$elty1}, B::ROCVecOrMat{$elty1}) =
+            her2k(uplo, trans, one($elty1), A, B)
    end
 end
 
@@ -1249,12 +1084,10 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trmm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            hsa_wait!((A,B))
             (; handle, stream) = lib_state()
             $(mmname)(
                 handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha),
                 A, lda, B, ldb) |> check
-            mark!((A,B), HIPEvent(stream))
             B
         end
         function trmm(
@@ -1278,10 +1111,8 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            hsa_wait!((A,B))
             (; handle, stream) = lib_state()
             $(smname)(handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha), A, lda, B, ldb) |> check
-            mark!((A,B), HIPEvent(stream))
             B
         end
         function trsm(
@@ -1300,13 +1131,10 @@ for (fname, elty) in
          (:rocblas_ztrsmBatched,:ComplexF64),
          (:rocblas_ctrsmBatched,:ComplexF32))
     @eval begin
-        function trsm_batched!(side::Char,
-                               uplo::Char,
-                               transa::Char,
-                               diag::Char,
-                               alpha::($elty),
-                               A::Array{ROCMatrix{$elty},1},
-                               B::Array{ROCMatrix{$elty},1})
+        function trsm_batched!(
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            A::Array{ROCMatrix{$elty},1}, B::Array{ROCMatrix{$elty},1},
+        )
             rocside = rocblasside(side)
             rocuplo = rocblasfill(uplo)
             roctransa = rocblasop(transa)
@@ -1325,19 +1153,14 @@ for (fname, elty) in
             ldb = max(1,stride(B[1],2))
             Aptrs = device_batch(A)
             Bptrs = device_batch(B)
-            hsa_wait!((A,B))
             (; handle, stream) = lib_state()
             $(fname)(handle, rocside, rocuplo, roctransa, rocdiag, m, n, Ref(alpha), Aptrs, lda, Bptrs, ldb, length(A)) |> check
-            mark!((A,B), HIPEvent(stream))
             B
         end
-        function trsm_batched(side::Char,
-                              uplo::Char,
-                              transa::Char,
-                              diag::Char,
-                              alpha::($elty),
-                              A::Array{ROCMatrix{$elty},1},
-                              B::Array{ROCMatrix{$elty},1})
+        function trsm_batched(
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            A::Array{ROCMatrix{$elty},1}, B::Array{ROCMatrix{$elty},1},
+        )
             trsm_batched!(side, uplo, transa, diag, alpha, A, copy(B) )
         end
     end
@@ -1352,14 +1175,11 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
                       (:rocblas_sgeam,:Float32),
                       (:rocblas_zgeam,:ComplexF64),
                       (:rocblas_cgeam,:ComplexF32))
-   @eval begin
-       function geam!(transa::Char,
-                      transb::Char,
-                      alpha::($elty),
-                      A::ROCMatrix{$elty},
-                      beta::($elty),
-                      B::ROCMatrix{$elty},
-                      C::ROCMatrix{$elty})
+    @eval begin
+        function geam!(
+            transa::Char, transb::Char, alpha::($elty), A::ROCMatrix{$elty},
+            beta::($elty), B::ROCMatrix{$elty}, C::ROCMatrix{$elty},
+        )
            roctransa = rocblasop(transa)
            roctransb = rocblasop(transb)
            mA, nA = size(A)
@@ -1372,18 +1192,14 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           hsa_wait!((A,B,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, roctransa, roctransb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc) |> check
-           mark!((A,B,C), HIPEvent(stream))
            C
-       end
-       function geam(transa::Char,
-                     transb::Char,
-                     alpha::($elty),
-                     A::ROCMatrix{$elty},
-                     beta::($elty),
-                     B::ROCMatrix{$elty})
+        end
+        function geam(
+            transa::Char, transb::Char, alpha::($elty), A::ROCMatrix{$elty},
+            beta::($elty), B::ROCMatrix{$elty},
+        )
            m,n = size(B)
            if ((transb == 'T' || transb == 'C'))
                geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (n,m) ) )
@@ -1404,8 +1220,7 @@ for (fname, elty) in
          (:rocblas_zgetrfBatched,:ComplexF64),
          (:rocblas_cgetrfBatched,:ComplexF32))
     @eval begin
-        function getrf_batched!(A::Array{ROCMatrix{$elty},1},
-                                Pivot::Bool)
+        function getrf_batched!(A::Array{ROCMatrix{$elty},1}, Pivot::Bool)
             for As in A
                 m,n = size(As)
                 if m != n
@@ -1417,19 +1232,14 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             info  = ROCArray{Cint}(undef, length(A))
             pivotArray  = Pivot ? ROCArray{Int32}(undef, (n, length(A))) : C_NULL
-            hsa_wait!(A)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Aptrs, lda, pivotArray, info, length(A)) |> check
             if( !Pivot )
                 pivotArray = ROCArray(zeros(Cint, (n, length(A))))
             end
-            event = HIPEvent(stream)
-            mark!((A, info), event)
-            pivotArray != C_NULL && mark!(pivotArray, event)
             pivotArray, info, A
         end
-        function getrf_batched(A::Array{ROCMatrix{$elty},1},
-                               Pivot::Bool)
+        function getrf_batched(A::Array{ROCMatrix{$elty},1}, Pivot::Bool)
             newA = copy(A)
             pivotarray, info = getrf_batched!(newA, Pivot)
             pivotarray, info, newA
@@ -1445,8 +1255,7 @@ for (fname, elty) in
          (:rocblas_zgetriBatched,:ComplexF64),
          (:rocblas_cgetriBatched,:ComplexF32))
     @eval begin
-        function getri_batched(A::Array{ROCMatrix{$elty},1},
-                               pivotArray::ROCMatrix{Cint})
+        function getri_batched(A::Array{ROCMatrix{$elty},1}, pivotArray::ROCMatrix{Cint})
             for As in A
                 m,n = size(As)
                 if m != n
@@ -1460,11 +1269,8 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
             info = ROCArray(zeros(Cint,length(A)))
-            hsa_wait!(A)
-            hsa_wait!(pivotArray)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A)) |> check
-            mark!((A, pivotArray, info, C), HIPEvent(stream))
             pivotArray, info, C
         end
     end
@@ -1495,10 +1301,8 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
             info = ROCArray(zeros(Cint,length(A)))
-            hsa_wait!(A)
             (; handle, stream) = lib_state()
             $(fname)(handle, n, Aptrs, lda, Cptrs, ldc, info, length(A)) |> check
-            mark!((A, info, C), HIPEvent(stream))
             info, C
         end
     end
@@ -1523,13 +1327,11 @@ for (fname, elty) in
             end
             Tauptrs = device_batch(TauArray)
             info    = zero(Cint)
-            hsa_wait!(A)
             (; handle, stream) = lib_state()
             $(fname)(handle, m, n, Aptrs, lda, Tauptrs, Ref(info), length(A)) |> check
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
-            mark!((A, TauArray), HIPEvent(stream))
             TauArray, A
         end
         function geqrf_batched(A::Array{ROCMatrix{$elty},1})
@@ -1546,9 +1348,9 @@ for (fname, elty) in
          (:rocblas_zgelsBatched,:ComplexF64),
          (:rocblas_cgelsBatched,:ComplexF32))
     @eval begin
-        function gels_batched!(trans::Char,
-                              A::Array{ROCMatrix{$elty},1},
-                              C::Array{ROCMatrix{$elty},1})
+        function gels_batched!(
+            trans::Char, A::Array{ROCMatrix{$elty},1}, C::Array{ROCMatrix{$elty},1},
+        )
             roctrans = rocblasop(trans)
             if( length(A) != length(C) )
                 throw(DimensionMismatch(""))
@@ -1571,21 +1373,15 @@ for (fname, elty) in
             Cptrs = device_batch(C)
             info  = zero(Cint)
             infoarray = ROCArray(zeros(Cint, length(A)))
-            hsa_wait!(A)
-            hsa_wait!(C)
             (; handle, stream) = lib_state()
             $(fname)(handle, roctrans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, Ref(info), infoarray, length(A)) |> check
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
-            mark!((A, C, infoarray), HIPEvent(stream))
             A, C, infoarray
         end
-        function gels_batched(trans::Char,
-                             A::Array{ROCMatrix{$elty},1},
-                             C::Array{ROCMatrix{$elty},1})
+        gels_batched(trans::Char, A::Array{ROCMatrix{$elty},1}, C::Array{ROCMatrix{$elty},1}) =
             gels_batched!(trans, copy(A), copy(C))
-        end
     end
 end
 
@@ -1595,10 +1391,9 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
                       (:rocblas_zdgmm,:ComplexF64),
                       (:rocblas_cdgmm,:ComplexF32))
    @eval begin
-       function dgmm!(mode::Char,
-                      A::ROCMatrix{$elty},
-                      X::ROCVector{$elty},
-                      C::ROCMatrix{$elty})
+       function dgmm!(
+           mode::Char, A::ROCMatrix{$elty}, X::ROCVector{$elty}, C::ROCMatrix{$elty},
+        )
            rocside = rocblasside(mode)
            m, n = size(C)
            mA, nA = size(A)
@@ -1609,15 +1404,11 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
            lda = max(1,stride(A,2))
            incx = stride(X,1)
            ldc = max(1,stride(C,2))
-           hsa_wait!((A,X,C))
            (; handle, stream) = lib_state()
            $(fname)(handle, rocside, m, n, A, lda, X, incx, C, ldc) |> check
-           mark!((A,X,C), HIPEvent(stream))
            C
        end
-       function dgmm(mode::Char,
-                     A::ROCMatrix{$elty},
-                     X::ROCVector{$elty})
+       function dgmm(mode::Char, A::ROCMatrix{$elty}, X::ROCVector{$elty})
            m,n = size(A)
            dgmm!( mode, A, X, similar(A, $elty, (m,n) ) )
        end
