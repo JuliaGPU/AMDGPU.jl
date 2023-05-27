@@ -129,15 +129,12 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
         while true
             # Read argument type
             T_ptr = Ptr{UInt64}(unsafe_load(ptr))
-            Core.println("T_ptr       ", T_ptr)
             ptr += sizeof(UInt64)
             if UInt64(T_ptr) == 0
                 # Terminator
                 break
             end
-            Core.println("Cstring ptr ", pointer_from_objref(Cstring))
             T = unsafe_pointer_to_objref(T_ptr)
-            Core.println("T ", T)
             # Read argument.
             arg = unsafe_load(reinterpret(Ptr{T}, ptr))
             push!(args, arg)

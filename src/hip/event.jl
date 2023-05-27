@@ -29,7 +29,7 @@ function non_blocking_synchronize(event::HIPEvent)
 
     # spin (initially without yielding to minimize latency)
     spins = 0
-    while spins < 256
+    while true
         if spins < 32
             ccall(:jl_cpu_pause, Cvoid, ())
             # Temporary solution before we have gc transition support in codegen.
@@ -46,7 +46,7 @@ end
 wait(event::HIPEvent) = hipEventSynchronize(event) |> check
 
 function synchronize(event::HIPEvent)
-    non_blocking_synchronize(event) || wait(event)
+    non_blocking_synchronize(event) # || wait(event)
     return
 end
 

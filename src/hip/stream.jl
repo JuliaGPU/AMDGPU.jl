@@ -48,10 +48,29 @@ function isdone(stream::HIPStream)
     end
 end
 
+function non_blocking_synchronize(stream::HIPStream)
+    isdone(stream) && return true
+
+    # spin (initially without yielding to minimize latency)
+    spins = 0
+    while true
+        if spins < 32
+            ccall(:jl_cpu_pause, Cvoid, ())
+            # Temporary solution before we have gc transition support in codegen.
+            ccall(:jl_gc_safepoint, Cvoid, ())
+        else
+            yield()
+        end
+        isdone(stream) && return true
+        spins += 1
+    end
+    return false
+end
+
 wait(stream::HIPStream) = hipStreamSynchronize(stream) |> check
 
 function synchronize(stream::HIPStream)
-    non_blocking_synchronize(stream) || wait(stream)
+    non_blocking_synchronize(stream) # || wait(stream)
     return
 end
 

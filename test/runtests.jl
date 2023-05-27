@@ -5,46 +5,46 @@ include("setup.jl")
 
 @testset "AMDGPU" begin
 
-# # Run tests in parallel
-# np = Threads.nthreads()
-# ws = Int[]
-# ws_pids = Int[]
-# if np == 1
-#     include("setup.jl")
-#     push!(ws, 1)
-#     push!(ws_pids, getpid())
-# else
-#     for i in 1:np
-#         w = first(addprocs(1; exeflags=AMDGPU.julia_exeflags()))
-#         @everywhere [w] include("setup.jl")
-#         pid = remotecall_fetch(getpid, w)
-#         push!(ws, w)
-#         push!(ws_pids, pid)
-#     end
-# end
-# atexit() do
-#     for (w, pid) in zip(ws, ws_pids)
-#         w == 1 && continue
-#         @info "Shutting down worker $w"
-#         try
-#             # Try to gracefully terminate the process
-#             rmprocs(w; waitfor=3)
-#         catch err
-#             @warn "Forcing down worker $w"
-#             # Send a loving SIGKILL
-#             ccall(:kill, Cint, (Cint, Cint), pid, 9)
-#         end
-#     end
-# end
-# failed = Ref(false)
-# tests = Pair{String,Function}[]
-# tasks = Dict{Int,String}()
+# Run tests in parallel
+np = Threads.nthreads()
+ws = Int[]
+ws_pids = Int[]
+if np == 1
+    include("setup.jl")
+    push!(ws, 1)
+    push!(ws_pids, getpid())
+else
+    for i in 1:np
+        w = first(addprocs(1; exeflags=AMDGPU.julia_exeflags()))
+        @everywhere [w] include("setup.jl")
+        pid = remotecall_fetch(getpid, w)
+        push!(ws, w)
+        push!(ws_pids, pid)
+    end
+end
+atexit() do
+    for (w, pid) in zip(ws, ws_pids)
+        w == 1 && continue
+        @info "Shutting down worker $w"
+        try
+            # Try to gracefully terminate the process
+            rmprocs(w; waitfor=3)
+        catch err
+            @warn "Forcing down worker $w"
+            # Send a loving SIGKILL
+            ccall(:kill, Cint, (Cint, Cint), pid, 9)
+        end
+    end
+end
+failed = Ref(false)
+tests = Pair{String,Function}[]
+tasks = Dict{Int,String}()
 
-# @test length(AMDGPU.devices()) > 0
-# @info "Testing using device $(AMDGPU.default_device())"
-# AMDGPU.versioninfo()
+@test length(AMDGPU.devices()) > 0
+@info "Testing using device $(AMDGPU.default_device())"
+AMDGPU.versioninfo()
 
-# @info "Running tests with $(length(ws)) workers"
+@info "Running tests with $(length(ws)) workers"
 
 # push!(tests, "HSA" => ()->begin
 #     include("hsa/error.jl")
@@ -139,104 +139,104 @@ include("setup.jl")
 #     include("dnn/miopen.jl")
 # end
 
-@testset "T" begin
-    xd = ROCArray(randn(Float32, (5, 5, 5, 5)))
-    maximum(xd)
-end
+# @testset "T" begin
+#     xd = ROCArray(randn(Float32, (5, 5, 5, 5)))
+#     maximum(xd)
+# end
 
 # push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
-# for (i, name) in enumerate(keys(TestSuite.tests))
-#     push!(tests, "GPUArrays TestSuite - $name" =>
-#         ()->TestSuite.tests[name](ROCArray))
-# end
+for (i, name) in enumerate(keys(TestSuite.tests))
+    push!(tests, "GPUArrays TestSuite - $name" =>
+        () -> TestSuite.tests[name](ROCArray))
+end
 # push!(tests, "KernelAbstractions" => ()->begin
 #     Testsuite.testsuite(
 #         ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
 #         skip_tests=Set(["sparse"]))
 # end)
 
-# function run_worker(w)
-#     while !isempty(tests)
-#         name, task = popfirst!(tests)
-#         tasks[w] = name
-#         try
-#             remotecall_fetch(w, name, task) do name, task
-#                 @testset "$name" begin
-#                     printstyled("Running $name\n"; color=:blue)
-#                     task()
-#                 end
-#             end
-#         catch err
-#             while err isa RemoteException || err isa CapturedException
-#                 if err isa RemoteException
-#                     err = err.captured
-#                 elseif err isa CapturedException
-#                     err = err.ex
-#                 end
-#             end
-#             if err isa TestSetException
-#                 failed[] = true
-#                 continue
-#             end
-#             if err isa InterruptException || err isa ProcessExitedException
-#                 rethrow(err)
-#             end
-#             @error "Test failure for: $name" exception=err
-#         finally
-#             delete!(tasks, w)
-#         end
-#     end
-# end
-# function handle_worker(w, pid)
-#     try
-#         run_worker(w)
-#     catch err
-#         if err isa InterruptException
-#             exit(1)
-#         elseif err isa ProcessExitedException
-#             failed[] = true
-#             w_idx = findfirst(==(w), ws)
-#             deleteat!(ws, w_idx)
-#             deleteat!(ws_pids, w_idx)
-#             printstyled("Worker $w ($pid) died\n"; color=:red)
-#             start_worker!()
-#         else
-#             failed[] = true
-#             rethrow(err)
-#         end
-#     end
-# end
-# function start_worker!()
-#     w = first(addprocs(1; exeflags=AMDGPU.julia_exeflags()))
-#     @everywhere [w] include("setup.jl")
-#     pid = remotecall_fetch(getpid, w)
-#     push!(ws, w)
-#     push!(ws_pids, pid)
-#     printstyled("Started worker $w ($pid)\n"; color=:blue)
-#     errormonitor(@async handle_worker(w, pid))
-# end
+function run_worker(w)
+    while !isempty(tests)
+        name, task = popfirst!(tests)
+        tasks[w] = name
+        try
+            remotecall_fetch(w, name, task) do name, task
+                @testset "$name" begin
+                    printstyled("Running $name\n"; color=:blue)
+                    task()
+                end
+            end
+        catch err
+            while err isa RemoteException || err isa CapturedException
+                if err isa RemoteException
+                    err = err.captured
+                elseif err isa CapturedException
+                    err = err.ex
+                end
+            end
+            if err isa TestSetException
+                failed[] = true
+                continue
+            end
+            if err isa InterruptException || err isa ProcessExitedException
+                rethrow(err)
+            end
+            @error "Test failure for: $name" exception=err
+        finally
+            delete!(tasks, w)
+        end
+    end
+end
+function handle_worker(w, pid)
+    try
+        run_worker(w)
+    catch err
+        if err isa InterruptException
+            exit(1)
+        elseif err isa ProcessExitedException
+            failed[] = true
+            w_idx = findfirst(==(w), ws)
+            deleteat!(ws, w_idx)
+            deleteat!(ws_pids, w_idx)
+            printstyled("Worker $w ($pid) died\n"; color=:red)
+            start_worker!()
+        else
+            failed[] = true
+            rethrow(err)
+        end
+    end
+end
+function start_worker!()
+    w = first(addprocs(1; exeflags=AMDGPU.julia_exeflags()))
+    @everywhere [w] include("setup.jl")
+    pid = remotecall_fetch(getpid, w)
+    push!(ws, w)
+    push!(ws_pids, pid)
+    printstyled("Started worker $w ($pid)\n"; color=:blue)
+    errormonitor(@async handle_worker(w, pid))
+end
 
-# for (w, pid) in zip(ws, ws_pids)
-#     errormonitor(@async handle_worker(w, pid))
-# end
+for (w, pid) in zip(ws, ws_pids)
+    errormonitor(@async handle_worker(w, pid))
+end
 
-# try
-#     while !isempty(tests) || !isempty(tasks)
-#         sleep(1)
-#     end
-# catch err
-#     failed[] = true
-#     if !(err isa InterruptException)
-#         rethrow(err)
-#     end
-# end
+try
+    while !isempty(tests) || !isempty(tasks)
+        sleep(1)
+    end
+catch err
+    failed[] = true
+    if !(err isa InterruptException)
+        rethrow(err)
+    end
+end
 
-# if failed[]
-#     printstyled("FAILED\n"; color=:red, bold=true)
-#     exit(1)
-# else
-#     printstyled("SUCCESS\n"; color=:green, bold=true)
-#     exit(0)
-# end
+if failed[]
+    printstyled("FAILED\n"; color=:red, bold=true)
+    exit(1)
+else
+    printstyled("SUCCESS\n"; color=:green, bold=true)
+    exit(0)
+end
 
 end

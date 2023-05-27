@@ -1,5 +1,7 @@
 "Allocates on-device memory statically from the specified address space."
-@generated function alloc_special(::Val{id}, ::Type{T}, ::Val{as}, ::Val{len}, ::Val{zeroinit}=Val{false}()) where {id,T,as,len,zeroinit}
+@generated function alloc_special(
+    ::Val{id}, ::Type{T}, ::Val{as}, ::Val{len}, ::Val{zeroinit} = Val{false}(),
+) where {id,T,as,len,zeroinit}
     @dispose ctx=Context() begin
         eltyp = convert(LLVMType, T; ctx)
 
@@ -30,7 +32,8 @@
             end
         end
 
-        # by requesting a larger-than-datatype alignment, we might be able to vectorize.
+        # By requesting a larger-than-datatype alignment,
+        # we might be able to vectorize.
         # TODO: Make the alignment configurable
         alignment!(gv, Base.max(32, Base.datatype_alignment(T)))
 
@@ -49,8 +52,10 @@
     end
 end
 
-@inline alloc_local(id, T, len, zeroinit=false) = alloc_special(Val{id}(), T, Val{AS.Local}(), Val{len}(), Val{zeroinit}())
-@inline alloc_scratch(id, T, len) = alloc_special(Val{id}(), T, Val{AS.Private}(), Val{len}(), Val{false}())
+@inline alloc_local(id, T, len, zeroinit=false) =
+    alloc_special(Val{id}(), T, Val{AS.Local}(), Val{len}(), Val{zeroinit}())
+@inline alloc_scratch(id, T, len) =
+    alloc_special(Val{id}(), T, Val{AS.Private}(), Val{len}(), Val{false}())
 
 macro ROCStaticLocalArray(T, dims, zeroinit=true)
     zeroinit = zeroinit isa Expr ? zeroinit.args[1] : zeroinit

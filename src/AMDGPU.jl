@@ -171,7 +171,6 @@ module Compiler
     include(joinpath("compiler", "output_context.jl"))
     include(joinpath("compiler", "dynamic_memory.jl"))
     include(joinpath("compiler", "codegen.jl"))
-    include(joinpath("compiler", "hostcalls.jl"))
 end
 
 include("tls.jl")
@@ -431,19 +430,15 @@ function test()
     # @show Array(x)
     # @show Array(y)
 
-    # x = ones(Float32, 16)
+    x = AMDGPU.ones(Float32, 16)
+    @show sum(x)
     # @show x
     # @show sum(sin.(x))
     # @show sin.(x)
 
-    x = ROCArray(fill(Int32(0), 1))
-    # @device_code dir="./here" @roc launch=false set_one!(x)
-
-    @roc griddim=2 blockdim=1 set_one!(x)
-    # TODO make non blocking if exception happens
-        # yield always in non blocking sync?
-    sleep(1)
-    AMDGPU.synchronize()
+    # x = ROCArray(fill(Int32(0), 1))
+    # @roc griddim=2 blockdim=1 set_one!(x)
+    # AMDGPU.synchronize()
 
     return
 end
