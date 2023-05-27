@@ -237,7 +237,7 @@ rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 
 const MACRO_KWARGS = [:dynamic, :launch]
 const COMPILER_KWARGS = [:name]
-const LAUNCH_KWARGS = [:griddim, :blockdim, :shmem, :stream]
+const LAUNCH_KWARGS = [:gridsize, :groupsize, :shmem, :stream]
 
 macro roc(ex...)
     # destructure the `@roc` expression

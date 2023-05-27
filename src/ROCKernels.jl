@@ -100,9 +100,7 @@ function (obj::Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=nothi
     nthreads = length(workitems(iterspace))
     nblocks == 0 && return nothing
 
-    AMDGPU.@roc(
-        groupsize=nthreads, gridsize=(nblocks * nthreads),
-        obj.f(ctx, args...))
+    AMDGPU.@roc groupsize=nthreads gridsize=nblocks obj.f(ctx, args...)
     return nothing
 end
 

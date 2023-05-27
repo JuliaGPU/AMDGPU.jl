@@ -12,7 +12,7 @@ function GPUArrays.gpu_call(
     ::ROCArrayBackend, f, args, threads::Int, blocks::Int;
     name::Union{String, Nothing},
 )
-    @roc griddim=blocks blockdim=threads name=name f(ROCKernelContext(), args...)
+    @roc gridsize=blocks groupsize=threads name=name f(ROCKernelContext(), args...)
 end
 
 ## on-device
