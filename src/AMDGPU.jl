@@ -217,9 +217,9 @@ include(joinpath("dnn", "MIOpen.jl"))
 include("random.jl")
 
 # KernelAbstractions
-# include("ROCKernels.jl")
-# import .ROCKernels: ROCBackend
-# export ROCBackend
+include("ROCKernels.jl")
+import .ROCKernels: ROCBackend
+export ROCBackend
 
 function __init__()
     atexit() do

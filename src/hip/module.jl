@@ -34,5 +34,5 @@ function launch_configuration(
     grid_size_ref, block_size_ref = Ref{Cint}(), Ref{Cint}()
     hipModuleOccupancyMaxPotentialBlockSize(
         grid_size_ref, block_size_ref, fun, shmem, max_block_size) |> check
-    return (griddim=grid_size_ref[], blockdim=block_size_ref[])
+    return (; gridsize=grid_size_ref[], groupsize=block_size_ref[])
 end

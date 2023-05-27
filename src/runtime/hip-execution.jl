@@ -96,10 +96,10 @@ end
 
 function launch(
     fun::HIP.HIPFunction, args::Vararg{Any, N};
-    griddim::ROCDim = 1, blockdim::ROCDim = 1,
+    gridsize::ROCDim = 1, groupsize::ROCDim = 1,
     shmem::Integer = 0, stream::HIP.HIPStream = AMDGPU.stream(),
 ) where N
-    gd, bd = ROCDim3(griddim), ROCDim3(blockdim)
+    gd, bd = ROCDim3(gridsize), ROCDim3(groupsize)
     pack_arguments(args...) do kernel_params
         HIP.hipModuleLaunchKernel(
             fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,

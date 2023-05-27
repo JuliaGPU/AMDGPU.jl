@@ -141,7 +141,7 @@ function GPUArrays.mapreducedim!(
     kernel = @roc launch=false partial_mapreduce_device(
         f, op, init, Rreduce, Rother, R′, A)
     kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
-    reduce_items = compute_items(kernel_config.blockdim)
+    reduce_items = compute_items(kernel_config.groupsize)
     reduce_shmem = compute_shmem(reduce_items)
 
     # how many groups should we launch?
@@ -159,7 +159,7 @@ function GPUArrays.mapreducedim!(
     # perform the actual reduction
     if reduce_groups == 1
         # we can cover the dimensions to reduce using a single group
-        @roc griddim=grid blockdim=blocks shmem=reduce_shmem partial_mapreduce_device(
+        @roc gridsize=grid groupsize=blocks shmem=reduce_shmem partial_mapreduce_device(
             f, op, init, Rreduce, Rother, R′, A)
     else
         # we need multiple steps to cover all values to reduce
@@ -168,7 +168,7 @@ function GPUArrays.mapreducedim!(
             # without an explicit initializer we need to copy from the output container
             partial .= R
         end
-        @roc griddim=grid blockdim=blocks shmem=reduce_shmem partial_mapreduce_device(
+        @roc gridsize=grid groupsize=blocks shmem=reduce_shmem partial_mapreduce_device(
             f, op, init, Rreduce, Rother, partial, A)
 
         GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
