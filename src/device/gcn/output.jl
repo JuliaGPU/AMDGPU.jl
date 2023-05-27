@@ -100,6 +100,9 @@ Base.sizeof(::ROCPrintfBuffer) = 0
 Base.unsafe_store!(::LLVMPtr{ROCPrintfBuffer, AS.Global}, x) = nothing
 
 # TODO add docs about format.
+"""
+Read from the printf buffer on the host from HostCall task.
+"""
 function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
     ptr = reinterpret(Ptr{UInt64}, ptr)
 

@@ -61,32 +61,32 @@ function report_oom(sz::Csize_t)
 end
 
 function report_exception(ex::Ptr{Cchar})
-    ex_str = device_string_to_host(ex)
-    @rocprintf("""
-        ERROR: a %s was thrown during kernel execution.
-               Run Julia on debug level 2 for device stack traces.
-        """, ex_str)
-    free(reinterpret(Ptr{Cvoid}, ex_str))
+    # ex_str = device_string_to_host(ex)
+    # @rocprintf("""
+    #     ERROR: a %s was thrown during kernel execution.
+    #            Run Julia on debug level 2 for device stack traces.
+    #     """, ex_str)
+    # free(reinterpret(Ptr{Cvoid}, ex_str))
     return
 end
 
 function report_exception_name(ex)
-    ex_str = device_string_to_host(ex)
-    @rocprintf("""
-        ERROR: a %s was thrown during kernel execution.
-        Stacktrace:
-        """, ex_str)
-    free(reinterpret(Ptr{Cvoid}, ex_str))
+    # ex_str = device_string_to_host(ex)
+    # @rocprintf("""
+    #     ERROR: a %s was thrown during kernel execution.
+    #     Stacktrace:
+    #     """, ex_str)
+    # free(reinterpret(Ptr{Cvoid}, ex_str))
     return
 end
 
 function report_exception_frame(
     idx::Cint, func::Ptr{Cchar}, file::Ptr{Cchar}, line::Cint,
 )
-    func_str = device_string_to_host(func)
-    file_str = device_string_to_host(file)
-    @rocprintf(" [%i] %s at %s:%i\n", idx, func_str, file_str, line)
-    free(reinterpret(Ptr{Cvoid}, func_str))
-    free(reinterpret(Ptr{Cvoid}, file_str))
+    # func_str = device_string_to_host(func)
+    # file_str = device_string_to_host(file)
+    # @rocprintf(" [%i] %s at %s:%i\n", idx, func_str, file_str, line)
+    # free(reinterpret(Ptr{Cvoid}, func_str))
+    # free(reinterpret(Ptr{Cvoid}, file_str))
     return
 end

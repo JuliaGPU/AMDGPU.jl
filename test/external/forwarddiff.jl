@@ -9,7 +9,8 @@ function test_derivative(f, x::T) where T
         a[] = ForwardDiff.derivative(f, x)
         return
     end
-    wait(@roc kernel(buf, x))
+    @roc kernel(buf, x)
+    AMDGPU.synchronize()
     return AMDGPU.@allowscalar buf[]
 end
 

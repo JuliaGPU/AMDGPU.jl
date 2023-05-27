@@ -138,10 +138,6 @@ function GPUArrays.mapreducedim!(
     max_block_size = 256
     compute_shmem(items) = items * sizeof(T)
     max_shmem = max_block_size |> compute_items |> compute_shmem
-    @device_code dir="/home/pxl-th/reduce-normal" @roc launch=false partial_mapreduce_device(
-        f, op, init, Rreduce, Rother, R′, A)
-    exit()
-
     kernel = @roc launch=false partial_mapreduce_device(
         f, op, init, Rreduce, Rother, R′, A)
     kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
@@ -163,8 +159,6 @@ function GPUArrays.mapreducedim!(
     # perform the actual reduction
     if reduce_groups == 1
         # we can cover the dimensions to reduce using a single group
-        # @device_code dir="/home/pxl-th/red-g2" partial_mapreduce_device(
-        #     f, op, init, Val(blocks), Rreduce, Rother, R′, A)
         @roc griddim=grid blockdim=blocks shmem=reduce_shmem partial_mapreduce_device(
             f, op, init, Rreduce, Rother, R′, A)
     else
