@@ -214,9 +214,9 @@ default_isa_features(device::ROCDevice) = Runtime.features(default_isa(device))
 
 Blocks until all kernels currently executing on `stream` have completed.
 """
-function synchronize(stream::HIPStream = stream())
+function synchronize(s::HIPStream = stream())
     Compiler.check_exceptions()
-    HIP.hipStreamSynchronize(stream.stream) |> check
+    HIP.synchronize(s)
     Compiler.check_exceptions()
     return
 end
@@ -301,12 +301,8 @@ macro roc(ex...)
     end)
 end
 
-# TODO
-# launch config
-
-launch_configuration(kern::Runtime.HostKernel; kwargs...) =
-    launch_configuration(kern.fun)
-function launch_configuration(fun::Runtime.ROCFunction; input_block_size=1, localmem=0)
-    occ = Compiler.calculate_occupancy(fun; input_block_size, localmem)
-    return (;groupsize=occ.best_block_size)
+function launch_configuration(
+    kern::Runtime.HIPKernel; shmem::Integer = 0, max_block_size::Integer = 0,
+)
+    HIP.launch_configuration(kern.fun; shmem, max_block_size)
 end
