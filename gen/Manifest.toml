@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0"
+julia_version = "1.9.0-beta4"
 manifest_format = "2.0"
 project_hash = "26a57bd5ee5b16d5abc45095c0840c2c659a6a22"
 
@@ -27,15 +27,15 @@ version = "0.4.2"
 
 [[deps.Clang]]
 deps = ["CEnum", "Clang_jll", "Downloads", "Pkg", "TOML"]
-git-tree-sha1 = "f8fcba246214e8aec52e80e8416a88488a213c09"
+git-tree-sha1 = "9e605c9149e4a0182118f00c8d69ef76d59998ee"
 uuid = "40e3b903-d033-50b4-a0cc-940c62c95e31"
-version = "0.17.5"
+version = "0.16.6"
 
 [[deps.Clang_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "TOML", "Zlib_jll", "libLLVM_jll"]
-git-tree-sha1 = "124bb00d4ceace456054f17c7cb01e5c8195c609"
+git-tree-sha1 = "b88c99c9093f9db49a40d0715ea0e3ae5bbd91f7"
 uuid = "0ee61d77-7f21-5576-8119-9fcc46b10100"
-version = "14.0.6+4"
+version = "14.0.6+2"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -101,9 +101,9 @@ version = "1.8.7+0"
 
 [[deps.Libglvnd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Xorg_libX11_jll", "Xorg_libXext_jll"]
-git-tree-sha1 = "6f73d1dd803986947b2c750138528a999a6c7733"
+git-tree-sha1 = "7739f837d6447403596a75d19ed01fd08d6f56bf"
 uuid = "7e76a0d4-f3c7-5321-8279-8d96eeed0f29"
-version = "1.6.0+0"
+version = "1.3.0+3"
 
 [[deps.Libgpg_error_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -133,7 +133,7 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.2+0"
+version = "2.28.0+0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
@@ -156,9 +156,9 @@ version = "1.9.0"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "7eb1686b4f04b82f96ed7a4ea5890a4f0c7a09f1"
+git-tree-sha1 = "47e5f437cc0e7ef2ce8406ce1e7e24d44915f88d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.4.0"
+version = "1.3.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -195,10 +195,10 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
 [[deps.SQLite_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "54d66b0f69f4578f4988fc08d579783fcdcd764f"
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Zlib_jll"]
+git-tree-sha1 = "9d920c4ee8cd5684e23bf84f43ead45c0af796e7"
 uuid = "76ed43ae-9a5d-5a62-8c75-30186b810ce8"
-version = "3.41.0+0"
+version = "3.39.4+0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -225,9 +225,9 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[deps.XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "Zlib_jll"]
-git-tree-sha1 = "93c41695bc1c08c46c5899f4fe06d6ead504bb73"
+git-tree-sha1 = "58443b63fb7e465a8a7210828c91c08b92132dff"
 uuid = "02c8fc9c-b97f-50b9-bbe4-9be30ff0a78a"
-version = "2.10.3+0"
+version = "2.9.14+0"
 
 [[deps.XSLT_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgcrypt_jll", "Libgpg_error_jll", "Libiconv_jll", "Pkg", "XML2_jll", "Zlib_jll"]
@@ -237,9 +237,9 @@ version = "1.1.34+0"
 
 [[deps.XZ_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "7928d348322698fb93d5c14b184fdc176c8afc82"
+git-tree-sha1 = "d1d49166bc58e698ab38804d7bde2aef43e4b594"
 uuid = "ffd25f8a-64ca-5728-b0f7-c24cf3aae800"
-version = "5.2.9+0"
+version = "5.2.7+0"
 
 [[deps.Xorg_libX11_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Xorg_libxcb_jll", "Xorg_xtrans_jll"]
@@ -314,9 +314,9 @@ version = "1.79.0+0"
 
 [[deps.fts_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "aa21810b841ae26d2fc7f780cb1596b4170a4c49"
+git-tree-sha1 = "78732b942383d2cb521df8a1a0814911144e663d"
 uuid = "d65627f6-89bd-53e8-8ab5-8b75ff535eee"
-version = "1.2.8+0"
+version = "1.2.7+1"
 
 [[deps.hsa_rocr_jll]]
 deps = ["Artifacts", "Elfutils_jll", "JLLWrappers", "Libdl", "NUMA_jll", "Pkg", "ROCmDeviceLibs_jll", "XML2_jll", "Zlib_jll", "hsakmt_roct_jll"]
@@ -333,7 +333,7 @@ version = "5.2.3+0"
 [[deps.libLLVM_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8f36deef-c2a5-5394-99ed-8e07531fb29a"
-version = "14.0.6+3"
+version = "14.0.6+0"
 
 [[deps.libdrm_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Xorg_libpciaccess_jll"]
