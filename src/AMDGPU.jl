@@ -398,9 +398,8 @@ end
 
 """
 TODO
-- occupancy API
-- update highlevel stuf to remove roc queues, etc
 - tests
+- perform pointer relocation
 """
 
 function test()

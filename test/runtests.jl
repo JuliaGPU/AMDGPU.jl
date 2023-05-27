@@ -85,33 +85,33 @@ AMDGPU.versioninfo()
 #     # include("device/deps.jl")
 #     include("device/queries.jl")
 # end)
-# push!(tests, "Multitasking" => ()->include("tls.jl"))
-# push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
-# push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
-# if CI
-#     push!(tests, "ROCm libraries are functional" => ()->begin
-#         @test AMDGPU.functional(:rocblas)
-#         @test AMDGPU.functional(:rocrand)
-#         if !AMDGPU.use_artifacts
-#             # We don't have artifacts for these
-#             @test AMDGPU.functional(:rocfft)
-#         end
-#     end)
-# end
-# push!(tests, "rocBLAS" => ()->begin
-#     if AMDGPU.functional(:rocblas)
-#         include("rocarray/blas.jl")
-#     else
-#         @test_skip "rocBLAS"
-#     end
-# end)
-# push!(tests, "rocRAND" => ()->begin
-#     if AMDGPU.functional(:rocrand)
-#         include("rocarray/random.jl")
-#     else
-#         @test_skip "rocRAND"
-#     end
-# end)
+push!(tests, "Multitasking" => ()->include("tls.jl"))
+push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
+push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
+if CI
+    push!(tests, "ROCm libraries are functional" => ()->begin
+        @test AMDGPU.functional(:rocblas)
+        @test AMDGPU.functional(:rocrand)
+        if !AMDGPU.use_artifacts
+            # We don't have artifacts for these
+            @test AMDGPU.functional(:rocfft)
+        end
+    end)
+end
+push!(tests, "rocBLAS" => ()->begin
+    if AMDGPU.functional(:rocblas)
+        include("rocarray/blas.jl")
+    else
+        @test_skip "rocBLAS"
+    end
+end)
+push!(tests, "rocRAND" => ()->begin
+    if AMDGPU.functional(:rocrand)
+        include("rocarray/random.jl")
+    else
+        @test_skip "rocRAND"
+    end
+end)
 # FIXME outdated library
 # push!(tests, "rocFFT" => ()->begin
 #     if AMDGPU.functional(:rocfft)
@@ -120,31 +120,21 @@ AMDGPU.versioninfo()
 #         @test_skip "rocFFT"
 #     end
 # end)
-# push!(tests, "NMF" => ()->begin
-#     if AMDGPU.functional(:rocblas)
-#         include("rocarray/nmf.jl")
-#     else
-#         @test_skip "NMF"
-#     end
-# end)
-# push!(tests, "MIOpen" => ()->begin
-#     if AMDGPU.functional(:MIOpen)
-#         include("dnn/miopen.jl")
-#     else
-#         @test_skip "MIOpen"
-#     end
-# end)
-
-# @testset "MIOpen" begin
-#     include("dnn/miopen.jl")
-# end
-
-# @testset "T" begin
-#     xd = ROCArray(randn(Float32, (5, 5, 5, 5)))
-#     maximum(xd)
-# end
-
-# push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
+push!(tests, "NMF" => ()->begin
+    if AMDGPU.functional(:rocblas)
+        include("rocarray/nmf.jl")
+    else
+        @test_skip "NMF"
+    end
+end)
+push!(tests, "MIOpen" => ()->begin
+    if AMDGPU.functional(:MIOpen)
+        include("dnn/miopen.jl")
+    else
+        @test_skip "MIOpen"
+    end
+end)
+push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
 for (i, name) in enumerate(keys(TestSuite.tests))
     push!(tests, "GPUArrays TestSuite - $name" =>
         () -> TestSuite.tests[name](ROCArray))
