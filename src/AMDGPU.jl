@@ -93,6 +93,8 @@ module Runtime
 
         using Preferences
 
+        const refcounts_lock = Threads.ReentrantLock()
+
         abstract type AbstractAMDBuffer end
 
         include(joinpath("runtime", "memory", "utils.jl"))
@@ -359,5 +361,16 @@ TODO
 - pointer relocation
 - wrapp more HIP calls in retry/reclaim?
 """
+
+function mm()
+    Mem.definitely_free() do
+        ROCArray{Float32}(undef, 128)
+        ROCArray{Float32}(undef, 128)
+        ROCArray{Float32}(undef, 128)
+    end
+    AMDGPU.synchronize()
+    Core.println("RET")
+    return
+end
 
 end
