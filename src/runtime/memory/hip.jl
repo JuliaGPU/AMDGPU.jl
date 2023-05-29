@@ -71,7 +71,7 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     dev = AMDGPU.device()
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!()), nothing
 
-    # mark_pool!(HIP.device())
+    mark_pool!(HIP.device())
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
@@ -89,6 +89,9 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
 
     event = HIP.HIPEvent(stream)
     buffer = HIPBuffer(dev, ptr, bytesize, _buffer_id!())
+
+    capture_buffers() && capture_buffer!(buffer)
+
     return buffer, event
 end
 
