@@ -1,8 +1,7 @@
 # High-level APIs
 
 import AMDGPU: Runtime, Compiler
-import .Runtime: ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal, ROCKernelSignal, HSAError
-import .Runtime: ROCDim, ROCDim3
+import .Runtime: ROCDevice, ROCDim, ROCDim3
 import .Compiler: hipfunction
 
 export @roc, rocconvert
@@ -138,35 +137,7 @@ device_id(device::HIPDevice) = device.device_id
 HIPDevice(device::ROCDevice) = HIPDevice(device_id(device))
 HIPContext(device::ROCDevice) = HIPContext(HIPDevice(device))
 
-# Queues/Streams
-
-"""
-    queue()::ROCQueue
-
-Get task-local default queue for the currently active device.
-"""
-queue() = task_local_state().queue::ROCQueue
-@deprecate default_queue() queue()
-function queue(device::ROCDevice)
-    tls = task_local_state()
-    q = tls.queues[device_id(device)]
-    isnothing(q) || return q
-
-    tls.queues[device_id(device)] = ROCQueue(device)
-    return q
-end
-"""
-    queue!(f::Base.Callable, queue::ROCQueue)
-
-Change default queue, execute given function `f`
-and revert back to the original queue.
-
-# Returns
-
-Return value of the function `f`.
-"""
-queue!(f::Base.Callable, queue::ROCQueue) = task_local_state!(f; queue)
-device(queue::ROCQueue) = queue.device
+# Streams.
 
 default_stream() = HIP.default_stream()
 stream() = task_local_state().stream::HIPStream
@@ -182,7 +153,7 @@ priority() = task_local_state().priority
 """
     priority!(priority::Symbol)
 
-Change the priority of the default queue.
+Change the priority of the default stream.
 Accepted values are `:normal` (the default), `:low` and `:high`.
 """
 function priority!(priority::Symbol)
@@ -193,7 +164,7 @@ end
 """
     priority!(f::Base.Callable, priority::Symbol)
 
-Chnage the priority of default queue, execute `f` and
+Chnage the priority of default stream, execute `f` and
 revert to the original priority.
 Accepted values are `:normal` (the default), `:low` and `:high`.
 

@@ -71,10 +71,10 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     dev = AMDGPU.device()
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!()), nothing
 
-    mark_pool!(HIP.device())
+    # mark_pool!(HIP.device())
 
     ptr_ref = Ref{Ptr{Cvoid}}()
-    run_or_cleanup!() do
+    alloc_or_retry!() do
         try
             HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
             ptr_ref[] == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))

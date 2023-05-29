@@ -74,7 +74,7 @@ set_memory_alloc_limit!(limit::String) =
 const HARD_MEMORY_LIMIT = parse_memory_limit(
     @load_preference("hard_memory_limit", "none"))
 
-function run_or_cleanup!(f)
+function alloc_or_retry!(f)
     status = f()
     status == HSA.STATUS_SUCCESS && return
 
@@ -85,13 +85,13 @@ function run_or_cleanup!(f)
         if phase == 1
             HIP.synchronize(stream)
         elseif phase == 2
-            AMDGPU.synchronize(; errors=false)
+            HIP.device_synchronize()
         elseif phase == 3
             GC.gc(false)
-            HIP.synchronize(stream)
+            HIP.device_synchronize()
         elseif phase == 4
             GC.gc(true)
-            HIP.synchronize(stream)
+            HIP.device_synchronize()
         elseif phase == 5
             HIP.trim(HIP.memory_pool(stream.device))
         else
