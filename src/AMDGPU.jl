@@ -353,4 +353,11 @@ function __init__()
     end
 end
 
+"""
+TODO
+- pause hostcalls when no Julia kernels are executing
+- pointer relocation
+- wrapp more HIP calls in retry/reclaim?
+"""
+
 end

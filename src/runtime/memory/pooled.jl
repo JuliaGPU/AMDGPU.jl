@@ -61,7 +61,7 @@ function alloc_pooled(device::ROCDevice, key::UInt64, kind::Symbol, bytesize::In
         # show up in the memory pools API
         kernarg_region = Runtime.get_region(device, :kernarg)
         kernarg_address = Ref{Ptr{Nothing}}(Ptr{Nothing}(0))
-        run_or_cleanup!() do
+        allo_or_retry!() do
             HSA.memory_allocate(kernarg_region.region, bytesize, kernarg_address)
         end
         Threads.atomic_add!(POOLED_ALLOCS, Int64(bytesize))

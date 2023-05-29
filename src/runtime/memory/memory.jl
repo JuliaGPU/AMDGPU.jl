@@ -178,7 +178,7 @@ function alloc(
 ) where S <: Union{ROCMemoryPool, ROCMemoryRegion}
     ptr_ref = Ref{Ptr{Cvoid}}()
 
-    run_or_cleanup!(() -> _alloc(space, bytesize, ptr_ref))
+    alloc_or_retry!(() -> _alloc(space, bytesize, ptr_ref))
 
     ptr = ptr_ref[]
     AMDGPU.hsaref!()
