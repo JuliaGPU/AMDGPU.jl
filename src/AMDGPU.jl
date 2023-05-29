@@ -403,41 +403,40 @@ TODO
 """
 
 function test()
-    # @roc ppp()
-    # AMDGPU.synchronize()
+    @roc ppp()
+    AMDGPU.synchronize()
 
-    # @roc dyn_mem()
-    # AMDGPU.synchronize()
+    @roc dyn_mem()
+    AMDGPU.synchronize()
 
-    # @roc f()
-    # AMDGPU.synchronize()
+    @roc f()
+    AMDGPU.synchronize()
 
-    # @roc printing()
-    # AMDGPU.synchronize()
+    @roc printing()
+    AMDGPU.synchronize()
 
-    # @roc griddim=8 blockdim=1 fprinting()
-    # AMDGPU.synchronize()
+    @roc gridsize=8 groupsize=1 fprinting()
+    AMDGPU.synchronize()
 
-    # x = ROCArray(fill(Int32(0), 128))
-    # @roc blockdim=128 set_one!(x)
-    # AMDGPU.synchronize()
-    # @show Array(x)
+    x = ROCArray(fill(Int32(0), 128))
+    @roc groupsize=128 set_one!(x)
+    AMDGPU.synchronize()
+    @show Array(x)
 
-    # y = ROCArray(fill(Int32(1), 128))
-    # @roc blockdim=128 vadd(x, y)
-    # AMDGPU.synchronize()
-    # @show Array(x)
-    # @show Array(y)
+    y = ROCArray(fill(Int32(1), 128))
+    @roc groupsize=128 vadd(x, y)
+    AMDGPU.synchronize()
+    @show Array(x)
+    @show Array(y)
 
     x = AMDGPU.ones(Float32, 16)
-    @show sum(x)
-    # @show x
-    # @show sum(sin.(x))
-    # @show sin.(x)
+    @show x
+    @show sum(sin.(x))
+    @show sin.(x)
 
-    # x = ROCArray(fill(Int32(0), 1))
-    # @roc griddim=2 blockdim=1 set_one!(x)
-    # AMDGPU.synchronize()
+    x = ROCArray(fill(Int32(0), 1))
+    @roc gridsize=2 groupsize=1 set_one!(x)
+    AMDGPU.synchronize()
 
     return
 end
