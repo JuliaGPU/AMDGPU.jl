@@ -92,11 +92,13 @@ lib_state() = library_state(
 handle() = lib_state().handle
 stream() = lib_state().stream
 
+# TODO use ROCArray instead of Workspace
 mutable struct Workspace
-    data::Mem.Buffer
+    data::Mem.HIPBuffer
     function Workspace(dev::ROCDevice, bytesize)
-        w = new(Mem.alloc(dev, bytesize))
-        finalizer(w_ -> Mem.free(w_.data), w)
+        data, _ = Mem.HIPBuffer(bytesize; stream=AMDGPU.stream())
+        w = new(data)
+        finalizer(w_ -> Mem.free(w_.data; stream=AMDGPU.stream()), w)
         w
     end
 end

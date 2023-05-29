@@ -66,8 +66,8 @@ struct HIPBuffer <: AbstractAMDBuffer
     _id::UInt64 # Unique ID used for refcounting.
 end
 
-# TODO migrate MIOpen workspace to HIP allocs
-function HIPBuffer(bytesize::Int; stream::HIP.HIPStream)
+# TODO pass device?
+function HIPBuffer(bytesize; stream::HIP.HIPStream)
     dev = AMDGPU.device()
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!()), nothing
 

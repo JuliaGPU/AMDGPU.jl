@@ -54,7 +54,7 @@ function HostCall(
     end
 
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
-    buf = Mem.alloc(device, buf_len; coherent=true) # TODO move to HIP
+    buf = Mem.HostBuffer(buf_len, AMDGPU.HIP.hipHostAllocMapped)
     buf_ptr = LLVMPtr{UInt8, AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
     host_signal_store!(HSA.Signal(signal_handle), READY_SENTINEL)
     HostCall{RT, AT}(signal_handle, buf_ptr, buf_len)
@@ -284,7 +284,7 @@ function HostCall(
     hc = HostCall(rettype, argtypes, signal.handle; device, buf_len)
 
     tsk = Threads.@spawn begin
-        ret_buf = Ref{Mem.Buffer}()
+        ret_buf = Ref{Mem.HostBuffer}()
         ret_len = 0
         try
             while true
@@ -317,10 +317,10 @@ function HostCall(
                     if isassigned(ret_buf) && (ret_len < sizeof(ret))
                         Mem.free(ret_buf[])
                         ret_len = sizeof(ret)
-                        ret_buf[] = Mem.alloc(device, ret_len; coherent=true)
+                        ret_buf[] = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocMapped)
                     elseif !isassigned(ret_buf)
                         ret_len = sizeof(ret)
-                        ret_buf[] = Mem.alloc(device, ret_len; coherent=true)
+                        ret_buf[] = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocMapped)
                     end
                     ret_ref = Ref{rettype}(ret)
                     GC.@preserve ret_ref begin
@@ -359,7 +359,7 @@ function HostCall(
                         Mem.free(ret_buf[])
                     end
                     buf_ptr = reinterpret(Ptr{Cvoid}, hc.buf_ptr)
-                    Mem.free(Mem.Buffer(buf_ptr, C_NULL, buf_ptr, 0, device, true, false))
+                    Mem.free(Mem.HostBuffer(buf_ptr, 0))
                     break
                 end
             end
