@@ -42,8 +42,7 @@ struct HostCall{RT, AT}
 end
 
 function HostCall(
-    RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
-    device = AMDGPU.default_device(), buf_len = nothing,
+    RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64; buf_len = nothing,
 )
     if isnothing(buf_len)
         buf_len = 0
@@ -270,9 +269,8 @@ Note: This API is currently experimental and is subject to change at any time.
 """
 function HostCall(
     func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple};
-    return_task::Bool = false, device = AMDGPU.default_device(),
-    maxlat = DEFAULT_HOSTCALL_LATENCY, timeout = nothing,
-    continuous = false, buf_len = nothing,
+    return_task::Bool = false, maxlat = DEFAULT_HOSTCALL_LATENCY,
+    timeout = nothing, continuous = false, buf_len = nothing,
 )
     # Create raw HSA signal to avoid ROCSignal finalizer
     # being called too early in the HostCall task.
@@ -281,14 +279,16 @@ function HostCall(
     signal = signal_ref[]
     AMDGPU.hsaref!()
 
-    hc = HostCall(rettype, argtypes, signal.handle; device, buf_len)
+    hc = HostCall(rettype, argtypes, signal.handle; buf_len)
 
+    # TODO pause hostcalls if not used by kernels
     tsk = Threads.@spawn begin
         ret_buf = Ref{Mem.HostBuffer}()
         ret_len = 0
         try
             while true
                 if !hostcall_host_wait(signal; maxlat=maxlat, timeout=timeout)
+                    Runtime.RT_EXITING[] && break
                     throw(HostCallException("Hostcall: Timeout on signal $signal"))
                 end
 

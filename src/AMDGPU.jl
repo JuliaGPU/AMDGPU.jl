@@ -362,15 +362,4 @@ TODO
 - wrapp more HIP calls in retry/reclaim?
 """
 
-function mm()
-    Mem.definitely_free() do
-        ROCArray{Float32}(undef, 128)
-        ROCArray{Float32}(undef, 128)
-        ROCArray{Float32}(undef, 128)
-    end
-    AMDGPU.synchronize()
-    Core.println("RET")
-    return
-end
-
 end

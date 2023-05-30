@@ -5,7 +5,7 @@ function create_output_context!(#= TODO mod::HIP.HIPModule =#)
         # Create HostCall.
         print_hc = Device.HostCall(
             Nothing, Tuple{LLVMPtr{Device.DeviceStaticString{buf_len}, AS.Global}};
-            device=hsa_dev, continuous=true, buf_len,
+            continuous=true, buf_len,
         ) do _
             str_ptr = reinterpret(
                 LLVMPtr{Device.DeviceStaticString{buf_len}, AS.Global},
@@ -30,7 +30,7 @@ function create_printf_output_context!()
         # Create HostCall.
         printf_hc = Device.HostCall(
             Nothing, Tuple{LLVMPtr{UInt8, AS.Global}};
-            device=hsa_dev, continuous=true, buf_len=2^16,
+            continuous=true, buf_len=2^16,
         ) do _
             printf_buf_ptr = reinterpret(
                 LLVMPtr{Device.ROCPrintfBuffer, AS.Global},
