@@ -142,7 +142,6 @@ function definitely_free(f::Function)
             liveness[bid] = false
             HIP.hipFreeAsync(ptr, stream) |> HIP.check
         end
-        Core.println("Definitely freed $(length(_CAPTURED_BUFFERS)) buffers.")
         empty!(_CAPTURED_BUFFERS)
     end
     return

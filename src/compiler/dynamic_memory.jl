@@ -2,7 +2,7 @@ function create_malloc_hostcall!()
     hsa_dev = AMDGPU.device()
     hc = Device.named_perdevice_hostcall(hsa_dev, :malloc_hostcall) do
         malloc_hc = Device.HostCall(
-            Ptr{Cvoid}, Tuple{Csize_t}; device=hsa_dev, continuous=true,
+            Ptr{Cvoid}, Tuple{Csize_t}; continuous=true,
         ) do bytesize
             buf = Mem.HostBuffer(bytesize, HIP.hipHostAllocMapped)
             # TODO push to HIPModule metadata for off-device free?
@@ -21,7 +21,7 @@ function create_free_hostcall!()
     hsa_dev = AMDGPU.device()
     hc = Device.named_perdevice_hostcall(hsa_dev, :free_hostcall) do
         free_hc = Device.HostCall(
-            Nothing, Tuple{Ptr{Cvoid}}; device=hsa_dev, continuous=true,
+            Nothing, Tuple{Ptr{Cvoid}}; continuous=true,
         ) do ptr
             HIP.hipHostFree(ptr) |> HIP.check
             return nothing

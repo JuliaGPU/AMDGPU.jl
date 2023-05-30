@@ -21,7 +21,6 @@ function HIPStream(priority::Symbol = :normal)
     hipStreamCreateWithPriority(stream_ref, Cuint(0), priority_int) |> check
     stream = HIPStream(stream_ref[], priority, device())
     finalizer(stream) do s
-        hipStreamSynchronize(s.stream) |> check
         hipStreamDestroy(s.stream) |> check
     end
     return stream
