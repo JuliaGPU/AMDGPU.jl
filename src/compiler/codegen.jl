@@ -22,7 +22,6 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
-    # @show undefined_fns
     invoke(GPUCompiler.link_libraries!,
            Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
            job, mod, undefined_fns)
@@ -74,7 +73,6 @@ import LLD_jll
 
 function create_executable(obj)
     lld = if AMDGPU.lld_artifact
-        # Use
         `$(LLD_jll.lld()) -flavor gnu`
     else
         @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
@@ -94,9 +92,19 @@ end
 function hipcompile(@nospecialize(job::CompilerJob))
     JuliaContext() do ctx
         obj, meta = GPUCompiler.compile(:obj, job; ctx)
+        entry = LLVM.name(meta.entry)
         globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
-        # @show globals
-        (; obj=create_executable(codeunits(obj)), entry=LLVM.name(meta.entry), globals)
+
+        if !isempty(globals)
+            @warn """
+            HIP backend does not support setting extinit globals.
+            But kernel `$entry` has following:
+            $globals
+
+            Compilation will likely fail.
+            """
+        end
+        (; obj=create_executable(codeunits(obj)), entry, globals)
     end
 end
 

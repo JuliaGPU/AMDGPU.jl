@@ -16,6 +16,7 @@ function main()
             "Kernel Launch" => "kernel_launch.md",
             "Global Variables" => "globals.md",
             "Exceptions" => "exceptions.md",
+            "Profiling" => "profiling.md",
             "Printing" => "printing.md",
             "Memory" => "memory.md",
             "Intrinsics" => [

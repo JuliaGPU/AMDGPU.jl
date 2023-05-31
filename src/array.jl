@@ -96,7 +96,7 @@ AnyROCVecOrMat{T} = Union{AnyROCVector{T}, AnyROCMatrix{T}}
 
 # type and dimensionality specified, accepting dims as tuples of Ints
 function ROCArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-    buf, _ = Mem.HIPBuffer(prod(dims) * sizeof(T); stream=stream())
+    buf = Mem.HIPBuffer(prod(dims) * sizeof(T); stream=stream())
     ROCArray{T, N}(buf, dims)
 end
 
@@ -159,11 +159,12 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
-    event = Mem.download!(
+    strm = stream()
+    Mem.download!(
         pointer(dest, d_offset),
         Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
-        amount * sizeof(T); stream=stream())
-    isnothing(event) || HIP.synchronize(event)
+        amount * sizeof(T); stream=strm)
+    HIP.synchronize(strm)
     dest
 end
 function Base.copyto!(
@@ -510,7 +511,7 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     else
         maxsize
     end
-    new_buf, _ = Mem.HIPBuffer(bufsize; stream=stream())
+    new_buf = Mem.HIPBuffer(bufsize; stream=stream())
 
     copy_size = min(length(A), n) * sizeof(T)
     if copy_size > 0

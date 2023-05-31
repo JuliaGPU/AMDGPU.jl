@@ -69,7 +69,7 @@ end
 # TODO pass device?
 function HIPBuffer(bytesize; stream::HIP.HIPStream)
     dev = AMDGPU.device()
-    bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!()), nothing
+    bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!())
 
     mark_pool!(HIP.device())
 
@@ -87,12 +87,9 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     ptr = ptr_ref[]
     @assert ptr != C_NULL "hipMallocAsync resulted in C_NULL for $(Base.format_bytes(bytesize))"
 
-    event = HIP.HIPEvent(stream)
     buffer = HIPBuffer(dev, ptr, bytesize, _buffer_id!())
-
     capture_buffers() && capture_buffer!(buffer)
-
-    return buffer, event
+    return buffer
 end
 
 HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int) = HIPBuffer(

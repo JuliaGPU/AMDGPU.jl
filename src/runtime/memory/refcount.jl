@@ -3,10 +3,10 @@ const refcounts = Dict{UInt64, Int}()
 const liveness = Dict{UInt64, Bool}()
 
 const _CAPTURED_BUFFERS = Dict{UInt64, Ptr{Cvoid}}()
-const _CAPTURE_BUFFERS = Ref{Bool}(false)
+const _CAPTURE_BUFFERS = false
 
-capture_buffers!(x::Bool) = Base.@lock refcounts_lock _CAPTURE_BUFFERS[] = x
-capture_buffers() = Base.@lock refcounts_lock _CAPTURE_BUFFERS[]
+capture_buffers!(x::Bool) = Base.@lock refcounts_lock _CAPTURE_BUFFERS = x
+capture_buffers() = Base.@lock refcounts_lock _CAPTURE_BUFFERS
 function capture_buffer!(buf::HIPBuffer)
     Base.@lock refcounts_lock begin
         _CAPTURED_BUFFERS[buf._id] = buf.ptr
