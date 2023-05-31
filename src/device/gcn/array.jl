@@ -28,9 +28,12 @@ ROCDeviceArray
 struct ROCDeviceArray{T,N,A} <: AbstractArray{T,N}
     shape::Dims{N}
     ptr::LLVMPtr{T,A}
+    len::Int
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N} = new(shape, ptr)
+    function ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N}
+        new(shape, ptr, prod(shape))
+    end
 end
 
 # Define `khash` function to reduce runtime dispatches.
@@ -71,7 +74,7 @@ Base.pointer(a::ROCDeviceArray, i::Integer) =
 
 Base.elsize(::Type{<:ROCDeviceArray{T}}) where {T} = sizeof(T)
 Base.size(g::ROCDeviceArray) = g.shape
-Base.length(g::ROCDeviceArray) = prod(g.shape)
+Base.length(g::ROCDeviceArray) = g.len
 
 # conversions
 
