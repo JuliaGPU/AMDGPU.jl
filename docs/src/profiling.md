@@ -37,7 +37,7 @@ main(2^24)
 ENABLE_JITPROFILING=1 rocprof --hip-trace --hsa-trace julia ./profile.jl
 ```
 
-This will produce `results.json` (amond other files) which can be visualized
+This will produce `results.json` (among other files) which can be visualized
 using [Perfetto UI](https://ui.perfetto.dev/).
 
 |Zoomed out|Zoomed in|
