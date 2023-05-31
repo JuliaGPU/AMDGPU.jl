@@ -238,6 +238,7 @@ macro roc(ex...)
             isa(val, Bool) || throw(ArgumentError(
                 "`dynamic` keyword argument to @roc should be a constant Bool"))
             dynamic = val::Bool
+            @assert false "`dynamic` kernel launch is not yet implemented"
         elseif key == :launch
             isa(val, Bool) || throw(ArgumentError(
                 "`launch` keyword argument to @roc should be a constant Bool"))
@@ -264,7 +265,6 @@ macro roc(ex...)
                 $kernel
             end
         end)
-
     return esc(quote
         let
             $code

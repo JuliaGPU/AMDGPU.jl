@@ -96,8 +96,7 @@ stream() = lib_state().stream
 mutable struct Workspace
     data::Mem.HIPBuffer
     function Workspace(dev::ROCDevice, bytesize)
-        data, _ = Mem.HIPBuffer(bytesize; stream=AMDGPU.stream())
-        w = new(data)
+        w = new(Mem.HIPBuffer(bytesize; stream=AMDGPU.stream()))
         finalizer(w_ -> Mem.free(w_.data; stream=AMDGPU.stream()), w)
         w
     end
