@@ -1,6 +1,6 @@
 ## ROCm device library
 
-import AMDGPU: device_libs_path
+import AMDGPU: libdevice_libs
 
 function load_and_link!(mod, path)
     ctx = LLVM.context(mod)
@@ -36,9 +36,9 @@ function load_and_link!(mod, path)
 end
 
 function locate_lib(file)
-    file_path = joinpath(device_libs_path, file*".bc")
+    file_path = joinpath(libdevice_libs, file*".bc")
     if !ispath(file_path)
-        file_path = joinpath(device_libs_path, file*".amdgcn.bc")
+        file_path = joinpath(libdevice_libs, file*".amdgcn.bc")
         if !ispath(file_path)
             # failed to find matching bitcode file
             return nothing
@@ -51,21 +51,13 @@ function link_device_libs!(target, mod::LLVM.Module)
     # TODO: only link if used
     # TODO: make these globally/locally configurable
 
-    device_libs_path === nothing && return
+    isnothing(libdevice_libs) && return
 
     # https://github.com/RadeonOpenCompute/ROCm-Device-Libs/blob/9420f6380990b09851edc2a5f9cbfaa88742b449/doc/OCML.md#controls
     # Note: It seems we need to load in reverse order, to avoid LLVM deleting the globals from the module, before we use them.
 
     # 1. Load other libraries
-    libs = (
-        "hc",
-        "hip",
-        "irif",
-        "ockl",
-        "opencl",
-        "ocml",
-    )
-
+    libs = ("hc", "hip", "irif", "ockl", "opencl", "ocml")
     for lib in libs
         lib_path = locate_lib(lib)
         lib_path === nothing && continue

@@ -9,7 +9,7 @@ import .HIP: hipStream_t
 using CEnum
 using GPUArrays
 
-if AMDGPU.use_artifacts && AMDGPU.functional(:MIOpen)
+if AMDGPU.use_artifacts() && AMDGPU.functional(:MIOpen)
     using MIOpen_jll
     const libMIOpen_path = MIOpen_jll.libMIOpen_path
 else
