@@ -84,6 +84,7 @@ function task_local_state!(; device=nothing, stream=nothing, priority::Symbol=:n
             context = HIPContext(device_id(device))
         end
         HIP.context!(context)
+
         if stream === nothing
             if priority == old_state.priority && old_state.streams[device_id(device)] !== nothing
                 stream = old_state.streams[device_id(device)]
@@ -96,6 +97,7 @@ function task_local_state!(; device=nothing, stream=nothing, priority::Symbol=:n
         if device === nothing
             device = Runtime.get_default_device()
         end
+
         context = HIPContext(device_id(device))
         HIP.context!(context)
         if stream === nothing
@@ -103,9 +105,9 @@ function task_local_state!(; device=nothing, stream=nothing, priority::Symbol=:n
         end
         streams = Union{HIPStream,Nothing}[nothing for _ in 1:length(devices())]
     end
+
     streams[device_id(device)] = stream
     new_state = TaskLocalState(device, context, streams, priority)
-
     task_local_storage(:AMDGPU, new_state)
 end
 

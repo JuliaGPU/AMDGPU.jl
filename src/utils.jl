@@ -12,7 +12,7 @@ function hsa_version()
 end
 
 function versioninfo(io::IO=stdout)
-    println("Using ROCm provided by: ", use_artifacts ? "JLLs" : "System")
+    println("Using ROCm provided by: ", use_artifacts() ? "JLLs" : "System")
     println("HSA Runtime ($(functional(:hsa) ? "ready" : "MISSING"))")
     if functional(:hsa)
         println("- Path: $libhsaruntime_path")
@@ -25,12 +25,12 @@ function versioninfo(io::IO=stdout)
     end
     println("ROCm-Device-Libs ($(functional(:device_libs) ? "ready" : "MISSING"))")
     if functional(:device_libs)
-        println("- Path: $device_libs_path")
+        println("- Path: $libdevice_libs")
         # TODO: println("- Version: $(device_libs_version)")
     end
     println("HIP Runtime ($(functional(:hip) ? "ready" : "MISSING"))")
     if functional(:hip)
-        println("- Path: $libhip_path")
+        println("- Path: $libhip")
         # TODO: println("- Version: $(libhip_version)")
     end
     println("rocBLAS ($(functional(:rocblas) ? "ready" : "MISSING"))")

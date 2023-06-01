@@ -1,17 +1,17 @@
 module AMDGPU
 
+using Adapt
 using CEnum
-using Libdl
-using LLVM, LLVM.Interop
 using GPUCompiler
 using GPUArrays
-using Adapt
+using Libdl
+using LLVM, LLVM.Interop
+using Preferences
 import LinearAlgebra
 import Core: LLVMPtr
 
 export ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal
 export has_rocm_gpu
-
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc
 
@@ -41,14 +41,15 @@ const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath("hsa", "HSA.jl"))
 import .HSA: Agent, Queue, Executable, Status, Signal
 
-# Load binary dependencies
-include(joinpath(dirname(@__DIR__), "deps", "bindeps.jl"))
+# Load binary dependencies.
+include("discovery_utils.jl")
+include("rocm_discovery.jl")
+populate_globals!(bindeps_setup())
 
 # Utilities
 include("utils.jl")
 
 # Load HIP
-const libhip = "libamdhip64.so"
 include(joinpath("hip", "HIP.jl"))
 import .HIP: HIPContext, HIPDevice, HIPStream
 export HIPContext, HIPDevice, HIPStream
@@ -230,7 +231,7 @@ function __init__()
 
     if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
         env_use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
-        if use_artifacts != env_use_artifacts
+        if use_artifacts() != env_use_artifacts
             enable_artifacts!(env_use_artifacts)
             @warn """
             The environment variable JULIA_AMDGPU_DISABLE_ARTIFACTS does not match the value from preferences.
@@ -327,7 +328,7 @@ function __init__()
 
     # Check whether HIP is available
     if functional(:hip)
-        push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
+        push!(Libdl.DL_LOAD_PATH, dirname(libhip)) # TODO is it needed? libhip is not full path
     else
         @warn """
         HIP library is unavailable, HIP integration will be disabled.
@@ -345,7 +346,7 @@ function __init__()
         "dense BLAS", "sparse BLAS", "linear solver",
         "fancy linear solver", "RNG", "FFT", "DNN/convolution")
     for ((name, pkg), purpose) in zip(rocm_ext_libs, descriptions)
-        if use_artifacts && pkg !== nothing && !functional(name)
+        if use_artifacts() && pkg !== nothing && !functional(name)
             # These are numerous and thus noisy
             build_reason = getfield(AMDGPU, Symbol(name, :_build_reason))
             @debug """
@@ -360,6 +361,7 @@ TODO
 - pause hostcalls when no Julia kernels are executing
 - pointer relocation
 - wrapp more HIP calls in retry/reclaim?
+- optimize deps discovery
 """
 
 end

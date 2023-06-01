@@ -21,7 +21,11 @@ function HIPStream(priority::Symbol = :normal)
     hipStreamCreateWithPriority(stream_ref, Cuint(0), priority_int) |> check
     stream = HIPStream(stream_ref[], priority, device())
     finalizer(stream) do s
-        hipStreamDestroy(s.stream) |> check
+        res = hipStreamDestroy(s.stream)
+        if res != hipSuccess
+            Core.println("[!] Error in HIPStream finalizer: $res - $(status_message(res)).")
+        end
+        res |> check
     end
     return stream
 end
