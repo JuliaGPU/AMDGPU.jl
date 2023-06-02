@@ -8,7 +8,7 @@ Base.unsafe_store!(ptr::LLVMPtr{<:DeviceStaticString,AS.Global}, x) = nothing
 struct OutputContext{HC}
     hostcall::HC
 end
-function OutputContext(io::IO=stdout; device=AMDGPU.default_device(), continuous=true, buf_len=2^16, name=nothing, kwargs...)
+function OutputContext(io::IO=stdout; device=AMDGPU.device(), continuous=true, buf_len=2^16, name=nothing, kwargs...)
     hc = if name !== nothing
         named_perdevice_hostcall(device, name) do
             create_output_context_hostcall(io; device, continuous, buf_len, kwargs...)

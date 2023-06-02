@@ -99,7 +99,7 @@ generated automatically, when function definitions change, or when different
 types or keyword arguments are provided.
 """
 function rocfunction(
-    f::F, tt::Type = Tuple{}; device::ROCDevice = AMDGPU.default_device(),
+    f::F, tt::Type = Tuple{}; device::ROCDevice = AMDGPU.device(),
     global_hooks = NamedTuple(), kwargs...,
 ) where {F <: Core.Function}
     Base.@lock rocfunction_lock begin
