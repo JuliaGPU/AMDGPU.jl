@@ -99,8 +99,7 @@ device_id(device::ROCDevice, kind::Symbol=:gpu) =
 Sets the current device to `AMDGPU.devices(kind)[idx]`. See
 [`device_id`](@ref) for details on the numbering semantics.
 """
-device_id!(idx::Integer, kind::Symbol=:gpu) =
-    device!(devices(kind)[idx])
+device_id!(idx::Integer, kind::Symbol=:gpu) = device!(devices(kind)[idx])
 
 """
     device_type(device::ROCDevice) -> Symbol

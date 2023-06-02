@@ -283,6 +283,7 @@ function HostCall(
 
     # TODO pause hostcalls if not used by kernels
     tsk = Threads.@spawn begin
+        return # TODO fix
         ret_buf = Ref{Mem.HostBuffer}()
         ret_len = 0
         try

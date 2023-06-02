@@ -328,7 +328,7 @@ function __init__()
 
     # Check whether HIP is available
     if functional(:hip)
-        push!(Libdl.DL_LOAD_PATH, dirname(libhip)) # TODO is it needed? libhip is not full path
+        push!(Libdl.DL_LOAD_PATH, dirname(libhip)) # TODO is it needed? libhip is now a full path
     else
         @warn """
         HIP library is unavailable, HIP integration will be disabled.
@@ -350,7 +350,8 @@ function __init__()
             # These are numerous and thus noisy
             build_reason = getfield(AMDGPU, Symbol(name, :_build_reason))
             @debug """
-            $pkg is unavailable, $purpose functionality will be disabled. Reason: $build_reason
+            $pkg is unavailable, $purpose functionality will be disabled.
+            Reason: $build_reason.
             """
         end
     end
@@ -361,7 +362,6 @@ TODO
 - pause hostcalls when no Julia kernels are executing
 - pointer relocation
 - wrapp more HIP calls in retry/reclaim?
-- optimize deps discovery
 """
 
 end

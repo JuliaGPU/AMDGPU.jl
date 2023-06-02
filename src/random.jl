@@ -6,7 +6,7 @@ const GPUARRAY_RNG = Ref{Union{Nothing,GPUArrays.RNG}}(nothing)
 
 function GPUArrays.default_rng(::Type{<:ROCArray})
     if GPUARRAY_RNG[] == nothing
-        device = AMDGPU.default_device()
+        device = AMDGPU.device()
         N = Int(Runtime.device_workgroup_max_size(device))
         state = ROCArray{NTuple{4, UInt32}}(undef, N)
         GPUARRAY_RNG[] = GPUArrays.RNG(state)
