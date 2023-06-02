@@ -21,11 +21,7 @@ function HIPStream(priority::Symbol = :normal)
     hipStreamCreateWithPriority(stream_ref, Cuint(0), priority_int) |> check
     stream = HIPStream(stream_ref[], priority, device())
     finalizer(stream) do s
-        res = hipStreamDestroy(s.stream)
-        if res != hipSuccess
-            Core.println("[!] Error in HIPStream finalizer: $res - $(status_message(res)).")
-        end
-        res |> check
+        hipStreamDestroy(s.stream) |> check
     end
     return stream
 end
@@ -56,7 +52,7 @@ function non_blocking_synchronize(stream::HIPStream)
 
     # spin (initially without yielding to minimize latency)
     spins = 0
-    while true
+    while spins < 256
         if spins < 32
             ccall(:jl_cpu_pause, Cvoid, ())
             # Temporary solution before we have gc transition support in codegen.
@@ -73,7 +69,7 @@ end
 wait(stream::HIPStream) = hipStreamSynchronize(stream) |> check
 
 function synchronize(stream::HIPStream)
-    non_blocking_synchronize(stream) # || wait(stream)
+    non_blocking_synchronize(stream) || wait(stream)
     return
 end
 
