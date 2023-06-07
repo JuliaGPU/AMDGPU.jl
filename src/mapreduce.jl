@@ -10,7 +10,7 @@
     item = workitemIdx().x
 
     # Shared mem for a complete reduction.
-    shared = ROCDeviceArray((items,), Device.alloc_local(:reduce_block, T, 0))
+    shared = @ROCDynamicLocalArray(T, items, false)
     @inbounds shared[item] = val
 
     # Perform a reduction.
