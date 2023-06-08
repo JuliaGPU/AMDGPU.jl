@@ -4,7 +4,8 @@
             idx = workitemIdx().x
 
             # Local
-            arr_local = @ROCStaticLocalArray(Float32, 8)
+            dims = 8
+            arr_local = @ROCStaticLocalArray(eltype(C), dims)
             C[idx] = arr_local[idx]
             arr_local[idx] = A[idx]
             B[idx] = arr_local[idx]
@@ -33,7 +34,7 @@
     if Base.libllvm_version.major >= 14
         @testset "Dynamic-size Local Allocation" begin
             function dynamic_localmem_kernel(A, C)
-                B = @ROCDynamicLocalArray(Float32, length(A))
+                B = @ROCDynamicLocalArray(eltype(C), length(A))
                 for i in 1:length(A)
                     @inbounds C[i] = B[i]
                     @inbounds B[i] = A[i] + 1f0
