@@ -42,7 +42,7 @@ struct HostCall{RT,AT}
 end
 
 function HostCall(RT::Type, AT::Type{<:Tuple}, signal_handle::UInt64;
-                  device=AMDGPU.default_device(), buf_len=nothing)
+                  device=AMDGPU.device(), buf_len=nothing)
     if isnothing(buf_len)
         buf_len = 0
         for T in AT.parameters
@@ -264,7 +264,7 @@ hostcall will fail with undefined behavior.
 Note: This API is currently experimental and is subject to change at any time.
 """
 function HostCall(func::Base.Callable, rettype::Type, argtypes::Type{<:Tuple}; return_task::Bool = false,
-                  device=AMDGPU.default_device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
+                  device=AMDGPU.device(), maxlat=DEFAULT_HOSTCALL_LATENCY[],
                   timeout=nothing, continuous=false, buf_len=nothing)
     # Create raw HSA signal to avoid ROCSignal finalizer
     # being called too early in the HostCall task.
