@@ -2,17 +2,6 @@ const _ID_COUNTER = Threads.Atomic{UInt64}(0)
 const refcounts = Dict{UInt64, Int}()
 const liveness = Dict{UInt64, Bool}()
 
-const _CAPTURED_BUFFERS = Dict{UInt64, Ptr{Cvoid}}()
-const _CAPTURE_BUFFERS = false
-
-capture_buffers!(x::Bool) = Base.@lock refcounts_lock _CAPTURE_BUFFERS = x
-capture_buffers() = Base.@lock refcounts_lock _CAPTURE_BUFFERS
-function capture_buffer!(buf::HIPBuffer)
-    Base.@lock refcounts_lock begin
-        _CAPTURED_BUFFERS[buf._id] = buf.ptr
-    end
-end
-
 function _buffer_id!()::UInt64
     return Threads.atomic_add!(_ID_COUNTER, UInt64(1))
 end
@@ -118,31 +107,7 @@ function untrack(buf::AbstractAMDBuffer)
     try
         delete!(liveness, buf._id)
         delete!(refcounts, buf._id)
-
-        if buf._id in keys(_CAPTURED_BUFFERS)
-            pop!(_CAPTURED_BUFFERS, buf._id)
-        end
     finally
         Base.unlock(refcounts_lock)
     end
-end
-
-# TODO convert to macro to avoid closures
-function definitely_free(f::Function)
-    capture_buffers!(true)
-    f()
-    capture_buffers!(false)
-
-    stream = AMDGPU.stream()
-    Base.@lock refcounts_lock begin
-        for (bid, ptr) in _CAPTURED_BUFFERS
-            get(liveness, bid, false) || continue
-            ptr == C_NULL && continue
-
-            liveness[bid] = false
-            HIP.hipFreeAsync(ptr, stream) |> HIP.check
-        end
-        empty!(_CAPTURED_BUFFERS)
-    end
-    return
 end

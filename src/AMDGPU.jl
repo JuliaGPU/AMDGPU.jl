@@ -169,7 +169,6 @@ module Compiler
     import ..Mem
 
     include(joinpath("compiler", "device-libs.jl"))
-    include(joinpath("compiler", "utils.jl"))
     include(joinpath("compiler", "exceptions.jl"))
     include(joinpath("compiler", "output_context.jl"))
     include(joinpath("compiler", "dynamic_memory.jl"))
