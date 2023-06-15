@@ -23,9 +23,19 @@ function GPUCompiler.link_libraries!(
     undefined_fns::Vector{String},
 )
     invoke(GPUCompiler.link_libraries!,
-           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
-           job, mod, undefined_fns)
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
+        job, mod, undefined_fns)
     link_device_libs!(job.config.target, mod)
+end
+
+function GPUCompiler.process_entry!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    invoke(GPUCompiler.process_entry!,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+        job, mod, entry)
+    # Workaround for the lack of zeroinitializer support for LDS.
+    zeroinit_lds!(mod, entry)
 end
 
 function compiler_config(
@@ -68,8 +78,6 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
         return kernel::Runtime.HIPKernel{F, tt}
     end
 end
-
-import LLD_jll
 
 function create_executable(obj)
     lld = if AMDGPU.lld_artifact

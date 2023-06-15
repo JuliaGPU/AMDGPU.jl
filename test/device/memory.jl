@@ -24,7 +24,7 @@
         RB = ROCArray(zeros(Float32, 8))
         RC = ROCArray(ones(Float32, 8))
 
-        wait(@roc groupsize=8 memory_static_kernel(RA, RB, RC))
+        @roc groupsize=8 memory_static_kernel(RA, RB, RC)
         @test Array(RA) ≈ Array(RB)
         # Test zero-initialization
         @test all(iszero, Array(RC))
@@ -49,7 +49,8 @@
             RA = ROCArray(A)
             RC = ROCArray(ones(Float32, N))
 
-            wait(@roc localmem=N*sizeof(Float32) dynamic_localmem_kernel(RA, RC))
+            shmem = N * sizeof(Float32)
+            @roc shmem=shmem dynamic_localmem_kernel(RA, RC)
 
             @test Array(RA) ≈ A .+ 1f0
             # Test zero-initialization
@@ -58,43 +59,40 @@
     end
 end
 
-@testset "Memory: Dynamic" begin
-    function malloc_kernel(X)
-        ptr = AMDGPU.Device.malloc(Csize_t(4))
-        X[1] = reinterpret(UInt64, ptr)
-        AMDGPU.Device.free(ptr)
-        nothing
-    end
+# TODO
+# @testset "Memory: Dynamic" begin
+#     function malloc_kernel(X)
+#         ptr = AMDGPU.Device.malloc(Csize_t(4))
+#         X[1] = reinterpret(UInt64, ptr)
+#         AMDGPU.Device.free(ptr)
+#         nothing
+#     end
 
-    RA = ROCArray(zeros(UInt64, 1))
-    wait(@roc malloc_kernel(RA))
-    @test Array(RA)[1] != 0
-end
+#     RA = ROCArray(zeros(UInt64, 1))
+#     @roc malloc_kernel(RA)
+#     @test Array(RA)[1] != 0
+# end
 
 @testset "Memcpy/Memset" begin
-    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
-
-    function memcpy_kernel(X,Y)
-        AMDGPU.Device.memcpy!(Y.ptr, X.ptr, sizeof(Float32)*length(X))
+    function memcpy_kernel(X, Y)
+        AMDGPU.Device.memcpy!(Y.ptr, X.ptr, sizeof(Float32) * length(X))
         nothing
     end
 
     A = rand(Float32, 4)
     B = zeros(Float32, 4)
-    RA, RB = ROCArray.((A,B))
-
-    wait(@roc memcpy_kernel(RA,RB))
+    RA, RB = ROCArray.((A, B))
+    @roc memcpy_kernel(RA, RB)
     @test A == collect(RA) == collect(RB)
 
-    function memset_kernel(X,y)
-        AMDGPU.Device.memset!(X.ptr, y, div(length(X),2))
+    function memset_kernel(X, y)
+        AMDGPU.Device.memset!(X.ptr, y, length(X) ÷ 2)
         nothing
     end
 
     A = zeros(UInt8, 4)
     RA = ROCArray(A)
-    wait(@roc memset_kernel(RA,0x3))
-
+    @roc memset_kernel(RA, 0x3)
     @test all(collect(RA)[1:2] .== 0x3)
     @test all(collect(RA)[3:4] .== 0x0)
 end

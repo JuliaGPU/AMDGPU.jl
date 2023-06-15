@@ -156,6 +156,7 @@ export sync_workgroup
 
 module Compiler
     import Core: LLVMPtr
+    import LLD_jll
 
     using ..GPUCompiler
     using ..LLVM
@@ -168,7 +169,8 @@ module Compiler
     import ..HIP
     import ..Mem
 
-    include(joinpath("compiler", "device-libs.jl"))
+    include(joinpath("compiler", "zeroinit_lds.jl"))
+    include(joinpath("compiler", "device_libs.jl"))
     include(joinpath("compiler", "exceptions.jl"))
     include(joinpath("compiler", "output_context.jl"))
     include(joinpath("compiler", "dynamic_memory.jl"))
