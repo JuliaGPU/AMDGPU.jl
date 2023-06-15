@@ -63,11 +63,13 @@ macro ROCStaticLocalArray(T, dims, zeroinit=true)
 
     @gensym id len
     quote
-        $ROCDeviceArray($dims,
+        $len = prod($(esc(dims)))
+        $ROCDeviceArray($(esc(dims)),
             $alloc_local($(QuoteNode(Symbol(:ROCStaticLocalArray_, id))),
             $(esc(T)), $len, $zeroinit))
     end
 end
+
 macro ROCDynamicLocalArray(T, dims, zeroinit=true)
     if Base.libllvm_version < v"14"
         @warn "@ROCDynamicLocalArray is unsupported on LLVM <14\nUndefined behavior may result"
