@@ -56,7 +56,7 @@ function device_string_to_host(ex::Ptr{Cchar})
 end
 
 function report_oom(sz::Csize_t)
-    @rocprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+    # @rocprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
     return
 end
 

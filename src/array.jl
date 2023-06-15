@@ -278,33 +278,6 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     ROCArray{T,N}(a.buf, dims; offset=a.offset)
 end
 
-
-## fft
-
-#=
-using AbstractFFTs
-
-# defining our own plan type is the easiest way to pass around the plans in FFTW interface
-# without ambiguities
-
-struct FFTPlan{T}
-    p::T
-end
-
-AbstractFFTs.plan_fft(A::ROCArray; kw_args...) = FFTPlan(plan_fft(A.data; kw_args...))
-AbstractFFTs.plan_fft!(A::ROCArray; kw_args...) = FFTPlan(plan_fft!(A.data; kw_args...))
-AbstractFFTs.plan_bfft!(A::ROCArray; kw_args...) = FFTPlan(plan_bfft!(A.data; kw_args...))
-AbstractFFTs.plan_bfft(A::ROCArray; kw_args...) = FFTPlan(plan_bfft(A.data; kw_args...))
-AbstractFFTs.plan_ifft!(A::ROCArray; kw_args...) = FFTPlan(plan_ifft!(A.data; kw_args...))
-AbstractFFTs.plan_ifft(A::ROCArray; kw_args...) = FFTPlan(plan_ifft(A.data; kw_args...))
-
-function Base.:(*)(plan::FFTPlan, A::ROCArray)
-    x = plan.p * A.data
-    ROCArray(x)
-end
-=#
-
-
 ## GPUArrays interfaces
 
 GPUArrays.device(x::ROCArray) = x.buf.device

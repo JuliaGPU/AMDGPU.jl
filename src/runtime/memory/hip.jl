@@ -59,6 +59,7 @@ function mark_pool!(dev::HIP.HIPDevice)
     status[] = true
 end
 
+# TODO move to HIPDevice
 struct HIPBuffer <: AbstractAMDBuffer
     device::ROCDevice
     ptr::Ptr{Cvoid}
@@ -72,24 +73,42 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!())
 
     mark_pool!(HIP.device())
+    pool = HIP.memory_pool(HIP.device())
+
+    has_limit = HARD_MEMORY_LIMIT != typemax(UInt64)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
         try
+            # Try to ensure there is enough memory before even trying to allocate.
+            if has_limit
+                used = HIP.used_memory(pool)
+                (used + bytesize) > HARD_MEMORY_LIMIT &&
+                    throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
+            end
+
+            # Try to allocate.
             HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
             ptr_ref[] == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
-            HSA.STATUS_SUCCESS
+            return HSA.STATUS_SUCCESS
         catch err
+            # TODO rethrow if not out of memory error
             @debug "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize))." exception=(err, catch_backtrace())
-            HSA.STATUS_ERROR_OUT_OF_RESOURCES
+            return HSA.STATUS_ERROR_OUT_OF_RESOURCES
         end
     end
     ptr = ptr_ref[]
     @assert ptr != C_NULL "hipMallocAsync resulted in C_NULL for $(Base.format_bytes(bytesize))"
 
-    buffer = HIPBuffer(dev, ptr, bytesize, _buffer_id!())
-    capture_buffers() && capture_buffer!(buffer)
-    return buffer
+    # TODO do not reclaim (ROCm 5.5+ has hard pool size limit)
+    if has_limit
+        if HIP.reserved_memory(pool) > HARD_MEMORY_LIMIT
+            HIP.reclaim()
+        end
+        @assert HIP.reserved_memory(pool) ≤ HARD_MEMORY_LIMIT
+    end
+
+    HIPBuffer(dev, ptr, bytesize, _buffer_id!())
 end
 
 HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int) = HIPBuffer(
