@@ -12,11 +12,6 @@ function refcount(buf::AbstractAMDBuffer)
     end
 end
 
-"""
-    retain(buf::Buffer)
-
-Increase the refcount of a buffer.
-"""
 function retain(buf::AbstractAMDBuffer)
     Base.lock(refcounts_lock) do
         live = get!(liveness, buf._id, true)
@@ -25,32 +20,6 @@ function retain(buf::AbstractAMDBuffer)
         refcounts[buf._id] = count + 1
     end
     return
-end
-
-"""
-    release(buf::Buffer)
-
-Decrease the refcount of a buffer. Returns `true` if the refcount has dropped
-to 0, and some action needs to be taken.
-"""
-function release(buf::Buffer)
-    while !Base.trylock(refcounts_lock) end
-    try
-        count = refcounts[buf._id]
-        @assert count >= 1 "Buffer refcount dropping below 0!"
-        refcounts[buf._id] = count - 1
-        done = count == 1
-
-        live = liveness[buf._id]
-
-        if done
-            live && free(buf)
-            untrack(buf)
-        end
-        return done
-    finally
-        Base.unlock(refcounts_lock)
-    end
 end
 
 function release(buf::HIPBuffer; stream::HIP.HIPStream)
@@ -73,21 +42,6 @@ function release(buf::HIPBuffer; stream::HIP.HIPStream)
     end
 end
 
-"""
-    free_if_live(buf::Buffer)
-
-Frees the base pointer for `buf` if it is still live (not yet freed). Does not
-update refcounts.
-"""
-function free_if_live(buf::Buffer)
-    Base.lock(refcounts_lock) do
-        if liveness[buf._id]
-            liveness[buf._id] = false
-            free(buf)
-        end
-    end
-end
-
 function free_if_live(buf::HIPBuffer; stream::HIP.HIPStream)
     Base.lock(refcounts_lock) do
         if liveness[buf._id]
@@ -97,11 +51,6 @@ function free_if_live(buf::HIPBuffer; stream::HIP.HIPStream)
     end
 end
 
-"""
-    untrack(buf::Buffer)
-
-Removes refcount tracking information for a buffer.
-"""
 function untrack(buf::AbstractAMDBuffer)
     while !Base.trylock(refcounts_lock) end
     try

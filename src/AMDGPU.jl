@@ -10,7 +10,7 @@ using Preferences
 import LinearAlgebra
 import Core: LLVMPtr
 
-export ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal
+export ROCDevice
 export has_rocm_gpu
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc
@@ -78,10 +78,8 @@ module Runtime
     include(joinpath("runtime", "error.jl"))
     include(joinpath("runtime", "thread-utils.jl"))
     include(joinpath("runtime", "device.jl"))
-    include(joinpath("runtime", "linked-list.jl"))
-    include(joinpath("runtime", "queue.jl"))
-    include(joinpath("runtime", "signal.jl"))
     include(joinpath("runtime", "dims.jl"))
+
     module Mem
         import AMDGPU
         import AMDGPU: HSA
@@ -89,8 +87,8 @@ module Runtime
             import AMDGPU: HIP
         end
         import AMDGPU: Runtime
-        import .Runtime: ROCDevice, ROCSignal, ROCMemoryRegion, ROCMemoryPool, ROCDim, ROCDim3
-        import .Runtime: DEVICES, check, get_region, get_memory_pool, get_handle
+        import .Runtime: ROCDevice, ROCDim, ROCDim3
+        import .Runtime: DEVICES, check
 
         using Preferences
 
@@ -99,22 +97,18 @@ module Runtime
         abstract type AbstractAMDBuffer end
 
         include(joinpath("runtime", "memory", "utils.jl"))
-        include(joinpath("runtime", "memory", "memory.jl"))
-        include(joinpath("runtime", "memory", "pooled.jl"))
         include(joinpath("runtime", "memory", "hip.jl"))
         include(joinpath("runtime", "memory", "refcount.jl"))
     end
-    include(joinpath("runtime", "executable.jl"))
+
     include(joinpath("runtime", "hashing.jl"))
-    include(joinpath("runtime", "kernel.jl"))
-    include(joinpath("runtime", "kernel-signal.jl"))
-    include(joinpath("runtime", "launch.jl"))
     include(joinpath("runtime", "execution.jl"))
     include(joinpath("runtime", "hip-execution.jl"))
     include(joinpath("runtime", "fault.jl"))
-end # module Runtime
+end
+
 import .Runtime: Mem
-import .Runtime: ROCDevice, ROCQueue
+import .Runtime: ROCDevice
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
@@ -191,8 +185,6 @@ include("broadcast.jl")
 include("mapreduce.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
-
-include("deprecations.jl")
 
 ### Initialization and Shutdown ###
 
@@ -364,5 +356,67 @@ TODO
 - pointer relocation
 - wrapp more HIP calls in retry/reclaim?
 """
+
+function dyn_mem()
+    bytesize::Csize_t = 128
+    ptr = Device.malloc(bytesize)
+    Device.free(ptr)
+    return nothing
+end
+
+function main()
+    @roc dyn_mem()
+    return
+end
+
+function ppp()
+    x = Int32(1)
+    y = Int32(2)
+
+    @dispose ctx=Context() begin
+        # set-up
+        mod = LLVM.Module("my_module"; ctx)
+        push!(
+            metadata(mod)["custom"],
+            MDNode([MDString("malloc_hc"; ctx)]; ctx))
+
+        named_mdnode = metadata(mod)["custom"] # NamedMDNode
+        for md in operands(named_mdnode)
+            ops = operands(md) # MDNode
+            println(string(ops[1]))
+        end
+
+        param_types = [LLVM.Int32Type(ctx), LLVM.Int32Type(ctx)]
+        ret_type = LLVM.Int32Type(ctx)
+        fun_type = LLVM.FunctionType(ret_type, param_types)
+        sum = LLVM.Function(mod, "sum", fun_type)
+
+        # generate IR
+        @dispose builder=IRBuilder(ctx) begin
+            entry = BasicBlock(sum, "entry"; ctx)
+            position!(builder, entry)
+
+            tmp = add!(builder, parameters(sum)[1], parameters(sum)[2], "tmp")
+            ret!(builder, tmp)
+
+            # println(mod)
+            verify(mod)
+        end
+
+        # analysis and execution
+        @dispose engine=Interpreter(mod) begin
+            args = [GenericValue(LLVM.Int32Type(ctx), x),
+                    GenericValue(LLVM.Int32Type(ctx), y)]
+
+            res = LLVM.run(engine, sum, args)
+            println(convert(Int, res))
+
+            dispose.(args)
+            dispose(res)
+        end
+    end
+
+    return
+end
 
 end

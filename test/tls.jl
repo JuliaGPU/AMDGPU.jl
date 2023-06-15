@@ -140,32 +140,3 @@ if AMDGPU.functional(:rocfft)
 end
 if AMDGPU.functional(:MIOpen)
 end
-
-@testset "LinkedList" begin
-    list = AMDGPU.Runtime.LinkedList{Int}()
-    @test isempty(list)
-
-    push!(list, 1)
-    @test length(list) == 1
-    push!(list, 2)
-    @test length(list) == 2
-
-    @test first(list) == 1
-    @test last(list) == 2
-
-    vec_list = Array(list)
-    @test length(vec_list) == 2
-
-    copy_list = copy(list)
-    @test length(copy_list) == 2
-
-    AMDGPU.Runtime.next!(list)
-    @test length(list) == 1
-    @test first(list) == 2
-
-    AMDGPU.Runtime.next!(list)
-    @test isempty(list)
-
-    @test first(copy_list) == 1
-    @test last(copy_list) == 2
-end
