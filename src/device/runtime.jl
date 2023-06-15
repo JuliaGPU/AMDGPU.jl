@@ -5,6 +5,33 @@
 # reset the runtime cache from global scope, so that any change triggers recompilation
 GPUCompiler.reset_runtime()
 
+# @inline @generated function kernel_state_meta(meta::String)
+#     @dispose ctx=Context() begin
+#         T_state = convert(LLVMType, AMDGPU.KernelState; ctx)
+
+#         llvm_f, _ = create_function(T_state)
+#         mod = LLVM.parent(llvm_f)
+
+#         println("Mod name: ", name(mod)) # llvmcall
+#         mnode = MDNode([MDString("__custom_meta"; ctx)]; ctx)
+#         push!(metadata(mod)["__kernel_state_meta"], mnode)
+
+#         # get intrinsic
+#         state_intr = GPUCompiler.kernel_state_intr(mod, T_state)
+#         state_intr_ft = function_type(state_intr)
+
+#         # generate IR
+#         @dispose builder=IRBuilder(ctx) begin
+#             entry = BasicBlock(llvm_f, "entry"; ctx)
+#             position!(builder, entry)
+
+#             val = call!(builder, state_intr_ft, state_intr, Value[], "state")
+#             ret!(builder, val)
+#         end
+#         call_function(llvm_f, AMDGPU.KernelState)
+#     end
+# end
+
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
 
 function exception_flag()
@@ -20,7 +47,10 @@ function printf_output_context()
 end
 
 function malloc_hc()
-    convert(Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}}, kernel_state().malloc_hc)
+    convert(
+        Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}},
+        kernel_state().malloc_hc)
+        # kernel_state_meta("__malloc_hc").malloc_hc)
 end
 
 function free_hc()

@@ -28,6 +28,22 @@ function GPUCompiler.link_libraries!(
     link_device_libs!(job.config.target, mod)
 end
 
+# function GPUCompiler.process_module!(
+#     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
+# )
+#     if haskey(metadata(mod), "__kernel_state_meta")
+#         @info "YYYYYYYYYYYYYYYYYY"
+#         for mdnode in operands(named_mdnode)
+#             for mdstr in operands(mdnode)
+#                 @show string(mdstr)
+#             end
+#         end
+#     end
+#     invoke(GPUCompiler.process_module!,
+#         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)},
+#         job, mod)
+# end
+
 function GPUCompiler.process_entry!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )

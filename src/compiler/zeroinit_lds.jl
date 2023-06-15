@@ -5,7 +5,7 @@ llvmsize(::LLVM.LLVMDouble) = sizeof(Float64)
 llvmsize(::LLVM.IntegerType) = Context() do ctx
     div(Int(intwidth(GenericValue(LLVM.Int128Type(ctx), -1))), 8)
 end
-llvmsize(ty::LLVM.ArrayType) = length(ty)*llvmsize(eltype(ty))
+llvmsize(ty::LLVM.ArrayType) = length(ty) * llvmsize(eltype(ty))
 llvmsize(ty::LLVM.StructType) = ispacked(ty) ?
     sum(llvmsize(elem) for elem in elements(ty)) :
     8 * length(elements(ty)) # FIXME: Properly determine non-packed sizing
