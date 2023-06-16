@@ -1,7 +1,7 @@
 # High-level APIs
 
 import AMDGPU: Runtime, Compiler
-import .Runtime: ROCDevice, ROCDim, ROCDim3
+import .Runtime: ROCDim, ROCDim3
 import .Compiler: hipfunction
 
 export @roc, rocconvert
@@ -9,7 +9,7 @@ export @roc, rocconvert
 ## Devices
 
 """
-    default_device()::ROCDevice
+    default_device()::HIPDevice
 
 Default device which will be used by default in tasks.
 Meaning when a task is created, it selects this device as default.
@@ -19,7 +19,7 @@ All subsequent uses rely on [`device()`](@ref) for device selection.
 default_device() = Runtime.get_default_device()
 
 """
-    default_device!(device::ROCDevice)
+    default_device!(device::HIPDevice)
 
 Set default device that will be used when creating new tasks.
 
@@ -27,10 +27,29 @@ Set default device that will be used when creating new tasks.
     This does not change current device being used.
     Refer to [`device!`](@ref) for that.
 """
-default_device!(device::ROCDevice) = Runtime.set_default_device!(device)
+default_device!(device::HIPDevice) = Runtime.set_default_device!(device)
 
 """
-    device()::ROCDevice
+    default_device_id() -> Int
+
+Returns the numeric ID of the current default device,
+which is in the range of `1:length(AMDGPU.devices())`.
+This number should be stable for all processes on the same node,
+The [`default_device_id!`](@ref) function accepts the same
+numeric ID that is produced by this function.
+"""
+default_device_id() = default_device().device_id
+
+"""
+    default_device_id!(idx::Integer, kind::Symbol=:gpu)
+
+Sets the default device to `AMDGPU.devices(kind)[idx]`. See
+[`default_device_id`](@ref) for details on the numbering semantics.
+"""
+default_device_id!(idx::Integer) = default_device!(devices()[idx])
+
+"""
+    device()::HIPDevice
 
 Get currently active device.
 This device is used when launching kernels via `@roc`.
@@ -38,7 +57,7 @@ This device is used when launching kernels via `@roc`.
 device() = task_local_state().device
 
 """
-    device!(device::ROCDevice)
+    device!(device::HIPDevice)
 
 Switch current device being used.
 This switches only for a task inside which it is called.
@@ -47,51 +66,26 @@ This switches only for a task inside which it is called.
     To select default device that will be used when creating new tasks,
     refer to [`default_device!`](@ref) for that.
 """
-function device!(device::ROCDevice)
+function device!(device::HIPDevice)
     task_local_state!(; device)
     return device
 end
-device!(f::Base.Callable, device::ROCDevice) = task_local_state!(f; device)
+device!(f::Base.Callable, device::HIPDevice) = task_local_state!(f; device)
 
 """
-    devices(kind::Symbol = :gpu)
+    devices()
 
-Get list of all devices of the given `kind`.
-`kind` can be `:cpu`, `:gpu` or `:dsp`, although AMDGPU.jl supports
-execution only on `:gpu` devices.
+Get list of all devices.
 """
-devices(kind::Symbol = :gpu) =
-    filter!(d -> device_type(d) == kind, copy(Runtime.ALL_DEVICES))
+devices() = Runtime.fetch_devices()
 
 """
-    default_device_id(kind::Symbol=:gpu) -> Int
-
-Returns the numeric ID of the current default device, which is in the range of
-`1:length(AMDGPU.devices(kind))`. This number should be stable for all
-processes on the same node, so long as any device filtering is consistently
-applied (such as `ROCR_VISIBLE_DEVICES`). The [`default_device_id!`](@ref)
-function accepts the same numeric ID that is produced by this function.
-"""
-default_device_id(kind::Symbol=:gpu) =
-    something(findfirst(a->a==default_device(), devices(kind)))
-
-"""
-    default_device_id!(idx::Integer, kind::Symbol=:gpu)
-
-Sets the default device to `AMDGPU.devices(kind)[idx]`. See
-[`default_device_id`](@ref) for details on the numbering semantics.
-"""
-default_device_id!(idx::Integer, kind::Symbol=:gpu) =
-    default_device!(devices(kind)[idx])
-
-"""
-    device_id(device::ROCDevice, kind::Symbol=:gpu) -> Int
+    device_id(device::HIPDevice) -> Int
 
 Returns the numerical device ID for `device`. See [`default_device_id`](@ref)
 for details on the numbering semantics.
 """
-device_id(device::ROCDevice, kind::Symbol=:gpu) =
-    something(findfirst(dev->dev === device, devices(kind)))
+device_id(device::HIPDevice) = device.device_id
 
 """
     device_id!(idx::Integer, kind::Symbol=:gpu)
@@ -99,29 +93,7 @@ device_id(device::ROCDevice, kind::Symbol=:gpu) =
 Sets the current device to `AMDGPU.devices(kind)[idx]`. See
 [`device_id`](@ref) for details on the numbering semantics.
 """
-device_id!(idx::Integer, kind::Symbol=:gpu) = device!(devices(kind)[idx])
-
-"""
-    device_type(device::ROCDevice) -> Symbol
-
-Return the kind of `device` as a `Symbol`. CPU devices return `:cpu`, GPU
-devices return `:gpu`, DSP devices return `:dsp`, and all others return
-`:unknown`.
-"""
-function device_type(device::ROCDevice)
-    devtype = Runtime.device_type(device)
-    if devtype == HSA.DEVICE_TYPE_CPU
-        return :cpu
-    elseif devtype == HSA.DEVICE_TYPE_GPU
-        return :gpu
-    elseif devtype[] == HSA.DEVICE_TYPE_DSP
-        return :dsp
-    else
-        return :unknown
-    end
-end
-
-wavefrontsize(device::ROCDevice) = Runtime.device_wavefront_size(device)
+device_id!(idx::Integer) = device!(devices()[idx])
 
 # Contexts
 
@@ -131,10 +103,6 @@ function device(context::HIPContext)
         HIP.device()
     end
 end
-
-device_id(device::HIPDevice) = device.device_id
-HIPDevice(device::ROCDevice) = HIPDevice(device_id(device))
-HIPContext(device::ROCDevice) = HIPContext(HIPDevice(device))
 
 # Streams.
 
@@ -175,9 +143,7 @@ priority!(f::Base.Callable, priority::Symbol) = task_local_state!(f; priority)
 
 # Device ISAs
 
-default_isa(device::ROCDevice) = Runtime.default_isa(device)
-default_isa_architecture(device::ROCDevice) = Runtime.architecture(default_isa(device))
-default_isa_features(device::ROCDevice) = Runtime.features(default_isa(device))
+default_isa(device::HIPDevice) = Runtime.default_isa(Runtime.hsa_device(device))
 
 """
     synchronize(stream::HIPStream = stream())

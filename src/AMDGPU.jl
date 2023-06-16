@@ -7,10 +7,11 @@ using GPUArrays
 using Libdl
 using LLVM, LLVM.Interop
 using Preferences
+
 import LinearAlgebra
 import Core: LLVMPtr
 
-export ROCDevice
+export HIPDevice
 export has_rocm_gpu
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc
@@ -58,16 +59,18 @@ include("cache.jl")
 
 module Runtime
     using ..CEnum
-    using Setfield
-    import ..HSA
-    import ..Adapt
     using ..GPUCompiler
+
+    import ..Adapt
     import Preferences: @load_preference, @set_preferences!
     import TimespanLogging
     import TimespanLogging: timespan_start, timespan_finish
 
+    import ..HSA
+    import ..HIP
     import ..AMDGPU
-    import ..AMDGPU: getinfo, LockedObject, HIP
+    import ..AMDGPU: getinfo, LockedObject
+    import .HIP: HIPDevice
 
     struct Adaptor end
 
@@ -76,21 +79,18 @@ module Runtime
 
     include(joinpath("runtime", "logging.jl"))
     include(joinpath("runtime", "error.jl"))
-    include(joinpath("runtime", "thread-utils.jl"))
+    include(joinpath("runtime", "hsa_device.jl"))
     include(joinpath("runtime", "device.jl"))
     include(joinpath("runtime", "dims.jl"))
 
     module Mem
-        import AMDGPU
-        import AMDGPU: HSA
-        if AMDGPU.hip_configured
-            import AMDGPU: HIP
-        end
-        import AMDGPU: Runtime
-        import .Runtime: ROCDevice, ROCDim, ROCDim3
-        import .Runtime: DEVICES, check
-
         using Preferences
+
+        import AMDGPU
+        import AMDGPU: HIP, HSA
+        import AMDGPU: Runtime
+        import .HIP: HIPDevice
+        import .Runtime: ROCDim, ROCDim3, check
 
         const refcounts_lock = Threads.ReentrantLock()
 
@@ -108,20 +108,22 @@ module Runtime
 end
 
 import .Runtime: Mem
-import .Runtime: ROCDevice
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
 
 module Device
-    import ..HSA
-    import ..Runtime
-    import ..Mem
-    import Core: LLVMPtr
     using ..GPUCompiler
     using ..LLVM
     using ..LLVM.Interop
+
+    import Core: LLVMPtr
     import ..LinearAlgebra
+
+    import ..HSA
+    import ..HIP
+    import ..Runtime
+    import ..Mem
     import ..AMDGPU
     import .AMDGPU: method_table
 
@@ -269,12 +271,9 @@ function __init__()
             end
 
             # Select the default device
-            for device in Runtime.fetch_devices()
-                if !isassigned(Runtime.DEFAULT_DEVICE) && device_type(device) == :gpu
-                    Runtime.DEFAULT_DEVICE[] = device
-                    break
-                end
-            end
+            Runtime.fetch_hsa_devices()
+            devs = Runtime.fetch_devices()
+            Runtime.set_default_device!(first(devs))
 
             # Setup HSA fault handler
             Runtime.setup_fault_handler()

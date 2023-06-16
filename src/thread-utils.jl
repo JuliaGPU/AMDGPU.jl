@@ -1,5 +1,3 @@
-import ..LLVM
-
 ## Lazy Initialization
 # Borrowed from CUDA.jl
 
@@ -54,8 +52,6 @@ end
 
 ## Memoization
 # Borrowed from CUDA.jl
-
-export @memoize
 
 """
     @memoize [key::T] [maxlen=...] begin

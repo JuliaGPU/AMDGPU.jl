@@ -1,6 +1,6 @@
 function create_output_context!(#= TODO mod::HIP.HIPModule =#)
-    hsa_dev = AMDGPU.device()
-    hc = Device.named_perdevice_hostcall(hsa_dev, :global_output_context) do
+    dev = AMDGPU.device()
+    hc = Device.named_perdevice_hostcall(dev, :global_output_context) do
         buf_len = 2^16
         # Create HostCall.
         print_hc = Device.HostCall(
@@ -25,8 +25,8 @@ function create_output_context!(#= TODO mod::HIP.HIPModule =#)
 end
 
 function create_printf_output_context!()
-    hsa_dev = AMDGPU.device()
-    hc = Device.named_perdevice_hostcall(hsa_dev, :global_printf_context) do
+    dev = AMDGPU.device()
+    hc = Device.named_perdevice_hostcall(dev, :global_printf_context) do
         # Create HostCall.
         printf_hc = Device.HostCall(
             Nothing, Tuple{LLVMPtr{UInt8, AS.Global}};

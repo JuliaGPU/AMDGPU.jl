@@ -59,9 +59,8 @@ function compiler_config(
     name::Union{String, Nothing} = nothing,
     always_inline::Bool = true,
 )
-    # FIXME use HIP device and isa
-    isa = AMDGPU.default_isa(AMDGPU.device())
-    dev_isa, features = Runtime.llvm_arch_features(isa)
+    hsa_isa = AMDGPU.default_isa(dev)
+    dev_isa, features = hsa_isa.arch_features
 
     target = GCNCompilerTarget(; dev_isa, features)
     params = HIPCompilerParams()

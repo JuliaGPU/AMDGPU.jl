@@ -96,7 +96,7 @@ function pool!(
 ) where {T <: MIOPENFloat, N}
     if do_backward
         wsize = get_workspace_size(pdesc, ydesc)
-        workspace = Workspace(GPUArrays.device(y), wsize)
+        workspace = Workspace(wsize)
         wptr = workspace.data.ptr
     else
         wsize = 0
