@@ -59,9 +59,8 @@ function mark_pool!(dev::HIP.HIPDevice)
     status[] = true
 end
 
-# TODO move to HIPDevice
 struct HIPBuffer <: AbstractAMDBuffer
-    device::ROCDevice
+    device::HIPDevice
     ptr::Ptr{Cvoid}
     bytesize::Int
     _id::UInt64 # Unique ID used for refcounting.
@@ -69,11 +68,11 @@ end
 
 # TODO pass device?
 function HIPBuffer(bytesize; stream::HIP.HIPStream)
-    dev = AMDGPU.device()
+    dev = stream.device
     bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!())
 
-    mark_pool!(HIP.device())
-    pool = HIP.memory_pool(HIP.device())
+    mark_pool!(dev)
+    pool = HIP.memory_pool(dev)
 
     has_limit = HARD_MEMORY_LIMIT != typemax(UInt64)
 
@@ -103,7 +102,7 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     # TODO do not reclaim (ROCm 5.5+ has hard pool size limit)
     if has_limit
         if HIP.reserved_memory(pool) > HARD_MEMORY_LIMIT
-            HIP.reclaim()
+            HIP.reclaim() # TODO do not reclaim all memory
         end
         @assert HIP.reserved_memory(pool) ≤ HARD_MEMORY_LIMIT
     end

@@ -63,7 +63,7 @@ function versioninfo(io::IO=stdout)
     end
 
     if functional(:hsa)
-        println("HSA Agents ($(length(Runtime.devices()))):")
+        println("HIP Devices ($(length(Runtime.devices()))):")
         for device in Runtime.devices()
             println("- ", repr(device))
         end

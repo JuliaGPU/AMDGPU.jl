@@ -74,7 +74,7 @@ _safe_free!(buf::Mem.HIPBuffer) = Mem.release(buf; stream=default_stream())
 unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf; stream=stream())
 
 """
-    device(A::ROCArray) -> ROCDevice
+    device(A::ROCArray) -> HIPDevice
 
 Return the device associated with the array `A`.
 """

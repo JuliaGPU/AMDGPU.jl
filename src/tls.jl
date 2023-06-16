@@ -1,11 +1,11 @@
 struct TaskLocalState
-    device::ROCDevice
+    device::HIPDevice
     context::HIPContext
     streams::Vector{Union{HIPStream,Nothing}}
     priority::Symbol
 end
 function TaskLocalState(
-    device::Union{ROCDevice,Nothing}, context::Union{HIPContext,Nothing},
+    device::Union{HIPDevice,Nothing}, context::Union{HIPContext,Nothing},
     stream::Union{HIPStream,Nothing}, priority::Symbol,
 )
     if device === nothing
@@ -13,7 +13,7 @@ function TaskLocalState(
         device = Runtime.get_default_device()
     end
     if context === nothing
-        context = HIPContext(device_id(device))
+        context = HIPContext(device)
     end
     HIP.context!(context) # Switches HIP active device as well.
 
@@ -81,7 +81,7 @@ function task_local_state!(; device=nothing, stream=nothing, priority::Symbol=:n
             device = old_state.device
             context = old_state.context
         else
-            context = HIPContext(device_id(device))
+            context = HIPContext(device)
         end
         HIP.context!(context)
 

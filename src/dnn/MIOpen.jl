@@ -1,13 +1,11 @@
 module MIOpen
 
-using ..AMDGPU
-import AMDGPU.Runtime.Mem
-import AMDGPU: ROCArray, ROCDevice, LockedObject
-import AMDGPU: HandleCache, HIP, library_state
-import .HIP: hipStream_t
-
 using CEnum
-using GPUArrays
+
+using ..AMDGPU
+import AMDGPU: ROCArray, LockedObject, HandleCache, HIP, library_state
+import AMDGPU.Runtime.Mem
+import .HIP: hipStream_t
 
 if AMDGPU.use_artifacts() && AMDGPU.functional(:MIOpen)
     using MIOpen_jll
@@ -93,9 +91,10 @@ handle() = lib_state().handle
 stream() = lib_state().stream
 
 # TODO use ROCArray instead of Workspace
+# TODO allow passing device/stream?
 mutable struct Workspace
     data::Mem.HIPBuffer
-    function Workspace(dev::ROCDevice, bytesize)
+    function Workspace(bytesize)
         w = new(Mem.HIPBuffer(bytesize; stream=AMDGPU.stream()))
         finalizer(w_ -> Mem.free(w_.data; stream=AMDGPU.stream()), w)
         w

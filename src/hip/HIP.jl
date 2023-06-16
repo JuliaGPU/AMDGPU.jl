@@ -1,8 +1,9 @@
 module HIP
 
+using CEnum
+
 import ..AMDGPU
 import ..AMDGPU.libhip
-using CEnum
 
 include("libhip_common.jl")
 include("error.jl")

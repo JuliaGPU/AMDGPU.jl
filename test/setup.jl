@@ -1,8 +1,5 @@
 using AMDGPU
-using AMDGPU: Runtime, Mem, Device, HSA, AS
-if AMDGPU.functional(:hip)
-    using AMDGPU: HIP
-end
+using AMDGPU: Runtime, Mem, Device, HIP, HSA, AS
 using GPUCompiler
 using LinearAlgebra
 using LLVM, LLVM.Interop
@@ -44,5 +41,3 @@ if CI
 end
 
 Device.DEFAULT_HOSTCALL_TIMEOUT[] = 5.0
-
-const IS_NAVI_2 = AMDGPU.default_device().name in ("gfx1030", "gfx1031", "gfx1032")

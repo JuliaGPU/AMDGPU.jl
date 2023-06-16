@@ -17,7 +17,7 @@ end
 
 @testset "Basics" begin
     device = @inferred AMDGPU.device()
-    @test device isa ROCDevice
+    @test device isa HIPDevice
     @test device === AMDGPU.Runtime.get_default_device()
 
     context = @inferred AMDGPU.context()

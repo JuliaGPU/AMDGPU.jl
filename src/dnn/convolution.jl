@@ -40,12 +40,12 @@ get_conv_cache_type(::Type{miopenConvFwdAlgorithm_t}) = CONV_FWD_BENCHMARK_CACHE
 get_conv_cache_type(::Type{miopenConvBwdDataAlgorithm_t}) = CONV_BWD_DATA_BENCHMARK_CACHE
 get_conv_cache_type(::Type{miopenConvBwdWeightsAlgorithm_t}) = CONV_BWD_WEIGHT_BENCHMARK_CACHE
 
-function get_benchmark_cache(conv_type::C, conv_args, dev) where C <: CONV_ALGOS
+function get_benchmark_cache(conv_type::C, conv_args) where C <: CONV_ALGOS
     perf_results = lock(get_conv_cache_type(conv_type)) do cache
         get(cache, conv_args, nothing)
     end
     isnothing(perf_results) && return nothing
-    workspace = Workspace(dev, perf_results.memory)
+    workspace = Workspace(perf_results.memory)
     perf_results, workspace
 end
 
@@ -94,15 +94,14 @@ function find_algorithm(
     conv_type::C, handle::miopenHandle_t, conv_args::ConvolutionArgs,
     a, a_desc, b, b_desc, conv_desc, c, c_desc,
 ) where C <: CONV_ALGOS
-    dev = GPUArrays.device(a)
-    cache = get_benchmark_cache(conv_type, conv_args, dev)
+    cache = get_benchmark_cache(conv_type, conv_args)
     isnothing(cache) || return cache
 
-    workspace = Workspace(dev, 0)
+    workspace = Workspace(0)
     perf_results = find_conv_algo(conv_type;
         handle, workspace, a, a_desc, b, b_desc, conv_desc, c, c_desc)
     set_benchmark_cache!(conv_type, conv_args, perf_results)
-    workspace = Workspace(dev, perf_results.memory)
+    workspace = Workspace(perf_results.memory)
 
     perf_results, workspace
 end

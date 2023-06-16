@@ -1,6 +1,6 @@
 function create_malloc_hostcall!()
-    hsa_dev = AMDGPU.device()
-    hc = Device.named_perdevice_hostcall(hsa_dev, :malloc_hostcall) do
+    dev = AMDGPU.device()
+    hc = Device.named_perdevice_hostcall(dev, :malloc_hostcall) do
         malloc_hc = Device.HostCall(
             Ptr{Cvoid}, Tuple{Csize_t}; continuous=true,
         ) do bytesize
@@ -18,8 +18,8 @@ function create_malloc_hostcall!()
 end
 
 function create_free_hostcall!()
-    hsa_dev = AMDGPU.device()
-    hc = Device.named_perdevice_hostcall(hsa_dev, :free_hostcall) do
+    dev = AMDGPU.device()
+    hc = Device.named_perdevice_hostcall(dev, :free_hostcall) do
         free_hc = Device.HostCall(
             Nothing, Tuple{Ptr{Cvoid}}; continuous=true,
         ) do ptr
