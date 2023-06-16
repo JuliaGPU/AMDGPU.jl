@@ -113,7 +113,7 @@ function correctly. Available `component` values are:
 - `:rocsparse`   - Queries rocSPARSE library availability
 - `:rocrand`     - Queries rocRAND library availability
 - `:rocfft`      - Queries rocFFT library availability
-- `:miopen`      - Queries MIOpen library availability
+- `:MIOpen`      - Queries MIOpen library availability
 - `:all`         - Queries all above components
 
 This query should never throw for valid `component` values.
