@@ -376,13 +376,15 @@ struct ExceptionHolder
     string_buffers_dev::ROCArray{Ptr{Cvoid}} # Pointers of `string_buffers` on the device array.
 
     function ExceptionHolder()
-        buf_len = 2^16 # 64 KiB
+        buf_len = 2^11 # 2 KiB
         str_len = 2^11 # 2 KiB
+        n_str_buffers = 20
 
         exception_flag = Mem.HostBuffer(sizeof(Int32), HIP.hipHostAllocMapped)
         buffer = Mem.HostBuffer(buf_len, HIP.hipHostAllocMapped)
         str_buffers = [
-            Mem.HostBuffer(str_len, HIP.hipHostAllocMapped) for _ in 1:20]
+            Mem.HostBuffer(str_len, HIP.hipHostAllocMapped)
+            for _ in 1:n_str_buffers]
         str_buffers_dev = ROCArray([Mem.device_ptr(b) for b in str_buffers])
 
         new(exception_flag, buffer, str_buffers, str_buffers_dev)
@@ -427,6 +429,10 @@ function KernelState(dev::HIPDevice)
         pointer(ex.string_buffers_dev),
         length(ex.string_buffers_dev))
 end
+
+"""
+- Either offset KS `buffer` or have N buffers for N `@errprintf` calls.
+"""
 
 function f(x)
     x[2] = 0
