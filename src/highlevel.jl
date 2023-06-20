@@ -152,7 +152,9 @@ Blocks until all kernels currently executing on `stream` have completed.
 """
 function synchronize(s::HIPStream = stream())
     Compiler.check_exceptions()
+    Core.println("1")
     HIP.synchronize(s)
+    Core.println("2")
     Compiler.check_exceptions()
     return
 end

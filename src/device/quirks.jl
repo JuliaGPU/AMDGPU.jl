@@ -5,7 +5,7 @@ macro print_and_throw(args...)
         # TODO
         #   Use mode that will execute on every thread.
         #   Otherwise we risk missing print reports.
-        @rocprintln("ERROR: ", $(args...), ".")
+        # @rocprintln("ERROR: ", $(args...), ".")
         throw(nothing)
     end
 end
@@ -32,8 +32,8 @@ end
 @device_override @noinline Base.Checked.throw_overflowerr_negation(op, x, y) =
     @print_and_throw "Negation overflowed"
 @device_override function Base.Checked.checked_abs(x::Base.Checked.SignedInt)
-    r = ifelse(x<0, -x, x)
-    r<0 && @print_and_throw("checked arithmetic: cannot compute |x|")
+    r = ifelse(x < 0, -x, x)
+    r < 0 && @print_and_throw("checked arithmetic: cannot compute |x|")
     r
 end
 

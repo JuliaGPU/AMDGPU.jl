@@ -346,4 +346,32 @@ TODO
 - wrapp more HIP calls in retry/reclaim?
 """
 
+"""
+Get rid of global hostcalls for exception reporting.
+
+- Pre-allocate per-device a-la printf buffers,
+    where we'll write data in printf format.
+- Pre-allocate N buffers for device-string-to-host copy.
+    - When debug level is 1, N=1 (`report_exception`).
+    - When debug level is 2, N=10 (`report_exception_name` + `report_exception_frame`).
+- Pass these buffers in the kernel state.
+- Maintain respective signals to avoid racing.
+- Report exceptions only once
+    (set global flag to 1 **after** writing exception to buffer).
+- Report exceptions on host sync.
+"""
+
+function f(x)
+    x[2] = 0
+    nothing
+end
+
+function main()
+    x = ROCArray{Int32}(undef, 1)
+    @roc f(x)
+    AMDGPU.synchronize()
+    Core.println("launched")
+    return
+end
+
 end
