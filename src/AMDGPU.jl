@@ -431,7 +431,8 @@ function KernelState(dev::HIPDevice)
 end
 
 """
-- Either offset KS `buffer` or have N buffers for N `@errprintf` calls.
+- Use N buffers for N `@errprintf` calls.
+- For each `@errprintf` call have at most 2 str buffers: N * 2
 """
 
 function f(x)
