@@ -205,9 +205,6 @@ end
 
 # Load ROCm external libraries
 include(joinpath("blas", "rocBLAS.jl"))
-#include(joinpath("sparse", "rocSPARSE.jl")
-#include(joinpath("solver", "rocSOLVER.jl")
-#include(joinpath("solver", "rocALUTION.jl")
 include(joinpath("rand", "rocRAND.jl"))
 include(joinpath("fft", "rocFFT.jl"))
 include(joinpath("dnn", "MIOpen.jl"))
