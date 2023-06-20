@@ -37,7 +37,6 @@ end
 
 function KernelAbstractions.copyto!(::ROCBackend, A, B)
     GC.@preserve A B begin
-        # TODO: async copy
         copyto!(A, 1, B, 1, length(A))
     end
     return nothing
