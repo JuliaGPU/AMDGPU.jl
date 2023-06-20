@@ -285,7 +285,6 @@ function __init__()
         HSA runtime is unavailable, compilation and runtime functionality will be disabled.
         Reason: $hsa_build_reason
         """
-
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to load HSA runtime, but HSA must load, bailing out")
@@ -298,7 +297,6 @@ function __init__()
         LLD is unavailable, compilation functionality will be disabled.
         Reason: $lld_build_reason
         """
-
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to find ld.lld, but ld.lld must exist, bailing out")
@@ -311,7 +309,6 @@ function __init__()
         Device libraries are unavailable, device intrinsics will be disabled.
         Reason: $device_libs_build_reason
         """
-
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to find Device Libs, but Device Libs must exist, bailing out")
@@ -319,14 +316,11 @@ function __init__()
     end
 
     # Check whether HIP is available
-    if functional(:hip)
-        push!(Libdl.DL_LOAD_PATH, dirname(libhip)) # TODO is it needed? libhip is now a full path
-    else
+    if !functional(:hip)
         @warn """
         HIP library is unavailable, HIP integration will be disabled.
         Reason: $hip_build_reason
         """
-
         if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to load HIP runtime, but HIP must load, bailing out")
@@ -355,67 +349,5 @@ TODO
 - pointer relocation
 - wrapp more HIP calls in retry/reclaim?
 """
-
-function dyn_mem()
-    bytesize::Csize_t = 128
-    ptr = Device.malloc(bytesize)
-    Device.free(ptr)
-    return nothing
-end
-
-function main()
-    @roc dyn_mem()
-    return
-end
-
-function ppp()
-    x = Int32(1)
-    y = Int32(2)
-
-    @dispose ctx=Context() begin
-        # set-up
-        mod = LLVM.Module("my_module"; ctx)
-        push!(
-            metadata(mod)["custom"],
-            MDNode([MDString("malloc_hc"; ctx)]; ctx))
-
-        named_mdnode = metadata(mod)["custom"] # NamedMDNode
-        for md in operands(named_mdnode)
-            ops = operands(md) # MDNode
-            println(string(ops[1]))
-        end
-
-        param_types = [LLVM.Int32Type(ctx), LLVM.Int32Type(ctx)]
-        ret_type = LLVM.Int32Type(ctx)
-        fun_type = LLVM.FunctionType(ret_type, param_types)
-        sum = LLVM.Function(mod, "sum", fun_type)
-
-        # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(sum, "entry"; ctx)
-            position!(builder, entry)
-
-            tmp = add!(builder, parameters(sum)[1], parameters(sum)[2], "tmp")
-            ret!(builder, tmp)
-
-            # println(mod)
-            verify(mod)
-        end
-
-        # analysis and execution
-        @dispose engine=Interpreter(mod) begin
-            args = [GenericValue(LLVM.Int32Type(ctx), x),
-                    GenericValue(LLVM.Int32Type(ctx), y)]
-
-            res = LLVM.run(engine, sum, args)
-            println(convert(Int, res))
-
-            dispose.(args)
-            dispose(res)
-        end
-    end
-
-    return
-end
 
 end

@@ -115,10 +115,6 @@ function ROCArray{T,N}(x::Array{T,N}, dims::Dims{N}) where {T,N}
     return r
 end
 
-# type as first argument
-# FIXME: Remove me!
-#ROCArray(::Type{T}, dims::Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
-
 # empty vector constructor
 ROCArray{T,1}() where {T} = ROCArray{T,1}(undef, 0)
 
@@ -129,7 +125,6 @@ Base.similar(::ROCArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T
 ## array interface
 
 Base.elsize(::Type{<:ROCArray{T}}) where {T} = sizeof(T)
-
 Base.size(x::ROCArray) = x.dims
 Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
 
