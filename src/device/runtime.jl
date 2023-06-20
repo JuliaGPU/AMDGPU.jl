@@ -87,7 +87,7 @@ function report_oom(sz::Csize_t)
 end
 
 function report_exception(ex::Ptr{Cchar})
-    # TODO report only if the buffer does not contain an exception already
+    # TODO report only if the buffer does not contain an exception already (check exception flag from kernel state)
     ex_str = device_string_to_host(ex)
     @errprintf("""
         ERROR: a %s was thrown during kernel execution.
