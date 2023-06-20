@@ -94,20 +94,12 @@ function pool!(
     x::ROCArray{T, N}, xdesc::TensorDescriptor,
     pdesc::PoolingDescriptor; alpha = 1f0, beta = 0f0, do_backward::Bool = true,
 ) where {T <: MIOPENFloat, N}
-    if do_backward
-        wsize = get_workspace_size(pdesc, ydesc)
-        workspace = Workspace(wsize)
-        wptr = workspace.data.ptr
-    else
-        wsize = 0
-        workspace = nothing
-        wptr = C_NULL
-    end
+    wsize = do_backward ? get_workspace_size(pdesc, ydesc) : 0
+    workspace = ROCArray{UInt8}(undef, wsize)
     (; handle, stream) = lib_state()
     miopenPoolingForward(
         handle, pdesc.handle, Ref{Float32}(alpha), xdesc.handle, x,
-        Ref{Float32}(beta), ydesc.handle, y, do_backward,
-        wptr, wsize) |> check
+        Ref{Float32}(beta), ydesc.handle, y, do_backward, workspace, wsize) |> check
     y, workspace
 end
 
@@ -122,7 +114,6 @@ function ∇pool!(
     miopenPoolingBackward(
         handle, pdesc.handle, Ref{Float32}(alpha),
         ydesc.handle, y, dydesc.handle, dy, xdesc.handle, x,
-        Ref{Float32}(beta), dxdesc.handle, dx,
-        (isnothing(workspace) ? C_NULL : workspace.data.ptr)) |> check
+        Ref{Float32}(beta), dxdesc.handle, dx, workspace) |> check
     dx
 end

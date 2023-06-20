@@ -93,6 +93,7 @@ function alloc_or_retry!(f)
             GC.gc(true)
             HIP.device_synchronize()
         elseif phase == 5
+            HIP.device_synchronize()
             HIP.trim(HIP.memory_pool(stream.device))
         else
             break

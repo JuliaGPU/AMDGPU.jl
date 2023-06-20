@@ -90,17 +90,6 @@ lib_state() = library_state(
 handle() = lib_state().handle
 stream() = lib_state().stream
 
-# TODO use ROCArray instead of Workspace
-# TODO allow passing device/stream?
-mutable struct Workspace
-    data::Mem.HIPBuffer
-    function Workspace(bytesize)
-        w = new(Mem.HIPBuffer(bytesize; stream=AMDGPU.stream()))
-        finalizer(w_ -> Mem.free(w_.data; stream=AMDGPU.stream()), w)
-        w
-    end
-end
-
 include("descriptors.jl")
 include("convolution.jl")
 include("pooling.jl")

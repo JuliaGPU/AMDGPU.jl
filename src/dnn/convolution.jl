@@ -45,7 +45,7 @@ function get_benchmark_cache(conv_type::C, conv_args) where C <: CONV_ALGOS
         get(cache, conv_args, nothing)
     end
     isnothing(perf_results) && return nothing
-    workspace = Workspace(perf_results.memory)
+    workspace = ROCArray{UInt8}(undef, perf_results.memory)
     perf_results, workspace
 end
 
@@ -85,8 +85,7 @@ function find_conv_algo(
         handle, a_desc.handle, a, b_desc.handle, b,
         conv_desc.handle, c_desc.handle, c, n_algos,
         perf_count_ref, perf_results_ref,
-        workspace.data.ptr, workspace.data.bytesize,
-        exhaustive_search) |> check
+        workspace, length(workspace), exhaustive_search) |> check
     perf_results_ref[]
 end
 
@@ -97,11 +96,11 @@ function find_algorithm(
     cache = get_benchmark_cache(conv_type, conv_args)
     isnothing(cache) || return cache
 
-    workspace = Workspace(0)
+    workspace = ROCArray{UInt8}(undef, 0)
     perf_results = find_conv_algo(conv_type;
         handle, workspace, a, a_desc, b, b_desc, conv_desc, c, c_desc)
     set_benchmark_cache!(conv_type, conv_args, perf_results)
-    workspace = Workspace(perf_results.memory)
+    workspace = ROCArray{UInt8}(undef, perf_results.memory)
 
     perf_results, workspace
 end
@@ -129,7 +128,7 @@ function convolution!(
     miopenConvolutionForward(
         handle, Ref{Float32}(1f0), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, Ref{Float32}(0f0), ydesc.handle, y,
-        workspace.data.ptr, perf_results.memory) |> check
+        workspace, perf_results.memory) |> check
     y
 end
 
@@ -171,7 +170,7 @@ function ∇convolution_weight!(
     miopenConvolutionBackwardWeights(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, Ref{Float32}(0f0), ∇wdesc.handle, ∇w,
-        workspace.data.ptr, perf_algo.memory) |> check
+        workspace, perf_algo.memory) |> check
     ∇w
 end
 
@@ -213,7 +212,7 @@ function ∇convolution_data!(
     miopenConvolutionBackwardData(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, Ref{Float32}(0f0), ∇xdesc.handle, ∇x,
-        workspace.data.ptr, perf_algo.memory) |> check
+        workspace, perf_algo.memory) |> check
     ∇x
 end
 
