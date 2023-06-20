@@ -1,12 +1,15 @@
 export malloc, free
 
+# TODO fix
 function malloc(bytesize::Csize_t)
-    malloc_gbl = Base.unsafe_load(malloc_hc())
-    llvm_ptr = hostcall!(malloc_gbl, bytesize)
-    return Ptr{Cvoid}(llvm_ptr)
+    return Ptr{Cvoid}(C_NULL)
+    # malloc_gbl = Base.unsafe_load(malloc_hc())
+    # llvm_ptr = hostcall!(malloc_gbl, bytesize)
+    # return Ptr{Cvoid}(llvm_ptr)
 end
 
 function free(ptr::Ptr{Cvoid})
-    free_gbl = Base.unsafe_load(free_hc())
-    hostcall!(free_gbl, ptr)
+    return
+    # free_gbl = Base.unsafe_load(free_hc())
+    # hostcall!(free_gbl, ptr)
 end

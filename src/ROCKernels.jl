@@ -174,11 +174,12 @@ end
     AMDGPU.Device.sync_workgroup()
 end
 
-@device_override @inline function __print(args...)
-    for arg in args
-        AMDGPU.Device.@rocprintf("%s", arg)
-    end
-end
+# TODO fix
+# @device_override @inline function __print(args...)
+#     for arg in args
+#         AMDGPU.Device.@rocprintf("%s", arg)
+#     end
+# end
 
 ###
 # GPU implementation of constant memory

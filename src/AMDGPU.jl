@@ -7,6 +7,7 @@ using GPUArrays
 using Libdl
 using LLVM, LLVM.Interop
 using Preferences
+using Printf
 
 import LinearAlgebra
 import Core: LLVMPtr
@@ -31,11 +32,18 @@ end
 
 struct KernelState
     exception_flag::Ptr{Cvoid}
-    output_context::Ptr{Cvoid}
-    printf_output_context::Ptr{Cvoid}
-    malloc_hc::Ptr{Cvoid}
-    free_hc::Ptr{Cvoid}
+    buffer::Ptr{Cvoid}
+    string_buffers::Ptr{Cvoid}
+    n_buffers::Int
 end
+
+# struct KernelState
+#     exception_flag::Ptr{Cvoid}
+#     output_context::Ptr{Cvoid}
+#     printf_output_context::Ptr{Cvoid}
+#     malloc_hc::Ptr{Cvoid}
+#     free_hc::Ptr{Cvoid}
+# end
 
 # Load HSA Runtime.
 const libhsaruntime = "libhsa-runtime64.so.1"
@@ -361,16 +369,78 @@ Get rid of global hostcalls for exception reporting.
 - Report exceptions on host sync.
 """
 
+struct ExceptionHolder
+    exception_flag::Mem.HostBuffer # Main buffer where printf context is written.
+    buffer::Mem.HostBuffer # Main buffer where printf context is written.
+    string_buffers::Vector{Mem.HostBuffer} # Buffers used for storing device strings on the host.
+    string_buffers_dev::ROCArray{Ptr{Cvoid}} # Pointers of `string_buffers` on the device array.
+
+    function ExceptionHolder()
+        buf_len = 2^16 # 64 KiB
+        str_len = 2^11 # 2 KiB
+
+        exception_flag = Mem.HostBuffer(sizeof(Int32), HIP.hipHostAllocMapped)
+        buffer = Mem.HostBuffer(buf_len, HIP.hipHostAllocMapped)
+        str_buffers = [
+            Mem.HostBuffer(str_len, HIP.hipHostAllocMapped) for _ in 1:20]
+        str_buffers_dev = ROCArray([Mem.device_ptr(b) for b in str_buffers])
+
+        new(exception_flag, buffer, str_buffers, str_buffers_dev)
+    end
+end
+
+# TODO
+# - devptr exception flag
+# - devptr buffer
+# - create rocarray of devptrs of string buffers
+#   pass rocarray ptr to kernel state
+
+const GLOBAL_EXCEPTION_HOLDER = Dict{HIPDevice, ExceptionHolder}()
+
+function exception_holder(dev::HIPDevice)
+    get!(() -> ExceptionHolder(), GLOBAL_EXCEPTION_HOLDER, dev)
+end
+
+function has_exception(dev::HIPDevice)::Bool
+    ex = exception_holder(dev)
+    ptr = Base.unsafe_convert(Ptr{Int32}, ex.exception_flag)
+    unsafe_load(ptr) != 0
+end
+
+function get_exception_string(dev::HIPDevice)::String
+    ex = exception_holder(dev)
+    ptr = reinterpret(LLVMPtr{Device.ROCPrintfBuffer, AS.Global}, ex.buffer.ptr)
+    fmt, all_args = unsafe_load(ptr)
+    format = Printf.Format(fmt)
+
+    @assert length(all_args) == 1
+    for args in all_args
+        return Printf.format(format, args...)
+    end
+end
+
+function KernelState(dev::HIPDevice)
+    ex = exception_holder(dev)
+    KernelState(
+        Mem.device_ptr(ex.exception_flag),
+        Mem.device_ptr(ex.buffer),
+        pointer(ex.string_buffers_dev),
+        length(ex.string_buffers_dev))
+end
+
 function f(x)
     x[2] = 0
     nothing
 end
 
 function main()
+    # dev = AMDGPU.device()
+    # @show has_exception(dev)
+    # @show KernelState(dev)
+
     x = ROCArray{Int32}(undef, 1)
     @roc f(x)
     AMDGPU.synchronize()
-    Core.println("launched")
     return
 end
 

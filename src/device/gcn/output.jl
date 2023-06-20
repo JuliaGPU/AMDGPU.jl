@@ -119,7 +119,7 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
 
     # Read format string into host buffer.
     fmt_buf = Vector{UInt8}(undef, fmt_len)
-    HSA.memory_copy(
+    HSA.memory_copy( # TODO replace with HIP
         convert(Ptr{Cvoid}, pointer(fmt_buf)),
         convert(Ptr{Cvoid}, fmt_ptr), fmt_len) |> Runtime.check
     fmt = String(fmt_buf)
@@ -147,7 +147,7 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
         block += 1
     end
 
-    return (fmt, all_args)
+    return fmt, all_args
 end
 
 function _rocprintf_fmt(ptr::LLVMPtr{UInt64, AS.Global}, fmt_ptr, fmt_len::Int64)
@@ -215,6 +215,48 @@ macro rocprintf(args...)
 
     # Submit & unlock hostcall buffer.
     push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
+    push!(ex.args, :(nothing))
+    ex
+end
+
+macro errprintf(args...)
+    mode = :group
+
+    @assert first(args) isa String "@errprintf format-string must be a String"
+    fmt = args[1]
+    args = args[2:end]
+
+    @gensym buffer_ptr device_fmt_str write_size
+    ex = quote
+        $buffer_ptr = $err_buffer()
+        $device_fmt_str = $alloc_string($(Val(Symbol(fmt))))
+        # TODO Lock buffer
+
+        # Write block count.
+        Base.unsafe_store!($buffer_ptr, UInt64(1)) # TODO take into account mode
+        $buffer_ptr += sizeof(UInt64)
+        # Write fmt string pointer & its bytesize.
+        $buffer_ptr = $_rocprintf_fmt(
+            $buffer_ptr, $device_fmt_str, $(sizeof(fmt)))
+        # Calculate total write size per args block.
+        $write_size =
+            $hostcall_device_args_size($(map(esc, args)...)) + # Space for arguments.
+            $(length(args)) * sizeof(UInt64) + # Space for type tags. # TODO what if args are less than uint64?
+            sizeof(UInt64) # Space for terminator.
+        # TODO account for offset for different modes.
+    end
+
+    # Write arguments & terminating null word.
+    ex_args = Expr(:block)
+    for arg in args
+        push!(ex_args.args, :($buffer_ptr = $_rocprintf_arg(
+            $buffer_ptr, $(esc(arg)))))
+    end
+    push!(ex_args.args, :(unsafe_store!($buffer_ptr, 0)))
+
+    # Only write args that pass execution gate.
+    push!(ex.args, :(@device_execution_gate $mode $ex_args))
+    # TODO unlock buffer
     push!(ex.args, :(nothing))
     ex
 end
