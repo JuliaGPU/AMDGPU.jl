@@ -55,7 +55,7 @@ const hipfunction_lock = ReentrantLock()
 
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
     Base.@lock hipfunction_lock begin
-        dev = HIP.device()
+        dev = AMDGPU.device()
         cache = compiler_cache(dev)
         config = compiler_config(dev; kwargs...)
 
@@ -64,14 +64,7 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
 
         h = hash(fun, hash(f, hash(tt)))
         kernel = get!(_kernel_instances, h) do
-            exception_ptr = create_exception!(fun.mod)
-            output_context_ptr = create_output_context!()
-            printf_output_context_ptr = create_printf_output_context!()
-            malloc_hc = create_malloc_hostcall!()
-            free_hc = create_free_hostcall!()
-            state = AMDGPU.KernelState(
-                exception_ptr, output_context_ptr,
-                printf_output_context_ptr, malloc_hc, free_hc)
+            state = AMDGPU.KernelState(dev)
             Runtime.HIPKernel{F, tt}(f, fun, state)
         end
         return kernel::Runtime.HIPKernel{F, tt}

@@ -151,11 +151,17 @@ default_isa(device::HIPDevice) = Runtime.default_isa(Runtime.hsa_device(device))
 Blocks until all kernels currently executing on `stream` have completed.
 """
 function synchronize(s::HIPStream = stream())
-    Compiler.check_exceptions()
-    Core.println("1")
+    if has_exception(s.device)
+        ex_str = get_exception_string(s.device)
+        @error ex_str
+    end
+
     HIP.synchronize(s)
-    Core.println("2")
-    Compiler.check_exceptions()
+
+    if has_exception(s.device)
+        ex_str = get_exception_string(s.device)
+        @error ex_str
+    end
     return
 end
 
