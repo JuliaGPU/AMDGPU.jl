@@ -101,7 +101,6 @@ module Runtime
         include(joinpath("runtime", "memory", "refcount.jl"))
     end
 
-    include(joinpath("runtime", "hashing.jl"))
     include(joinpath("runtime", "execution.jl"))
     include(joinpath("runtime", "hip-execution.jl"))
     include(joinpath("runtime", "fault.jl"))

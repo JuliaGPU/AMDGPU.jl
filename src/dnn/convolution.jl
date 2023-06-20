@@ -1,10 +1,7 @@
-# TODO free workspace once used
-
 const CONV_ALGOS = Union{
     Type{miopenConvFwdAlgorithm_t},
     Type{miopenConvBwdWeightsAlgorithm_t},
-    Type{miopenConvBwdDataAlgorithm_t},
-}
+    Type{miopenConvBwdDataAlgorithm_t}}
 
 # Struct for hashing convolution arguments.
 struct ConvolutionArgs

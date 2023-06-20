@@ -93,7 +93,6 @@ function alloc_or_retry!(f)
             GC.gc(true)
             HIP.device_synchronize()
         elseif phase == 5
-            HIP.device_synchronize()
             HIP.trim(HIP.memory_pool(stream.device))
         else
             break
@@ -105,7 +104,6 @@ function alloc_or_retry!(f)
     end
 
     if status != HSA.STATUS_SUCCESS
-        # TODO add hsa & total pool size?
         pool = HIP.memory_pool(stream.device)
         @warn """
         Failed to successfully execute function and free resources for it.
