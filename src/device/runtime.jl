@@ -1,3 +1,4 @@
+using Core: LLVMPtr
 # ROCm-specific runtime libraries
 
 ## GPU runtime library
@@ -7,24 +8,35 @@ GPUCompiler.reset_runtime()
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
 
-function exception_flag()
-    convert(Ptr{Int}, kernel_state().exception_flag)
+exception_flag() = kernel_state().exception_flag
+
+function err_buffer!()
+    st = kernel_state()
+    counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.buffers_counter)
+    idx = atomic_add!(counter_ptr, Int32(1)) + Int32(1) # TODO check if < n_buffers
+
+    buf = unsafe_load(st.buffers, idx)
+    reinterpret(LLVMPtr{UInt64, AS.Global}, buf)
 end
 
-function err_buffer()
-    reinterpret(LLVMPtr{UInt64, AS.Global}, kernel_state().buffer)
-end
+function err_str_buffer!()
+    st = kernel_state()
+    counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.str_buffers_counter)
+    idx = atomic_add!(counter_ptr, Int32(1)) + Int32(1) # TODO check if < n_str_buffers
 
-function str_buffer!()
-    # TODO move to the next after
-    raw_ptr = reinterpret(Ptr{Ptr{Cvoid}}, kernel_state().string_buffers)
-    buf = unsafe_load(raw_ptr, 1) # TODO use idx
+    buf = unsafe_load(kernel_state().string_buffers, idx)
     reinterpret(LLVMPtr{UInt8, AS.Global}, buf)
 end
 
-# function output_context()
-#     convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
-# end
+function gate!(value::UInt64)::Bool
+    gate_ptr = reinterpret(LLVMPtr{UInt64, AS.Global}, kernel_state().gate)
+    old_value = atomic_cas!(gate_ptr, UInt64(0), value)
+    ifelse(iszero(old_value), true, value == old_value)
+end
+
+function output_context()
+    convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
+end
 
 # function printf_output_context()
 #     convert(Ptr{PRINTF_OUTPUT_CONTEXT_TYPE}, kernel_state().printf_output_context)
@@ -66,14 +78,13 @@ end
 #     return reinterpret(Cstring, ex_str)
 # end
 
-function device_string_to_host(str::Ptr{Cchar})
+function err_device_string_to_host(str::Ptr{Cchar})
+    host_str = reinterpret(LLVMPtr{UInt8, AS.Global}, C_NULL)
+    @⊡ host_str = err_str_buffer!()
+    reinterpret(UInt64, host_str) == 0 && return reinterpret(Cstring, 0)
+
     str_ptr = reinterpret(LLVMPtr{UInt8, AS.Global}, str)
     str_len = string_length(str_ptr)
-
-    host_str = str_buffer!()
-    if reinterpret(UInt64, host_str) == 0
-        return reinterpret(Cstring, 0)
-    end
 
     # Copy `ex` to allocated memory & null termination.
     memcpy!(host_str, str_ptr, str_len)
@@ -82,43 +93,36 @@ function device_string_to_host(str::Ptr{Cchar})
 end
 
 function report_oom(sz::Csize_t)
-    # @rocprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+    @errprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
     return
 end
 
 function report_exception(ex::Ptr{Cchar})
-    # TODO report only if the buffer does not contain an exception already (check exception flag from kernel state)
-    ex_str = device_string_to_host(ex)
+    ex_str = err_device_string_to_host(ex)
     @errprintf("""
         ERROR: a %s was thrown during kernel execution.
                Run Julia on debug level 2 for device stack traces.
-    """, ex_str)
-    # ex_str = device_string_to_host(ex)
-    # @rocprintf("""
-    #     ERROR: a %s was thrown during kernel execution.
-    #            Run Julia on debug level 2 for device stack traces.
-    #     """, ex_str)
-    # free(reinterpret(Ptr{Cvoid}, ex_str))
+        """, ex_str)
     return
 end
 
-function report_exception_name(ex)
-    # ex_str = device_string_to_host(ex)
-    # @rocprintf("""
-    #     ERROR: a %s was thrown during kernel execution.
-    #     Stacktrace:
-    #     """, ex_str)
-    # free(reinterpret(Ptr{Cvoid}, ex_str))
+function report_exception_name(ex::Ptr{Cchar})
+    ex_str = err_device_string_to_host(ex)
+    @errprintf("""
+        ERROR: a %s was thrown during kernel execution.
+        Stacktrace:
+        """, ex_str)
     return
 end
 
 function report_exception_frame(
     idx::Cint, func::Ptr{Cchar}, file::Ptr{Cchar}, line::Cint,
 )
-    # func_str = device_string_to_host(func)
-    # file_str = device_string_to_host(file)
-    # @rocprintf(" [%i] %s at %s:%i\n", idx, func_str, file_str, line)
-    # free(reinterpret(Ptr{Cvoid}, func_str))
-    # free(reinterpret(Ptr{Cvoid}, file_str))
+    func_str = err_device_string_to_host(func)
+    file_str = err_device_string_to_host(file)
+    @errprintf("""
+     [%i] %s
+       @ %s:%i
+    """, idx, func_str, file_str, line)
     return
 end

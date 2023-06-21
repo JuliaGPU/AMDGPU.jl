@@ -219,21 +219,35 @@ macro rocprintf(args...)
     ex
 end
 
-macro errprintf(args...)
-    mode = :group
+@inline _to_linear(w, h, i, j, k) =
+    i + w * (j - 1 + ((k - 1) * h))
 
-    @assert first(args) isa String "@errprintf format-string must be a String"
-    fmt = args[1]
-    args = args[2:end]
+macro ⊡(exec_ex)
+    @gensym x y z value
+    quote
+        $x = $workitemIdx().x + ($workgroupIdx().x - UInt32(1)) * $workgroupDim().x
+        $y = $workitemIdx().y + ($workgroupIdx().y - UInt32(1)) * $workgroupDim().y
+        $z = $workitemIdx().z + ($workgroupIdx().z - UInt32(1)) * $workgroupDim().z
+        $value = _to_linear(
+            UInt64($gridItemDim().x), UInt64($gridItemDim().y),
+            UInt64($x), UInt64($y), UInt64($z))
+        if gate!($value)
+            $(esc(exec_ex))
+        end
+        $sync_workgroup() # TODO need sync?
+    end
+end
+
+macro errprintf(args...)
+    fmt, args = args[1], args[2:end]
+    @assert fmt isa String "@errprintf format-string must be a String: $fmt."
 
     @gensym buffer_ptr device_fmt_str write_size
-    ex = quote
-        $buffer_ptr = $err_buffer()
+    err_ex = quote
+        $buffer_ptr = $err_buffer!()
         $device_fmt_str = $alloc_string($(Val(Symbol(fmt))))
-        # TODO Lock buffer
-
-        # Write block count.
-        Base.unsafe_store!($buffer_ptr, UInt64(1)) # TODO take into account mode
+        # Write block count (compat with printf, not used).
+        Base.unsafe_store!($buffer_ptr, UInt64(1))
         $buffer_ptr += sizeof(UInt64)
         # Write fmt string pointer & its bytesize.
         $buffer_ptr = $_rocprintf_fmt(
@@ -241,22 +255,20 @@ macro errprintf(args...)
         # Calculate total write size per args block.
         $write_size =
             $hostcall_device_args_size($(map(esc, args)...)) + # Space for arguments.
-            $(length(args)) * sizeof(UInt64) + # Space for type tags. # TODO what if args are less than uint64?
+            $(length(args)) * sizeof(UInt64) + # Space for type tags.
             sizeof(UInt64) # Space for terminator.
-        # TODO account for offset for different modes.
     end
 
     # Write arguments & terminating null word.
-    ex_args = Expr(:block)
     for arg in args
-        push!(ex_args.args, :($buffer_ptr = $_rocprintf_arg(
-            $buffer_ptr, $(esc(arg)))))
+        push!(err_ex.args,
+            :($buffer_ptr = $_rocprintf_arg($buffer_ptr, $(esc(arg)))))
     end
-    push!(ex_args.args, :(unsafe_store!($buffer_ptr, 0)))
+    push!(err_ex.args, :(unsafe_store!($buffer_ptr, 0)))
 
-    # Only write args that pass execution gate.
-    push!(ex.args, :(@device_execution_gate $mode $ex_args))
-    # TODO unlock buffer
+    # Pass through ⊡ gate.
+    ex = Expr(:block)
+    push!(ex.args, :(@⊡ $err_ex))
     push!(ex.args, :(nothing))
     ex
 end

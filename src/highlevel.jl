@@ -152,15 +152,13 @@ Blocks until all kernels currently executing on `stream` have completed.
 """
 function synchronize(s::HIPStream = stream())
     if has_exception(s.device)
-        ex_str = get_exception_string(s.device)
-        @error ex_str
+        error(get_exception_string(s.device))
     end
 
     HIP.synchronize(s)
 
     if has_exception(s.device)
-        ex_str = get_exception_string(s.device)
-        @error ex_str
+        error(get_exception_string(s.device))
     end
     return
 end
