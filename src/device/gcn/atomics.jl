@@ -171,9 +171,11 @@ end
 """
     atomic_cas!(ptr::LLVMPtr{T}, cmp::T, val::T)
 
-Reads the value `old` located at address `ptr` and compare with `cmp`. If `old` equals to
-`cmp`, stores `val` at the same address. Otherwise, doesn't change the value `old`. These
-operations are performed in one atomic transaction. The function returns `old`.
+Reads the value `old` located at address `ptr` and compare with `cmp`.
+If `old` equals to `cmp`, stores `val` at the same address.
+Otherwise, doesn't change the value `old`.
+These operations are performed in one atomic transaction.
+The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
 """
