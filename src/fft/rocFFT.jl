@@ -6,13 +6,13 @@ import ..HIP: hipStream_t
 
 using CEnum
 
-include("librocfft_common.jl")
-include("error.jl")
-version() = VersionNumber(rocfft_version_major, rocfft_version_minor, rocfft_version_patch)
-
 include("librocfft.jl")
+include("error.jl")
+
 include("util.jl")
 include("fft.jl")
+
+version() = VersionNumber(rocfft_version_major, rocfft_version_minor, rocfft_version_patch)
 
 if AMDGPU.functional(:rocfft)
     const INITIALIZED = Threads.Atomic{Int64}(0)

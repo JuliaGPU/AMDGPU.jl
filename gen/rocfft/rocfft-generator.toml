@@ -1,0 +1,4 @@
+[general]
+library_name = "librocfft"
+output_file_path = "./librocfft.jl"
+export_symbol_prefixes = []
