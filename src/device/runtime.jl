@@ -13,7 +13,8 @@ exception_flag() = kernel_state().exception_flag
 function err_buffer!()
     st = kernel_state()
     counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.buffers_counter)
-    idx = atomic_add!(counter_ptr, Int32(1)) + Int32(1) # TODO check if < n_buffers
+    idx = atomic_add!(counter_ptr, Int32(1)) + Int32(1)
+    idx > st.n_buffers && return reinterpret(LLVMPtr{UInt64, AS.Global}, 0)
 
     buf = unsafe_load(st.buffers, idx)
     reinterpret(LLVMPtr{UInt64, AS.Global}, buf)
@@ -22,7 +23,8 @@ end
 function err_str_buffer!()
     st = kernel_state()
     counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.str_buffers_counter)
-    idx = atomic_add!(counter_ptr, Int32(1)) + Int32(1) # TODO check if < n_str_buffers
+    idx = atomic_add!(counter_ptr, Int32(1)) + Int32(1)
+    idx > st.n_str_buffers && return reinterpret(LLVMPtr{UInt8, AS.Global}, 0)
 
     buf = unsafe_load(kernel_state().string_buffers, idx)
     reinterpret(LLVMPtr{UInt8, AS.Global}, buf)
