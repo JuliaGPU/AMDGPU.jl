@@ -121,6 +121,16 @@ function hipHostFree(ptr)
     ccall((:hipHostFree, libhip), hipError_t, (Ptr{Cvoid},), ptr)
 end
 
+function hipHostRegister(hostPtr, sizeBytes, flags)
+    ccall((:hipHostRegister, libhip), hipError_t,
+        (Ptr{Cvoid}, Csize_t, Cuint),
+        hostPtr, sizeBytes, flags)
+end
+
+function hipHostUnregister(hostPtr)
+    ccall((:hipHostUnregister, libhip), hipError_t, (Ptr{Cvoid},), hostPtr)
+end
+
 function hipHostGetDevicePointer(devPtr, hstPtr, flags)
     ccall((:hipHostGetDevicePointer, libhip), hipError_t,
         (Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, Cuint), devPtr, hstPtr, flags)
