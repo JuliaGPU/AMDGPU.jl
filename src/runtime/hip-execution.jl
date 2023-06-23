@@ -1,18 +1,20 @@
 struct HIPKernel{F, TT} <: AbstractKernel{F, TT}
     f::F
     fun::HIP.HIPFunction
-    state::AMDGPU.KernelState
 end
 
-@inline @generated function call(kernel::HIPKernel{F, TT}, args...; call_kwargs...) where {F, TT}
+@inline @generated function call(
+    kernel::HIPKernel{F, TT}, args...;
+    stream::HIP.HIPStream, call_kwargs...,
+) where {F, TT}
     sig = Tuple{F, TT.parameters...} # Base.signature_type with a function type
     args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
 
     # filter out ghost arguments that shouldn't be passed
     predicate = dt -> GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)
     to_pass = map(!predicate, sig.parameters)
-    call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
-    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
+    call_t = Type[x[1] for x in zip(sig.parameters, to_pass) if x[2]]
+    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
 
     # replace non-isbits arguments (they should be unused, or compilation would have failed)
     # alternatively, allow `launch` with non-isbits arguments.
@@ -25,18 +27,21 @@ end
 
     # add the kernel state
     pushfirst!(call_t, AMDGPU.KernelState)
-    pushfirst!(call_args, :(kernel.state))
+    pushfirst!(call_args, :(AMDGPU.KernelState(stream)))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
 
     quote
-        roccall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
+        roccall(kernel.fun, $call_tt, $(call_args...); stream, call_kwargs...)
     end
 end
 
-function (ker::HIPKernel)(args...; call_kwargs...)
-    call(ker, map(AMDGPU.rocconvert, args)...; call_kwargs...)
+function (ker::HIPKernel)(
+    args...; stream::HIP.HIPStream = AMDGPU.stream(), call_kwargs...,
+)
+    AMDGPU.has_exception(stream) && error(AMDGPU.get_exception_string(stream))
+    call(ker, map(AMDGPU.rocconvert, args)...; stream, call_kwargs...)
 end
 
 @inline @generated function convert_arguments(f::Function, ::Type{tt}, args...) where tt
@@ -97,7 +102,7 @@ end
 function launch(
     fun::HIP.HIPFunction, args::Vararg{Any, N};
     gridsize::ROCDim = 1, groupsize::ROCDim = 1,
-    shmem::Integer = 0, stream::HIP.HIPStream = AMDGPU.stream(),
+    shmem::Integer = 0, stream::HIP.HIPStream,
 ) where N
     gd, bd = ROCDim3(gridsize), ROCDim3(groupsize)
     pack_arguments(args...) do kernel_params

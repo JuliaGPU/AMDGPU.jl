@@ -357,6 +357,29 @@ TODO
 - wrapp more HIP calls in retry/reclaim?
 """
 
+"""
+ExceptionHolder
+
+- `exception_flag::Mem.HostBuffer`:
+    Pinned host memory. Contains one element of Int32 type.
+    If stored value is not 0, then there is an exception that occurred
+    during kernel execution on the respective device.
+- `gate::ROCArray{UInt64}`:
+    Linear index for x, y & z dimensions at which the exception occurred.
+    This is used to filter out other threads from duplication exceptions.
+- `buffers_counter::ROCArray{Int32}`:
+    Counts number of printf buffers `errprintf_buffers` currently used.
+- `str_buffers_counter::ROCArray{Int32}`:
+    Error string counter. Counts number of string buffers `string_buffers`
+    used for exception reporting.
+- `errprintf_buffers::Vector{Mem.HostBuffer}`:
+    Array of buffers used for writing exceptions.
+    These buffers are used in the same way as device-printf buffers,
+    except they are pre-allocated.
+- `string_buffers::Vector{Mem.HostBuffer}`:
+    Array of string buffers. These buffers are used every time
+    we need to report the name of the exception, file, or line.
+"""
 struct ExceptionHolder
     exception_flag::Mem.HostBuffer # Main buffer where printf context is written.
     gate::ROCArray{UInt64}
@@ -398,26 +421,34 @@ struct ExceptionHolder
 end
 
 # TODO
-# - do not override the error
-# - reset holder after reading an error
-# - guard str buffers with ⊡ gate.
+# - remove exception holder for a stream on stream finalizer
 # - pointer relocation
 
-const GLOBAL_EXCEPTION_HOLDER = Dict{HIPDevice, ExceptionHolder}()
+const GLOBAL_EXCEPTION_HOLDER = Dict{HIPStream, ExceptionHolder}()
 
-function exception_holder(dev::HIPDevice)
-    get!(() -> ExceptionHolder(), GLOBAL_EXCEPTION_HOLDER, dev)
+function exception_holder(stm::HIPStream)
+    get!(() -> ExceptionHolder(), GLOBAL_EXCEPTION_HOLDER, stm)
 end
 
-function has_exception(dev::HIPDevice)::Bool
-    ex = exception_holder(dev)
+function has_exception(stm::HIPStream)::Bool
+    ex = exception_holder(stm)
     ptr = Base.unsafe_convert(Ptr{Int32}, ex.exception_flag)
     unsafe_load(ptr) != 0
 end
 
-function get_exception_string(dev::HIPDevice)::String
-    ex = exception_holder(dev)
-    n_strings = Array(ex.buffers_counter)[1]
+function reset_exception_holder!(stm::HIPStream)
+    ex = exception_holder(stm)
+    ptr = Base.unsafe_convert(Ptr{Int32}, ex.exception_flag)
+    unsafe_store!(ptr, Int32(0))
+
+    fill!(ex.buffers_counter, 0)
+    fill!(ex.str_buffers_counter, 0)
+    return
+end
+
+function get_exception_string(stm::HIPStream)::String
+    ex = exception_holder(stm)
+    n_strings = min(Array(ex.buffers_counter)[1], length(ex.errprintf_buffers))
 
     exception_str = ""
     for i in 1:n_strings
@@ -429,20 +460,16 @@ function get_exception_string(dev::HIPDevice)::String
         if isempty(all_args)
             exception_str = "$(exception_str)$(fmt)\n"
         else
-            format = Printf.Format(fmt)
-            @assert length(all_args) == 1
-            for args in all_args
-                args = map(x -> x isa Cstring ? unsafe_string(x) : x, args)
-                str = Printf.format(format, args...)
-                exception_str = "$(exception_str)$(str)"
-            end
+            args = map(x -> x isa Cstring ? unsafe_string(x) : x, first(all_args))
+            str = Printf.format(Printf.Format(fmt), args...)
+            exception_str = "$(exception_str)$(str)"
         end
     end
     return exception_str
 end
 
-function KernelState(dev::HIPDevice)
-    ex = exception_holder(dev)
+function KernelState(stm::HIPStream)
+    ex = exception_holder(stm)
     KernelState(
         Mem.device_ptr(ex.exception_flag),
         pointer(ex.gate),
@@ -461,14 +488,15 @@ function f(x)
 end
 
 function main()
-    ex = exception_holder(AMDGPU.device())
+    ex = exception_holder(AMDGPU.stream())
     @show ex.buffers_counter
     @show ex.str_buffers_counter
     @show ex.gate
 
     x = ROCArray{Int32}(undef, 1)
-    @roc gridsize=64 groupsize=128 f(x)
-
+    for i in 1:100
+        @roc gridsize=64 groupsize=128 f(x)
+    end
     AMDGPU.synchronize()
 
     @show x
@@ -476,23 +504,6 @@ function main()
     @show ex.buffers_counter
     @show ex.str_buffers_counter
     @show ex.gate
-    return
-end
-
-function ooo()
-    gridsize = 64
-    groupsize = 128
-
-    w = UInt32[]
-    for gd in 1:gridsize, gp in 1:groupsize
-        x::UInt32 = gp + (gd - 1) * groupsize
-        v = Device.morton_code(x, UInt32(1), UInt32(1))
-        @show gd, gp, v
-        if v in w
-            break
-        end
-        push!(w, v)
-    end
     return
 end
 

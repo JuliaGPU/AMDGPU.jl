@@ -245,6 +245,7 @@ macro errprintf(args...)
     @gensym buffer_ptr device_fmt_str write_size
     err_ex = quote
         $buffer_ptr = $err_buffer!()
+        reinterpret(UInt64, $buffer_ptr) == 0 && return
         $device_fmt_str = $alloc_string($(Val(Symbol(fmt))))
         # Write block count (compat with printf, not used).
         Base.unsafe_store!($buffer_ptr, UInt64(1))

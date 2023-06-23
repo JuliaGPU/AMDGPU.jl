@@ -149,7 +149,8 @@ Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
 function Base.copyto!(
     dest::Array{T}, d_offset::Integer,
-    source::ROCArray{T}, s_offset::Integer, amount::Integer,
+    source::ROCArray{T}, s_offset::Integer, amount::Integer;
+    async::Bool = false,
 ) where T
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
@@ -159,7 +160,7 @@ function Base.copyto!(
         pointer(dest, d_offset),
         Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
         amount * sizeof(T); stream=strm)
-    HIP.synchronize(strm)
+    async || HIP.synchronize(strm)
     dest
 end
 function Base.copyto!(
