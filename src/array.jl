@@ -196,11 +196,20 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
-function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; lock::Bool=true) where {T,N}
+function Base.unsafe_wrap(
+    ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
+    lock::Bool = true,
+) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
+    # TODO specialize ROCArray on buffer type and pass HostBuffer.
     sz = prod(dims) * sizeof(T)
-    # TODO hipHostRegister on the ptr if it is on the host
-    buf = Mem.HIPBuffer(Ptr{Cvoid}(ptr), sz)
+    dptr = if lock
+        HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
+        Mem.device_ptr(Mem.HostBuffer(ptr, sz))
+    else
+        ptr
+    end
+    buf = Mem.HIPBuffer(Ptr{Cvoid}(dptr), sz)
     return ROCArray{T, N}(buf, dims)
 end
 
