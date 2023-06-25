@@ -5,8 +5,6 @@ macro print_and_throw(description)
         # FIXME
         # @errprintf($description)
         # throw(nothing)
-        signal_exception()
-        trap()
     end
 end
 
