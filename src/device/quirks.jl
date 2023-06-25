@@ -2,8 +2,11 @@
 
 macro print_and_throw(description)
     quote
+        # FIXME
         # @errprintf($description)
-        throw(nothing)
+        # throw(nothing)
+        signal_exception()
+        trap()
     end
 end
 
