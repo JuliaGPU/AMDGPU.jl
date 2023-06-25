@@ -151,11 +151,9 @@ default_isa(device::HIPDevice) = Runtime.default_isa(Runtime.hsa_device(device))
 Blocks until all kernels currently executing on `stream` have completed.
 """
 function synchronize(stm::HIPStream = stream())
-    has_exception(stm) && error(get_exception_string(stm))
-
+    throw_if_exception(stm.device)
     HIP.synchronize(stm)
-
-    has_exception(stm) && error(get_exception_string(stm))
+    throw_if_exception(stm.device)
     return
 end
 

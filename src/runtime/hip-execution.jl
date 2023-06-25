@@ -1,6 +1,7 @@
 struct HIPKernel{F, TT} <: AbstractKernel{F, TT}
     f::F
     fun::HIP.HIPFunction
+    state::AMDGPU.KernelState
 end
 
 @inline @generated function call(
@@ -27,7 +28,7 @@ end
 
     # add the kernel state
     pushfirst!(call_t, AMDGPU.KernelState)
-    pushfirst!(call_args, :(AMDGPU.KernelState(stream)))
+    pushfirst!(call_args, :(kernel.state))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
@@ -40,7 +41,7 @@ end
 function (ker::HIPKernel)(
     args...; stream::HIP.HIPStream = AMDGPU.stream(), call_kwargs...,
 )
-    AMDGPU.has_exception(stream) && error(AMDGPU.get_exception_string(stream))
+    AMDGPU.throw_if_exception(stream.device)
     call(ker, map(AMDGPU.rocconvert, args)...; stream, call_kwargs...)
 end
 

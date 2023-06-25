@@ -64,7 +64,8 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
 
         h = hash(fun, hash(f, hash(tt)))
         kernel = get!(_kernel_instances, h) do
-            Runtime.HIPKernel{F, tt}(f, fun)
+            state = AMDGPU.KernelState(dev)
+            Runtime.HIPKernel{F, tt}(f, fun, state)
         end
         return kernel::Runtime.HIPKernel{F, tt}
     end
