@@ -36,9 +36,9 @@ function gate!(value::UInt64)::Bool
     ifelse(iszero(old_value), true, value == old_value)
 end
 
-function output_context()
-    convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
-end
+# function output_context()
+#     convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
+# end
 
 # function printf_output_context()
 #     convert(Ptr{PRINTF_OUTPUT_CONTEXT_TYPE}, kernel_state().printf_output_context)
@@ -53,8 +53,7 @@ end
 # end
 
 function signal_exception()
-    ptr = exception_flag()
-    unsafe_store!(convert(Ptr{Int}, ptr), 1)
+    unsafe_store!(exception_flag(), Int32(1))
     # Without endpgm we'll get hardware exception.
     endpgm()
     return
@@ -95,36 +94,36 @@ function err_device_string_to_host(str::Ptr{Cchar})
 end
 
 function report_oom(sz::Csize_t)
-    @errprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+    # @errprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
     return
 end
 
 function report_exception(ex::Ptr{Cchar})
-    ex_str = err_device_string_to_host(ex)
-    @errprintf("""
-        ERROR: a %s was thrown during kernel execution.
-               Run Julia on debug level 2 for device stack traces.
-        """, ex_str)
+    # ex_str = err_device_string_to_host(ex)
+    # @errprintf("""
+    #     ERROR: a %s was thrown during kernel execution.
+    #            Run Julia on debug level 2 for device stack traces.
+    #     """, ex_str)
     return
 end
 
 function report_exception_name(ex::Ptr{Cchar})
-    ex_str = err_device_string_to_host(ex)
-    @errprintf("""
-        ERROR: a %s was thrown during kernel execution.
-        Stacktrace:
-        """, ex_str)
+    # ex_str = err_device_string_to_host(ex)
+    # @errprintf("""
+    #     ERROR: a %s was thrown during kernel execution.
+    #     Stacktrace:
+    #     """, ex_str)
     return
 end
 
 function report_exception_frame(
     idx::Cint, func::Ptr{Cchar}, file::Ptr{Cchar}, line::Cint,
 )
-    func_str = err_device_string_to_host(func)
-    file_str = err_device_string_to_host(file)
-    @errprintf("""
-     [%i] %s
-       @ %s:%i
-    """, idx, func_str, file_str, line)
+    # func_str = err_device_string_to_host(func)
+    # file_str = err_device_string_to_host(file)
+    # @errprintf("""
+    #  [%i] %s
+    #    @ %s:%i
+    # """, idx, func_str, file_str, line)
     return
 end

@@ -31,14 +31,14 @@ function Base.lock(f, x::LockedObject)
 end
 
 struct KernelState
-    exception_flag::Ptr{Int}
-    gate::Ptr{UInt32}
+    exception_flag::Ptr{Int32}
+    gate::Ptr{UInt64}
     buffers_counter::Ptr{Int32}
     str_buffers_counter::Ptr{Int32}
     buffers::Ptr{Ptr{Cvoid}}
     string_buffers::Ptr{Ptr{Cvoid}}
-    n_buffers::Int
-    n_str_buffers::Int
+    n_buffers::Int32
+    n_str_buffers::Int32
 end
 
 # struct KernelState
@@ -196,6 +196,7 @@ include("array.jl")
 include("conversions.jl")
 include("broadcast.jl")
 include("mapreduce.jl")
+include("exception_handler.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
@@ -355,132 +356,9 @@ end
 TODO
 - pointer relocation
 - wrapp more HIP calls in retry/reclaim?
+- convert @errprintf macro to function
+- remove exception holder on stream finalizer (or have them per-devce)
 """
-
-"""
-ExceptionHolder
-
-- `exception_flag::Mem.HostBuffer`:
-    Pinned host memory. Contains one element of Int32 type.
-    If stored value is not 0, then there is an exception that occurred
-    during kernel execution on the respective device.
-- `gate::ROCArray{UInt64}`:
-    Linear index for x, y & z dimensions at which the exception occurred.
-    This is used to filter out other threads from duplication exceptions.
-- `buffers_counter::ROCArray{Int32}`:
-    Counts number of printf buffers `errprintf_buffers` currently used.
-- `str_buffers_counter::ROCArray{Int32}`:
-    Error string counter. Counts number of string buffers `string_buffers`
-    used for exception reporting.
-- `errprintf_buffers::Vector{Mem.HostBuffer}`:
-    Array of buffers used for writing exceptions.
-    These buffers are used in the same way as device-printf buffers,
-    except they are pre-allocated.
-- `string_buffers::Vector{Mem.HostBuffer}`:
-    Array of string buffers. These buffers are used every time
-    we need to report the name of the exception, file, or line.
-"""
-struct ExceptionHolder
-    exception_flag::Mem.HostBuffer # Main buffer where printf context is written.
-    gate::ROCArray{UInt64}
-    buffers_counter::ROCArray{Int32}
-    str_buffers_counter::ROCArray{Int32}
-
-    errprintf_buffers::Vector{Mem.HostBuffer} # Buffers used by `@errprintf`.
-    string_buffers::Vector{Mem.HostBuffer} # Buffers used for storing device strings on the host.
-
-    errprintf_buffers_dev::ROCArray{Ptr{Cvoid}} # Pointers of `errprintf_buffers` on the device.
-    string_buffers_dev::ROCArray{Ptr{Cvoid}} # Pointers of `string_buffers` on the device.
-
-    function ExceptionHolder()
-        buf_len = 2^11 # 2 KiB
-        str_len = 2^11 # 2 KiB
-        n_buffers = 50
-        n_str_buffers = 100
-
-        exception_flag = Mem.HostBuffer(sizeof(Int32), HIP.hipHostAllocMapped)
-        gate = ROCArray(UInt64[0])
-        buffers_counter = ROCArray(Int32[0])
-        str_buffers_counter = ROCArray(Int32[0])
-
-        errprintf_buffers = [
-            Mem.HostBuffer(buf_len, HIP.hipHostAllocMapped)
-            for _ in 1:n_buffers]
-        str_buffers = [
-            Mem.HostBuffer(str_len, HIP.hipHostAllocMapped)
-            for _ in 1:n_str_buffers]
-
-        errprintf_buffers_dev = ROCArray(Mem.device_ptr.(errprintf_buffers))
-        str_buffers_dev = ROCArray(Mem.device_ptr.(str_buffers))
-
-        new(
-            exception_flag, gate, buffers_counter, str_buffers_counter,
-            errprintf_buffers, str_buffers,
-            errprintf_buffers_dev, str_buffers_dev)
-    end
-end
-
-# TODO
-# - remove exception holder for a stream on stream finalizer
-# - pointer relocation
-
-const GLOBAL_EXCEPTION_HOLDER = Dict{HIPStream, ExceptionHolder}()
-
-function exception_holder(stm::HIPStream)
-    get!(() -> ExceptionHolder(), GLOBAL_EXCEPTION_HOLDER, stm)
-end
-
-function has_exception(stm::HIPStream)::Bool
-    ex = exception_holder(stm)
-    ptr = Base.unsafe_convert(Ptr{Int32}, ex.exception_flag)
-    unsafe_load(ptr) != 0
-end
-
-function reset_exception_holder!(stm::HIPStream)
-    ex = exception_holder(stm)
-    ptr = Base.unsafe_convert(Ptr{Int32}, ex.exception_flag)
-    unsafe_store!(ptr, Int32(0))
-
-    fill!(ex.buffers_counter, 0)
-    fill!(ex.str_buffers_counter, 0)
-    return
-end
-
-function get_exception_string(stm::HIPStream)::String
-    ex = exception_holder(stm)
-    n_strings = min(Array(ex.buffers_counter)[1], length(ex.errprintf_buffers))
-
-    exception_str = ""
-    for i in 1:n_strings
-        ptr = reinterpret(
-            LLVMPtr{Device.ROCPrintfBuffer, AS.Global},
-            ex.errprintf_buffers[i].ptr)
-        fmt, all_args = unsafe_load(ptr)
-
-        if isempty(all_args)
-            exception_str = "$(exception_str)$(fmt)\n"
-        else
-            args = map(x -> x isa Cstring ? unsafe_string(x) : x, first(all_args))
-            str = Printf.format(Printf.Format(fmt), args...)
-            exception_str = "$(exception_str)$(str)"
-        end
-    end
-    return exception_str
-end
-
-function KernelState(stm::HIPStream)
-    ex = exception_holder(stm)
-    KernelState(
-        Mem.device_ptr(ex.exception_flag),
-        pointer(ex.gate),
-        pointer(ex.buffers_counter),
-        pointer(ex.str_buffers_counter),
-
-        pointer(ex.errprintf_buffers_dev),
-        pointer(ex.string_buffers_dev),
-        length(ex.errprintf_buffers_dev),
-        length(ex.string_buffers_dev))
-end
 
 function f(x)
     x[2] = 0
@@ -488,22 +366,9 @@ function f(x)
 end
 
 function main()
-    ex = exception_holder(AMDGPU.stream())
-    @show ex.buffers_counter
-    @show ex.str_buffers_counter
-    @show ex.gate
-
     x = ROCArray{Int32}(undef, 1)
-    for i in 1:100
-        @roc gridsize=64 groupsize=128 f(x)
-    end
+    @roc gridsize=64 groupsize=128 f(x)
     AMDGPU.synchronize()
-
-    @show x
-
-    @show ex.buffers_counter
-    @show ex.str_buffers_counter
-    @show ex.gate
     return
 end
 
