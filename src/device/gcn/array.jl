@@ -93,6 +93,9 @@ end
 
 Base.IndexStyle(::Type{<:ROCDeviceArray}) = Base.IndexLinear()
 
+# Preserve index type. Avoid extending 32-bit to 64-bit.
+Base.to_index(::ROCDeviceArray, i::Integer) = i
+
 # comparisons
 
 Base.isequal(a1::R1, a2::R2) where {R1<:ROCDeviceArray,R2<:ROCDeviceArray} =

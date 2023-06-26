@@ -234,7 +234,6 @@ macro ⊡(exec_ex)
         if gate!($value)
             $(esc(exec_ex))
         end
-        $sync_workgroup() # TODO need sync?
     end
 end
 

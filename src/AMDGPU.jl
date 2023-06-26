@@ -361,14 +361,15 @@ TODO
 """
 
 function f(x)
-    x[2] = 0
+    x[2] = 1
     nothing
 end
 
 function main()
     x = ROCArray{Int32}(undef, 1)
-    @roc gridsize=64 groupsize=128 f(x)
-    AMDGPU.synchronize()
+    @device_code dir="./devcode" @roc launch=false f(x)
+    # @roc gridsize=64 groupsize=128 f(x)
+    # AMDGPU.synchronize()
     return
 end
 
