@@ -78,10 +78,10 @@ function link_device_libs!(target, mod::LLVM.Module)
         @warn "Failed to load/link OCLC core library `$lib` for ISA $(target.dev_isa)." err=err
     end
 
-    # 3. Load OCLC ABI library (required for printing).
-    lib = locate_lib("oclc_abi_version_500")
-    @assert lib !== nothing
-    load_and_link!(mod, lib)
+    # # 3. Load OCLC ABI library (required for printing).
+    # lib = locate_lib("oclc_abi_version_500")
+    # @assert lib !== nothing
+    # load_and_link!(mod, lib)
 
     # 4. Load options libraries
     options = Dict(

@@ -5,29 +5,31 @@ macro print_and_throw(description)
         # FIXME
         # @errprintf($description)
         # throw(nothing)
+        signal_exception()
+        trap()
     end
 end
 
 # math.jl
-@device_override @noinline Base.Math.throw_complex_domainerror(f::Symbol, x) =
+@device_override Base.Math.throw_complex_domainerror(f::Symbol, x) =
     @print_and_throw "This operation requires a complex input to return a complex result.\n"
-@device_override @noinline Base.Math.throw_exp_domainerror(f::Symbol, x) =
+@device_override Base.Math.throw_exp_domainerror(f::Symbol, x) =
     @print_and_throw "Exponentiation yielding a complex result requires a complex argument.\n"
 
 # intfuncs.jl
-@device_override @noinline Base.throw_domerr_powbysq(::Any, p) =
+@device_override Base.throw_domerr_powbysq(::Any, p) =
     @print_and_throw "Cannot raise an integer to a negative power.\n"
-@device_override @noinline Base.throw_domerr_powbysq(::Integer, p) =
+@device_override Base.throw_domerr_powbysq(::Integer, p) =
     @print_and_throw "Cannot raise an integer to a negative power.\n"
-@device_override @noinline Base.throw_domerr_powbysq(::AbstractMatrix, p) =
+@device_override Base.throw_domerr_powbysq(::AbstractMatrix, p) =
     @print_and_throw "Cannot raise an integer to a negative power.\n"
-@device_override @noinline Base.__throw_gcd_overflow(a, b) =
+@device_override Base.__throw_gcd_overflow(a, b) =
     @print_and_throw "GCD overflow.\n"
 
 # checked.jl
-@device_override @noinline Base.Checked.throw_overflowerr_binaryop(op, x, y) =
+@device_override Base.Checked.throw_overflowerr_binaryop(op, x, y) =
     @print_and_throw "Binary operation overflowed.\n"
-@device_override @noinline Base.Checked.throw_overflowerr_negation(op, x, y) =
+@device_override Base.Checked.throw_overflowerr_negation(op, x, y) =
     @print_and_throw "Negation overflowed.\n"
 @device_override function Base.Checked.checked_abs(x::Base.Checked.SignedInt)
     r = ifelse(x < 0, -x, x)
@@ -36,15 +38,15 @@ end
 end
 
 # boot.jl
-@device_override @noinline Core.throw_inexacterror(f::Symbol, ::Type{T}, val) where {T} =
+@device_override Core.throw_inexacterror(f::Symbol, ::Type{T}, val) where {T} =
     @print_and_throw "Inexact conversion.\n"
 
 # abstractarray.jl
-@device_override @noinline Base.throw_boundserror(A, I) =
+@device_override Base.throw_boundserror(A, I) =
     @print_and_throw "Out-of-bounds array access.\n"
 
 # trig.jl
-@device_override @noinline Base.Math.sincos_domain_error(x) =
+@device_override Base.Math.sincos_domain_error(x) =
     @print_and_throw "sincos(x) is only defined for finite x.\n"
 
 # multidimensional.jl

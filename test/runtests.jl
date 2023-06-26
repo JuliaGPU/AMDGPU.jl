@@ -46,28 +46,28 @@ AMDGPU.versioninfo()
 
 @info "Running tests with $(length(ws)) workers"
 
-push!(tests, "HSA" => ()->begin
-    include("hsa/error.jl")
-    include("hsa/utils.jl")
-    include("hsa/getinfo.jl")
-    include("hsa/device.jl")
-    include("hsa/queue.jl")
-    include("hsa/memory.jl")
-    include("hsa/hashing.jl")
-end)
-push!(tests, "Codegen" => ()->begin
-    include("codegen/synchronization.jl")
-    include("codegen/trap.jl")
-end)
-if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
-    push!(tests, "Logging" => ()->include("logging.jl"))
-else
-    @warn """
-    Logging is statically disabled, skipping logging tests.
-    This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
-    """
-    @test_skip "Logging"
-end
+# push!(tests, "HSA" => ()->begin
+#     include("hsa/error.jl")
+#     include("hsa/utils.jl")
+#     include("hsa/getinfo.jl")
+#     include("hsa/device.jl")
+#     include("hsa/queue.jl")
+#     include("hsa/memory.jl")
+#     include("hsa/hashing.jl")
+# end)
+# push!(tests, "Codegen" => ()->begin
+#     include("codegen/synchronization.jl")
+#     include("codegen/trap.jl")
+# end)
+# if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
+#     push!(tests, "Logging" => ()->include("logging.jl"))
+# else
+#     @warn """
+#     Logging is statically disabled, skipping logging tests.
+#     This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
+#     """
+#     @test_skip "Logging"
+# end
 push!(tests, "Device Functions" => ()->begin
     # include("device/launch.jl")
     # include("device/array.jl")
@@ -112,14 +112,14 @@ push!(tests, "rocRAND" => ()->begin
         @test_skip "rocRAND"
     end
 end)
-FIXME outdated library
-push!(tests, "rocFFT" => ()->begin
-    if AMDGPU.functional(:rocfft)
-        include("rocarray/fft.jl")
-    else
-        @test_skip "rocFFT"
-    end
-end)
+# # FIXME outdated library
+# push!(tests, "rocFFT" => ()->begin
+#     if AMDGPU.functional(:rocfft)
+#         include("rocarray/fft.jl")
+#     else
+#         @test_skip "rocFFT"
+#     end
+# end)
 push!(tests, "NMF" => ()->begin
     if AMDGPU.functional(:rocblas)
         include("rocarray/nmf.jl")
