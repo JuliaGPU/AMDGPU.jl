@@ -30,7 +30,7 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
             end
         end
     end
-    length(to_init) == 0 && return entry
+    isempty(to_init) && return entry
 
     @dispose ctx=Context() begin
         T_void = LLVM.VoidType()
@@ -56,4 +56,3 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     end
     return entry
 end
-

@@ -24,7 +24,7 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
-    invoke(GPUCompiler.link_libraries!, # TODO remove?
+    invoke(GPUCompiler.link_libraries!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
     link_device_libs!(job.config.target, mod)
@@ -33,11 +33,12 @@ end
 function GPUCompiler.finish_module!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
-    invoke(GPUCompiler.finish_module!, # TODO remove?
-        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
-        job, mod, entry)
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
+
+    invoke(GPUCompiler.finish_module!,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+        job, mod, entry)
 end
 
 function compiler_config(
