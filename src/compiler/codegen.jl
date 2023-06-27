@@ -3,8 +3,10 @@ struct HIPCompilerParams <: AbstractCompilerParams end
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
 const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
 
-const _hip_compiler_cache = Dict{HIP.HIPDevice, Dict{UInt, Any}}()
-const _kernel_instances = Dict{UInt, Any}() # HIPKernel
+const _hip_compiler_cache = Dict{HIP.HIPDevice, Dict{Any, HIP.HIPFunction}}()
+
+# hash(fun, hash(f, hash(tt))) => HIPKernel
+const _kernel_instances = Dict{UInt, Runtime.HIPKernel}()
 
 function compiler_cache(dev::HIP.HIPDevice)
     get!(() -> Dict{UInt, Any}(), _hip_compiler_cache, dev)

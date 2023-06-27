@@ -2,9 +2,12 @@
 llvmsize(::LLVM.LLVMHalf) = sizeof(Float16)
 llvmsize(::LLVM.LLVMFloat) = sizeof(Float32)
 llvmsize(::LLVM.LLVMDouble) = sizeof(Float64)
-llvmsize(::LLVM.IntegerType) = Context() do ctx
-    div(Int(intwidth(GenericValue(LLVM.Int128Type(), -1))), 8)
+function llvmsize(::LLVM.IntegerType)
+    LLVM.@dispose ctx=Context() begin
+        div(Int(intwidth(GenericValue(LLVM.Int128Type(), -1))), 8)
+    end
 end
+
 llvmsize(ty::LLVM.ArrayType) = length(ty) * llvmsize(eltype(ty))
 llvmsize(ty::LLVM.StructType) = ispacked(ty) ?
     sum(llvmsize(elem) for elem in elements(ty)) :
@@ -29,25 +32,27 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     end
     length(to_init) == 0 && return entry
 
-    T_void = LLVM.VoidType()
-    LLVM.@dispose builder=LLVM.IRBuilder() begin
-        # Make these the first operations we do.
-        position!(builder, first(LLVM.instructions(first(LLVM.blocks(entry)))))
+    @dispose ctx=Context() begin
+        T_void = LLVM.VoidType()
+        LLVM.@dispose builder=LLVM.IRBuilder() begin
+            # Make these the first operations we do.
+            position!(builder, first(LLVM.instructions(first(LLVM.blocks(entry)))))
 
-        # Use memset to clear all values to 0.
-        for gbl in to_init
-            sz = llvmsize(eltype(value_type(gbl)))
-            sz == 0 && continue
+            # Use memset to clear all values to 0.
+            for gbl in to_init
+                sz = llvmsize(eltype(value_type(gbl)))
+                sz == 0 && continue
 
-            LLVM.memset!(builder, gbl,
-                ConstantInt(UInt8(0)), ConstantInt(sz),
-                LLVM.alignment(gbl))
+                LLVM.memset!(builder, gbl,
+                    ConstantInt(UInt8(0)), ConstantInt(sz),
+                    LLVM.alignment(gbl))
+            end
+
+            # Synchronize the workgroup to prevent races.
+            sync_ft = LLVM.FunctionType(LLVM.VoidType())
+            sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
+            call!(builder, sync_ft, sync_f)
         end
-
-        # Synchronize the workgroup to prevent races.
-        sync_ft = LLVM.FunctionType(LLVM.VoidType())
-        sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
-        call!(builder, sync_ft, sync_f)
     end
     return entry
 end
