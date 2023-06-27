@@ -368,8 +368,8 @@ end
 function main()
     x = ROCArray{Int32}(undef, 1)
     @device_code dir="./devcode" @roc launch=false f(x)
-    # @roc gridsize=64 groupsize=128 f(x)
-    # AMDGPU.synchronize()
+    @roc gridsize=64 groupsize=128 f(x)
+    AMDGPU.synchronize()
     return
 end
 
