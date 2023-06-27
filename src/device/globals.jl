@@ -5,8 +5,8 @@
 # space.
 @inline @generated function get_global_pointer(::Val{global_name}, ::Type{T})::LLVMPtr{T} where {global_name, T}
     @dispose ctx=Context() begin
-        T_global = convert(LLVMType, T; ctx)
-        T_result = convert(LLVMType, Ptr{T}; ctx)
+        T_global = convert(LLVMType, T)
+        T_result = convert(LLVMType, Ptr{T})
 
         # Create a thunk that computes a pointer to the global.
         llvm_f, _ = create_function(T_result)
@@ -27,8 +27,8 @@
         end
 
         # Generate IR that computes the global's address.
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             # Cast the global variable's type to the result type.

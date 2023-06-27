@@ -2,21 +2,21 @@
 
 @generated function string_length(ex::Union{Ptr,LLVMPtr})
     @dispose ctx=Context() begin
-        T_ex = convert(LLVMType, ex; ctx)
+        T_ex = convert(LLVMType, ex)
         T_ex_ptr = LLVM.PointerType(T_ex)
-        T_i8 = LLVM.Int8Type(ctx)
+        T_i8 = LLVM.Int8Type()
         T_i8_ptr = LLVM.PointerType(T_i8)
-        T_i64 = LLVM.Int64Type(ctx)
+        T_i64 = LLVM.Int64Type()
         llvm_f, _ = create_function(T_i64, [T_ex])
         mod = LLVM.parent(llvm_f)
 
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
-            check = BasicBlock(llvm_f, "check"; ctx)
-            done = BasicBlock(llvm_f, "done"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
+            check = BasicBlock(llvm_f, "check")
+            done = BasicBlock(llvm_f, "done")
 
             position!(builder, entry)
-            init_offset = ConstantInt(0; ctx)
+            init_offset = ConstantInt(0)
             input_ptr = if T_ex isa LLVM.PointerType
                 parameters(llvm_f)[1]
             else
@@ -30,12 +30,12 @@
 
             position!(builder, check)
             offset = phi!(builder, T_i64)
-            next_offset = add!(builder, offset, ConstantInt(1; ctx))
+            next_offset = add!(builder, offset, ConstantInt(1))
             append!(LLVM.incoming(offset), [(init_offset, entry), (next_offset, check)])
 
             ptr = gep!(builder, T_i8, input_ptr, [offset])
             value = load!(builder, T_i8, ptr)
-            cond = icmp!(builder, LLVM.API.LLVMIntEQ, value, ConstantInt(0x0; ctx))
+            cond = icmp!(builder, LLVM.API.LLVMIntEQ, value, ConstantInt(0x0))
             br!(builder, cond, done, check)
 
             position!(builder, done)

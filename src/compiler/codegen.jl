@@ -22,16 +22,16 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
-    invoke(GPUCompiler.link_libraries!,
+    invoke(GPUCompiler.link_libraries!, # TODO remove?
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
     link_device_libs!(job.config.target, mod)
 end
 
-function GPUCompiler.process_entry!(
+function GPUCompiler.finish_module!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
-    invoke(GPUCompiler.process_entry!,
+    invoke(GPUCompiler.finish_module!, # TODO remove?
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
     # Workaround for the lack of zeroinitializer support for LDS.
@@ -59,8 +59,9 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
         cache = compiler_cache(dev)
         config = compiler_config(dev; kwargs...)
 
+        source = methodinstance(F, tt)
         fun = GPUCompiler.cached_compilation(
-            cache, config, F, tt, hipcompile, hiplink)
+            cache, source, config, hipcompile, hiplink)
 
         h = hash(fun, hash(f, hash(tt)))
         kernel = get!(_kernel_instances, h) do
@@ -90,22 +91,23 @@ function create_executable(obj)
 end
 
 function hipcompile(@nospecialize(job::CompilerJob))
-    JuliaContext() do ctx
-        obj, meta = GPUCompiler.compile(:obj, job; ctx)
-        entry = LLVM.name(meta.entry)
-        globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
-
-        if !isempty(globals)
-            @warn """
-            HIP backend does not support setting extinit globals.
-            But kernel `$entry` has following:
-            $globals
-
-            Compilation will likely fail.
-            """
-        end
-        (; obj=create_executable(codeunits(obj)), entry, globals)
+    obj, meta = JuliaContext() do ctx
+        GPUCompiler.compile(:obj, job)
     end
+
+    entry = LLVM.name(meta.entry)
+    globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+
+    if !isempty(globals)
+        @warn """
+        HIP backend does not support setting extinit globals.
+        But kernel `$entry` has following:
+        $globals
+
+        Compilation will likely fail.
+        """
+    end
+    (; obj=create_executable(codeunits(obj)), entry, globals)
 end
 
 function hiplink(@nospecialize(job::CompilerJob), compiled)

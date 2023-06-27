@@ -3,7 +3,7 @@ llvmsize(::LLVM.LLVMHalf) = sizeof(Float16)
 llvmsize(::LLVM.LLVMFloat) = sizeof(Float32)
 llvmsize(::LLVM.LLVMDouble) = sizeof(Float64)
 llvmsize(::LLVM.IntegerType) = Context() do ctx
-    div(Int(intwidth(GenericValue(LLVM.Int128Type(ctx), -1))), 8)
+    div(Int(intwidth(GenericValue(LLVM.Int128Type(), -1))), 8)
 end
 llvmsize(ty::LLVM.ArrayType) = length(ty) * llvmsize(eltype(ty))
 llvmsize(ty::LLVM.StructType) = ispacked(ty) ?
@@ -29,9 +29,8 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     end
     length(to_init) == 0 && return entry
 
-    ctx = LLVM.context(mod)
-    T_void = LLVM.VoidType(ctx)
-    LLVM.@dispose builder=LLVM.IRBuilder(ctx) begin
+    T_void = LLVM.VoidType()
+    LLVM.@dispose builder=LLVM.IRBuilder() begin
         # Make these the first operations we do.
         position!(builder, first(LLVM.instructions(first(LLVM.blocks(entry)))))
 
@@ -41,12 +40,12 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
             sz == 0 && continue
 
             LLVM.memset!(builder, gbl,
-                ConstantInt(UInt8(0); ctx), ConstantInt(sz; ctx),
+                ConstantInt(UInt8(0)), ConstantInt(sz),
                 LLVM.alignment(gbl))
         end
 
         # Synchronize the workgroup to prevent races.
-        sync_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+        sync_ft = LLVM.FunctionType(LLVM.VoidType())
         sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
         call!(builder, sync_ft, sync_f)
     end

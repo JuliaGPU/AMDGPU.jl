@@ -358,6 +358,7 @@ TODO
 - wrapp more HIP calls in retry/reclaim?
 - convert @errprintf macro to function
 - remove exception holder on stream finalizer (or have them per-devce)
+- fix unsafe_wrap
 """
 
 function f(x)
@@ -367,7 +368,7 @@ end
 
 function main()
     x = ROCArray{Int32}(undef, 1)
-    @device_code dir="./devcode" @roc launch=false f(x)
+    # @device_code dir="./devcode" @roc launch=false f(x)
     @roc gridsize=64 groupsize=128 f(x)
     AMDGPU.synchronize()
     return

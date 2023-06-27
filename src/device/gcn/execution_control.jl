@@ -13,8 +13,8 @@ const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signa
 
 @generated function _completion_signal()
     @dispose ctx=Context() begin
-        T_int8 = LLVM.Int8Type(ctx)
-        T_int64 = LLVM.Int64Type(ctx)
+        T_int8 = LLVM.Int8Type()
+        T_int64 = LLVM.Int64Type()
         _as = convert(Int, AS.Constant)
         T_ptr_i8 = LLVM.PointerType(T_int8, _as)
         T_ptr_i64 = LLVM.PointerType(T_int64, _as)
@@ -24,8 +24,8 @@ const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signa
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             # get the kernel dispatch pointer
@@ -34,7 +34,7 @@ const completion_signal_base = _packet_offsets[findfirst(x->x==:completion_signa
             ptr = call!(builder, intr_typ, intr)
 
             # load the index
-            signal_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(completion_signal_base; ctx)])
+            signal_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(completion_signal_base)])
             signal_ptr = bitcast!(builder, signal_ptr_i8, T_ptr_i64)
             signal = load!(builder, T_int64, signal_ptr)
             ret!(builder, signal)
