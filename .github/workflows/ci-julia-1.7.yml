@@ -1,4 +1,4 @@
-name: CI (Julia 1.7)
+name: CI (Julia 1.9)
 on:
   push:
     branches:
@@ -9,14 +9,14 @@ defaults:
   run:
     shell: bash
 jobs:
-  CI-julia-1-7:
-    name: CI-julia-1-7
+  CI-julia-1-0:
+    name: CI-julia-1-9
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         version:
-          - '1.7'
+          - '1.9'
         os:
           - ubuntu-latest
           - macOS-latest
