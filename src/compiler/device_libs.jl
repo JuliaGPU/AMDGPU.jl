@@ -30,7 +30,6 @@ function load_and_link!(mod, path)
     # override triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
-
     LLVM.link!(mod, lib)
 end
 
