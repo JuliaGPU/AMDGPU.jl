@@ -3,8 +3,7 @@
 import AMDGPU: libdevice_libs
 
 function load_and_link!(mod, path)
-    ctx = LLVM.context(mod)
-    lib = parse(LLVM.Module, read(path); ctx)
+    lib = parse(LLVM.Module, read(path))
 
     for f in LLVM.functions(lib)
         # FIXME: We should be able to inline this, that we can't means
@@ -16,7 +15,7 @@ function load_and_link!(mod, path)
 
         attrs = function_attributes(f)
         inline = true
-        noinline_attr = EnumAttribute("noinline"; ctx)
+        noinline_attr = EnumAttribute("noinline")
         for attr in collect(attrs)
             if kind(attr) == kind(noinline_attr)
                 inline = false
@@ -24,14 +23,13 @@ function load_and_link!(mod, path)
             end
         end
         if inline
-            push!(attrs, EnumAttribute("alwaysinline"; ctx))
+            push!(attrs, EnumAttribute("alwaysinline"))
         end
     end
 
     # override triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
-
     LLVM.link!(mod, lib)
 end
 

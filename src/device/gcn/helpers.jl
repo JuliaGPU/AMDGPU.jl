@@ -6,18 +6,18 @@ _packet_offsets = fieldoffset.(HSA.KernelDispatchPacket, 1:length(_packet_names)
     @dispose ctx=Context() begin
         inp_exprs = [:( inp_args[$i] ) for i in 1:length(inp_args)]
         inp_types = [inp_args...]
-        out_type = convert(LLVMType, out_arg.parameters[1]; ctx)
+        out_type = convert(LLVMType, out_arg.parameters[1])
 
         # create function
         bool_types = map(x->x===Bool, inp_types)
-        T_bool = LLVM.Int1Type(ctx)
-        param_types = LLVMType[convert.(LLVMType, inp_types; ctx=ctx)...]
+        T_bool = LLVM.Int1Type()
+        param_types = LLVMType[convert.(LLVMType, inp_types)...]
         llvm_f, _ = create_function(out_type, param_types)
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             # call the intrinsic
@@ -28,13 +28,13 @@ _packet_offsets = fieldoffset.(HSA.KernelDispatchPacket, 1:length(_packet_names)
             for idx in 1:length(param_types)
                 if bool_types[idx]
                     attrs = parameter_attributes(intr, idx)
-                    push!(attrs, EnumAttribute("zeroext", 0; ctx))
+                    push!(attrs, EnumAttribute("zeroext", 0))
                 end
             end
             params = map(x->bool_types[x[1]] ? trunc!(builder, x[2], T_bool) : x[2], enumerate(parameters(llvm_f)))
             value = call!(builder, intr_ftype, intr, [params...])
             if out_arg === Type{Bool}
-                ret!(builder, zext!(builder, value, convert(LLVMType, Bool; ctx)))
+                ret!(builder, zext!(builder, value, convert(LLVMType, Bool)))
             else
                 ret!(builder, value)
             end

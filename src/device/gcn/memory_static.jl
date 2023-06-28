@@ -3,7 +3,7 @@
     ::Val{id}, ::Type{T}, ::Val{as}, ::Val{len}, ::Val{zeroinit} = Val{false}(),
 ) where {id,T,as,len,zeroinit}
     @dispose ctx=Context() begin
-        eltyp = convert(LLVMType, T; ctx)
+        eltyp = convert(LLVMType, T)
 
         # old versions of GPUArrays invoke _shmem with an integer id; make sure those are unique
         if !isa(id, String) || !isa(id, Symbol)
@@ -13,7 +13,7 @@
             id = "__zeroinit_" * id
         end
 
-        T_ptr_i8 = convert(LLVMType, LLVMPtr{T,as}; ctx)
+        T_ptr_i8 = convert(LLVMType, LLVMPtr{T,as})
 
         # create a function
         llvm_f, _ = create_function(T_ptr_i8)
@@ -38,12 +38,12 @@
         alignment!(gv, Base.max(32, Base.datatype_alignment(T)))
 
         # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             ptr_with_as = gep!(builder, gv_typ, gv,
-                [ConstantInt(0; ctx), ConstantInt(0; ctx)])
+                [ConstantInt(0), ConstantInt(0)])
             ptr = bitcast!(builder, ptr_with_as, T_ptr_i8)
             ret!(builder, ptr)
         end
@@ -99,10 +99,10 @@ end
 
 @inline @generated function alloc_string(::Val{str}) where str
     @dispose ctx=Context() begin
-        T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx), AS.Global)
+        T_pint8 = LLVM.PointerType(LLVM.Int8Type(), AS.Global)
         llvm_f, _ = create_function(T_pint8)
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
             str_ptr = globalstring_ptr!(builder, String(str))
             ptr = addrspacecast!(builder, str_ptr, T_pint8)
@@ -115,18 +115,18 @@ end
 # TODO: Support various types of len
 @inline @generated function memcpy!(dest_ptr::LLVMPtr{UInt8,DestAS}, src_ptr::LLVMPtr{UInt8,SrcAS}, len::LT) where {DestAS,SrcAS,LT<:Union{Int64,UInt64}}
     @dispose ctx=Context() begin
-        T_nothing = LLVM.VoidType(ctx)
-        T_pint8_dest = convert(LLVMType, dest_ptr; ctx)
-        T_pint8_src = convert(LLVMType, src_ptr; ctx)
-        T_int64 = convert(LLVMType, len; ctx)
-        T_int1 = LLVM.Int1Type(ctx)
+        T_nothing = LLVM.VoidType()
+        T_pint8_dest = convert(LLVMType, dest_ptr)
+        T_pint8_src = convert(LLVMType, src_ptr)
+        T_int64 = convert(LLVMType, len)
+        T_int1 = LLVM.Int1Type()
 
         llvm_f, _ = create_function(T_nothing, [T_pint8_dest, T_pint8_src, T_int64])
         mod = LLVM.parent(llvm_f)
         T_intr = LLVM.FunctionType(T_nothing, [T_pint8_dest, T_pint8_src, T_int64, T_int1])
         intr = LLVM.Function(mod, "llvm.memcpy.p$(DestAS)i8.p$(SrcAS)i8.i64", T_intr)
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             dest_ptr_i8 = parameters(llvm_f)[1]
@@ -141,18 +141,18 @@ memcpy!(dest_ptr::LLVMPtr{T,DestAS}, src_ptr::LLVMPtr{T,SrcAS}, len::Integer) wh
     memcpy!(reinterpret(LLVMPtr{UInt8,DestAS}, dest_ptr), reinterpret(LLVMPtr{UInt8,SrcAS}, src_ptr), UInt64(len))
 @inline @generated function memset!(dest_ptr::LLVMPtr{UInt8,DestAS}, value::UInt8, len::LT) where {DestAS,LT<:Union{Int64,UInt64}}
     @dispose ctx=Context() begin
-        T_nothing = LLVM.VoidType(ctx)
-        T_pint8_dest = convert(LLVMType, dest_ptr; ctx)
-        T_int8 = convert(LLVMType, value; ctx)
-        T_int64 = convert(LLVMType, len; ctx)
-        T_int1 = LLVM.Int1Type(ctx)
+        T_nothing = LLVM.VoidType()
+        T_pint8_dest = convert(LLVMType, dest_ptr)
+        T_int8 = convert(LLVMType, value)
+        T_int64 = convert(LLVMType, len)
+        T_int1 = LLVM.Int1Type()
 
         llvm_f, _ = create_function(T_nothing, [T_pint8_dest, T_int8, T_int64])
         mod = LLVM.parent(llvm_f)
         T_intr = LLVM.FunctionType(T_nothing, [T_pint8_dest, T_int8, T_int64, T_int1])
         intr = LLVM.Function(mod, "llvm.memset.p$(DestAS)i8.i64", T_intr)
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             call!(builder, T_intr, intr, [parameters(llvm_f)[1], parameters(llvm_f)[2], parameters(llvm_f)[3], ConstantInt(T_int1, 0)])
