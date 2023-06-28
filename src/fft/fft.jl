@@ -1,6 +1,8 @@
 import .AMDGPU: ROCArray, ROCVector, HandleCache, unsafe_free!, task_local_state
 import ..HIP: HIPContext, HIPStream
 
+# @reexport using AbstractFFTs
+
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!,
     plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft,
     Plan, ScaledPlan
@@ -127,7 +129,7 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
     batch = prod(xdims) ÷ prod(sz)
 
     handle_ref = Ref{rocfft_plan}()
-    worksize_ref = Ref{Csize_t}()
+    worksize_ref = Ref{Cint}()
     placement = inplace ? rocfft_placement_inplace : rocfft_placement_notinplace
     rsz = (length(sz) > 1) ? rsz = reverse(sz) : sz
     if batch == 1
