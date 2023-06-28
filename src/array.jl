@@ -496,7 +496,7 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     end
 
     # Release old buffer
-    _safe_free!(A.buf)
+    _safe_free!(A)
     # N.B. Manually retain new buffer (this is normally done in ROCArray ctor)
     Mem.retain(new_buf)
 

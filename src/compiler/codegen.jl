@@ -36,8 +36,27 @@ function GPUCompiler.finish_module!(
     entry = invoke(GPUCompiler.finish_module!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
+
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
+
+    # Force-inline exception-related functions.
+    # LLVM gets confused when not all functions are inlined,
+    # causing huge scratch memory usage.
+    # And GPUCompiler fails to inline all functions without forcing
+    # always-inline attributes on them. Add them here.
+    target_fns = ("signal_exception", "report_exception", "malloc", "__throw_")
+    inline_attr = EnumAttribute("alwaysinline")
+    for fn in LLVM.functions(mod)
+        any(occursin.(target_fns, LLVM.name(fn))) || continue
+
+        attrs = LLVM.function_attributes(fn)
+        inline_attr ∈ collect(attrs) && continue
+
+        push!(attrs, inline_attr)
+    end
+
+    return entry
 end
 
 function compiler_config(
