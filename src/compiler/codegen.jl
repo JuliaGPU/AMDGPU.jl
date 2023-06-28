@@ -33,12 +33,11 @@ end
 function GPUCompiler.finish_module!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
-    # Workaround for the lack of zeroinitializer support for LDS.
-    zeroinit_lds!(mod, entry)
-
-    invoke(GPUCompiler.finish_module!,
+    entry = invoke(GPUCompiler.finish_module!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
+    # Workaround for the lack of zeroinitializer support for LDS.
+    zeroinit_lds!(mod, entry)
 end
 
 function compiler_config(

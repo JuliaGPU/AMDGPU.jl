@@ -3,9 +3,7 @@ llvmsize(::LLVM.LLVMHalf) = sizeof(Float16)
 llvmsize(::LLVM.LLVMFloat) = sizeof(Float32)
 llvmsize(::LLVM.LLVMDouble) = sizeof(Float64)
 function llvmsize(::LLVM.IntegerType)
-    LLVM.@dispose ctx=Context() begin
-        div(Int(intwidth(GenericValue(LLVM.Int128Type(), -1))), 8)
-    end
+    div(Int(intwidth(GenericValue(LLVM.Int128Type(), -1))), 8)
 end
 
 llvmsize(ty::LLVM.ArrayType) = length(ty) * llvmsize(eltype(ty))
@@ -33,10 +31,11 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     isempty(to_init) && return entry
 
     @dispose ctx=Context() begin
-        T_void = LLVM.VoidType()
-        LLVM.@dispose builder=LLVM.IRBuilder() begin
+        @dispose builder=IRBuilder() begin
             # Make these the first operations we do.
-            position!(builder, first(LLVM.instructions(first(LLVM.blocks(entry)))))
+            block = first(LLVM.blocks(entry))
+            instruction = first(LLVM.instructions(block))
+            position!(builder, instruction)
 
             # Use memset to clear all values to 0.
             for gbl in to_init
@@ -50,7 +49,7 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
 
             # Synchronize the workgroup to prevent races.
             sync_ft = LLVM.FunctionType(LLVM.VoidType())
-            sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
+            sync_f = LLVM.Function(mod, "llvm.amdgcn.s.barrier", sync_ft)
             call!(builder, sync_ft, sync_f)
         end
     end
