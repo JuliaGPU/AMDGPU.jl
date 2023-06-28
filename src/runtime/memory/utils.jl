@@ -49,7 +49,7 @@ function parse_memory_limit(limit_str::String)
         v = parse(Int, value)
         0 < v ≤ 100 || throw(ArgumentError("""
         Invalid percentage value for memory limit `$v`.
-        Must be in (0, 100] range.
+        Must be in (0, 100] range or 'none'.
         """))
         floor(UInt64, total_memory * (v / 100))
     else
