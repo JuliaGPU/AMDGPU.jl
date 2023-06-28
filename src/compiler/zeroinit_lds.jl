@@ -48,7 +48,7 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
 
         # Synchronize the workgroup to prevent races.
         sync_ft = LLVM.FunctionType(LLVM.VoidType())
-        sync_f = LLVM.Function(mod, "llvm.amdgcn.s.barrier", sync_ft)
+        sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
         call!(builder, sync_ft, sync_f)
     end
     return entry
