@@ -1,4 +1,4 @@
-import .AMDGPU: ROCArray, ROCVector, HandleCache, unsafe_free!, task_local_state
+import .AMDGPU: ROCArray, ROCVector, HandleCache, unsafe_free!, task_local_state, TaskLocalState
 import ..HIP: HIPContext, HIPStream
 
 # @reexport using AbstractFFTs
@@ -37,11 +37,8 @@ function get_plan(args...)
         create_plan(args...)
     end
 
-    # assign to the current stream
-    rocfft_set_stream(handle, tls.stream)
-
     workarea = ROCVector{Int8}(undef, worksize)
-    return handle, workarea
+    return handle, workarea, tls
 end
 function release_plan(plan)
     push!(idle_handles, plan) do
@@ -61,11 +58,15 @@ mutable struct cROCFFTPlan{T,K,inplace,N} <: ROCFFTPlan{T,K,inplace}
     region
     pinv::ScaledPlan # required by AbstractFFTs API
 
-    function cROCFFTPlan{T,K,inplace,N}(handle::rocfft_plan, workarea::ROCArray{Int8,1}, X::ROCArray{T,N}, sizey::Tuple,
+    function cROCFFTPlan{T,K,inplace,N}(handle::rocfft_plan, workarea::ROCArray{Int8,1}, tls::TaskLocalState, X::ROCArray{T,N}, sizey::Tuple,
                                       xtype::rocfft_transform_type, region) where {T,inplace,N,K}
         info_ref = Ref{rocfft_execution_info}()
         rocfft_execution_info_create(info_ref)
         info = info_ref[]
+
+        # assign to the current stream
+        rocfft_execution_info_set_stream(info, tls.stream)
+
         rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
         p = new(handle, workarea, info, size(X), sizey, xtype, region)
         finalizer(unsafe_free!, p)
