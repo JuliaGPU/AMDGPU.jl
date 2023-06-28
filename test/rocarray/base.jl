@@ -58,8 +58,7 @@ end
     end
 end
 
-# TODO
-#   need hipPtr to be able to recognize host pointers and register them.
+# FIXME
 # @testset "unsafe_wrap" begin
 #     A = rand(4, 3)
 #     A_orig = copy(A)

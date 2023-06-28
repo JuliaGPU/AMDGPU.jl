@@ -352,46 +352,4 @@ function __init__()
     end
 end
 
-"""
-TODO
-- pointer relocation
-- wrapp more HIP calls in retry/reclaim?
-- convert @errprintf macro to function
-- remove exception holder on stream finalizer (or have them per-devce)
-- fix unsafe_wrap
-"""
-
-function f(x)
-    x[2] = 1
-    nothing
-end
-
-function tt(C)
-    i = workitemIdx().x
-    l = @ROCStaticLocalArray(eltype(C), 8, true)
-    C[i] = l[i]
-    return
-end
-
-function main()
-    # x = ROCArray{Int32}(undef, 1)
-    # # @device_code dir="./devcode" @roc launch=false f(x)
-    # @roc gridsize=64 groupsize=128 f(x)
-    # AMDGPU.synchronize()
-
-    x = ROCArray(ones(Int32, 8))
-    @roc groupsize=8 tt(x)
-    @show Array(x)
-
-    return
-end
-
-# function main()
-#     x = ROCArray{Int32}(undef, 1)
-#     # @device_code dir="./devcode" @roc launch=false f(x)
-#     @roc gridsize=64 groupsize=128 f(x)
-#     AMDGPU.synchronize()
-#     return
-# end
-
 end

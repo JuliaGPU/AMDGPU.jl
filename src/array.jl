@@ -69,8 +69,8 @@ mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
     end
 end
 
-_safe_free!(xs::ROCArray) = _safe_free!(xs.buf)
-_safe_free!(buf::Mem.HIPBuffer) = Mem.release(buf; stream=default_stream())
+_safe_free!(xs::ROCArray) = Mem.release(xs.buf; stream=default_stream())
+
 unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf; stream=stream())
 
 """
@@ -201,16 +201,15 @@ function Base.unsafe_wrap(
     lock::Bool = true,
 ) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
-    # TODO specialize ROCArray on buffer type and pass HostBuffer.
+    # TODO specialize ROCArray on a buffer type and pass HostBuffer.
     sz = prod(dims) * sizeof(T)
     dptr = if lock
         HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
         Mem.device_ptr(Mem.HostBuffer(ptr, sz))
     else
-        ptr
+        Ptr{Cvoid}(ptr)
     end
-    buf = Mem.HIPBuffer(Ptr{Cvoid}(dptr), sz)
-    return ROCArray{T, N}(buf, dims)
+    return ROCArray{T, N}(Mem.HIPBuffer(dptr, sz), dims)
 end
 
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
