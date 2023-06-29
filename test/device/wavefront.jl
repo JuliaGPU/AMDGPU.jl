@@ -1,5 +1,6 @@
 @testset "Wavefront Operations" begin
-    wavefrontsize = AMDGPU.wavefrontsize(AMDGPU.default_device())
+    hsa_dev = AMDGPU.Runtime.hsa_device(AMDGPU.device())
+    wavefrontsize = AMDGPU.Runtime.device_wavefront_size(hsa_dev)
 
     function reduce_kernel(op,X,Y)
         idx = workitemIdx().x
@@ -23,42 +24,46 @@
         X = rand(T(1):T(100), wavefrontsize)
         for op in (Base.:+, max, min, Base.:&, Base.:|, Base.:⊻)
             RX, RY = ROCArray(X), ROCArray(zeros(T,1))
-            wait(@roc groupsize=wavefrontsize reduce_kernel(op,RX,RY))
+            @roc groupsize=wavefrontsize reduce_kernel(op,RX,RY)
             @test Array(RY)[1] == reduce(op,X)
 
             RX, RY = ROCArray(X), ROCArray(zeros(T,wavefrontsize))
-            wait(@roc groupsize=wavefrontsize scan_kernel(op,RX,RY))
+            @roc groupsize=wavefrontsize scan_kernel(op,RX,RY)
             @test Array(RY) == accumulate(op,X)
         end
     end
+
     for T in (Float16, Float32, Float64)
         X = rand(T, wavefrontsize)
         for op in (Base.:+, max, min)
             RX, RY = ROCArray(X), ROCArray(zeros(T,1))
-            wait(@roc groupsize=wavefrontsize reduce_kernel(op,RX,RY))
+            @roc groupsize=wavefrontsize reduce_kernel(op,RX,RY)
             @test Array(RY)[1] ≈ reduce(op,X)
 
             RX, RY = ROCArray(X), ROCArray(zeros(T,wavefrontsize))
-            wait(@roc groupsize=wavefrontsize scan_kernel(op,RX,RY))
+            @roc groupsize=wavefrontsize scan_kernel(op,RX,RY)
             @test Array(RY) ≈ accumulate(op,X)
         end
     end
-    for X in (rand(Cint(0):Cint(1), wavefrontsize),
-              zeros(Cint, wavefrontsize),
-              ones(Cint, wavefrontsize),
-              )
+
+    for X in (
+        rand(Cint(0):Cint(1), wavefrontsize),
+        zeros(Cint, wavefrontsize),
+        ones(Cint, wavefrontsize),
+    )
         RX, RY = ROCArray(X), ROCArray(zeros(Bool,3))
-        wait(@roc groupsize=wavefrontsize bool_kernel(RX,RY))
+        @roc groupsize=wavefrontsize bool_kernel(RX,RY)
         Y = Array(RY)
-        @test_skip Y[1] == all(x->x==1,X)
+
+        @test_skip Y[1] == all(x -> x == 1, X)
         @test_skip Y[2] == any(x->x==1,X)
         @test_skip Y[3] == (length(unique(X)) == 1)
     end
 end
 
 @testset "Wavefront Information" begin
-    wavefrontsize = AMDGPU.wavefrontsize(AMDGPU.default_device())
-
+    hsa_dev = AMDGPU.Runtime.hsa_device(AMDGPU.device())
+    wavefrontsize = AMDGPU.Runtime.device_wavefront_size(hsa_dev)
     @test wavefrontsize == 32 || wavefrontsize == 64
 
     function kernel(X)
@@ -66,6 +71,7 @@ end
         nothing
     end
     RX = ROCArray(zeros(UInt32, 1))
-    wait(@roc kernel(RX))
+    @roc kernel(RX)
+    AMDGPU.synchronize()
     @allowscalar @test RX[1] == wavefrontsize
 end

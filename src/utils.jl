@@ -152,11 +152,8 @@ function functional(component::Symbol)
 end
 
 function has_rocm_gpu()
-    if !functional(:hsa)
-        return false
-    else
-        return length(devices(:gpu)) > 0
-    end
+    (functional(:hsa) && functional(:hip)) || return false
+    return length(devices()) > 0
 end
 
 function print_build_diagnostics()

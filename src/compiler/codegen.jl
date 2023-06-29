@@ -45,15 +45,13 @@ function GPUCompiler.finish_module!(
     # causing huge scratch memory usage.
     # And GPUCompiler fails to inline all functions without forcing
     # always-inline attributes on them. Add them here.
-    target_fns = ("signal_exception", "report_exception", "malloc", "__throw_")
+    target_fns = (
+        "signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
     for fn in LLVM.functions(mod)
         any(occursin.(target_fns, LLVM.name(fn))) || continue
-
         attrs = LLVM.function_attributes(fn)
-        inline_attr ∈ collect(attrs) && continue
-
-        push!(attrs, inline_attr)
+        inline_attr ∈ collect(attrs) || push!(attrs, inline_attr)
     end
 
     return entry
@@ -61,8 +59,7 @@ end
 
 function compiler_config(
     dev::HIP.HIPDevice; kernel::Bool = true,
-    name::Union{String, Nothing} = nothing,
-    always_inline::Bool = true,
+    name::Union{String, Nothing} = nothing, always_inline::Bool = true,
 )
     hsa_isa = AMDGPU.default_isa(dev)
     dev_isa, features = hsa_isa.arch_features

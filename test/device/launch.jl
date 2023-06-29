@@ -1,9 +1,6 @@
 @testset "Launch Options" begin
     kernel() = nothing
 
-    device = AMDGPU.default_device()
-    queue = AMDGPU.queue(device)
-
     # Group/grid size selection and aliases
     for (groupsize,gridsize) in (
         (1,1),
@@ -19,51 +16,30 @@
         ((1,1,1),2),
         (1,(1024,1,1)),
     )
-        eval(:(wait(@roc groupsize=$groupsize $kernel())))
-        eval(:(wait(@roc groupsize=$groupsize gridsize=$gridsize $kernel())))
-        eval(:(wait(@roc gridsize=$gridsize $kernel())))
-
-        threads = groupsize
-        blocks = gridsize .÷ groupsize
-        eval(:(wait(@roc threads=$threads $kernel())))
-        eval(:(wait(@roc blocks=$blocks $kernel())))
-        eval(:(wait(@roc threads=$threads blocks=$blocks $kernel())))
+        @roc groupsize=groupsize kernel()
+        @roc groupsize=groupsize gridsize=gridsize kernel()
+        @roc gridsize=gridsize kernel()
     end
 
-    # Device/queue selection and aliases
-    # FIXME: Test that device/queue are used!
-    eval(:(wait(@roc device=$device $kernel())))
-    eval(:(wait(@roc device=$device queue=$queue $kernel())))
-    eval(:(wait(@roc queue=$queue $kernel())))
-    eval(:(wait(@roc stream=$queue $kernel())))
+    stream = AMDGPU.stream()
+    @roc stream=stream kernel()
+    AMDGPU.synchronize()
 
-    # Non-default queue
-    queue2 = ROCQueue()
-    sig = @roc queue=queue2 kernel()
-    @test sig.queue === queue2
+    # Non-default stream
+    stream2 = HIPStream()
+    @roc stream=stream2 kernel()
+    AMDGPU.synchronize(stream2)
 
     # Group size validity
-    @test_throws ArgumentError eval(:(wait(@roc groupsize=0 $kernel())))
-    eval(:(wait(@roc groupsize=1024 $kernel())))
-    @test_throws ArgumentError eval(:(wait(@roc groupsize=1025 $kernel())))
-    @test_throws ArgumentError eval(:(wait(@roc groupsize=(1024,2) $kernel())))
-    @test_throws ArgumentError eval(:(wait(@roc groupsize=(512,2,2) $kernel())))
+    @test_throws AMDGPU.HIP.HIPError @roc groupsize=0 kernel()
+    @test_throws AMDGPU.HIP.HIPError @roc groupsize=1025 kernel()
+    @test_throws AMDGPU.HIP.HIPError @roc groupsize=(1024, 2) kernel()
+    @test_throws AMDGPU.HIP.HIPError @roc groupsize=(512, 2, 2) kernel()
 
     # No-launch
-    kersig = eval(:(@roc launch=true $kernel()))
-    @test isa(kersig, AMDGPU.ROCKernelSignal)
-    wait(kersig)
-
-    host_kernel = eval(:(@roc launch=false $kernel()))
-    @test isa(host_kernel, Runtime.HostKernel)
-
+    host_kernel = @roc launch=false kernel()
+    @test isa(host_kernel, Runtime.HIPKernel)
     @test_throws Exception eval(:(@roc launch=1 $kernel())) # TODO: ArgumentError
-end
-
-@testset "No-argument kernel" begin
-    kernel() = nothing
-
-    wait(@roc kernel())
 end
 
 @testset "Kernel argument alignment" begin
@@ -75,7 +51,8 @@ end
     end
     x = rand(UInt32)
     y = Int64(x)
-    wait(@roc kernel(x, y))
+    @roc kernel(x, y)
+    AMDGPU.synchronize()
 end
 
 @testset "Function/Argument Conversion" begin
@@ -89,81 +66,53 @@ end
             @roc kernel(f)
         end
 
-        a = [1.]
-        a_dev = ROCArray(a)
-
-        outer(a_dev, 2.)
-
-        @test Array(a_dev) == [2.]
+        a_dev = ROCArray([1.0])
+        outer(a_dev, 2.0)
+        @test Array(a_dev) == [2.0]
     end
-end
-
-@testset "Signal waiting" begin
-    sig = @roc identity(nothing)
-    wait(sig)
-    wait(sig.signal)
-    wait(sig.signal.signal)
-    @test sig.queue === AMDGPU.queue()
-end
-
-@testset "Custom signal" begin
-    sig = ROCSignal()
-    sig2 = @roc signal=sig identity(nothing)
-    @test sig2.signal == sig
-    wait(sig)
-    wait(sig2)
 end
 
 if length(AMDGPU.devices()) > 1
     @testset "Multi-GPU" begin
-        # HSA will throw if the compiler and launch use different devices
-        a1, a2 = AMDGPU.devices()[1:2]
-        wait(@roc device=a1 identity(nothing))
-        wait(@roc device=a2 identity(nothing))
+        dev = AMDGPU.device()
+
+        AMDGPU.device!(AMDGPU.devices()[2])
+        @roc identity(nothing)
+
+        AMDGPU.device!(dev)
+        @roc identity(nothing)
     end
 else
     @warn "Only 1 GPU detected; skipping multi-GPU tests"
-    @test_broken "Multi-GPU"
+    @test_skip "Multi-GPU"
 end
 
 @testset "Launch Configuration" begin
-    kern = @roc launch=false identity(nothing)
+    function f(x)
+        x[1] = 1
+        return
+    end
+    x = ROCArray([1])
+    kern = @roc launch=false f(x)
     occ = AMDGPU.launch_configuration(kern)
     @test occ isa NamedTuple
-    @test haskey(occ, :groupsize)
+    @test haskey(occ, :groupsize) && haskey(occ, :gridsize)
     # This kernel has no occupancy constraints
     @test occ.groupsize == AMDGPU.Device._max_group_size
 
-    @testset "Automatic groupsize selection" begin
-        function groupsize_kernel(A)
-            A[1] = workgroupDim().x
-            nothing
-        end
-        A = AMDGPU.ones(Int, 1)
-        kern = @roc launch=false groupsize_kernel(A)
-        # Verify first that there are no occupancy constraints
-        @test AMDGPU.launch_configuration(kern).groupsize == AMDGPU.Device._max_group_size
-        # Then check that this value was used
-        wait(@roc groupsize=:auto groupsize_kernel(A))
-        @test Array(A)[1] == AMDGPU.Device._max_group_size
-    end
-
-    @testset "Function redefinition" begin
-        RX = ROCArray(rand(Float32, 1))
-        function f(X)
-            Y = @ROCStaticLocalArray(Float32, 1)
-            X[1] = Y[1]
-            return
-        end
-        occ1 = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX))
-        function f(X)
-            Y = @ROCStaticLocalArray(Float32, 1024)
-            X[1] = Y[1]
-            return
-        end
-        occ2 = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX))
-        @test occ1 != occ2
-    end
+    # TODO
+    # @testset "Automatic groupsize selection" begin
+    #     function groupsize_kernel(A)
+    #         A[1] = workgroupDim().x
+    #         nothing
+    #     end
+    #     A = AMDGPU.ones(Int, 1)
+    #     kern = @roc launch=false groupsize_kernel(A)
+    #     # Verify first that there are no occupancy constraints
+    #     @test AMDGPU.launch_configuration(kern).groupsize == AMDGPU.Device._max_group_size
+    #     @roc groupsize=:auto groupsize_kernel(A)
+    #     @test Array(A)[1] == AMDGPU.Device._max_group_size
+    # end
 
     @testset "Local memory" begin
         function f(X)
@@ -172,16 +121,11 @@ end
             unsafe_store!(Y.ptr, unsafe_load(X.ptr))
             return
         end
+
         RX = ROCArray(rand(Float32, 1))
-        @testset "Static" begin
-            occ = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX))
-            @test occ.LDS_size == sizeof(Float32) * 16
-        end
-        @testset "Dynamic" begin
-            # Test that localmem is properly accounted for
-            occ1 = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX))
-            occ2 = AMDGPU.Compiler.calculate_occupancy(@roc launch=false f(RX); localmem=65536÷2)
-            @test occ1 != occ2
-        end
+        # Test that localmem is properly accounted for
+        occ1 = AMDGPU.launch_configuration(@roc launch=false f(RX))
+        occ2 = AMDGPU.launch_configuration(@roc launch=false f(RX); shmem=65536 ÷ 2)
+        @test occ1 != occ2
     end
 end

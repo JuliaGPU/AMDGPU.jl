@@ -41,7 +41,7 @@ Base.unsafe_convert(::Type{Ptr{T}}, device::HIPDevice) where T =
 function name(dev::HIPDevice)
     name_vec = zeros(Cuchar, 64)
     hipDeviceGetName(pointer(name_vec), Cint(64), dev.device) |> check
-    name_vec[1] == Cuchar(0) || return String(name_vec)
+    name_vec[1] == Cuchar(0) || return strip(String(name_vec), '\0')
 
     # Fallback to HSA device name if HIP failed to report.
     AMDGPU.Runtime.hsa_device(dev).name

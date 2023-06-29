@@ -1,8 +1,6 @@
 using Base.FastMath
 
 @testset "Math Intrinsics" begin
-    AMDGPU.reset_dead_queue!() # Reset queue in case of signal timeout.
-
     for T in (Float16, Float32, Float64)
         a = rand(T, 16) .* T(42)
         d_a = ROCArray(a)
@@ -11,8 +9,9 @@ using Base.FastMath
             b = map(f, a)
             d_b = map(f, d_a)
             for out_idx in 1:length(f(a[1]))
-                @test all(sc->(sc[1][out_idx] ≈ sc[2][out_idx]),
-                          zip(b, Array(d_b)))
+                @test all(
+                    sc -> (sc[1][out_idx] ≈ sc[2][out_idx]),
+                    zip(b, Array(d_b)))
             end
         end
     end
