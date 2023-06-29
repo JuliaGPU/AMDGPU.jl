@@ -126,6 +126,7 @@ function convolution!(
         handle, Ref{Float32}(1f0), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, Ref{Float32}(0f0), ydesc.handle, y,
         workspace, perf_results.memory) |> check
+    AMDGPU.unsafe_free!(workspace)
     y
 end
 
@@ -168,6 +169,7 @@ function ∇convolution_weight!(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, Ref{Float32}(0f0), ∇wdesc.handle, ∇w,
         workspace, perf_algo.memory) |> check
+    AMDGPU.unsafe_free!(workspace)
     ∇w
 end
 
@@ -210,6 +212,7 @@ function ∇convolution_data!(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, Ref{Float32}(0f0), ∇xdesc.handle, ∇x,
         workspace, perf_algo.memory) |> check
+    AMDGPU.unsafe_free!(workspace)
     ∇x
 end
 

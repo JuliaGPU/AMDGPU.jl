@@ -1,5 +1,13 @@
 export malloc, free
 
+# @device_function function dm_alloc(sz::Csize_t)
+#     ccall("extern __ockl_dm_alloc", llvmcall, Ptr{Cvoid}, (Csize_t,), sz)
+# end
+
+# @device_function function dm_free(ptr::Ptr{Cvoid})
+#     ccall("extern __ockl_dm_free", llvmcall, Nothing, (Csize_t,), ptr)
+# end
+
 # TODO fix
 function malloc(bytesize::Csize_t)
     return Ptr{Cvoid}(C_NULL)

@@ -10,8 +10,8 @@ function main()
         pages = [
             "Home" => "index.md",
             "Quick Start" => "quickstart.md",
-            "Devices/Agents" => "devices.md",
-            "Queues and Signals" => "queues_signals.md",
+            "Devices" => "devices.md",
+            "Streams" => "streams.md",
             "Kernel Dependencies" => "kernel_deps.md",
             "Kernel Launch" => "kernel_launch.md",
             "Global Variables" => "globals.md",

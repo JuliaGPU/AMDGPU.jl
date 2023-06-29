@@ -352,18 +352,31 @@ function __init__()
     end
 end
 
-function f(x, y)
-    x[1] = UInt32(y[1])
-    return
-end
+# function f(x, y)
+#     x[1] = UInt32(y[1])
+#     return
+# end
 
-function main()
-    y = ROCArray(Float32[1.25])
-    x = ROCArray(UInt32[0])
-    @device_code dir="./devcode" @roc launch=false f(x, y)
-    @roc f(x, y)
-    AMDGPU.synchronize()
-    return
-end
+# function main()
+#     y = ROCArray(Float32[1.25])
+#     x = ROCArray(UInt32[0])
+#     @device_code dir="./devcode" @roc launch=false f(x, y)
+#     @roc f(x, y)
+#     AMDGPU.synchronize()
+#     return
+# end
+
+# function mm()
+#     ptr = Device.dm_alloc(Csize_t(128))
+#     # Device.dm_free(ptr)
+#     return
+# end
+
+# function mmm()
+#     @device_code dir="./devcode" @roc launch=false mm()
+#     @roc mm()
+#     AMDGPU.synchronize()
+#     return
+# end
 
 end
