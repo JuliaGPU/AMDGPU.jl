@@ -8,7 +8,7 @@ struct ROCArrayBackend <: AbstractGPUBackend end
 
 struct ROCKernelContext <: AbstractKernelContext end
 
-function GPUArrays.gpu_call(
+@inline function GPUArrays.gpu_call(
     ::ROCArrayBackend, f, args, threads::Int, blocks::Int;
     name::Union{String, Nothing},
 )
