@@ -118,6 +118,7 @@ end
 function KernelState(dev::HIPDevice)
     ex = exception_holder(dev)
     KernelState(
+        # Exception reporting buffers.
         Mem.device_ptr(ex.exception_flag),
         pointer(ex.gate),
         pointer(ex.buffers_counter),
@@ -126,5 +127,9 @@ function KernelState(dev::HIPDevice)
         pointer(ex.errprintf_buffers_dev),
         pointer(ex.string_buffers_dev),
         Int32(length(ex.errprintf_buffers_dev)),
-        Int32(length(ex.string_buffers_dev)))
+        Int32(length(ex.string_buffers_dev)),
+
+        # Malloc hostcall pointer.
+        Compiler.create_malloc_hostcall!(),
+    )
 end

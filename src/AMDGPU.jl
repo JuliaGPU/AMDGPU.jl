@@ -31,6 +31,7 @@ function Base.lock(f, x::LockedObject)
 end
 
 struct KernelState
+    # Exception reporting buffers.
     exception_flag::Ptr{Int32}
     gate::Ptr{UInt64}
     buffers_counter::Ptr{Int32}
@@ -39,6 +40,9 @@ struct KernelState
     string_buffers::Ptr{Ptr{Cvoid}}
     n_buffers::Int32
     n_str_buffers::Int32
+
+    # Malloc hostcall.
+    malloc_hc::Ptr{Cvoid}
 end
 
 # struct KernelState
@@ -128,6 +132,7 @@ module Device
     using ..LLVM
     using ..LLVM.Interop
 
+    import ..Adapt
     import Core: LLVMPtr
     import ..LinearAlgebra
 
@@ -149,7 +154,7 @@ module Device
     include(joinpath("device", "quirks.jl"))
 end
 import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame, report_exception_name
-import .Device: ROCDeviceArray, AS, HostCall, hostcall!
+import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 import .Device: threadIdx, blockIdx, blockDim
@@ -352,30 +357,19 @@ function __init__()
     end
 end
 
-# function f(x, y)
-#     x[1] = UInt32(y[1])
+# function mam(x)
+#     ptr = Device.malloc(Csize_t(128))
+#     x[1] = reinterpret(UInt64, ptr)
 #     return
 # end
 
 # function main()
-#     y = ROCArray(Float32[1.25])
-#     x = ROCArray(UInt32[0])
-#     @device_code dir="./devcode" @roc launch=false f(x, y)
-#     @roc f(x, y)
-#     AMDGPU.synchronize()
-#     return
-# end
-
-# function mm()
-#     ptr = Device.dm_alloc(Csize_t(128))
-#     # Device.dm_free(ptr)
-#     return
-# end
-
-# function mmm()
-#     @device_code dir="./devcode" @roc launch=false mm()
-#     @roc mm()
-#     AMDGPU.synchronize()
+#     x = ROCArray(UInt64[0])
+#     @roc mam(x)
+#     AMDGPU.synchronize(; blocking=false)
+#     @show x
+#     # TODO auto-detect running global hostcalls
+#     # and force non-blocking sync?
 #     return
 # end
 

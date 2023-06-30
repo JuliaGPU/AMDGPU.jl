@@ -1,4 +1,6 @@
-struct HIPCompilerParams <: AbstractCompilerParams end
+struct HIPCompilerParams <: AbstractCompilerParams
+    global_hostcalls::Set{Symbol}
+end
 
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
 const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
@@ -37,6 +39,11 @@ function GPUCompiler.finish_module!(
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
 
+    for gbl in LLVM.globals(mod)
+        occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
+        push!(job.config.params.global_hostcalls, :malloc_hostcall)
+    end
+
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
 
@@ -65,7 +72,7 @@ function compiler_config(
     dev_isa, features = hsa_isa.arch_features
 
     target = GCNCompilerTarget(; dev_isa, features)
-    params = HIPCompilerParams()
+    params = HIPCompilerParams(Set{Symbol}())
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
@@ -84,7 +91,8 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
         h = hash(fun, hash(f, hash(tt)))
         kernel = get!(_kernel_instances, h) do
             state = AMDGPU.KernelState(dev)
-            Runtime.HIPKernel{F, tt}(f, fun, state)
+            Runtime.HIPKernel{F, tt}(
+                f, fun, state, config.params.global_hostcalls)
         end
         return kernel::Runtime.HIPKernel{F, tt}
     end

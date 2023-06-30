@@ -8,12 +8,8 @@ export malloc, free
 #     ccall("extern __ockl_dm_free", llvmcall, Nothing, (Csize_t,), ptr)
 # end
 
-# TODO fix
-function malloc(bytesize::Csize_t)
-    return Ptr{Cvoid}(C_NULL)
-    # malloc_gbl = Base.unsafe_load(malloc_hc())
-    # llvm_ptr = hostcall!(malloc_gbl, bytesize)
-    # return Ptr{Cvoid}(llvm_ptr)
+function malloc(bytesize::Csize_t)::Ptr{Cvoid}
+    return hostcall!(Base.unsafe_load(malloc_hc()), bytesize)
 end
 
 function free(ptr::Ptr{Cvoid})

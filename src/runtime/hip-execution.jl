@@ -2,6 +2,7 @@ struct HIPKernel{F, TT} <: AbstractKernel{F, TT}
     f::F
     fun::HIP.HIPFunction
     state::AMDGPU.KernelState
+    global_hostcalls::Set{Symbol}
 end
 
 @inline @generated function call(
@@ -38,10 +39,19 @@ end
     end
 end
 
-function (ker::HIPKernel)(
+function (ker::HIPKernel{F, TT})(
     args...; stream::HIP.HIPStream = AMDGPU.stream(), call_kwargs...,
-)
+) where {F, TT}
     AMDGPU.throw_if_exception(stream.device)
+    if !isempty(ker.global_hostcalls)
+        for gbl in ker.global_hostcalls
+            @warn "Notifying global hostcall for $F - $TT: $gbl."
+            hostcall = AMDGPU.Device.get_named_perdevice_hostcall(
+                stream.device, gbl)
+            @assert !isnothing(hostcall) "Failed to retrieve global hostcall: $gbl."
+            notify(hostcall[1])
+        end
+    end
     call(ker, map(AMDGPU.rocconvert, args)...; stream, call_kwargs...)
 end
 

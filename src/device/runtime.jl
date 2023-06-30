@@ -44,9 +44,10 @@ end
 #     convert(Ptr{PRINTF_OUTPUT_CONTEXT_TYPE}, kernel_state().printf_output_context)
 # end
 
-# function malloc_hc()
-#     convert(Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}}, kernel_state().malloc_hc)
-# end
+function malloc_hc()
+    alloc_local(:__malloc_hostcall, Int, 0)
+    convert(Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}}, kernel_state().malloc_hc)
+end
 
 # function free_hc()
 #     convert(Ptr{HostCall{Nothing, Tuple{Ptr{Cvoid}}}}, kernel_state().free_hc)

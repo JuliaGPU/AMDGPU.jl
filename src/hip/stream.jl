@@ -47,7 +47,7 @@ function isdone(stream::HIPStream)
     end
 end
 
-function non_blocking_synchronize(stream::HIPStream)
+function _low_latency_synchronize(stream::HIPStream)
     isdone(stream) && return true
 
     # spin (initially without yielding to minimize latency)
@@ -66,10 +66,22 @@ function non_blocking_synchronize(stream::HIPStream)
     return false
 end
 
+function non_blocking_synchronize(stream::HIPStream)
+    while true
+        yield()
+        isdone(stream) && return true
+    end
+    return false
+end
+
 wait(stream::HIPStream) = hipStreamSynchronize(stream) |> check
 
-function synchronize(stream::HIPStream)
-    non_blocking_synchronize(stream) || wait(stream)
+function synchronize(stream::HIPStream; blocking::Bool = true)
+    if blocking
+        _low_latency_synchronize(stream) || wait(stream)
+    else
+        non_blocking_synchronize(stream)
+    end
     return
 end
 

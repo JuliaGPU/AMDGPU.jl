@@ -150,10 +150,22 @@ default_isa(device::HIPDevice) = Runtime.default_isa(Runtime.hsa_device(device))
 
 Blocks until all kernels currently executing on `stream` have completed.
 """
-function synchronize(stm::HIPStream = stream())
+# TODO
+#   allow non blocking sync of several HIPStreams
+#   and only then disable global hostcall
+function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
     throw_if_exception(stm.device)
-    HIP.synchronize(stm)
+    HIP.synchronize(stm; blocking)
     throw_if_exception(stm.device)
+
+    if !blocking
+        hostcall = AMDGPU.Device.get_named_perdevice_hostcall(
+            stm.device, :malloc_hostcall)
+        if !isnothing(hostcall)
+            reset(hostcall[1])
+            @warn "Paused global hostcall: :malloc_hostcall."
+        end
+    end
     return
 end
 
