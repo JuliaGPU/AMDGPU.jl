@@ -8,10 +8,6 @@ function create_malloc_hostcall!()
             return Mem.device_ptr(buf) # TODO this works if device ptr == host ptr
         end
 
-        # Global hostcalls are sleeping from the start.
-        # They are notified on respective kernel launch that uses them.
-        reset(holder)
-
         # Create host pinned memory and store HostCall in it.
         # It will be then accessed by kernels from kernel state.
         buf = Mem.HostBuffer(sizeof(holder.hc), HIP.hipHostAllocMapped)

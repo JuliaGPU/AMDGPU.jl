@@ -62,7 +62,7 @@ end
 struct HostCallHolder
     hc::HostCall
     task::Task
-    event::Base.Event
+    finish::Ref{Bool}
     continuous::Ref{Bool}
 end
 
@@ -91,9 +91,7 @@ function HostCallHolder(
     AMDGPU.hsaref!()
 
     hc = HostCall(rettype, argtypes, signal.handle; buf_len)
-    event = Base.Event()
-    notify(event)
-
+    finish_ref = Ref{Bool}(false)
     continuous_ref = Ref{Bool}(continuous)
 
     tsk = Threads.@spawn begin
@@ -102,8 +100,9 @@ function HostCallHolder(
 
         try
             while true
-                if !hostcall_host_wait(signal, event; maxlat, timeout)
+                if !hostcall_host_wait(signal, finish_ref; maxlat, timeout)
                     Runtime.RT_EXITING[] && break
+                    finish_ref[] && break
                     throw(HostCallException("Timeout on signal $signal"))
                 end
 
@@ -191,28 +190,31 @@ function HostCallHolder(
             HSA.signal_destroy(signal) |> Runtime.check
             AMDGPU.hsaunref!()
         end
+        if finish_ref[]
+            @warn "HostCall finishing as instructed."
+        end
         return
     end
-    HostCallHolder(hc, tsk, event, continuous_ref)
+    HostCallHolder(hc, tsk, finish_ref, continuous_ref)
 end
 
 Adapt.adapt(to::Runtime.Adaptor, hc::HostCallHolder) = hc.hc
 
-Base.reset(hc::HostCallHolder) = reset(hc.event)
-
-Base.notify(hc::HostCallHolder) = notify(hc.event)
-
 non_continuous!(hc::HostCallHolder) = hc.continuous[] = false
 
+finish!(hc::HostCallHolder) = hc.finish[] = true
+
+Base.istaskdone(hc::HostCallHolder) = istaskdone(hc.task)
+
 function hostcall_host_wait(
-    signal_handle::HSA.Signal, event::Base.Event;
+    signal_handle::HSA.Signal, finish_ref::Ref{Bool};
     maxlat=DEFAULT_HOSTCALL_LATENCY, timeout=DEFAULT_HOSTCALL_TIMEOUT[],
 )
     res::Bool = false
     start_time = time_ns()
 
     while !Runtime.RT_EXITING[]
-        wait(event)
+        finish_ref[] && break
         prev = host_signal_load(signal_handle)
 
         # If device-sourced message is available,

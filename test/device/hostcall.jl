@@ -197,14 +197,18 @@ end
     @roc kernel(RA, RB, hc)
     AMDGPU.synchronize(; blocking=false)
 
-    # Next time HC will be called from the kernel is its last time.
-    # So that it shutdowns correctly and does not stick to the end.
-    AMDGPU.Device.non_continuous!(hc)
-
     @roc kernel(RA, RB, hc)
     AMDGPU.synchronize(; blocking=false)
 
+    # Next time HC will be called from the kernel is its last time.
+    # So that it shutdowns correctly and does not stick to the end.
+    AMDGPU.Device.finish!(hc)
+
     @test Array(RB)[1] == 5f0
+
+    # Give HostCall task time to exit.
+    sleep(2)
+    @test istaskdone(hc)
 end
 
 end

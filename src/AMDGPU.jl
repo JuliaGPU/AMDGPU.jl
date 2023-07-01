@@ -368,22 +368,23 @@ function mam(x)
     return
 end
 
-function main2()
-    # @roc conv(x, y)
-    # AMDGPU.synchronize()
-    return
-end
-
+"""
+TODO
+- better hostcall detection
+- malloc hostcall hangs when called second time...
+"""
 
 function main()
-    x = ROCArray(UInt64[0])
-    @roc launch=false mam(x)
-    AMDGPU.synchronize(; blocking=false)
+    # x = ROCArray(UInt64[0])
+    # @roc mam(x)
+    # AMDGPU.synchronize(; blocking=false)
+    # @show x
 
     x = ROCArray(UInt32[0])
-    y = ROCArray(Float32[1f0])
-    @roc launch=false conv(x, y)
+    y = ROCArray(Float32[1.25f0])
+    @roc conv(x, y)
     AMDGPU.synchronize(; blocking=false)
+    @show x
 
     # TODO
     # auto-detect running global hostcalls

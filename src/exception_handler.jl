@@ -115,7 +115,15 @@ function throw_if_exception(dev::HIPDevice)
     error("GPU Kernel Exception$exception_str")
 end
 
-function KernelState(dev::HIPDevice)
+function KernelState(dev::HIPDevice, global_hostcalls::Set{Symbol})
+    @show global_hostcalls
+    malloc_ptr = if :malloc_hostcall in global_hostcalls
+        @warn "Starting global malloc hostcall."
+        Compiler.create_malloc_hostcall!()
+    else
+        C_NULL
+    end
+
     ex = exception_holder(dev)
     KernelState(
         # Exception reporting buffers.
@@ -130,6 +138,6 @@ function KernelState(dev::HIPDevice)
         Int32(length(ex.string_buffers_dev)),
 
         # Malloc hostcall pointer.
-        Compiler.create_malloc_hostcall!(),
+        malloc_ptr,
     )
 end

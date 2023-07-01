@@ -159,11 +159,14 @@ function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
     throw_if_exception(stm.device)
 
     if !blocking
-        hostcall = AMDGPU.Device.get_named_perdevice_hostcall(
+        hc = AMDGPU.Device.get_named_perdevice_hostcall(
             stm.device, :malloc_hostcall)
-        if !isnothing(hostcall)
-            reset(hostcall[1])
-            @warn "Paused global hostcall: :malloc_hostcall."
+        if !isnothing(hc)
+            # Signal HostCall to exit.
+            AMDGPU.Device.finish!(hc[1])
+            # Remove it from global hostcalls, so that new one is created.
+            AMDGPU.Device.remove_perdevice_hostcall!(stm.device, :malloc_hostcall)
+            @warn "Turned off global malloc hostcall."
         end
     end
     return

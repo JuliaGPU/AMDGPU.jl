@@ -190,7 +190,7 @@ const NAMED_PERDEVICE_HOSTCALLS = Dict{
     HIP.HIPDevice, Dict{Symbol, Tuple{HostCallHolder, Mem.HostBuffer}}}()
 
 function named_perdevice_hostcall(func, dev::HIP.HIPDevice, name::Symbol)
-    lock(Runtime.RT_LOCK) do
+    Base.@lock Runtime.RT_LOCK begin
         hcs = get!(
             () -> Dict{Symbol, Tuple{HostCall, Mem.HostBuffer}}(),
             NAMED_PERDEVICE_HOSTCALLS, dev)
@@ -200,10 +200,20 @@ end
 
 # TODO rename
 function get_named_perdevice_hostcall(dev::HIP.HIPDevice, name::Symbol)
-    lock(Runtime.RT_LOCK) do
+    Base.@lock Runtime.RT_LOCK begin
         hcs = get(
             () -> Dict{Symbol, Tuple{HostCall, Mem.HostBuffer}}(),
             NAMED_PERDEVICE_HOSTCALLS, dev)
         get(hcs, name, nothing)
+    end
+end
+
+function remove_perdevice_hostcall!(dev::HIP.HIPDevice, name::Symbol)
+    Base.@lock Runtime.RT_LOCK begin
+        dev_hcs = get(NAMED_PERDEVICE_HOSTCALLS, dev, nothing)
+        isnothing(dev_hcs) && return
+
+        pop!(dev_hcs, name)
+        return
     end
 end

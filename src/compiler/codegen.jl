@@ -52,6 +52,13 @@ function GPUCompiler.finish_module!(
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
 
+    # println("Finish module!: ", collect(LLVM.globals(mod)))
+    # for gbl in LLVM.globals(mod)
+    #     occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
+    #     @warn "Malloc detected"
+    #     push!(job.config.params.global_hostcalls, :malloc_hostcall)
+    # end
+
     # Force-inline exception-related functions.
     # LLVM gets confused when not all functions are inlined,
     # causing huge scratch memory usage.
@@ -74,6 +81,7 @@ function GPUCompiler.optimize_module!(
 )
     for gbl in LLVM.globals(mod)
         occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
+        @warn "Malloc detected"
         push!(job.config.params.global_hostcalls, :malloc_hostcall)
     end
     return
@@ -105,9 +113,7 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
 
         h = hash(fun, hash(f, hash(tt)))
         kernel = get!(_kernel_instances, h) do
-            state = AMDGPU.KernelState(dev)
-            Runtime.HIPKernel{F, tt}(
-                f, fun, state, config.params.global_hostcalls)
+            Runtime.HIPKernel{F, tt}(f, fun, config.params.global_hostcalls)
         end
         return kernel::Runtime.HIPKernel{F, tt}
     end
