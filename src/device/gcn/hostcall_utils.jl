@@ -59,7 +59,8 @@ end
     return quote
         @device_execution_gate $mode begin
             # Acquire lock on hostcall buffer
-            hostcall_device_signal_wait_cas!(hc.signal_handle, READY_SENTINEL, DEVICE_LOCK_SENTINEL)
+            hostcall_device_signal_wait_cas!(
+                hc.signal_handle, READY_SENTINEL, DEVICE_LOCK_SENTINEL)
         end
     end
 end
@@ -109,7 +110,8 @@ end
 
         @device_execution_gate $mode begin
             # Ensure arguments are written
-            $hostcall_device_signal_wait_cas!(hc.signal_handle, $DEVICE_LOCK_SENTINEL, $DEVICE_MSG_SENTINEL)
+            $hostcall_device_signal_wait_cas!(
+                hc.signal_handle, $DEVICE_LOCK_SENTINEL, $DEVICE_MSG_SENTINEL)
             # Wait on host message
             $hostcall_device_signal_wait(hc.signal_handle, $HOST_MSG_SENTINEL)
             # Get return buffer and load first value

@@ -63,17 +63,20 @@ struct HostCallHolder
     hc::HostCall
     task::Task
     event::Base.Event
+    continuous::Ref{Bool}
 end
 
 include("hostcall_utils.jl")
 
 """
-    HostCall(func, return_type::Type, arg_types::Type{Tuple}) -> HostCall
+    HostCallHolder(func, return_type::Type, arg_types::Type{Tuple}) -> HostCall
 
 Construct a `HostCall` that executes `func` with the arguments passed from the
-calling kernel. `func` must be passed arguments of types contained in
-`arg_types`, and must return a value of type `return_type`, or else the
-hostcall will fail with undefined behavior.
+calling kernel.
+
+`func` must be passed arguments of types contained in `arg_types`,
+and must return a value of type `return_type`,
+or else the hostcall will fail with undefined behavior.
 
 Note: This API is currently experimental and is subject to change at any time.
 """
@@ -91,8 +94,10 @@ function HostCallHolder(
     event = Base.Event()
     notify(event)
 
+    continuous_ref = Ref{Bool}(continuous)
+
     tsk = Threads.@spawn begin
-        ret_buf = Ref{Mem.HostBuffer}()
+        ret_buf = Ref{Mem.HostBuffer}(Mem.HostBuffer())
         ret_len = 0
 
         try
@@ -127,11 +132,11 @@ function HostCallHolder(
                     "Host function result not isbits: $(typeof(ret))"))
 
                 try
-                    if isassigned(ret_buf) && ret_len < sizeof(ret)
+                    if ret_buf[].ptr != C_NULL && ret_len < sizeof(ret)
                         Mem.free(ret_buf[])
                         ret_len = sizeof(ret)
                         ret_buf[] = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocMapped)
-                    elseif !isassigned(ret_buf)
+                    elseif ret_buf[].ptr == C_NULL
                         ret_len = sizeof(ret)
                         ret_buf[] = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocMapped)
                     end
@@ -142,7 +147,7 @@ function HostCallHolder(
                         if sizeof(ret) > 0
                             src_ptr = reinterpret(Ptr{Cvoid},
                                 Base.unsafe_convert(Ptr{rettype}, ret_ref))
-                            HSA.memory_copy( # TODO use HIP
+                            HSA.memory_copy(
                                 ret_ptr, src_ptr, sizeof(ret)) |> Runtime.check
                         end
 
@@ -154,7 +159,7 @@ function HostCallHolder(
                     throw(HostCallException(
                         "Error returning hostcall result", err))
                 end
-                continuous || break
+                continuous_ref[] || break
             end
         catch err
             # Gracefully terminate all waiters
@@ -176,9 +181,7 @@ function HostCallHolder(
                     prev == HOST_ERR_SENTINEL ||
                     prev == DEVICE_ERR_SENTINEL
                 if not_used
-                    if isassigned(ret_buf)
-                        Mem.free(ret_buf[])
-                    end
+                    Mem.free(ret_buf[]) # `free` checks for C_NULL.
                     buf_ptr = reinterpret(Ptr{Cvoid}, hc.buf_ptr)
                     Mem.free(Mem.HostBuffer(buf_ptr, 0))
                     break
@@ -190,7 +193,7 @@ function HostCallHolder(
         end
         return
     end
-    HostCallHolder(hc, tsk, event)
+    HostCallHolder(hc, tsk, event, continuous_ref)
 end
 
 Adapt.adapt(to::Runtime.Adaptor, hc::HostCallHolder) = hc.hc
@@ -198,6 +201,8 @@ Adapt.adapt(to::Runtime.Adaptor, hc::HostCallHolder) = hc.hc
 Base.reset(hc::HostCallHolder) = reset(hc.event)
 
 Base.notify(hc::HostCallHolder) = notify(hc.event)
+
+non_continuous!(hc::HostCallHolder) = hc.continuous[] = false
 
 function hostcall_host_wait(
     signal_handle::HSA.Signal, event::Base.Event;

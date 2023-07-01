@@ -9,7 +9,8 @@ export malloc, free
 # end
 
 function malloc(bytesize::Csize_t)::Ptr{Cvoid}
-    return hostcall!(Base.unsafe_load(malloc_hc()), bytesize)
+    mhc = Base.unsafe_load(malloc_hc())
+    return hostcall!(mhc, bytesize)
 end
 
 function free(ptr::Ptr{Cvoid})

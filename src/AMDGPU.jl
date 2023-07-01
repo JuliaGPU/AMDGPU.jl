@@ -357,20 +357,38 @@ function __init__()
     end
 end
 
-# function mam(x)
-#     ptr = Device.malloc(Csize_t(128))
-#     x[1] = reinterpret(UInt64, ptr)
-#     return
-# end
+function conv(x, y)
+    x[1] = UInt32(y[1])
+    return
+end
 
-# function main()
-#     x = ROCArray(UInt64[0])
-#     @roc mam(x)
-#     AMDGPU.synchronize(; blocking=false)
-#     @show x
-#     # TODO auto-detect running global hostcalls
-#     # and force non-blocking sync?
-#     return
-# end
+function mam(x)
+    ptr = Device.malloc(Csize_t(128))
+    x[1] = reinterpret(UInt64, ptr)
+    return
+end
+
+function main2()
+    # @roc conv(x, y)
+    # AMDGPU.synchronize()
+    return
+end
+
+
+function main()
+    x = ROCArray(UInt64[0])
+    @roc launch=false mam(x)
+    AMDGPU.synchronize(; blocking=false)
+
+    x = ROCArray(UInt32[0])
+    y = ROCArray(Float32[1f0])
+    @roc launch=false conv(x, y)
+    AMDGPU.synchronize(; blocking=false)
+
+    # TODO
+    # auto-detect running global hostcalls
+    # and force non-blocking sync?
+    return
+end
 
 end

@@ -8,10 +8,7 @@ function load_and_link!(mod, path)
     for f in LLVM.functions(lib)
         # FIXME: We should be able to inline this, that we can't means
         #        we are inserting calls to it late.
-        name = LLVM.name(f)
-        name == "__ockl_hsa_signal_store" && continue
-        name == "__ockl_hsa_signal_load" && continue
-        startswith(name, "__ockl_hsa_signal") && continue
+        startswith(LLVM.name(f), "__ockl_hsa_signal") && continue
 
         attrs = function_attributes(f)
         inline = true
@@ -22,9 +19,7 @@ function load_and_link!(mod, path)
                 break
             end
         end
-        if inline
-            push!(attrs, EnumAttribute("alwaysinline"))
-        end
+        inline && push!(attrs, EnumAttribute("alwaysinline"))
     end
 
     # override triple and datalayout to avoid warnings

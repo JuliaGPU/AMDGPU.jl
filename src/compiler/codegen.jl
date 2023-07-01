@@ -26,10 +26,20 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
+    # @show undefined_fns
     invoke(GPUCompiler.link_libraries!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
     link_device_libs!(job.config.target, mod)
+end
+
+function GPUCompiler.finish_ir!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    # @show collect(GPUCompiler.decls(mod))
+    # TODO fixx
+    link_device_libs!(job.config.target, mod)
+    return entry
 end
 
 function GPUCompiler.finish_module!(
@@ -38,11 +48,6 @@ function GPUCompiler.finish_module!(
     entry = invoke(GPUCompiler.finish_module!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
-
-    for gbl in LLVM.globals(mod)
-        occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
-        push!(job.config.params.global_hostcalls, :malloc_hostcall)
-    end
 
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
@@ -62,6 +67,16 @@ function GPUCompiler.finish_module!(
     end
 
     return entry
+end
+
+function GPUCompiler.optimize_module!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
+)
+    for gbl in LLVM.globals(mod)
+        occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
+        push!(job.config.params.global_hostcalls, :malloc_hostcall)
+    end
+    return
 end
 
 function compiler_config(

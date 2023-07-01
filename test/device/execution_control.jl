@@ -28,7 +28,6 @@
         end
         RX = ROCArray(zeros(Bool, 2))
         @roc time_kernel(RX)
-        @show Array(RX)
         @test all(Array(RX))
     end
 
