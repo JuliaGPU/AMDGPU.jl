@@ -45,14 +45,6 @@ struct KernelState
     malloc_hc::Ptr{Cvoid}
 end
 
-# struct KernelState
-#     exception_flag::Ptr{Cvoid}
-#     output_context::Ptr{Cvoid}
-#     printf_output_context::Ptr{Cvoid}
-#     malloc_hc::Ptr{Cvoid}
-#     free_hc::Ptr{Cvoid}
-# end
-
 # Load HSA Runtime.
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath("hsa", "HSA.jl"))
@@ -355,41 +347,6 @@ function __init__()
             """
         end
     end
-end
-
-function conv(x, y)
-    x[1] = UInt32(y[1])
-    return
-end
-
-function mam(x)
-    ptr = Device.malloc(Csize_t(128))
-    x[1] = reinterpret(UInt64, ptr)
-    return
-end
-
-"""
-TODO
-- better hostcall detection
-- malloc hostcall hangs when called second time...
-"""
-
-function main()
-    # x = ROCArray(UInt64[0])
-    # @roc mam(x)
-    # AMDGPU.synchronize(; blocking=false)
-    # @show x
-
-    x = ROCArray(UInt32[0])
-    y = ROCArray(Float32[1.25f0])
-    @roc conv(x, y)
-    AMDGPU.synchronize(; blocking=false)
-    @show x
-
-    # TODO
-    # auto-detect running global hostcalls
-    # and force non-blocking sync?
-    return
 end
 
 end

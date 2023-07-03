@@ -87,7 +87,14 @@ end
 
 function get_exception_string(dev::HIPDevice)::String
     ex = exception_holder(dev)
-    n_strings = min(Array(ex.buffers_counter)[1], length(ex.errprintf_buffers))
+
+    # Use async copy and HIP.synchronize() to avoid triggering
+    # error exception checking path and stack-overflowing.
+    n_used_buffers = eltype(ex.buffers_counter)[0]
+    Base.copyto!(n_used_buffers, 1, ex.buffers_counter, 1, 1; async=true)
+    HIP.synchronize(AMDGPU.stream())
+
+    n_strings = min(n_used_buffers[1], length(ex.errprintf_buffers))
 
     exception_str = ""
     for i in 1:n_strings
@@ -116,7 +123,6 @@ function throw_if_exception(dev::HIPDevice)
 end
 
 function KernelState(dev::HIPDevice, global_hostcalls::Set{Symbol})
-    @show global_hostcalls
     malloc_ptr = if :malloc_hostcall in global_hostcalls
         @warn "Starting global malloc hostcall."
         Compiler.create_malloc_hostcall!()

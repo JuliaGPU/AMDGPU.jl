@@ -45,8 +45,16 @@ end
 # end
 
 function malloc_hc()
-    alloc_local(:__malloc_hostcall, Int, 0)
-    convert(Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}}, kernel_state().malloc_hc)
+    # FIXME
+    # Hack to detect when global malloc hostcall is used.
+    # Create global variable and write pointer to it to prevent it
+    # from being optimized away.
+    x = alloc_local(:__malloc_hostcall, UInt64, 1)
+    ptr = convert(
+        Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}},
+        kernel_state().malloc_hc)
+    unsafe_store!(x, reinterpret(UInt64, ptr))
+    return ptr
 end
 
 # function free_hc()

@@ -160,7 +160,7 @@ function Base.copyto!(
         pointer(dest, d_offset),
         Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
         amount * sizeof(T); stream=strm)
-    async || HIP.synchronize(strm)
+    async || AMDGPU.synchronize(strm)
     dest
 end
 function Base.copyto!(

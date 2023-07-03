@@ -52,13 +52,6 @@ function GPUCompiler.finish_module!(
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
 
-    # println("Finish module!: ", collect(LLVM.globals(mod)))
-    # for gbl in LLVM.globals(mod)
-    #     occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
-    #     @warn "Malloc detected"
-    #     push!(job.config.params.global_hostcalls, :malloc_hostcall)
-    # end
-
     # Force-inline exception-related functions.
     # LLVM gets confused when not all functions are inlined,
     # causing huge scratch memory usage.
@@ -74,17 +67,6 @@ function GPUCompiler.finish_module!(
     end
 
     return entry
-end
-
-function GPUCompiler.optimize_module!(
-    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
-)
-    for gbl in LLVM.globals(mod)
-        occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
-        @warn "Malloc detected"
-        push!(job.config.params.global_hostcalls, :malloc_hostcall)
-    end
-    return
 end
 
 function compiler_config(
@@ -144,6 +126,15 @@ function hipcompile(@nospecialize(job::CompilerJob))
 
     entry = LLVM.name(meta.entry)
     globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+
+    for gbl in LLVM.globals(meta.ir)
+        occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
+        @warn """Malloc detected. Use:
+            AMDGPU.synchronize(; blocking=false)
+        to synchronize and stop global hostcall.
+        """
+        push!(job.config.params.global_hostcalls, :malloc_hostcall)
+    end
 
     if !isempty(globals)
         @warn """
