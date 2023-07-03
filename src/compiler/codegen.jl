@@ -1,6 +1,4 @@
-struct HIPCompilerParams <: AbstractCompilerParams
-    global_hostcalls::Set{Symbol}
-end
+struct HIPCompilerParams <: AbstractCompilerParams end
 
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
 const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
@@ -77,7 +75,7 @@ function compiler_config(
     dev_isa, features = hsa_isa.arch_features
 
     target = GCNCompilerTarget(; dev_isa, features)
-    params = HIPCompilerParams(Set{Symbol}())
+    params = HIPCompilerParams()
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
@@ -95,7 +93,7 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
 
         h = hash(fun, hash(f, hash(tt)))
         kernel = get!(_kernel_instances, h) do
-            Runtime.HIPKernel{F, tt}(f, fun, config.params.global_hostcalls)
+            Runtime.HIPKernel{F, tt}(f, fun)
         end
         return kernel::Runtime.HIPKernel{F, tt}
     end
@@ -127,13 +125,14 @@ function hipcompile(@nospecialize(job::CompilerJob))
     entry = LLVM.name(meta.entry)
     globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
 
+    global_hostcalls = Symbol[]
     for gbl in LLVM.globals(meta.ir)
         occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
         @warn """Malloc detected. Use:
             AMDGPU.synchronize(; blocking=false)
         to synchronize and stop global hostcall.
         """
-        push!(job.config.params.global_hostcalls, :malloc_hostcall)
+        push!(global_hostcalls, :malloc_hostcall)
     end
 
     if !isempty(globals)
@@ -145,13 +144,13 @@ function hipcompile(@nospecialize(job::CompilerJob))
         Compilation will likely fail.
         """
     end
-    (; obj=create_executable(codeunits(obj)), entry, globals)
+    (; obj=create_executable(codeunits(obj)), entry, globals, global_hostcalls)
 end
 
 function hiplink(@nospecialize(job::CompilerJob), compiled)
-    (; obj, entry, globals) = compiled
+    (; obj, entry, globals, global_hostcalls) = compiled
     mod = HIP.HIPModule(obj)
-    HIP.HIPFunction(mod, entry)
+    HIP.HIPFunction(mod, entry, global_hostcalls)
 end
 
 function run_and_collect(cmd)

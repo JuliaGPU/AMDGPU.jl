@@ -23,11 +23,14 @@ Base.unsafe_convert(::Type{hipModule_t}, mod::HIPModule) = mod.handle
 struct HIPFunction
     handle::hipFunction_t
     mod::HIPModule
+    global_hostcalls::Vector{Symbol}
 
-    function HIPFunction(mod::HIPModule, name::String)
+    function HIPFunction(
+        mod::HIPModule, name::String, global_hostcalls::Vector{Symbol},
+    )
         fun_ref = Ref{hipFunction_t}()
         hipModuleGetFunction(fun_ref, mod, name) |> check
-        new(fun_ref[], mod)
+        new(fun_ref[], mod, global_hostcalls)
     end
 end
 

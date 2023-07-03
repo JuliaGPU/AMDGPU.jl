@@ -1,7 +1,6 @@
 struct HIPKernel{F, TT} <: AbstractKernel{F, TT}
     f::F
     fun::HIP.HIPFunction
-    global_hostcalls::Set{Symbol}
 end
 
 @inline @generated function call(
@@ -29,7 +28,7 @@ end
     # add the kernel state
     pushfirst!(call_t, AMDGPU.KernelState)
     pushfirst!(call_args, :(AMDGPU.KernelState(
-        stream.device, kernel.global_hostcalls)))
+        stream.device, kernel.fun.global_hostcalls)))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
