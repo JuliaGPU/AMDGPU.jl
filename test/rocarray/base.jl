@@ -90,6 +90,10 @@ end
     RD = Base.unsafe_wrap(ROCArray, pointer(D), size(D))
     copyto!(RD, RA)
     @test Array(RD) ≈ Array(RA) ≈ C
+
+    # Wrapping a GPU array without a copy
+    wRD = Base.unsafe_wrap(ROCArray, pointer(RD), size(D); lock=false)
+    @test pointer(wRD) == pointer(RD)
 end
 
 @testset "unsafe_free" begin
