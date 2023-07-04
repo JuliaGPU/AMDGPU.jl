@@ -17,7 +17,8 @@ function enable_artifacts!(flag::Bool = true; show_message::Bool = true)
     end
 end
 
-use_artifacts()::Bool = @load_preference("use_artifacts", true)
+# TODO need updated ROCm artifacts to enable them again (5.4+).
+use_artifacts()::Bool = @load_preference("use_artifacts", false)
 
 if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
     disable_artifacts = parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
