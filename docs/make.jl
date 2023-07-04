@@ -15,12 +15,13 @@ function main()
             "Kernel Launch" => "kernel_launch.md",
             "Exceptions" => "exceptions.md",
             "Profiling" => "profiling.md",
-            "Printing" => "printing.md",
             "Memory" => "memory.md",
+            "Host-Call" => "hostcall.md",
             "Intrinsics" => [
                 "Execution Control" => "execution_control.md",
                 "Wavefront Operations" => "wavefront_ops.md",
             ],
+            "Printing" => "printing.md",
             "Logging" => "logging.md",
             "API Reference" => "api.md"
         ]

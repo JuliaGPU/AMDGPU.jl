@@ -6,6 +6,9 @@ include("setup.jl")
 @testset "AMDGPU" begin
 
 # Run tests in parallel
+
+# FIXME
+# HostCall tests hang with multiple workers.
 np = 1 # Threads.nthreads()
 ws = Int[]
 ws_pids = Int[]

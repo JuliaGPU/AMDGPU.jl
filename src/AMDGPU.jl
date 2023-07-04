@@ -48,7 +48,6 @@ end
 # Load HSA Runtime.
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath("hsa", "HSA.jl"))
-import .HSA: Agent, Queue, Executable, Status, Signal
 
 # Load binary dependencies.
 include("discovery_utils.jl")
