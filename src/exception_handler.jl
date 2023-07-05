@@ -123,12 +123,18 @@ function throw_if_exception(dev::HIPDevice)
 end
 
 function KernelState(dev::HIPDevice, global_hostcalls::Vector{Symbol})
-    malloc_ptr = if :malloc_hostcall in global_hostcalls
-        @warn "Starting global malloc hostcall."
-        Compiler.create_malloc_hostcall!()
-    else
+    malloc_ptr = :malloc_hostcall in global_hostcalls ?
+        Compiler.create_malloc_hostcall!() :
         C_NULL
-    end
+    free_ptr = :free_hostcall in global_hostcalls ?
+        Compiler.create_free_hostcall!() :
+        C_NULL
+    print_ptr = :print_hostcall in global_hostcalls ?
+        Compiler.create_output_context!() :
+        C_NULL
+    printf_ptr = :printf_hostcall in global_hostcalls ?
+        Compiler.create_printf_output_context!() :
+        C_NULL
 
     ex = exception_holder(dev)
     KernelState(
@@ -143,7 +149,12 @@ function KernelState(dev::HIPDevice, global_hostcalls::Vector{Symbol})
         Int32(length(ex.errprintf_buffers_dev)),
         Int32(length(ex.string_buffers_dev)),
 
-        # Malloc hostcall pointer.
+        # Malloc/free hostcall pointer.
         malloc_ptr,
+        free_ptr,
+
+        # Print hostcalls.
+        print_ptr,
+        printf_ptr,
     )
 end

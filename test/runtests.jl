@@ -77,7 +77,7 @@ push!(tests, "Device Functions" => ()->begin
     include("device/execution_control.jl")
     include("device/exceptions.jl")
     include("device/hostcall.jl")
-    # include("device/output.jl")
+    include("device/output.jl")
 end)
 push!(tests, "Multitasking" => ()->include("tls.jl"))
 push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))

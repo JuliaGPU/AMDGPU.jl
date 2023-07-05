@@ -36,30 +36,47 @@ function gate!(value::UInt64)::Bool
     ifelse(iszero(old_value), true, value == old_value)
 end
 
-# function output_context()
-#     convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
-# end
+function output_context()
+    ptr = convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
 
-# function printf_output_context()
-#     convert(Ptr{PRINTF_OUTPUT_CONTEXT_TYPE}, kernel_state().printf_output_context)
-# end
+    x = alloc_local(:__print_hostcall, UInt64, 1)
+    unsafe_store!(x, reinterpret(UInt64, ptr))
+    return ptr
+end
+
+function printf_output_context()
+    ptr = convert(
+        Ptr{PRINTF_OUTPUT_CONTEXT_TYPE},
+        kernel_state().printf_output_context)
+
+    x = alloc_local(:__printf_hostcall, UInt64, 1)
+    unsafe_store!(x, reinterpret(UInt64, ptr))
+    return ptr
+end
 
 function malloc_hc()
+    ptr = convert(
+        Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}},
+        kernel_state().malloc_hc)
+
     # FIXME
     # Hack to detect when global malloc hostcall is used.
     # Create global variable and write pointer to it to prevent it
     # from being optimized away.
     x = alloc_local(:__malloc_hostcall, UInt64, 1)
-    ptr = convert(
-        Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}},
-        kernel_state().malloc_hc)
     unsafe_store!(x, reinterpret(UInt64, ptr))
     return ptr
 end
 
-# function free_hc()
-#     convert(Ptr{HostCall{Nothing, Tuple{Ptr{Cvoid}}}}, kernel_state().free_hc)
-# end
+function free_hc()
+    ptr = convert(
+        Ptr{HostCall{Nothing, Tuple{Ptr{Cvoid}}}},
+        kernel_state().free_hc)
+
+    x = alloc_local(:__free_hostcall, UInt64, 1)
+    unsafe_store!(x, reinterpret(UInt64, ptr))
+    return ptr
+end
 
 function signal_exception()
     unsafe_store!(exception_flag(), Int32(1))
@@ -67,26 +84,6 @@ function signal_exception()
     endpgm()
     return
 end
-
-# function device_string_to_host(ex::Ptr{Cchar})
-#     # We get a ReadOnlyMemoryError on the host without
-#     # making a copy because the data is pinned to the device.
-#     ex_ptr = reinterpret(LLVMPtr{UInt8, AS.Global}, ex)
-#     ex_len = string_length(ex_ptr)
-#     # TODO: Don't use an expensive host malloc
-#     # Allocate strlen + null termination.
-#     ex_str = reinterpret(LLVMPtr{UInt8, AS.Global}, malloc(Csize_t(ex_len + 1)))
-#     # If allocation failed (returned nullptr) - print message.
-#     if reinterpret(UInt64, ex_str) == 0
-#         @rocprint("Device-to-host string conversion failed.\n")
-#         return reinterpret(Cstring, 0)
-#     end
-#     # Copy `ex` to allocated memory.
-#     memcpy!(ex_str, ex_ptr, ex_len)
-#     # And null termination.
-#     unsafe_store!(ex_str + ex_len, UInt8(0))
-#     return reinterpret(Cstring, ex_str)
-# end
 
 function err_device_string_to_host(str::Ptr{Cchar})
     host_str = reinterpret(LLVMPtr{UInt8, AS.Global}, C_NULL)

@@ -41,8 +41,13 @@ struct KernelState
     n_buffers::Int32
     n_str_buffers::Int32
 
-    # Malloc hostcall.
+    # Malloc/free hostcalls.
     malloc_hc::Ptr{Cvoid}
+    free_hc::Ptr{Cvoid}
+
+    # Print hostcalls.
+    output_context::Ptr{Cvoid}
+    printf_output_context::Ptr{Cvoid}
 end
 
 # Load HSA Runtime.
@@ -148,8 +153,7 @@ import .Device: malloc, signal_exception, report_exception, report_oom, report_e
 import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
-import .Device: threadIdx, blockIdx, blockDim
-import .Device: sync_workgroup
+import .Device: threadIdx, blockIdx, blockDim, sync_workgroup
 import .Device: @rocprint, @rocprintln, @rocprintf
 
 export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray

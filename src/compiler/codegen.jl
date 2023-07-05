@@ -125,14 +125,18 @@ function hipcompile(@nospecialize(job::CompilerJob))
     entry = LLVM.name(meta.entry)
     globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
 
+    global_hostcall_names = (
+        :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
     global_hostcalls = Symbol[]
-    for gbl in LLVM.globals(meta.ir)
-        occursin("__malloc_hostcall", LLVM.name(gbl)) || continue
-        @warn """Malloc detected. Use:
-            AMDGPU.synchronize(; blocking=false)
-        to synchronize and stop global hostcall.
-        """
-        push!(global_hostcalls, :malloc_hostcall)
+    for gbl in LLVM.globals(meta.ir), gbl_name in global_hostcall_names
+        occursin("__$gbl_name", LLVM.name(gbl)) || continue
+        push!(global_hostcalls, gbl_name)
+    end
+    if !isempty(global_hostcalls)
+        @warn """Global hostcalls detected: $global_hostcalls.
+        Use `AMDGPU.synchronize(; blocking=false)` to synchronize and stop them.
+        Otherwise, performance might degrade.
+        """ maxlog=1
     end
 
     if !isempty(globals)
@@ -144,11 +148,11 @@ function hipcompile(@nospecialize(job::CompilerJob))
         Compilation will likely fail.
         """
     end
-    (; obj=create_executable(codeunits(obj)), entry, globals, global_hostcalls)
+    (; obj=create_executable(codeunits(obj)), entry, global_hostcalls)
 end
 
 function hiplink(@nospecialize(job::CompilerJob), compiled)
-    (; obj, entry, globals, global_hostcalls) = compiled
+    (; obj, entry, global_hostcalls) = compiled
     mod = HIP.HIPModule(obj)
     HIP.HIPFunction(mod, entry, global_hostcalls)
 end

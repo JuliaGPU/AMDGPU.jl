@@ -119,7 +119,7 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
 
     # Read format string into host buffer.
     fmt_buf = Vector{UInt8}(undef, fmt_len)
-    HSA.memory_copy( # TODO replace with HIP
+    HSA.memory_copy(
         convert(Ptr{Cvoid}, pointer(fmt_buf)),
         convert(Ptr{Cvoid}, fmt_ptr), fmt_len) |> Runtime.check
     fmt = String(fmt_buf)
@@ -171,40 +171,145 @@ function _rocprintf_arg(ptr::LLVMPtr{UInt64, AS.Global}, arg::T) where T
     return ptr
 end
 
+# macro rocprintf(args...)
+#     mode = :group
+#     @assert first(args) isa Union{QuoteNode,String} "First argument must be an inline Symbol or String"
+#     if first(args) isa QuoteNode
+#         mode = args[1].value::Symbol
+#         args = args[2:end]
+#         @assert mode isa Symbol "Execution mode must be a Symbol"
+#         @assert mode in (:grid, :group, :wave, :lane) "Invalid execution mode: $mode"
+#     end
+
+#     @assert first(args) isa String "@rocprintf format-string must be a String"
+#     fmt = args[1]
+#     args = args[2:end]
+
+#     @gensym printf_hc device_ptr device_fmt_ptr write_size
+#     ex = quote
+#         # Load printf HostCall.
+#         $printf_hc = Base.unsafe_load($printf_output_context())
+#         $device_ptr = reinterpret(
+#             $(LLVMPtr{UInt64, AS.Global}), $printf_hc.buf_ptr)
+#         # Allocate device-side format pointer.
+#         $device_fmt_ptr = $alloc_string($(Val(Symbol(fmt))))
+#         # Lock hostcall buffer.
+#         $hostcall_device_lock!($printf_hc)
+#         # Write block count.
+#         Base.unsafe_store!($device_ptr, UInt64(1)) # TODO take into account mode
+#         $device_ptr += sizeof(UInt64)
+#         # Write fmt string pointer & its bytesize.
+#         $device_ptr = $_rocprintf_fmt(
+#             $device_ptr, $device_fmt_ptr, $(sizeof(fmt)))
+#         # Calculate total write size per args block.
+#         $write_size =
+#             $hostcall_device_args_size($(map(esc, args)...)) + # Space for arguments.
+#             $(length(args)) * sizeof(UInt64) + # Space for type tags. # TODO what if args are less than uint64?
+#             sizeof(UInt64) # Space for terminator.
+#         # TODO account for offset for different modes.
+#     end
+
+#     # Write arguments & terminating null word.
+#     ex_args = Expr(:block)
+#     for arg in args
+#         push!(ex_args.args, :($device_ptr = $_rocprintf_arg(
+#             $device_ptr, $(esc(arg)))))
+#     end
+#     push!(ex_args.args, :(unsafe_store!($device_ptr, 0)))
+#     push!(ex.args, :(@device_execution_gate $mode $ex_args))
+
+#     # Submit & unlock hostcall buffer.
+#     push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
+#     push!(ex.args, :(nothing))
+#     ex
+# end
+
+function unsafe_ceil(x, y)
+    up = Core.Intrinsics.urem_int(x, y) > 0
+    return Core.Intrinsics.udiv_int(x, y) + up
+end
+
 macro rocprintf(args...)
     mode = :group
-    # TODO allow specifying mode as first arg
+    @assert first(args) isa Union{QuoteNode,String}
+        "First argument must be an inline Symbol or String"
+    if first(args) isa QuoteNode
+        mode = args[1].value::Symbol
+        args = args[2:end]
+        @assert mode isa Symbol "Execution mode must be a Symbol"
+        @assert mode in (:grid, :group, :wave, :lane)
+            "Invalid execution mode: $mode"
+    end
 
-    @assert first(args) isa String "@rocprintf format-string must be a String"
-
+    @assert first(args) isa String "Format must be a String"
     fmt = args[1]
     args = args[2:end]
 
-    @gensym printf_hc device_ptr device_fmt_ptr write_size
-    ex = quote
-        # Load printf HostCall.
-        $printf_hc = Base.unsafe_load($printf_output_context())
-        $device_ptr = reinterpret(
-            $(LLVMPtr{UInt64, AS.Global}), $printf_hc.buf_ptr)
-        # Allocate device-side format pointer.
-        $device_fmt_ptr = $alloc_string($(Val(Symbol(fmt))))
-        # Lock hostcall buffer.
-        $hostcall_device_lock!($printf_hc)
-        # Write block count.
-        Base.unsafe_store!($device_ptr, UInt64(1)) # TODO take into account mode
-        $device_ptr += sizeof(UInt64)
-        # Write fmt string pointer & its bytesize.
-        $device_ptr = $_rocprintf_fmt(
-            $device_ptr, $device_fmt_ptr, $(sizeof(fmt)))
-        # Calculate total write size per args block.
-        $write_size =
-            $hostcall_device_args_size($(map(esc, args)...)) + # Space for arguments.
-            $(length(args)) * sizeof(UInt64) + # Space for type tags. # TODO what if args are less than uint64?
-            sizeof(UInt64) # Space for terminator.
-        # TODO account for offset for different modes.
+    ex = Expr(:block)
+    @gensym device_ptr device_fmt_ptr printf_hc write_size
+
+    if mode == :grid
+        push!(ex.args, quote
+            # Skip all execution if not on the first group
+            if prod($workgroupIdx()) != 1
+                return
+            end
+        end)
     end
 
-    # Write arguments & terminating null word.
+    # Allocate device-side format pointer
+    push!(ex.args, :($device_fmt_ptr = $alloc_string($(Val(Symbol(fmt))))))
+
+    # Load HostCall object
+    push!(ex.args, :($printf_hc = unsafe_load($printf_output_context())))
+    push!(ex.args, :($device_ptr = reinterpret(
+        $(LLVMPtr{UInt64,AS.Global}), $printf_hc.buf_ptr)))
+    # Lock hostcall buffer
+    push!(ex.args, :($hostcall_device_lock!($printf_hc)))
+
+    # Write block count
+    # FIXME: Use y and z dims
+    if mode == :grid
+        push!(ex.args, :(unsafe_store!($device_ptr, UInt64(1))))
+    elseif mode == :group
+        push!(ex.args, :(unsafe_store!($device_ptr, UInt64(1))))
+    elseif mode == :wave
+        waves_per_group = :($unsafe_ceil($workgroupDim().x, $wavefrontsize()))
+        push!(ex.args, :(unsafe_store!(
+            $device_ptr, Base.unsafe_trunc(UInt64, $waves_per_group))))
+    elseif mode == :lane
+        push!(ex.args, :(unsafe_store!(
+            $device_ptr, Base.unsafe_trunc(UInt64, $workgroupDim().x))))
+    end
+    push!(ex.args, :($device_ptr += sizeof(UInt64)))
+
+    # Write format string pointer
+    push!(ex.args, :($device_ptr = $_rocprintf_fmt(
+        $device_ptr, $device_fmt_ptr, $(sizeof(fmt)))))
+
+    # Calculate total write size per args block
+    push!(ex.args, :($write_size =
+        $hostcall_device_args_size($(map(esc, args)...)) # Space for arguments
+        + $(length(args))*sizeof(UInt64) + # Space for type tags
+        + sizeof(UInt64))) # Space for terminator
+
+    # Calulate offset into buffer
+    # FIXME: Use y and z dims
+    offset = if mode == :grid
+        :(0)
+    elseif mode == :group
+        :(0)
+    elseif mode == :wave
+        wave_idx = :(Core.Intrinsics.udiv_int(
+            $workitemIdx().x - UInt32(1), $wavefrontsize()))
+        :($wave_idx * $write_size)
+    elseif mode == :lane
+        lane_idx = :(workitemIdx().x - 1)
+        :($lane_idx * $write_size)
+    end
+    push!(ex.args, :($device_ptr += $offset))
+
+    # Write arguments and terminating null word
     ex_args = Expr(:block)
     for arg in args
         push!(ex_args.args, :($device_ptr = $_rocprintf_arg(
@@ -213,7 +318,7 @@ macro rocprintf(args...)
     push!(ex_args.args, :(unsafe_store!($device_ptr, 0)))
     push!(ex.args, :(@device_execution_gate $mode $ex_args))
 
-    # Submit & unlock hostcall buffer.
+    # Submit and unlock hostcall buffer
     push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
     push!(ex.args, :(nothing))
     ex

@@ -190,9 +190,6 @@ function HostCallHolder(
             HSA.signal_destroy(signal) |> Runtime.check
             AMDGPU.hsaunref!()
         end
-        if finish_ref[]
-            @warn "HostCall finishing as instructed."
-        end
         return
     end
     HostCallHolder(hc, tsk, finish_ref, continuous_ref)

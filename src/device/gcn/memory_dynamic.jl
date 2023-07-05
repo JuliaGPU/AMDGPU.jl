@@ -13,8 +13,8 @@ function malloc(bytesize::Csize_t)::Ptr{Cvoid}
     return hostcall!(mhc, bytesize)
 end
 
-function free(ptr::Ptr{Cvoid})
+function free(ptr::Ptr{Cvoid})::Nothing
+    fhc = Base.unsafe_load(free_hc())
+    hostcall!(fhc, ptr)
     return
-    # free_gbl = Base.unsafe_load(free_hc())
-    # hostcall!(free_gbl, ptr)
 end
