@@ -92,8 +92,15 @@ end
     @test Array(RD) ≈ Array(RA) ≈ C
 
     # Wrapping a GPU array without a copy
-    wRD = Base.unsafe_wrap(ROCArray, pointer(RD), size(D); lock=false)
-    @test pointer(wRD) == pointer(RD)
+    gpu_buf = AMDGPU.Mem.alloc(sizeof(D))
+    gpu_ptr = Ptr{Float64}(gpu_buf.ptr)
+
+    wrapped_array = Base.unsafe_wrap(ROCArray, ptr, size(D); is_device_ptr=true)
+    @test pointer(wrapped_array) == gpu_ptr
+    copyto!(wrapped_array, RD)
+    @test Array(wrapped_array) ≈ C
+
+    AMDGPU.Mem.free(gpu_buf)
 end
 
 @testset "unsafe_free" begin

@@ -221,14 +221,25 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
-function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; device=device(), lock::Bool=true) where {T,N}
+function Base.unsafe_wrap(
+    ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer};
+    device=device(), lock::Bool=true, is_device_ptr::Bool=false
+) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
     sz = prod(dims) * sizeof(T)
-    device_ptr = lock ? Mem.lock(ptr, sz, device) : Ptr{Cvoid}(ptr)
-    buf = Mem.Buffer(device_ptr, Ptr{Cvoid}(ptr), device_ptr, sz, device, false, false)
+
+    if !is_device_ptr
+        host_ptr = Ptr{Cvoid}(ptr)
+        device_ptr = lock ? Mem.lock(ptr, sz, device) : Ptr{Cvoid}(ptr)
+    else
+        host_ptr = C_NULL
+        device_ptr = Ptr{Cvoid}(ptr)
+    end
+
+    buf = Mem.Buffer(device_ptr, host_ptr, device_ptr, sz, device, false, false)
     return ROCArray{T, N}(buf, dims)
 end
-Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
+Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr{Cvoid}, dims; kwargs...) where T =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
 ## views
