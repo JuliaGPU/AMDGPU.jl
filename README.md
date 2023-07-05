@@ -19,7 +19,6 @@
 [docs-dev-url]: https://amdgpu.juliagpu.org/dev
 
 
-
 ## Quick start
 
 AMDGPU.jl can be installed with the Julia package manager.
