@@ -53,7 +53,7 @@ steps:
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
+    command: "julia --threads=auto --project -e 'using Pkg; Pkg.update()'"
     timeout_in_minutes: 180
     env:
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
