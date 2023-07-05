@@ -86,7 +86,7 @@ if CI
     push!(tests, "ROCm libraries are functional" => ()->begin
         @test AMDGPU.functional(:rocblas)
         @test AMDGPU.functional(:rocrand)
-        if !AMDGPU.use_artifacts
+        if !AMDGPU.use_artifacts()
             # We don't have artifacts for these
             @test AMDGPU.functional(:rocfft)
         end
