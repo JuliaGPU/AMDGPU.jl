@@ -46,7 +46,7 @@ tasks = Dict{Int,String}()
 @info "Testing using device $(AMDGPU.default_device())"
 AMDGPU.versioninfo()
 
-@info "Running tests with $(length(ws)) workers"
+@info "Running tests with $(length(ws)) workers and $(Threads.nthreads()) threads."
 
 push!(tests, "HSA" => ()->begin
     include("hsa/utils.jl")
