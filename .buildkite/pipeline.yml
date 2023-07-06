@@ -18,6 +18,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
+      rocmgpu: "gfx1031"
     if: build.message !~ /\[skip docs\]/
     timeout_in_minutes: 10
 
@@ -51,7 +52,7 @@ steps:
       queue: "juliagpu"
       julia_1.9: "*"
       rocm: "*"
-      rocmgpu: "*"
+      rocmgpu: "gfx1031"
     if: build.message !~ /\[skip tests\]/
     command: "julia --project -e 'using Pkg; Pkg.update()'"
     timeout_in_minutes: 180
