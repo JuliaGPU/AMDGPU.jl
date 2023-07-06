@@ -163,8 +163,8 @@ As a quick summary, here is a mapping of the most common terms:
 | [`gridItemDim`](@ref) | No equivalent |
 | [`gridGroupDim`](@ref) | `gridDim` |
 | `groupsize` | `threads` |
-| `gridsize` | `blocks * threads` |
+| `gridsize` | `blocks` |
 | `queue` | `stream` |
 
-For compatibilty reasons, the symbols in the CUDA column
-(except for `gridItemDim`) are also supported by AMDGPU.
+!!! warning
+    Since AMDGPU v0.5.0 `gridsize` represents the number of "workgroups" (or `blocks` in CUDA) and no longer "workitems * workgroups" (or `threads * blocks` in CUDA) as HIP is used for kernel launches instead of HSA.
