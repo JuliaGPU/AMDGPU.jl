@@ -19,7 +19,8 @@ Pkg.test("AMDGPU")
 ```
 
 !!! warning
-    If you get an error message along the lines of `GLIB_CXX_... not found`, it's possible that the C++ runtime used to build the ROCm stack and the one used by Julia are different.
+    If you get an error message along the lines of `GLIB_CXX_... not found`,
+    it's possible that the C++ runtime used to build the ROCm stack and the one used by Julia are different.
     If you built the ROCm stack yourself this is very likely the case since Julia normally ships with its own C++ runtime.
     For more information, check out this [GitHub issue](https://github.com/JuliaLang/julia/issues/34276).
 
@@ -163,8 +164,10 @@ As a quick summary, here is a mapping of the most common terms:
 | [`gridItemDim`](@ref) | No equivalent |
 | [`gridGroupDim`](@ref) | `gridDim` |
 | `groupsize` | `threads` |
-| `gridsize` | `blocks * threads` |
-| `queue` | `stream` |
+| `gridsize` | `blocks` |
+| `stream` | `stream` |
 
-For compatibilty reasons, the symbols in the CUDA column
-(except for `gridItemDim`) are also supported by AMDGPU.
+!!! warning
+    Since AMDGPU v0.5.0 `gridsize` represents the number of "workgroups"
+    (or `blocks` in CUDA) and no longer "workitems * workgroups"
+    (or `threads * blocks` in CUDA) as HIP is used for kernel launches instead of HSA.
