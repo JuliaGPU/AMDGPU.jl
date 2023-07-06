@@ -12,11 +12,11 @@ end
 function main(N)
     src = ROCArray{Float64}(undef, N)
     dst = ROCArray{Float64}(undef, N)
-    nthreads = 256
-    nblocks = cld(N, nthreads)
+    groupsize = 256               # nthreads
+    gridsize = cld(N, groupsize)  # nblocks
 
     for i in 1:10
-        @roc groupsize=nthreads gridsize=nblocks mycopy!(dst, src)
+        @roc groupsize=groupsize gridsize=gridsize mycopy!(dst, src)
         AMDGPU.synchronize()
     end
 
@@ -27,7 +27,7 @@ function main(N)
 end
 main(2^24)</code></pre><pre><code class="language-bash hljs">ENABLE_JITPROFILING=1 rocprof --hip-trace --hsa-trace julia ./profile.jl</code></pre><p>This will produce <code>results.json</code> (among other files) which can be visualized using <a href="https://ui.perfetto.dev/">Perfetto UI</a>.</p><table><tr><th style="text-align: center">Zoomed out</th><th style="text-align: center">Zoomed in</th></tr><tr><td style="text-align: center"><img src="../assets/profiling-1.png" alt="image"/></td><td style="text-align: center"><img src="../assets/profiling-4.png" alt="image"/></td></tr></table><p>Here we can clearly see that host synchronization after each kernel dispatch causes poor device occupancy (empty spaces between kernel dispatches).</p><p>We can fix this by moving synchronization outside the loop so that it happens only once.</p><pre><code class="language-julia hljs">    ...
     for i in 1:10
-        @roc groupsize=nthreads gridsize=nblocks mycopy!(dst, src)
+        @roc groupsize=groupsize gridsize=gridsize mycopy!(dst, src)
     end
     AMDGPU.synchronize()
-    ...</code></pre><p>Running profiling again and visualizing results we now see that kernel launches are adjacent to each other and that the average wall duaration is lower.</p><table><tr><th style="text-align: center">Zoomed out</th><th style="text-align: center">Zoomed in</th></tr><tr><td style="text-align: center"><img src="../assets/profiling-2.png" alt="image"/></td><td style="text-align: center"><img src="../assets/profiling-3.png" alt="image"/></td></tr></table></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exceptions/">« Exceptions</a><a class="docs-footer-nextpage" href="../memory/">Memory »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Thursday 6 July 2023 05:47">Thursday 6 July 2023</span>. Using Julia version 1.9.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+    ...</code></pre><p>Running profiling again and visualizing results we now see that kernel launches are adjacent to each other and that the average wall duaration is lower.</p><table><tr><th style="text-align: center">Zoomed out</th><th style="text-align: center">Zoomed in</th></tr><tr><td style="text-align: center"><img src="../assets/profiling-2.png" alt="image"/></td><td style="text-align: center"><img src="../assets/profiling-3.png" alt="image"/></td></tr></table></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exceptions/">« Exceptions</a><a class="docs-footer-nextpage" href="../memory/">Memory »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Thursday 6 July 2023 08:44">Thursday 6 July 2023</span>. Using Julia version 1.9.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
