@@ -17,11 +17,11 @@ end
 function main(N)
     src = ROCArray{Float64}(undef, N)
     dst = ROCArray{Float64}(undef, N)
-    nthreads = 256
-    nblocks = cld(N, nthreads)
+    groupsize = 256               # nthreads
+    gridsize = cld(N, groupsize)  # nblocks
 
     for i in 1:10
-        @roc groupsize=nthreads gridsize=nblocks mycopy!(dst, src)
+        @roc groupsize=groupsize gridsize=gridsize mycopy!(dst, src)
         AMDGPU.synchronize()
     end
 
@@ -52,7 +52,7 @@ We can fix this by moving synchronization outside the loop so that it happens on
 ```julia
     ...
     for i in 1:10
-        @roc groupsize=nthreads gridsize=nblocks mycopy!(dst, src)
+        @roc groupsize=groupsize gridsize=gridsize mycopy!(dst, src)
     end
     AMDGPU.synchronize()
     ...
