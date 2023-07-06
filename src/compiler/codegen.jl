@@ -24,7 +24,6 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
-    @show undefined_fns
     invoke(GPUCompiler.link_libraries!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
