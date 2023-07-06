@@ -51,8 +51,7 @@ randn(T::rocRANDNormalType, dim1::Integer, dims::Integer...; kwargs...) =
 
 # GPUArrays in-place
 Random.rand!(A::ROCArray) = Random.rand!(gpuarrays_rng(), A)
-Random.randn!(A::ROCArray; kwargs...) =
-    error("AMDGPU.jl does not support generating normally-distributed random numbers of type $(eltype(A))")
+Random.randn!(A::ROCArray; kwargs...) = error("AMDGPU.jl does not support generating normally-distributed random numbers of type $(eltype(A))")
 
 # GPUArrays out-of-place
 rand(T::Type, dims::Dims) = Random.rand!(ROCArray{T}(undef, dims...))
@@ -73,5 +72,10 @@ randn(dim1::Integer, dims::Integer...; kwargs...) =
     Random.randn!(ROCArray{Float32}(undef, dim1, dims...))
 
 # rand_logn, rand_poisson
-const rand_logn = librocrand !== nothing ? rocRAND.rand_logn : (x...;kwargs...) -> error("Not supported without rocRAND.")
-const rand_poisson = librocrand !== nothing ? rocRAND.rand_poisson : (x...;kwargs...) -> error("Not supported without rocRAND.")
+const rand_logn = librocrand !== nothing ?
+    rocRAND.rand_logn :
+    (x...;kwargs...) -> error("Not supported without rocRAND.")
+
+const rand_poisson = librocrand !== nothing ?
+    rocRAND.rand_poisson :
+    (x...;kwargs...) -> error("Not supported without rocRAND.")

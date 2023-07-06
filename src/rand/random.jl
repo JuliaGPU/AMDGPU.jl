@@ -29,22 +29,32 @@ end
 
 Random.seed!(rng::RNG, ::Nothing) = Random.seed!(rng)
 
-
 ## in-place
 
 # uniform
-const UniformType = Union{Type{UInt32}, Type{Cuchar}, Type{UInt16}, Type{Float16}, Type{Float32}, Type{Float64}}
-const DUniformArray = ROCArray{<:Union{UInt32, Cuchar, UInt16, Float16, Float32,Float64}}
-for (f,T) in ((:rocrand_generate, :UInt32), (:rocrand_generate_char,:Cuchar),
-              (:rocrand_generate_short, :UInt16), (:rocrand_generate_uniform, :Float32),
-              (:rocrand_generate_uniform_double, :Float64), (:rocrand_generate_uniform_half, :Float16))
+const UniformType = Union{
+    Type{UInt32}, Type{Cuchar}, Type{UInt16},
+    Type{Float16}, Type{Float32}, Type{Float64}}
+const DUniformArray = ROCArray{<:Union{
+    UInt32, Cuchar, UInt16, Float16, Float32, Float64}}
+
+for (f,T) in (
+    (:rocrand_generate_char,:Cuchar),
+    (:rocrand_generate_short, :UInt16),
+    (:rocrand_generate, :UInt32),
+
+    (:rocrand_generate_uniform_half, :Float16),
+    (:rocrand_generate_uniform, :Float32),
+    (:rocrand_generate_uniform_double, :Float64),
+)
     @eval begin
-        function Random.rand!(rng::RNG, A::ROCArray{$(T)})
+        function Random.rand!(rng::RNG, A::ROCArray{$T})
             $(f)(rng, A, length(A))
             return A
         end
     end
 end
+
 
 # some functions need pow2 lengths: use a padded array and copy back to the original one
 function inplace_pow2(A, f)

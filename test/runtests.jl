@@ -3,13 +3,31 @@ using Test
 
 include("setup.jl")
 
+@info "Testing using device $(AMDGPU.default_device())"
+AMDGPU.versioninfo()
+
+@info "Testing Device Functions on the main thread without workers..."
+@testset verbose=true "Device Functions" begin
+    include("device/launch.jl")
+    include("device/array.jl")
+    include("device/vadd.jl")
+    include("device/memory.jl")
+    include("device/indexing.jl")
+    include("device/math.jl")
+    include("device/wavefront.jl")
+    include("device/execution_control.jl")
+    include("device/exceptions.jl")
+    include("device/hostcall.jl")
+    include("device/output.jl")
+end
+
 @testset "AMDGPU" begin
+
+@test length(AMDGPU.devices()) > 0
 
 # Run tests in parallel
 
-# FIXME
-# HostCall tests hang with multiple workers.
-np = 1 # Threads.nthreads()
+np = 4
 ws = Int[]
 ws_pids = Int[]
 if np == 1
@@ -42,11 +60,7 @@ failed = Ref(false)
 tests = Pair{String,Function}[]
 tasks = Dict{Int,String}()
 
-@test length(AMDGPU.devices()) > 0
-@info "Testing using device $(AMDGPU.default_device())"
-AMDGPU.versioninfo()
-
-@info "Running tests with $(length(ws)) workers and $(Threads.nthreads()) threads."
+@info "Running tests with $(length(ws)) workers with flags: $(AMDGPU.julia_exeflags())"
 
 push!(tests, "HSA" => ()->begin
     include("hsa/utils.jl")
@@ -66,19 +80,6 @@ end)
 #     """
 #     @test_skip "Logging"
 # end
-push!(tests, "Device Functions" => ()->begin
-    include("device/launch.jl")
-    include("device/array.jl")
-    include("device/vadd.jl")
-    include("device/memory.jl")
-    include("device/indexing.jl")
-    include("device/math.jl")
-    include("device/wavefront.jl")
-    include("device/execution_control.jl")
-    include("device/exceptions.jl")
-    include("device/hostcall.jl")
-    include("device/output.jl")
-end)
 push!(tests, "Multitasking" => ()->include("tls.jl"))
 push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
 push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
