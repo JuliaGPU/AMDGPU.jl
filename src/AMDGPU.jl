@@ -193,6 +193,7 @@ include("reflection.jl")
 import .Runtime: Mem
 
 include("array.jl")
+include("gpuarrays.jl")
 include("conversions.jl")
 include("broadcast.jl")
 include("mapreduce.jl")
@@ -350,6 +351,21 @@ function __init__()
             """
         end
     end
+end
+
+function main()
+    x = ones(Float32, 16)
+    xd = unsafe_wrap(ROCArray, pointer(x), size(x))
+    @show x
+    @show xd
+    @show typeof(xd)
+
+    y = AMDGPU.ones(Float64, 8)
+    yd = AMDGPU.unsafe_wrap(ROCArray, pointer(y), size(y); lock=false)
+    @show y
+    @show yd
+    @show typeof(yd)
+    return
 end
 
 end

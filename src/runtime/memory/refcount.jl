@@ -7,13 +7,13 @@ function _buffer_id!()::UInt64
 end
 
 function refcount(buf::AbstractAMDBuffer)
-    Base.lock(refcounts_lock) do
+    Base.@lock refcounts_lock begin
         get(refcounts, buf._id, 0)
     end
 end
 
 function retain(buf::AbstractAMDBuffer)
-    Base.lock(refcounts_lock) do
+    Base.@lock refcounts_lock begin
         live = get!(liveness, buf._id, true)
         @assert live "Trying to retain dead buffer!"
         count = get!(refcounts, buf._id, 0)
@@ -22,7 +22,7 @@ function retain(buf::AbstractAMDBuffer)
     return
 end
 
-function release(buf::HIPBuffer; stream::HIP.HIPStream)
+function release(buf::AbstractAMDBuffer; stream::HIP.HIPStream)
     while !Base.trylock(refcounts_lock) end
     try
         count = refcounts[buf._id]
@@ -42,8 +42,8 @@ function release(buf::HIPBuffer; stream::HIP.HIPStream)
     end
 end
 
-function free_if_live(buf::HIPBuffer; stream::HIP.HIPStream)
-    Base.lock(refcounts_lock) do
+function free_if_live(buf::AbstractAMDBuffer; stream::HIP.HIPStream)
+    Base.@lock refcounts_lock begin
         if liveness[buf._id]
             liveness[buf._id] = false
             free(buf; stream)

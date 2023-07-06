@@ -2,6 +2,14 @@ const HIP_LAUNCH_PARAM_BUFFER_POINTER = Ptr{Cvoid}(1)
 const HIP_LAUNCH_PARAM_BUFFER_SIZE = Ptr{Cvoid}(2)
 const HIP_LAUNCH_PARAM_END = Ptr{Cvoid}(3)
 
+@cenum hipMemcpyKind begin
+    hipMemcpyHostToHost
+    hipMemcpyHostToDevice
+    hipMemcpyDeviceToHost
+    hipMemcpyDeviceToDevice
+    hipMemcpyDefault
+end
+
 @cenum hiprtcResult::UInt32 begin
     HIPRTC_SUCCESS = 0
     HIPRTC_ERROR_OUT_OF_MEMORY = 1
