@@ -30,6 +30,15 @@ function GPUCompiler.link_libraries!(
     link_device_libs!(job.config.target, mod)
 end
 
+# FIXME
+function GPUCompiler.finish_ir!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    isempty(collect(GPUCompiler.decls(mod))) && return entry
+    link_device_libs!(job.config.target, mod)
+    return entry
+end
+
 function GPUCompiler.finish_module!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
