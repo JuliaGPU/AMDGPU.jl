@@ -24,20 +24,11 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
-    # @show undefined_fns
+    @show undefined_fns
     invoke(GPUCompiler.link_libraries!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
     link_device_libs!(job.config.target, mod)
-end
-
-function GPUCompiler.finish_ir!(
-    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
-)
-    # @show collect(GPUCompiler.decls(mod))
-    # TODO fixx
-    link_device_libs!(job.config.target, mod)
-    return entry
 end
 
 function GPUCompiler.finish_module!(
