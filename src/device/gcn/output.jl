@@ -5,64 +5,11 @@ Base.unsafe_load(ptr::LLVMPtr{<:DeviceStaticString,AS.Global}) =
     unsafe_string(reinterpret(Cstring, ptr))
 Base.unsafe_store!(ptr::LLVMPtr{<:DeviceStaticString,AS.Global}, x) = nothing
 
-struct OutputContext{HC}
-    hostcall::HC
-end
-function OutputContext(io::IO=stdout; device=AMDGPU.device(), continuous=true, buf_len=2^16, name=nothing, kwargs...)
-    hc = if name !== nothing
-        named_perdevice_hostcall(device, name) do
-            create_output_context_hostcall(io; device, continuous, buf_len, kwargs...)
-        end
-    else
-        create_output_context_hostcall(io; device, continuous, buf_len, kwargs...)
-    end
-    return OutputContext(hc)
-end
-function create_output_context_hostcall(io; buf_len, kwargs...)
-    hc = HostCall(Int64, Tuple{LLVMPtr{DeviceStaticString{buf_len},AS.Global}}; buf_len, kwargs...) do bytes
-        str = unsafe_load(reinterpret(LLVMPtr{DeviceStaticString{buf_len},AS.Global}, hc.buf_ptr))
-        print(io, str)
-        return Int64(length(str))
-    end
-    return hc
-end
+const OUTPUT_CONTEXT_TYPE = HostCall{
+    Nothing, Tuple{LLVMPtr{DeviceStaticString{2^16}, AS.Global}}}
 
-const GLOBAL_OUTPUT_CONTEXT_TYPE = OutputContext{HostCall{Int64,Tuple{LLVMPtr{DeviceStaticString{2^16},AS.Global}}}}
-
-### macros
-
-macro rocprint(str...)
-    if first(str) isa String || Meta.isexpr(first(str), :string)
-        # No OutputContext
-        @gensym oc_ptr oc
-        ex = quote
-            $oc_ptr = $get_global_pointer($(Val(:__global_output_context)),
-                                          $GLOBAL_OUTPUT_CONTEXT_TYPE)
-            $oc = Base.unsafe_load($oc_ptr)
-        end
-        push!(ex.args, rocprint(oc, str...))
-        return esc(ex)
-    else
-        return esc(rocprint(first(str), str[2:end]...))
-    end
-end
-macro rocprintln(str...)
-    if first(str) isa String || Meta.isexpr(first(str), :string)
-        # No OutputContext
-        @gensym oc_ptr oc
-        ex = quote
-            $oc_ptr = $get_global_pointer($(Val(:__global_output_context)),
-                                                 $GLOBAL_OUTPUT_CONTEXT_TYPE)
-            $oc = Base.unsafe_load($oc_ptr)
-        end
-        push!(ex.args, rocprint(oc, str..., '\n'))
-        return esc(ex)
-    else
-        return esc(rocprint(first(str), str[2:end]..., '\n'))
-    end
-end
-
-### parse-time helpers
+const PRINTF_OUTPUT_CONTEXT_TYPE = HostCall{
+    Nothing, Tuple{LLVMPtr{UInt8, AS.Global}}}
 
 function rocprint(oc, str...)
     ex = Expr(:block)
@@ -74,82 +21,107 @@ function rocprint(oc, str...)
         @assert s.head == :string
         push!(strs, s)
     end
-    push!(ex.args, :($hostcall_device_lock!($oc.hostcall)))
+    push!(ex.args, :($hostcall_device_lock!($oc)))
     N = 1
+    # Write strings & null termination to hostcall buffer.
     for str in strs
         N = rocprint!(ex, N, oc, str)
     end
     rocprint!(ex, N, oc, '\0')
-    push!(ex.args, :($hostcall_device_trigger_and_return!($oc.hostcall)))
+    # Make host read args, execute function & wait for return.
+    push!(ex.args, :($hostcall_device_trigger_and_return!($oc)))
     push!(ex.args, :(nothing))
     return ex
 end
+
 function rocprint!(ex, N, oc, str::String)
     @gensym str_ptr
     push!(ex.args, :($str_ptr = $alloc_string($(Val(Symbol(str))))))
-    push!(ex.args, :($memcpy!($oc.hostcall.buf_ptr+$(N-1), $str_ptr, $(length(str)))))
-    return N+length(str)
+    push!(ex.args, :($memcpy!(
+        $oc.buf_ptr + $(N - 1), $str_ptr, $(length(str)))))
+    return N + length(str)
 end
+
 function rocprint!(ex, N, oc, char::Char)
     @assert length(codeunits(string(char))) == 1 "Multi-codeunit chars not yet implemented"
     byte = UInt8(char)
-    ptr = :(reinterpret($(LLVMPtr{UInt8,AS.Global}), $oc.hostcall.buf_ptr))
+    ptr = :(reinterpret($(LLVMPtr{UInt8, AS.Global}), $oc.buf_ptr))
     push!(ex.args, :(Base.unsafe_store!($ptr, $byte, $N)))
-    return N+1
+    return N + 1
 end
+
 function rocprint!(ex, N, oc, iex::Expr)
     for arg in iex.args
         N = rocprint!(ex, N, oc, arg)
     end
     return N
 end
-function rocprint!(ex, N, oc, sym::S) where S
+
+function rocprint!(ex, N, oc, ::S) where S
     error("Dynamic printing of $S only supported via @rocprintf")
 end
 
-## @rocprintf
-
-# Serializes execution of a function within a wavefront
-# From implementation by @jonathanvdc in CUDAnative.jl#419
-function wave_serialized(func::Function)
-    # Get the current thread's ID
-    thread_id = workitemIdx().x - 1
-
-    # Get the size of a wavefront
-    size = wavefrontsize()
-
-    local result
-    i = 0
-    while i < size
-        if thread_id % size == i
-            result = func()
+macro rocprint(str...)
+    if first(str) isa String || Meta.isexpr(first(str), :string)
+        # No OutputContext
+        @gensym oc_ptr oc
+        ex = quote
+            $oc_ptr = $output_context()
+            $oc = Base.unsafe_load($oc_ptr)
         end
-        i += 1
+        push!(ex.args, rocprint(oc, str...))
+        return esc(ex)
+    else
+        return esc(rocprint(first(str), str[2:end]...))
     end
-    return result
 end
 
+macro rocprintln(str...)
+    if first(str) isa String || Meta.isexpr(first(str), :string)
+        # No OutputContext
+        @gensym oc_ptr oc
+        ex = quote
+            $oc_ptr = $output_context()
+            $oc = Base.unsafe_load($oc_ptr)
+        end
+        push!(ex.args, rocprint(oc, str..., '\n'))
+        return esc(ex)
+    else
+        return esc(rocprint(first(str), str[2:end]..., '\n'))
+    end
+end
+
+# @rocprintf impementation.
+
 struct ROCPrintfBuffer end
+
 Base.sizeof(::ROCPrintfBuffer) = 0
-Base.unsafe_store!(::LLVMPtr{ROCPrintfBuffer,as} where as, x) = nothing
-function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
+
+Base.unsafe_store!(::LLVMPtr{ROCPrintfBuffer, AS.Global}, x) = nothing
+
+# TODO add docs about format.
+"""
+Read from the printf buffer on the host from HostCall task.
+"""
+function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
     ptr = reinterpret(Ptr{UInt64}, ptr)
 
-    # Read number of argument blocks in buffer
+    # Read number of argument blocks in buffer.
     blocks = unsafe_load(ptr)
     ptr += sizeof(UInt64)
 
-    # Read pointer to format string
+    # Read pointer to format string.
     fmt_ptr = Ptr{UInt64}(unsafe_load(ptr))
     ptr += sizeof(UInt64)
-
-    # Read format string length
+    # Read format string length.
     fmt_len = unsafe_load(ptr)
     ptr += sizeof(UInt64)
 
-    # Read format string into host buffer
+    # Read format string into host buffer.
     fmt_buf = Vector{UInt8}(undef, fmt_len)
-    HSA.memory_copy(convert(Ptr{Cvoid}, pointer(fmt_buf)), convert(Ptr{Cvoid}, fmt_ptr), fmt_len) |> Runtime.check
+    HSA.memory_copy(
+        convert(Ptr{Cvoid}, pointer(fmt_buf)),
+        convert(Ptr{Cvoid}, fmt_ptr), fmt_len) |> Runtime.check
     fmt = String(fmt_buf)
 
     # Read arguments
@@ -166,8 +138,7 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
                 break
             end
             T = unsafe_pointer_to_objref(T_ptr)
-
-            # Read argument
+            # Read argument.
             arg = unsafe_load(reinterpret(Ptr{T}, ptr))
             push!(args, arg)
             ptr += sizeof(arg)
@@ -176,59 +147,82 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer,as} where as)
         block += 1
     end
 
-    return (fmt, all_args)
+    return fmt, all_args
 end
 
-function _rocprintf_fmt(ptr, fmt_ptr, fmt_len)
+function _rocprintf_fmt(ptr::LLVMPtr{UInt64, AS.Global}, fmt_ptr, fmt_len::Int64)
     unsafe_store!(ptr, reinterpret(UInt64, fmt_ptr))
     ptr += sizeof(UInt64)
     unsafe_store!(ptr, UInt64(fmt_len))
     ptr += sizeof(UInt64)
     return ptr
 end
-@generated function pointer_from_type(::Type{T}) where T
-    ptr = pointer_from_objref(T)
-    return UInt64(ptr)
+
+function _pointer_from_type(::Type{T}) where T
+    UInt64(pointer_from_objref(T))
 end
-function _rocprintf_arg(ptr, arg::T) where T
-    T_ptr = pointer_from_type(T)
-    unsafe_store!(ptr, T_ptr)
+
+function _rocprintf_arg(ptr::LLVMPtr{UInt64, AS.Global}, arg::T) where T
+    unsafe_store!(ptr, _pointer_from_type(T))
     ptr += sizeof(UInt64)
-    unsafe_store!(reinterpret(LLVMPtr{T,1}, ptr), arg)
+
+    unsafe_store!(reinterpret(LLVMPtr{T, AS.Global}, ptr), arg)
     ptr += sizeof(arg)
-    #= FIXME
-    ref_arg = Ref{T}(arg)
-    GC.@preserve ref_arg begin
-    ptr_arg = convert(DevicePtr{UInt8,AS.Global},
-                      convert(DevicePtr{T,AS.Global},
-                      Base.unsafe_convert(Ptr{T}, ref_arg)))
-    memcpy!(ptr, ptr_arg, sizeof(arg), Val(true))
-    end
-    =#
     return ptr
 end
-#= TODO: Not really useful until we can work with device-side strings
-function _rocprintf_string(ptr, str::String)
-    @gensym T_str T_str_len str_ptr
-    quote
-        $T_str, $T_str_len = AMDGPU._rocprintf_T_str(String)
-        AMDGPU.Device.memcpy!($ptr, $T_str, $T_str_len)
-        $ptr += $T_str_len
-        unsafe_store!($ptr, UInt8(0))
-        $ptr += 1
-        $str_ptr = Base.unsafe_convert(DevicePtr{UInt8,AS.Generic}, $str_ptr)
-        $str_ptr = AMDGPU.Device.alloc_string($(Val(Symbol(str))))
-        AMDGPU.Device.memcpy!($ptr, $str_ptr, $(length(str)))
-        $ptr += $(length(str))
-        $ptr
-    end
-end
-@generated function _rocprintf_T_str(::Type{T}) where T
-    quote
-        (AMDGPU.Device.alloc_string($(Val(Symbol(repr(T))))), $(sizeof(repr(T))))
-    end
-end
-=#
+
+# macro rocprintf(args...)
+#     mode = :group
+#     @assert first(args) isa Union{QuoteNode,String} "First argument must be an inline Symbol or String"
+#     if first(args) isa QuoteNode
+#         mode = args[1].value::Symbol
+#         args = args[2:end]
+#         @assert mode isa Symbol "Execution mode must be a Symbol"
+#         @assert mode in (:grid, :group, :wave, :lane) "Invalid execution mode: $mode"
+#     end
+
+#     @assert first(args) isa String "@rocprintf format-string must be a String"
+#     fmt = args[1]
+#     args = args[2:end]
+
+#     @gensym printf_hc device_ptr device_fmt_ptr write_size
+#     ex = quote
+#         # Load printf HostCall.
+#         $printf_hc = Base.unsafe_load($printf_output_context())
+#         $device_ptr = reinterpret(
+#             $(LLVMPtr{UInt64, AS.Global}), $printf_hc.buf_ptr)
+#         # Allocate device-side format pointer.
+#         $device_fmt_ptr = $alloc_string($(Val(Symbol(fmt))))
+#         # Lock hostcall buffer.
+#         $hostcall_device_lock!($printf_hc)
+#         # Write block count.
+#         Base.unsafe_store!($device_ptr, UInt64(1)) # TODO take into account mode
+#         $device_ptr += sizeof(UInt64)
+#         # Write fmt string pointer & its bytesize.
+#         $device_ptr = $_rocprintf_fmt(
+#             $device_ptr, $device_fmt_ptr, $(sizeof(fmt)))
+#         # Calculate total write size per args block.
+#         $write_size =
+#             $hostcall_device_args_size($(map(esc, args)...)) + # Space for arguments.
+#             $(length(args)) * sizeof(UInt64) + # Space for type tags. # TODO what if args are less than uint64?
+#             sizeof(UInt64) # Space for terminator.
+#         # TODO account for offset for different modes.
+#     end
+
+#     # Write arguments & terminating null word.
+#     ex_args = Expr(:block)
+#     for arg in args
+#         push!(ex_args.args, :($device_ptr = $_rocprintf_arg(
+#             $device_ptr, $(esc(arg)))))
+#     end
+#     push!(ex_args.args, :(unsafe_store!($device_ptr, 0)))
+#     push!(ex.args, :(@device_execution_gate $mode $ex_args))
+
+#     # Submit & unlock hostcall buffer.
+#     push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
+#     push!(ex.args, :(nothing))
+#     ex
+# end
 
 function unsafe_ceil(x, y)
     up = Core.Intrinsics.urem_int(x, y) > 0
@@ -237,13 +231,16 @@ end
 
 macro rocprintf(args...)
     mode = :group
-    @assert first(args) isa Union{QuoteNode,String} "First argument must be an inline Symbol or String"
+    @assert first(args) isa Union{QuoteNode,String}
+        "First argument must be an inline Symbol or String"
     if first(args) isa QuoteNode
         mode = args[1].value::Symbol
         args = args[2:end]
         @assert mode isa Symbol "Execution mode must be a Symbol"
-        @assert mode in (:grid, :group, :wave, :lane) "Invalid execution mode: $mode"
+        @assert mode in (:grid, :group, :wave, :lane)
+            "Invalid execution mode: $mode"
     end
+
     @assert first(args) isa String "Format must be a String"
     fmt = args[1]
     args = args[2:end]
@@ -264,10 +261,9 @@ macro rocprintf(args...)
     push!(ex.args, :($device_fmt_ptr = $alloc_string($(Val(Symbol(fmt))))))
 
     # Load HostCall object
-    push!(ex.args, :($printf_hc = unsafe_load($get_global_pointer(Val(:__global_printf_context),
-                                                                        HostCall{Int64,Tuple{LLVMPtr{ROCPrintfBuffer,AS.Global}}}))))
-    push!(ex.args, :($device_ptr = reinterpret($(LLVMPtr{UInt64,AS.Global}), $printf_hc.buf_ptr)))
-
+    push!(ex.args, :($printf_hc = unsafe_load($printf_output_context())))
+    push!(ex.args, :($device_ptr = reinterpret(
+        $(LLVMPtr{UInt64,AS.Global}), $printf_hc.buf_ptr)))
     # Lock hostcall buffer
     push!(ex.args, :($hostcall_device_lock!($printf_hc)))
 
@@ -278,21 +274,24 @@ macro rocprintf(args...)
     elseif mode == :group
         push!(ex.args, :(unsafe_store!($device_ptr, UInt64(1))))
     elseif mode == :wave
-        waves_per_group = :($unsafe_ceil($workgroupDim().x,
-                                         $wavefrontsize()))
-        push!(ex.args, :(unsafe_store!($device_ptr, Base.unsafe_trunc(UInt64, $waves_per_group))))
+        waves_per_group = :($unsafe_ceil($workgroupDim().x, $wavefrontsize()))
+        push!(ex.args, :(unsafe_store!(
+            $device_ptr, Base.unsafe_trunc(UInt64, $waves_per_group))))
     elseif mode == :lane
-        push!(ex.args, :(unsafe_store!($device_ptr, Base.unsafe_trunc(UInt64, $workgroupDim().x))))
+        push!(ex.args, :(unsafe_store!(
+            $device_ptr, Base.unsafe_trunc(UInt64, $workgroupDim().x))))
     end
     push!(ex.args, :($device_ptr += sizeof(UInt64)))
 
     # Write format string pointer
-    push!(ex.args, :($device_ptr = $_rocprintf_fmt($device_ptr, $device_fmt_ptr, $(sizeof(fmt)))))
+    push!(ex.args, :($device_ptr = $_rocprintf_fmt(
+        $device_ptr, $device_fmt_ptr, $(sizeof(fmt)))))
 
     # Calculate total write size per args block
-    push!(ex.args, :($write_size = $hostcall_device_args_size($(map(esc, args)...)) # Space for arguments
-                                 + $(length(args))*sizeof(UInt64) + # Space for type tags
-                                 + sizeof(UInt64))) # Space for terminator
+    push!(ex.args, :($write_size =
+        $hostcall_device_args_size($(map(esc, args)...)) # Space for arguments
+        + $(length(args))*sizeof(UInt64) + # Space for type tags
+        + sizeof(UInt64))) # Space for terminator
 
     # Calulate offset into buffer
     # FIXME: Use y and z dims
@@ -301,8 +300,8 @@ macro rocprintf(args...)
     elseif mode == :group
         :(0)
     elseif mode == :wave
-        wave_idx = :(Core.Intrinsics.udiv_int($workitemIdx().x - UInt32(1),
-                                              $wavefrontsize()))
+        wave_idx = :(Core.Intrinsics.udiv_int(
+            $workitemIdx().x - UInt32(1), $wavefrontsize()))
         :($wave_idx * $write_size)
     elseif mode == :lane
         lane_idx = :(workitemIdx().x - 1)
@@ -313,13 +312,68 @@ macro rocprintf(args...)
     # Write arguments and terminating null word
     ex_args = Expr(:block)
     for arg in args
-        push!(ex_args.args, :($device_ptr = $_rocprintf_arg($device_ptr, $(esc(arg)))))
+        push!(ex_args.args, :($device_ptr = $_rocprintf_arg(
+            $device_ptr, $(esc(arg)))))
     end
     push!(ex_args.args, :(unsafe_store!($device_ptr, 0)))
     push!(ex.args, :(@device_execution_gate $mode $ex_args))
 
     # Submit and unlock hostcall buffer
     push!(ex.args, :($hostcall_device_trigger_and_return!($printf_hc)))
+    push!(ex.args, :(nothing))
+    ex
+end
+
+@inline _to_linear(w, h, i, j, k) =
+    i + w * (j - 1 + ((k - 1) * h))
+
+macro ⊡(exec_ex)
+    @gensym x y z value
+    quote
+        $x = $workitemIdx().x + ($workgroupIdx().x - UInt32(1)) * $workgroupDim().x
+        $y = $workitemIdx().y + ($workgroupIdx().y - UInt32(1)) * $workgroupDim().y
+        $z = $workitemIdx().z + ($workgroupIdx().z - UInt32(1)) * $workgroupDim().z
+        $value = _to_linear(
+            UInt64($gridItemDim().x), UInt64($gridItemDim().y),
+            UInt64($x), UInt64($y), UInt64($z))
+        if gate!($value)
+            $(esc(exec_ex))
+        end
+    end
+end
+
+macro errprintf(args...)
+    fmt, args = args[1], args[2:end]
+    @assert fmt isa String "@errprintf format-string must be a String: $fmt."
+
+    @gensym buffer_ptr device_fmt_str write_size
+    err_ex = quote
+        $buffer_ptr = $err_buffer!()
+        reinterpret(UInt64, $buffer_ptr) == 0 && return
+        $device_fmt_str = $alloc_string($(Val(Symbol(fmt))))
+        # Write block count (compat with printf, not used).
+        Base.unsafe_store!($buffer_ptr, UInt64(1))
+        $buffer_ptr += sizeof(UInt64)
+        # Write fmt string pointer & its bytesize.
+        $buffer_ptr = $_rocprintf_fmt(
+            $buffer_ptr, $device_fmt_str, $(sizeof(fmt)))
+        # Calculate total write size per args block.
+        $write_size =
+            $hostcall_device_args_size($(map(esc, args)...)) + # Space for arguments.
+            $(length(args)) * sizeof(UInt64) + # Space for type tags.
+            sizeof(UInt64) # Space for terminator.
+    end
+
+    # Write arguments & terminating null word.
+    for arg in args
+        push!(err_ex.args,
+            :($buffer_ptr = $_rocprintf_arg($buffer_ptr, $(esc(arg)))))
+    end
+    push!(err_ex.args, :(unsafe_store!($buffer_ptr, 0)))
+
+    # Pass through ⊡ gate.
+    ex = Expr(:block)
+    push!(ex.args, :(@⊡ $err_ex))
     push!(ex.args, :(nothing))
     ex
 end

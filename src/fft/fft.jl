@@ -347,35 +347,24 @@ function assert_applicable(p::ROCFFTPlan{T,K}, X::ROCArray{T}, Y::ROCArray{Ty}) 
 end
 
 function unsafe_execute!(plan::cROCFFTPlan{T,K,true,N}, X::ROCArray{T,N}) where {T,K,N}
-    wait!(X)
     rocfft_execute(plan, [pointer(X),], C_NULL, plan.execution_info)
-    mark!(X, C_NULL)
 end
 
 function unsafe_execute!(plan::cROCFFTPlan{T,K,false,N}, X::ROCArray{T,N}, Y::ROCArray{T}) where {T,N,K}
     Xcopy = copy(X) # since input array can also be modified
-    wait!(Y)
     rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
-    mark!(Xcopy, C_NULL)
-    mark!(Y, C_NULL)
 end
 
 function unsafe_execute!(plan::rROCFFTPlan{T,ROCFFT_FORWARD,false,N}, X::ROCArray{T,N}, Y::ROCArray{<:rocfftComplexes,N}) where {T<:rocfftReals,N}
     @assert plan.xtype == rocfft_transform_type_real_forward
     Xcopy = copy(X)
-    wait!(Y)
     rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
-    mark!(Xcopy, C_NULL)
-    mark!(Y, C_NULL)
 end
 
 function unsafe_execute!(plan::rROCFFTPlan{T,ROCFFT_INVERSE,false,N}, X::ROCArray{T,N}, Y::ROCArray{<:rocfftReals,N}) where {T<:rocfftComplexes,N}
     @assert plan.xtype == rocfft_transform_type_real_inverse
     Xcopy = copy(X)
-    wait!(Y)
     rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
-    mark!(Xcopy, C_NULL)
-    mark!(Y, C_NULL)
 end
 
 

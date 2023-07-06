@@ -16,7 +16,7 @@
     d_c = similar(d_a)
     len = prod(dims)
 
-    wait(@roc groupsize=len vadd(d_a, d_b, d_c))
+    @roc groupsize=len vadd(d_a, d_b, d_c)
     c = Array(d_c)
     @test a+b ≈ c
 end

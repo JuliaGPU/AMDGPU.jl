@@ -1,15 +1,13 @@
 module MIOpen
 
+using CEnum
+
 using ..AMDGPU
+import AMDGPU: ROCArray, LockedObject, HandleCache, HIP, library_state
 import AMDGPU.Runtime.Mem
-import AMDGPU: ROCArray, ROCDevice, LockedObject
-import AMDGPU: HandleCache, HIP, library_state
 import .HIP: hipStream_t
 
-using CEnum
-using GPUArrays
-
-if AMDGPU.use_artifacts && AMDGPU.functional(:MIOpen)
+if AMDGPU.use_artifacts() && AMDGPU.functional(:MIOpen)
     using MIOpen_jll
     const libMIOpen_path = MIOpen_jll.libMIOpen_path
 else
@@ -91,15 +89,6 @@ lib_state() = library_state(
 
 handle() = lib_state().handle
 stream() = lib_state().stream
-
-mutable struct Workspace
-    data::Mem.Buffer
-    function Workspace(dev::ROCDevice, bytesize)
-        w = new(Mem.alloc(dev, bytesize))
-        finalizer(w_ -> Mem.free(w_.data), w)
-        w
-    end
-end
 
 include("descriptors.jl")
 include("convolution.jl")

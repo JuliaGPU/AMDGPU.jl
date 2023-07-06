@@ -37,7 +37,6 @@ end
 
 function KernelAbstractions.copyto!(::ROCBackend, A, B)
     GC.@preserve A B begin
-        # TODO: async copy
         copyto!(A, 1, B, 1, length(A))
     end
     return nothing
@@ -100,9 +99,7 @@ function (obj::Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=nothi
     nthreads = length(workitems(iterspace))
     nblocks == 0 && return nothing
 
-    AMDGPU.@roc(
-        groupsize=nthreads, gridsize=(nblocks * nthreads),
-        obj.f(ctx, args...))
+    kernel(ctx, args...; groupsize=nthreads, gridsize=nblocks)
     return nothing
 end
 
@@ -177,11 +174,12 @@ end
     AMDGPU.Device.sync_workgroup()
 end
 
-@device_override @inline function __print(args...)
-    for arg in args
-        AMDGPU.Device.@rocprintf("%s", arg)
-    end
-end
+# TODO fix
+# @device_override @inline function __print(args...)
+#     for arg in args
+#         AMDGPU.Device.@rocprintf("%s", arg)
+#     end
+# end
 
 ###
 # GPU implementation of constant memory

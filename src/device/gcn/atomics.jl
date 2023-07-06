@@ -29,14 +29,14 @@ atomic_store!(ptr::LLVMPtr, val, order=Val{:release}()) =
 
 @generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T) where {binop, T, A}
     @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T; ctx)
-        T_ptr = convert(LLVMType, ptr; ctx)
+        T_val = convert(LLVMType, T)
+        T_ptr = convert(LLVMType, ptr)
 
         T_typed_ptr = LLVM.PointerType(T_val, A)
         llvm_f, _ = create_function(T_val, [T_ptr, T_val])
 
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
@@ -96,14 +96,14 @@ end
 
 @generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
     @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T; ctx)
-        T_ptr = convert(LLVMType, ptr; ctx)
+        T_val = convert(LLVMType, T)
+        T_ptr = convert(LLVMType, ptr)
 
         T_typed_ptr = LLVM.PointerType(T_val, A)
         llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
 
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
@@ -171,9 +171,11 @@ end
 """
     atomic_cas!(ptr::LLVMPtr{T}, cmp::T, val::T)
 
-Reads the value `old` located at address `ptr` and compare with `cmp`. If `old` equals to
-`cmp`, stores `val` at the same address. Otherwise, doesn't change the value `old`. These
-operations are performed in one atomic transaction. The function returns `old`.
+Reads the value `old` located at address `ptr` and compare with `cmp`.
+If `old` equals to `cmp`, stores `val` at the same address.
+Otherwise, doesn't change the value `old`.
+These operations are performed in one atomic transaction.
+The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
 """

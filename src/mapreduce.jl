@@ -5,26 +5,28 @@
 # - group-stride loop to delay need for second kernel launch
 
 # Reduce a value across a group, using local memory for communication
-@inline function reduce_group(op, val::T, neutral, ::Val{maxitems}) where {T, maxitems}
-    items = workgroupDim().x
-    item = workitemIdx().x
+@inline function reduce_group(op, val::T, neutral) where T
+    items::UInt32 = workgroupDim().x
+    item::UInt32 = workitemIdx().x
 
-    # shared mem for a complete reduction
-    shared = ROCDeviceArray((2*maxitems,), Device.alloc_special(Val(:reduce_block), T, Val(AS.Local), Val(2*maxitems)))
+    # Shared mem for a complete reduction.
+    shared = @ROCDynamicLocalArray(T, items, false)
     @inbounds shared[item] = val
 
-    # perform a reduction
-    d = items>>1
-    while d > 0
+    # Perform a reduction.
+    d::UInt32 = UInt32(1)
+    while d < items
         sync_workgroup()
-        if item <= d
-            shared[item] = op(shared[item], shared[item+d])
+        index::UInt32 = UInt32(2) * d * (item - UInt32(1)) + UInt32(1)
+        @inbounds if index ≤ items
+            other_val = ifelse(index + d ≤ items, shared[index + d], neutral)
+            shared[index] = op(shared[index], other_val)
         end
-        d >>= 1
+        d *= UInt32(2)
     end
 
-    # load the final value on the first item
-    if item == 1
+    # Load the final value on the first item.
+    if item == UInt32(1)
         val = @inbounds shared[item]
     end
 
@@ -38,43 +40,42 @@ Base.@propagate_inbounds _map_getindex(args::Tuple{}, I) = ()
 # Reduce an array across the grid. All elements to be processed can be addressed by the
 # product of the two iterators `Rreduce` and `Rother`, where the latter iterator will have
 # singleton entries for the dimensions that should be reduced (and vice versa).
-function partial_mapreduce_device(f, op, neutral, maxitems, Rreduce, Rother, R, As...)
+function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
     # decompose the 1D hardware indices into separate ones for reduction (across items
     # and possibly groups if it doesn't fit) and other elements (remaining groups)
     localIdx_reduce = workitemIdx().x
     localDim_reduce = workgroupDim().x
-    groupIdx_reduce, groupIdx_other = fldmod1(workgroupIdx().x, length(Rother))
-    groupDim_reduce = gridGroupDim().x ÷ length(Rother)
+
+    n_elements_other::UInt32 = length(Rother)
+    groupIdx_reduce, groupIdx_other = fldmod1(workgroupIdx().x, n_elements_other)
+    groupDim_reduce = gridGroupDim().x ÷ n_elements_other
 
     # group-based indexing into the values outside of the reduction dimension
     # (that means we can safely synchronize items within this group)
     iother = groupIdx_other
-    @inbounds if iother <= length(Rother)
+    @inbounds if iother ≤ length(Rother)
         Iother = Rother[iother]
 
         # load the neutral value
         Iout = CartesianIndex(Tuple(Iother)..., groupIdx_reduce)
-        neutral = if neutral === nothing
-            R[Iout]
-        else
-            neutral
-        end
+        neutral = ifelse(neutral ≡ nothing, R[Iout], neutral)
 
         val = op(neutral, neutral)
 
         # reduce serially across chunks of input vector that don't fit in a group
-        ireduce = localIdx_reduce + (groupIdx_reduce - 1) * localDim_reduce
-        while ireduce <= length(Rreduce)
+        ireduce = localIdx_reduce + (groupIdx_reduce - UInt32(1)) * localDim_reduce
+        n_elements_reduce::UInt32 = length(Rreduce)
+        while ireduce ≤ n_elements_reduce
             Ireduce = Rreduce[ireduce]
             J = Base.max(Iother, Ireduce)
             val = op(val, f(_map_getindex(As, J)...))
             ireduce += localDim_reduce * groupDim_reduce
         end
 
-        val = reduce_group(op, val, neutral, maxitems)
+        val = reduce_group(op, val, neutral)
 
         # write back to memory
-        if localIdx_reduce == 1
+        if localIdx_reduce == UInt32(1)
             R[Iout] = val
         end
     end
@@ -84,9 +85,10 @@ end
 
 ## COV_EXCL_STOP
 
-function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
-                                 A::Union{AbstractArray,Broadcast.Broadcasted};
-                                 init=nothing) where {F, OP, T}
+function GPUArrays.mapreducedim!(
+    f::F, op::OP, R::AnyROCArray{T},
+    A::Union{AbstractArray,Broadcast.Broadcasted}; init=nothing,
+) where {F, OP, T}
     Base.check_reducedims(R, A)
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
 
@@ -128,30 +130,14 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
     # we might not be able to launch all those items to reduce each slice in one go.
     # that's why each items also loops across their inputs, processing multiple values
     # so that we can span the entire reduction dimension using a single item group.
-
-    # group size is restricted by local memory
-    device = AMDGPU.device(R)
-    pools = filter(p -> Runtime.pool_segment(p) == HSA.AMD_SEGMENT_GROUP,
-        Runtime.memory_pools(device))
-    max_items = if !isempty(pools)
-        pool = first(pools)
-        max_lmem_elements = Runtime.pool_size(pool) ÷ sizeof(T)
-        isa = first(Runtime.isas(device))
-        Base.min(Runtime.isa_workgroup_max_size(isa), compute_items(max_lmem_elements ÷ 2))
-    else
-        @warn "No group segment detected for device $device; assuming 64 elements\nThis message will not be shown again" maxlog=1
-        64
-    end
-    # TODO: dynamic local memory to avoid two compilations
-
-    #= TODO: let the runtime suggest a group size
-    args = (f, op, init, Val(max_items), Rreduce, Rother, R′, A)
-    kernel_args = rocconvert.(args)
-    kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-    kernel = rocfunction(partial_mapreduce_device, kernel_tt)
-    reduce_items = compute_items(suggest_groupsize(kernel.fun, wanted_items).x)
-    =#
-    reduce_items = max_items
+    max_block_size = 256
+    compute_shmem(items) = items * sizeof(T)
+    max_shmem = max_block_size |> compute_items |> compute_shmem
+    kernel = @roc launch=false partial_mapreduce_device(
+        f, op, init, Rreduce, Rother, R′, A)
+    kernel_config = launch_configuration(kernel; shmem=max_shmem, max_block_size)
+    reduce_items = compute_items(kernel_config.groupsize)
+    reduce_shmem = compute_shmem(reduce_items)
 
     # how many groups should we launch?
     #
@@ -162,15 +148,14 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
     reduce_groups = cld(length(Rreduce), reduce_items)
 
     # determine the launch configuration
-    items = reduce_items
-    groups = reduce_groups*other_groups
-    gridsize = items*groups
+    blocks = reduce_items
+    grid = reduce_groups * other_groups
 
     # perform the actual reduction
     if reduce_groups == 1
         # we can cover the dimensions to reduce using a single group
-        wait(@roc gridsize=gridsize groupsize=items partial_mapreduce_device(
-            f, op, init, Val(items), Rreduce, Rother, R′, A))
+        @roc gridsize=grid groupsize=blocks shmem=reduce_shmem partial_mapreduce_device(
+            f, op, init, Rreduce, Rother, R′, A)
     else
         # we need multiple steps to cover all values to reduce
         partial = similar(R, (size(R)..., reduce_groups))
@@ -178,8 +163,8 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyROCArray{T},
             # without an explicit initializer we need to copy from the output container
             partial .= R
         end
-        wait(@roc gridsize=gridsize groupsize=items partial_mapreduce_device(
-            f, op, init, Val(items), Rreduce, Rother, partial, A))
+        @roc gridsize=grid groupsize=blocks shmem=reduce_shmem partial_mapreduce_device(
+            f, op, init, Rreduce, Rother, partial, A)
 
         GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
     end

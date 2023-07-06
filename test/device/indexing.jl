@@ -13,7 +13,7 @@
 
     A = zeros(Int64, 6)
     RA = ROCArray(A)
-    wait(@roc groupsize=(1,2,3) gridsize=(4,5,6) idx_kern(RA))
+    @roc groupsize=(1,2,3) gridsize=(4,5,6) idx_kern(RA)
     A = Array(RA)
     @test all(A .> 0)
 
@@ -35,7 +35,9 @@
 
     A = zeros(Int64, 9)
     RA = ROCArray(A)
-    wait(@roc groupsize=(1,2,3) gridsize=(4,4,6) dim_kern(RA))
+    groupsize = (1, 2, 3)
+    gridsize = (4, 4, 6)
+    @roc groupsize=groupsize gridsize=gridsize dim_kern(RA)
     A = Array(RA)
-    @test A == [1,2,3,4,4,6,4,2,2]
+    @test A == [groupsize..., (groupsize .* gridsize)..., gridsize...]
 end

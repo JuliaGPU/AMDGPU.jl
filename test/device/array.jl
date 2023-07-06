@@ -19,8 +19,4 @@
     @test occursin("4×4 device array at", sprint(io->show(io, RD)))
     @test occursin("2×2 device array view", sprint(io->show(io, RD_view)))
     @test occursin("4×4 device array wrapper Adjoint", sprint(io->show(io, RD_adj)))
-
-    # Custom hash methods are defined
-    @test AMDGPU.Runtime.khash(RD) isa UInt # test that hashing doesn't segfault
-    @test AMDGPU.Runtime.khash(RD_view) isa UInt # test that SubArray hashing works
 end

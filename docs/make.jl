@@ -10,18 +10,18 @@ function main()
         pages = [
             "Home" => "index.md",
             "Quick Start" => "quickstart.md",
-            "Devices/Agents" => "devices.md",
-            "Queues and Signals" => "queues_signals.md",
-            "Kernel Dependencies" => "kernel_deps.md",
+            "Devices" => "devices.md",
+            "Streams" => "streams.md",
             "Kernel Launch" => "kernel_launch.md",
-            "Global Variables" => "globals.md",
             "Exceptions" => "exceptions.md",
-            "Printing" => "printing.md",
+            "Profiling" => "profiling.md",
             "Memory" => "memory.md",
+            "Host-Call" => "hostcall.md",
             "Intrinsics" => [
                 "Execution Control" => "execution_control.md",
                 "Wavefront Operations" => "wavefront_ops.md",
             ],
+            "Printing" => "printing.md",
             "Logging" => "logging.md",
             "API Reference" => "api.md"
         ]

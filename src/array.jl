@@ -8,12 +8,11 @@ struct ROCArrayBackend <: AbstractGPUBackend end
 
 struct ROCKernelContext <: AbstractKernelContext end
 
-function GPUArrays.gpu_call(::ROCArrayBackend, f, args, threads::Int, blocks::Int; name::Union{String,Nothing})
-    groupsize, gridsize = threads, blocks * threads
-    wait(@roc groupsize=groupsize gridsize=gridsize f(ROCKernelContext(), args...))
-end
-function GPUArrays.gpu_call(::ROCArrayBackend, f, args; elements::Int, name::Union{String,Nothing}=nothing)
-    wait(@roc groupsize=min(elements, 64) gridsize=elements f(ROCKernelContext(), args...))
+@inline function GPUArrays.gpu_call(
+    ::ROCArrayBackend, f, args, threads::Int, blocks::Int;
+    name::Union{String, Nothing},
+)
+    @roc gridsize=blocks groupsize=threads name=name f(ROCKernelContext(), args...)
 end
 
 ## on-device
@@ -21,11 +20,11 @@ end
 # indexing
 
 for (f, froc) in (
-        (:blockidx, :blockIdx),
-        (:blockdim, :blockDim),
-        (:threadidx, :threadIdx),
-        (:griddim, :gridGroupDim)
-    )
+    (:blockidx, :blockIdx),
+    (:blockdim, :blockDim),
+    (:threadidx, :threadIdx),
+    (:griddim, :gridGroupDim)
+)
     @eval @inline GPUArrays.$f(::ROCKernelContext) = AMDGPU.$froc().x
 end
 
@@ -50,54 +49,32 @@ end
     return
 end
 
-
 #
 # Host abstractions
 #
 
 mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
-    buf::Mem.Buffer
+    buf::Mem.HIPBuffer
     dims::Dims{N}
     offset::Int
-    syncstate::Runtime.SyncState
 
     function ROCArray{T,N}(
-        buf::Mem.Buffer, dims::Dims{N}; offset::Integer = 0,
-        syncstate::Runtime.SyncState = Runtime.SyncState(),
+        buf::Mem.HIPBuffer, dims::Dims{N}; offset::Integer = 0,
     ) where {T,N}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        xs = new{T,N}(buf, dims, offset, syncstate)
+        xs = new{T,N}(buf, dims, offset)
         Mem.retain(buf)
         finalizer(_safe_free!, xs)
         return xs
     end
 end
 
-_safe_free!(xs::ROCArray) = _safe_free!(xs.buf)
-function _safe_free!(buf::Mem.Buffer)
-    Mem.release(buf)
-    return
-end
+_safe_free!(xs::ROCArray) = Mem.release(xs.buf; stream=default_stream())
 
-unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf)
-
-wait!(x::ROCArray) = wait!(x.syncstate)
-mark!(x::ROCArray, s) = mark!(x.syncstate, s)
-wait!(xs::Vector{<:ROCArray}) = foreach(wait!, xs)
-mark!(xs::Vector{<:ROCArray}, s) = foreach(x->mark!(x,s), xs)
-wait!(xs::NTuple{N,<:ROCArray} where N) = foreach(wait!, xs)
-mark!(xs::NTuple{N,<:ROCArray} where N, s) = foreach(x->mark!(x,s), xs)
-function Adapt.adapt_storage(::Runtime.WaitAdaptor, x::ROCArray)
-    Runtime.wait!(x.syncstate)
-    x
-end
-function Adapt.adapt_storage(ma::Runtime.MarkAdaptor, x::ROCArray)
-    Runtime.mark!(x.syncstate, ma.s)
-    x
-end
+unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf; stream=stream())
 
 """
-    device(A::ROCArray) -> ROCDevice
+    device(A::ROCArray) -> HIPDevice
 
 Return the device associated with the array `A`.
 """
@@ -119,8 +96,8 @@ AnyROCVecOrMat{T} = Union{AnyROCVector{T}, AnyROCMatrix{T}}
 
 # type and dimensionality specified, accepting dims as tuples of Ints
 function ROCArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-    buf = Mem.alloc(prod(dims)*sizeof(T))
-    ROCArray{T,N}(buf, dims)
+    buf = Mem.HIPBuffer(prod(dims) * sizeof(T); stream=stream())
+    ROCArray{T, N}(buf, dims)
 end
 
 # type and dimensionality specified, accepting dims as series of Ints
@@ -134,13 +111,9 @@ ROCArray{T}(::UndefInitializer, dims::Integer...) where {T} =
 # from Base arrays
 function ROCArray{T,N}(x::Array{T,N}, dims::Dims{N}) where {T,N}
     r = ROCArray{T,N}(undef, dims)
-    Mem.upload!(r.buf, pointer(x), sizeof(x))
+    Mem.upload!(r.buf, pointer(x), sizeof(x); stream=stream())
     return r
 end
-
-# type as first argument
-# FIXME: Remove me!
-#ROCArray(::Type{T}, dims::Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
 
 # empty vector constructor
 ROCArray{T,1}() where {T} = ROCArray{T,1}(undef, 0)
@@ -152,7 +125,6 @@ Base.similar(::ROCArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T
 ## array interface
 
 Base.elsize(::Type{<:ROCArray{T}}) where {T} = sizeof(T)
-
 Base.size(x::ROCArray) = x.dims
 Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
 
@@ -162,9 +134,9 @@ ROCArray{T,N}(x::AbstractArray{S,N}) where {T,N,S} =
     ROCArray{T,N}(convert(Array{T}, x), size(x))
 
 # underspecified constructors
+ROCArray(A::AbstractArray{T,N}) where {T,N} = ROCArray{T,N}(A)
 ROCArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = ROCArray{T,N}(xs)
 (::Type{ROCArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = ROCArray{S,N}(x)
-ROCArray(A::AbstractArray{T,N}) where {T,N} = ROCArray{T,N}(A)
 
 # idempotency
 ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = xs
@@ -173,44 +145,47 @@ ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = xs
 
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
-
 ## memory operations
 
-function Base.copyto!(dest::Array{T}, d_offset::Integer,
-                      source::ROCArray{T}, s_offset::Integer,
-                      amount::Integer) where T
+function Base.copyto!(
+    dest::Array{T}, d_offset::Integer,
+    source::ROCArray{T}, s_offset::Integer, amount::Integer;
+    async::Bool = false,
+) where T
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
-    wait!(source)
-    Mem.download!(pointer(dest, d_offset),
-                  Mem.view(source.buf, source.offset + (s_offset-1)*sizeof(T)),
-                  amount*sizeof(T))
+    strm = stream()
+    Mem.download!(
+        pointer(dest, d_offset),
+        Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
+        amount * sizeof(T); stream=strm)
+    async || AMDGPU.synchronize(strm)
     dest
 end
-function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
-                      source::Array{T}, s_offset::Integer,
-                      amount::Integer) where T
+function Base.copyto!(
+    dest::ROCArray{T}, d_offset::Integer,
+    source::Array{T}, s_offset::Integer, amount::Integer,
+) where T
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset+amount-1)
     @boundscheck checkbounds(source, s_offset+amount-1)
-    wait!(dest)
-    Mem.upload!(Mem.view(dest.buf, dest.offset + (d_offset-1)*sizeof(T)),
-                pointer(source, s_offset),
-                amount*sizeof(T))
+    Mem.upload!(
+        Mem.view(dest.buf, dest.offset + (d_offset - 1) * sizeof(T)),
+        pointer(source, s_offset), amount * sizeof(T); stream=stream())
     dest
 end
-function Base.copyto!(dest::ROCArray{T}, d_offset::Integer,
-                      source::ROCArray{T}, s_offset::Integer,
-                      amount::Integer) where T
+function Base.copyto!(
+    dest::ROCArray{T}, d_offset::Integer,
+    source::ROCArray{T}, s_offset::Integer, amount::Integer,
+) where T
     amount == 0 && return dest
-    @boundscheck checkbounds(dest, d_offset+amount-1)
-    @boundscheck checkbounds(source, s_offset+amount-1)
-    wait!(dest)
-    wait!(source)
-    Mem.transfer!(Mem.view(dest.buf, dest.offset + (d_offset-1)*sizeof(T)),
-                  Mem.view(source.buf, source.offset + (s_offset-1)*sizeof(T)),
-                  amount*sizeof(T))
+    @boundscheck checkbounds(dest, d_offset + amount - 1)
+    @boundscheck checkbounds(source, s_offset + amount - 1)
+    Mem.transfer!(
+        Mem.view(dest.buf, dest.offset + (d_offset - 1) * sizeof(T)),
+        Mem.view(source.buf, source.offset + (s_offset - 1) * sizeof(T)),
+        amount * sizeof(T); stream=stream())
     dest
 end
 
@@ -221,13 +196,22 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
-function Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N,<:Integer}; device=device(), lock::Bool=true) where {T,N}
+function Base.unsafe_wrap(
+    ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
+    lock::Bool = true,
+) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
+    # TODO specialize ROCArray on a buffer type and pass HostBuffer.
     sz = prod(dims) * sizeof(T)
-    device_ptr = lock ? Mem.lock(ptr, sz, device) : ptr
-    buf = Mem.Buffer(device_ptr, Ptr{Cvoid}(ptr), device_ptr, sz, device, false, false)
-    return ROCArray{T, N}(buf, dims)
+    dptr = if lock
+        HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
+        Mem.device_ptr(Mem.HostBuffer(ptr, sz))
+    else
+        Ptr{Cvoid}(ptr)
+    end
+    return ROCArray{T, N}(Mem.HIPBuffer(dptr, sz), dims)
 end
+
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
@@ -274,7 +258,7 @@ end
 end
 @inline function unsafe_contiguous_view(a::ROCArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
-    ROCArray{T,M}(a.buf, dims; offset=a.offset+offset, syncstate=a.syncstate)
+    ROCArray{T,M}(a.buf, dims; offset=a.offset + offset)
 end
 
 @inline function unsafe_view(A, I, ::NonContiguous)
@@ -295,35 +279,8 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     if N == M && dims == size(a)
         return a
     end
-    ROCArray{T,N}(a.buf, dims; offset=a.offset, syncstate=a.syncstate)
+    ROCArray{T,N}(a.buf, dims; offset=a.offset)
 end
-
-
-## fft
-
-#=
-using AbstractFFTs
-
-# defining our own plan type is the easiest way to pass around the plans in FFTW interface
-# without ambiguities
-
-struct FFTPlan{T}
-    p::T
-end
-
-AbstractFFTs.plan_fft(A::ROCArray; kw_args...) = FFTPlan(plan_fft(A.data; kw_args...))
-AbstractFFTs.plan_fft!(A::ROCArray; kw_args...) = FFTPlan(plan_fft!(A.data; kw_args...))
-AbstractFFTs.plan_bfft!(A::ROCArray; kw_args...) = FFTPlan(plan_bfft!(A.data; kw_args...))
-AbstractFFTs.plan_bfft(A::ROCArray; kw_args...) = FFTPlan(plan_bfft(A.data; kw_args...))
-AbstractFFTs.plan_ifft!(A::ROCArray; kw_args...) = FFTPlan(plan_ifft!(A.data; kw_args...))
-AbstractFFTs.plan_ifft(A::ROCArray; kw_args...) = FFTPlan(plan_ifft(A.data; kw_args...))
-
-function Base.:(*)(plan::FFTPlan, A::ROCArray)
-    x = plan.p * A.data
-    ROCArray(x)
-end
-=#
-
 
 ## GPUArrays interfaces
 
@@ -387,7 +344,7 @@ zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
 @inline function _derived_array(::Type{T}, N::Int, a::ROCArray, osize::Dims) where {T}
-    return ROCArray{T,N}(a.buf, osize; offset=a.offset, syncstate=a.syncstate)
+    return ROCArray{T,N}(a.buf, osize; offset=a.offset)
 end
 
 ## reinterpret
@@ -514,14 +471,16 @@ Note that this operation is only supported on managed buffers, i.e., not on
 arrays that are created by `unsafe_wrap`.
 """
 function Base.resize!(A::ROCVector{T}, n::Integer) where T
-    if A.buf.host_ptr != C_NULL
-        throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
-    end
+    # TODO
+    #   1. Specialize ROCArray on storage type.
+    #   2. Check that it is not HostBuffer.
+    # if A.buf.host_ptr != C_NULL
+    #     throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
+    # end
 
     # TODO: add additional space to allow for quicker resizing
-    if n == length(A)
-        return A
-    end
+    n == length(A) && return A
+
     maxsize = n * sizeof(T)
     bufsize = if Base.isbitsunion(T)
         # type tag array past the data
@@ -529,15 +488,15 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     else
         maxsize
     end
-    new_buf = Mem.alloc(A.buf.device, bufsize)
+    new_buf = Mem.HIPBuffer(bufsize; stream=stream())
+
     copy_size = min(length(A), n) * sizeof(T)
-    wait!(A)
     if copy_size > 0
-        Mem.transfer!(new_buf, A.buf, copy_size)
+        Mem.transfer!(new_buf, A.buf, copy_size; stream=stream())
     end
 
     # Release old buffer
-    _safe_free!(A.buf)
+    _safe_free!(A)
     # N.B. Manually retain new buffer (this is normally done in ROCArray ctor)
     Mem.retain(new_buf)
 

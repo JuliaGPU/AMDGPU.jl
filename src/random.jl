@@ -6,8 +6,8 @@ const GPUARRAY_RNG = Ref{Union{Nothing,GPUArrays.RNG}}(nothing)
 
 function GPUArrays.default_rng(::Type{<:ROCArray})
     if GPUARRAY_RNG[] == nothing
-        device = AMDGPU.default_device()
-        N = Int(Runtime.device_workgroup_max_size(device))
+        device = AMDGPU.device()
+        N = HIP.properties(device).maxThreadsPerBlock
         state = ROCArray{NTuple{4, UInt32}}(undef, N)
         GPUARRAY_RNG[] = GPUArrays.RNG(state)
         Random.seed!(GPUARRAY_RNG[])
@@ -16,7 +16,7 @@ function GPUArrays.default_rng(::Type{<:ROCArray})
 end
 
 gpuarrays_rng() = GPUArrays.default_rng(ROCArray)
-const rocrand_rng = librocrand !== nothing ? rocRAND.default_rng : gpuarrays_rng
+const rocrand_rng = librocrand !== nothing ? rocRAND.handle : gpuarrays_rng
 
 # the interface is split in two levels:
 # - functions that extend the Random standard library, and take an RNG as first argument,

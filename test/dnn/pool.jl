@@ -12,7 +12,6 @@
         yd, workspace = MIOpen.maxpool(xd; pkwargs...)
         yd, workspace = MIOpen.maxpool!(yd, xd; pkwargs...)
         @test Array(yd) ≈ y
-        wh1 = AMDGPU.Runtime.Mem.download(UInt8, workspace.data, workspace.data.bytesize)
         @test Array(yd) ≈ y
 
         dy = ones(Float32, size(y))
@@ -21,13 +20,9 @@
         dx = NNlib.∇maxpool(dy, y, x, pdims)
         dxd = MIOpen.∇maxpool(dyd, yd, xd; workspace, pkwargs...)
         @test Array(dxd) ≈ dx
-        wh2 = AMDGPU.Runtime.Mem.download(UInt8, workspace.data, workspace.data.bytesize)
-        @test wh1 ≈ wh2 # Check that workspace was not modified.
 
         dxd = MIOpen.∇maxpool!(dxd, dyd, yd, xd; workspace, pkwargs...)
         @test Array(dxd) ≈ dx
-        wh3 = AMDGPU.Runtime.Mem.download(UInt8, workspace.data, workspace.data.bytesize)
-        @test wh1 ≈ wh3 # Check that workspace was not modified.
 
         # Mean pooling.
 

@@ -2,15 +2,15 @@
 
 @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
     @dispose ctx=Context() begin
-        T_int32 = LLVM.Int32Type(ctx)
+        T_int32 = LLVM.Int32Type()
 
         # create function
         llvm_f, _ = create_function(T_int32)
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             # call the indexing intrinsic
@@ -19,10 +19,9 @@
             idx = call!(builder, intr_typ, intr)
 
             # attach range metadata
-            range_metadata = MDNode([ConstantInt(UInt32(range.start); ctx),
-                                     ConstantInt(UInt32(range.stop); ctx)];
-                                    ctx)
-            metadata(idx)[LLVM.MD_range] = range_metadata
+            metadata(idx)[LLVM.MD_range] = MDNode([
+                ConstantInt(UInt32(range.start)),
+                ConstantInt(UInt32(range.stop))])
             ret!(builder, idx)
         end
 
@@ -32,14 +31,14 @@ end
 
 @generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
     @dispose ctx=Context() begin
-        T_int8 = LLVM.Int8Type(ctx)
-        T_int32 = LLVM.Int32Type(ctx)
+        T_int8 = LLVM.Int8Type()
+        T_int32 = LLVM.Int32Type()
 
         _as = convert(Int, AS.Constant)
         T_ptr_i8 = LLVM.PointerType(T_int8, _as)
         T_ptr_i32 = LLVM.PointerType(T_int32, _as)
 
-        T_T = convert(LLVMType, T; ctx)
+        T_T = convert(LLVMType, T)
         T_ptr_T = LLVM.PointerType(T_T, _as)
 
         # create function
@@ -47,8 +46,8 @@ end
         mod = LLVM.parent(llvm_f)
 
         # generate IR
-        @dispose builder=IRBuilder(ctx) begin
-            entry = BasicBlock(llvm_f, "entry"; ctx)
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
             # get the kernel dispatch pointer
@@ -58,16 +57,15 @@ end
 
             # load the index
             offset = base + ((off - 1) * sizeof(T))
-            idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset; ctx)])
+            idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
             idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
             idx_T = load!(builder, T_T, idx_ptr_T)
             idx = zext!(builder, idx_T, T_int32)
 
             # attach range metadata
-            range_metadata = MDNode([ConstantInt(T(range.start); ctx),
-                                     ConstantInt(T(range.stop); ctx)];
-                                    ctx)
-            metadata(idx_T)[LLVM.MD_range] = range_metadata
+            metadata(idx_T)[LLVM.MD_range] = MDNode([
+                ConstantInt(T(range.start)),
+                ConstantInt(T(range.stop))])
             ret!(builder, idx)
         end
 

@@ -1,10 +1,5 @@
 # interfacing with Random standard library
 
-using Random
-
-using GPUArrays
-
-
 mutable struct RNG <: Random.AbstractRNG
     handle::rocrand_generator
     typ::rocrand_rng_type
@@ -23,7 +18,6 @@ function unsafe_destroy!(rng::RNG)
 end
 
 Base.unsafe_convert(::Type{rocrand_generator}, rng::RNG) = rng.handle
-
 
 ## seeding
 function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
@@ -46,9 +40,7 @@ for (f,T) in ((:rocrand_generate, :UInt32), (:rocrand_generate_char,:Cuchar),
               (:rocrand_generate_uniform_double, :Float64), (:rocrand_generate_uniform_half, :Float16))
     @eval begin
         function Random.rand!(rng::RNG, A::ROCArray{$(T)})
-            wait!(A)
             $(f)(rng, A, length(A))
-            mark!(A, C_NULL)
             return A
         end
     end
@@ -56,16 +48,13 @@ end
 
 # some functions need pow2 lengths: use a padded array and copy back to the original one
 function inplace_pow2(A, f)
-    wait!(A)
     len = length(A)
     if len > 1 && ispow2(len)
         f(A)
-        mark!(A, C_NULL)
     else
         padlen = max(2, nextpow(2, len))
         B = similar(A, padlen)
         f(B)
-        mark!(B, C_NULL)
         copyto!(A, 1, B, 1, len)
         AMDGPU.unsafe_free!(B)
     end
@@ -156,24 +145,24 @@ rand_poisson(rng::RNG, T::PoissonType, dim1::Integer, dims::Integer...; kwargs..
     rand_poisson(rng, T, Dims((dim1, dims...)); kwargs...)
 
 # rand_logn! and rand_poisson! without specified rng
-rand_logn!(A::rocRAND.LognormalArray; kwargs...) = rand_logn!(default_rng(), A; kwargs...)
-rand_poisson!(A::rocRAND.PoissonArray; kwargs...) = rand_poisson!(default_rng(), A; kwargs...)
+rand_logn!(A::rocRAND.LognormalArray; kwargs...) = rand_logn!(handle(), A; kwargs...)
+rand_poisson!(A::rocRAND.PoissonArray; kwargs...) = rand_poisson!(handle(), A; kwargs...)
 
-rand_logn(T::rocRAND.LognormalType, dims::Dims; kwargs...) = rand_logn(default_rng(), T, dims; kwargs...)
-rand_poisson(T::rocRAND.PoissonType, dims::Dims; kwargs...) = rand_poisson(default_rng(), T, dims; kwargs...)
+rand_logn(T::rocRAND.LognormalType, dims::Dims; kwargs...) = rand_logn(handle(), T, dims; kwargs...)
+rand_poisson(T::rocRAND.PoissonType, dims::Dims; kwargs...) = rand_poisson(handle(), T, dims; kwargs...)
 
 rand_logn(T::rocRAND.LognormalType, dim1::Integer, dims::Integer...; kwargs...) =
-    rand_logn(default_rng(), T, Dims((dim1, dims...)); kwargs...)
+    rand_logn(handle(), T, Dims((dim1, dims...)); kwargs...)
 rand_poisson(T::rocRAND.PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
-    rand_poisson(default_rng(), T, Dims((dim1, dims...)); kwargs...)
+    rand_poisson(handle(), T, Dims((dim1, dims...)); kwargs...)
 rand_logn(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
     rand_logn!(ROCArray{T}(undef, dim1, dims...); kwargs...)
 rand_poisson(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
     rand_poisson!(ROCArray{T}(undef, dim1, dims...); kwargs...)
 rand_logn(dim1::Integer, dims::Integer...; kwargs...) =
-    rand_logn(default_rng(), Dims((dim1, dims...)); kwargs...)
+    rand_logn(handle(), Dims((dim1, dims...)); kwargs...)
 rand_poisson(dim1::Integer, dims::Integer...; kwargs...) =
-    rand_poisson(default_rng(), Dims((dim1, dims...)); kwargs...)
+    rand_poisson(handle(), Dims((dim1, dims...)); kwargs...)
 rand_logn(T::Type, dims::Dims; kwargs...) = rand_logn!(ROCArray{T}(undef, dims...); kwargs...)
 rand_poisson(T::Type, dims::Dims; kwargs...) = rand_poisson!(ROCArray{T}(undef, dims...); kwargs...)
 rand_logn!(A::ROCArray; kwargs...) =

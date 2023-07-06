@@ -1,21 +1,19 @@
 module AMDGPU
 
-### Imports ###
-
+using Adapt
 using CEnum
-using Libdl
-using LLVM, LLVM.Interop
 using GPUCompiler
 using GPUArrays
-using Adapt
+using Libdl
+using LLVM, LLVM.Interop
+using Preferences
+using Printf
+
 import LinearAlgebra
 import Core: LLVMPtr
 
-### Exports ###
-
-export ROCDevice, ROCQueue, ROCExecutable, ROCKernel, ROCSignal
+export HIPDevice
 export has_rocm_gpu
-
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export roc
 
@@ -32,19 +30,39 @@ function Base.lock(f, x::LockedObject)
     end
 end
 
+struct KernelState
+    # Exception reporting buffers.
+    exception_flag::Ptr{Int32}
+    gate::Ptr{UInt64}
+    buffers_counter::Ptr{Int32}
+    str_buffers_counter::Ptr{Int32}
+    buffers::Ptr{Ptr{Cvoid}}
+    string_buffers::Ptr{Ptr{Cvoid}}
+    n_buffers::Int32
+    n_str_buffers::Int32
+
+    # Malloc/free hostcalls.
+    malloc_hc::Ptr{Cvoid}
+    free_hc::Ptr{Cvoid}
+
+    # Print hostcalls.
+    output_context::Ptr{Cvoid}
+    printf_output_context::Ptr{Cvoid}
+end
+
 # Load HSA Runtime.
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath("hsa", "HSA.jl"))
-import .HSA: Agent, Queue, Executable, Status, Signal
 
-# Load binary dependencies
-include(joinpath(dirname(@__DIR__), "deps", "bindeps.jl"))
+# Load binary dependencies.
+include("discovery_utils.jl")
+include("rocm_discovery.jl")
+populate_globals!(bindeps_setup())
 
 # Utilities
 include("utils.jl")
 
 # Load HIP
-const libhip = "libamdhip64.so"
 include(joinpath("hip", "HIP.jl"))
 import .HIP: HIPContext, HIPDevice, HIPStream
 export HIPContext, HIPDevice, HIPStream
@@ -53,16 +71,18 @@ include("cache.jl")
 
 module Runtime
     using ..CEnum
-    using Setfield
-    import ..HSA
-    import ..Adapt
     using ..GPUCompiler
+
+    import ..Adapt
     import Preferences: @load_preference, @set_preferences!
     import TimespanLogging
     import TimespanLogging: timespan_start, timespan_finish
 
+    import ..HSA
+    import ..HIP
     import ..AMDGPU
-    import ..AMDGPU: getinfo, LockedObject, HIP
+    import ..AMDGPU: getinfo, LockedObject
+    import .HIP: HIPDevice
 
     struct Adaptor end
 
@@ -71,39 +91,51 @@ module Runtime
 
     include(joinpath("runtime", "logging.jl"))
     include(joinpath("runtime", "error.jl"))
-    include(joinpath("runtime", "thread-utils.jl"))
+    include(joinpath("runtime", "hsa_device.jl"))
     include(joinpath("runtime", "device.jl"))
-    include(joinpath("runtime", "linked-list.jl"))
-    include(joinpath("runtime", "queue.jl"))
-    include(joinpath("runtime", "signal.jl"))
     include(joinpath("runtime", "dims.jl"))
+
     module Mem
-        include(joinpath("runtime", "memory.jl"))
+        using Preferences
+
+        import AMDGPU
+        import AMDGPU: HIP, HSA
+        import AMDGPU: Runtime
+        import .HIP: HIPDevice
+        import .Runtime: ROCDim, ROCDim3, check
+
+        const refcounts_lock = Threads.ReentrantLock()
+
+        abstract type AbstractAMDBuffer end
+
+        include(joinpath("runtime", "memory", "utils.jl"))
+        include(joinpath("runtime", "memory", "hip.jl"))
+        include(joinpath("runtime", "memory", "refcount.jl"))
     end
-    include(joinpath("runtime", "executable.jl"))
-    include(joinpath("runtime", "hashing.jl"))
-    include(joinpath("runtime", "kernel.jl"))
-    include(joinpath("runtime", "kernel-signal.jl"))
-    include(joinpath("runtime", "launch.jl"))
+
     include(joinpath("runtime", "execution.jl"))
-    include(joinpath("runtime", "sync.jl"))
+    include(joinpath("runtime", "hip-execution.jl"))
     include(joinpath("runtime", "fault.jl"))
-end # module Runtime
+end
+
 import .Runtime: Mem
-import .Runtime: ROCDevice, ROCQueue
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
 
 module Device
-    import ..HSA
-    import ..Runtime
-    import ..Mem
-    import Core: LLVMPtr
     using ..GPUCompiler
     using ..LLVM
     using ..LLVM.Interop
+
+    import ..Adapt
+    import Core: LLVMPtr
     import ..LinearAlgebra
+
+    import ..HSA
+    import ..HIP
+    import ..Runtime
+    import ..Mem
     import ..AMDGPU
     import .AMDGPU: method_table
 
@@ -117,12 +149,11 @@ module Device
     include(joinpath("device", "runtime.jl"))
     include(joinpath("device", "quirks.jl"))
 end
-import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame
-import .Device: ROCDeviceArray, AS, HostCall, hostcall!
+import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame, report_exception_name
+import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
-import .Device: threadIdx, blockIdx, blockDim
-import .Device: sync_workgroup
+import .Device: threadIdx, blockIdx, blockDim, sync_workgroup
 import .Device: @rocprint, @rocprintln, @rocprintf
 
 export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
@@ -131,26 +162,27 @@ export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup
 
 module Compiler
+    import Core: LLVMPtr
+    import LLD_jll
+
     using ..GPUCompiler
     using ..LLVM
-    import ..Adapt
-    import Core: LLVMPtr
     using Printf
 
     import ..AMDGPU
     import ..AMDGPU: AS
     import ..Runtime
     import ..Device
-    import .Runtime: ROCDevice, ROCModule, ROCFunction
-    import .Runtime: Adaptor
-    import .Runtime: Mem
+    import ..HIP
+    import ..Mem
 
-    include(joinpath("compiler", "device-libs.jl"))
-    include(joinpath("compiler", "utils.jl"))
-    include(joinpath("compiler", "global-hooks.jl"))
+    include(joinpath("compiler", "zeroinit_lds.jl"))
+    include(joinpath("compiler", "device_libs.jl"))
+    include(joinpath("compiler", "exceptions.jl"))
+    include(joinpath("compiler", "output_context.jl"))
+    include(joinpath("compiler", "dynamic_memory.jl"))
     include(joinpath("compiler", "codegen.jl"))
-    include(joinpath("compiler", "occupancy.jl"))
-end # module Compiler
+end
 
 include("tls.jl")
 include("highlevel.jl")
@@ -164,10 +196,9 @@ include("array.jl")
 include("conversions.jl")
 include("broadcast.jl")
 include("mapreduce.jl")
+include("exception_handler.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
-
-include("deprecations.jl")
 
 ### Initialization and Shutdown ###
 
@@ -186,9 +217,6 @@ end
 
 # Load ROCm external libraries
 include(joinpath("blas", "rocBLAS.jl"))
-#include(joinpath("sparse", "rocSPARSE.jl")
-#include(joinpath("solver", "rocSOLVER.jl")
-#include(joinpath("solver", "rocALUTION.jl")
 include(joinpath("rand", "rocRAND.jl"))
 include(joinpath("fft", "rocFFT.jl"))
 include(joinpath("dnn", "MIOpen.jl"))
@@ -207,7 +235,7 @@ function __init__()
 
     if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
         env_use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
-        if use_artifacts != env_use_artifacts
+        if use_artifacts() != env_use_artifacts
             enable_artifacts!(env_use_artifacts)
             @warn """
             The environment variable JULIA_AMDGPU_DISABLE_ARTIFACTS does not match the value from preferences.
@@ -252,12 +280,9 @@ function __init__()
             end
 
             # Select the default device
-            for device in Runtime.fetch_devices()
-                if !isassigned(Runtime.DEFAULT_DEVICE) && device_type(device) == :gpu
-                    Runtime.DEFAULT_DEVICE[] = device
-                    break
-                end
-            end
+            Runtime.fetch_hsa_devices()
+            devs = Runtime.fetch_devices()
+            Runtime.set_default_device!(first(devs))
 
             # Setup HSA fault handler
             Runtime.setup_fault_handler()
@@ -269,7 +294,6 @@ function __init__()
         HSA runtime is unavailable, compilation and runtime functionality will be disabled.
         Reason: $hsa_build_reason
         """
-
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to load HSA runtime, but HSA must load, bailing out")
@@ -282,7 +306,6 @@ function __init__()
         LLD is unavailable, compilation functionality will be disabled.
         Reason: $lld_build_reason
         """
-
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to find ld.lld, but ld.lld must exist, bailing out")
@@ -295,7 +318,6 @@ function __init__()
         Device libraries are unavailable, device intrinsics will be disabled.
         Reason: $device_libs_build_reason
         """
-
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to find Device Libs, but Device Libs must exist, bailing out")
@@ -303,14 +325,11 @@ function __init__()
     end
 
     # Check whether HIP is available
-    if functional(:hip)
-        push!(Libdl.DL_LOAD_PATH, dirname(libhip_path))
-    else
+    if !functional(:hip)
         @warn """
         HIP library is unavailable, HIP integration will be disabled.
         Reason: $hip_build_reason
         """
-
         if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to load HIP runtime, but HIP must load, bailing out")
@@ -322,14 +341,15 @@ function __init__()
         "dense BLAS", "sparse BLAS", "linear solver",
         "fancy linear solver", "RNG", "FFT", "DNN/convolution")
     for ((name, pkg), purpose) in zip(rocm_ext_libs, descriptions)
-        if use_artifacts && pkg !== nothing && !functional(name)
+        if use_artifacts() && pkg !== nothing && !functional(name)
             # These are numerous and thus noisy
             build_reason = getfield(AMDGPU, Symbol(name, :_build_reason))
             @debug """
-            $pkg is unavailable, $purpose functionality will be disabled. Reason: $build_reason
+            $pkg is unavailable, $purpose functionality will be disabled.
+            Reason: $build_reason.
             """
         end
     end
 end
 
-end # module
+end

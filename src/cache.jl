@@ -115,7 +115,7 @@ function library_state(
     state = get!(() -> new_state(tls), states, tls.context)
 
     @noinline function update_stream(tls, state)
-        set_stream(new_handle, tls.stream)
+        set_stream(state.handle, tls.stream)
         return (; state.handle, tls.stream)
     end
     if state.stream != tls.stream

@@ -1,257 +1,169 @@
-import .Device: ExceptionEntry, HostCall
+struct HIPCompilerParams <: AbstractCompilerParams end
 
-## GPUCompiler interface
+const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
+const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
 
-struct ROCCompilerParams <: AbstractCompilerParams
-    device::ROCDevice
-    global_hooks::NamedTuple
+const _hip_compiler_cache = Dict{HIP.HIPDevice, Dict{Any, HIP.HIPFunction}}()
+
+# hash(fun, hash(f, hash(tt))) => HIPKernel
+const _kernel_instances = Dict{UInt, Runtime.HIPKernel}()
+
+function compiler_cache(dev::HIP.HIPDevice)
+    get!(() -> Dict{UInt, Any}(), _hip_compiler_cache, dev)
 end
 
-const ROCCompilerConfig = CompilerConfig{GCNCompilerTarget, ROCCompilerParams}
-const ROCCompilerJob = CompilerJob{GCNCompilerTarget, ROCCompilerParams}
+GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
 
-# Caches for GPUCompiler.
-const _compiler_cache = Dict{ROCDevice, Dict{UInt, Any}}()
-const _compiler_configs = Dict{UInt, ROCCompilerConfig}()
-const _kernel_instances = Dict{UInt, Any}() # HostKernel
+GPUCompiler.ci_cache(@nospecialize(::HIPCompilerJob)) = AMDGPU.ci_cache
 
-function compiler_cache(dev::ROCDevice)
-    get!(() -> Dict{UInt, Any}(), _compiler_cache, dev)
-end
+GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
-function compiler_config(dev::ROCDevice; kwargs...)
-    h = hash(dev, hash(kwargs))
-    get!(() -> _compiler_config(dev; kwargs...), _compiler_configs, h)
-end
-function _compiler_config(
-    dev::ROCDevice; global_hooks, kernel::Bool = true, name=nothing,
-    always_inline=true, kwargs...,
-)
-    isa = AMDGPU.default_isa(dev)
-    dev_isa, features = Runtime.llvm_arch_features(isa)
-
-    target = GCNCompilerTarget(; dev_isa, features)
-    params = ROCCompilerParams(dev, global_hooks)
-    CompilerConfig(target, params; kernel, name, always_inline)
-end
-
-GPUCompiler.runtime_module(@nospecialize(::ROCCompilerJob)) = AMDGPU
-
-GPUCompiler.ci_cache(@nospecialize(::ROCCompilerJob)) = AMDGPU.ci_cache
-
-GPUCompiler.method_table(@nospecialize(::ROCCompilerJob)) = AMDGPU.method_table
-
-# filter out functions from device libs
-GPUCompiler.isintrinsic(@nospecialize(job::ROCCompilerJob), fn::String) =
-    invoke(GPUCompiler.isintrinsic,
-           Tuple{CompilerJob{GCNCompilerTarget}, typeof(fn)},
-           job, fn) ||
-    startswith(fn, "rocm")
-
-function GPUCompiler.process_module!(@nospecialize(job::ROCCompilerJob), mod::LLVM.Module)
-    invoke(GPUCompiler.process_module!,
-           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)},
-           job, mod)
-    # Run this early (before optimization) to ensure we link OCKL
-    emit_exception_user!(mod)
-end
-function GPUCompiler.process_entry!(@nospecialize(job::ROCCompilerJob), mod::LLVM.Module, entry::LLVM.Function)
-    invoke(GPUCompiler.process_entry!,
-           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
-           job, mod, entry)
-    # Workaround for the lack of zeroinitializer support for LDS
-    zeroinit_lds!(mod, entry)
-end
-function GPUCompiler.finish_module!(@nospecialize(job::ROCCompilerJob), mod::LLVM.Module)
-    invoke(GPUCompiler.finish_module!,
-           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)},
-           job, mod)
-    delete_exception_user!(mod)
-end
+GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
 
 function GPUCompiler.link_libraries!(
-    @nospecialize(job::ROCCompilerJob), mod::LLVM.Module,
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
     undefined_fns::Vector{String},
 )
+    # @show undefined_fns
     invoke(GPUCompiler.link_libraries!,
-           Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
-           job, mod, undefined_fns)
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
+        job, mod, undefined_fns)
     link_device_libs!(job.config.target, mod)
 end
 
-const rocfunction_lock = ReentrantLock()
-
-"""
-    rocfunction(f, tt=Tuple{}; kwargs...)
-
-Low-level interface to compile a function invocation for the currently-active
-GPU, returning a callable kernel object. For a higher-level interface, use
-[`@roc`](@ref).
-
-The following keyword arguments are supported:
-- `name`: overrides the name that the kernel will have in the generated code
-- `device`: chooses which device to compile the kernel for
-- `global_hooks`: specifies maps from global variable name to initializer hook
-
-The output of this function is automatically cached, i.e. you can simply call
-`rocfunction` in a hot path without degrading performance. New code will be
-generated automatically, when function definitions change, or when different
-types or keyword arguments are provided.
-"""
-function rocfunction(
-    f::F, tt::Type = Tuple{}; device::ROCDevice = AMDGPU.device(),
-    global_hooks = NamedTuple(), kwargs...,
-) where {F <: Core.Function}
-    Base.@lock rocfunction_lock begin
-        @debug "Compiling $f($(join(tt.parameters, ", ")))"
-        Runtime.@log_start(:cached_compile, (;f=F, tt), nothing)
-
-        cache = compiler_cache(device)
-        config = compiler_config(device; global_hooks, kwargs...)
-        fun = GPUCompiler.cached_compilation(
-            cache, config, F, tt, compile, link)::ROCFunction
-
-        h = hash(fun, hash(f, hash(tt)))
-        kernel = get(_kernel_instances, h, Runtime.HostKernel{F,tt}(f, fun.mod, fun))
-        Runtime.@log_finish(:cached_compile, (;f=F, tt), nothing)
-        return kernel::Runtime.HostKernel{F,tt}
-    end
+function GPUCompiler.finish_ir!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    # @show collect(GPUCompiler.decls(mod))
+    # TODO fixx
+    link_device_libs!(job.config.target, mod)
+    return entry
 end
 
-# compile to GCN
-function compile(@nospecialize(job::CompilerJob))
-    Runtime.@log_start(:compile, (;fspec=job.source.specTypes), nothing)
-    JuliaContext() do ctx
-        obj, meta = GPUCompiler.compile(:obj, job; ctx)
-        # Find undefined globals and calculate sizes.
-        globals = map(
-            gbl -> Symbol(LLVM.name(gbl)) => llvmsize(eltype(value_type(gbl))),
-            filter!(isextinit, collect(LLVM.globals(meta.ir))))
-        entry = LLVM.name(meta.entry)
+function GPUCompiler.finish_module!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    entry = invoke(GPUCompiler.finish_module!,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+        job, mod, entry)
 
-        Runtime.@log_finish(:compile, (;fspec=job.source.specTypes), nothing)
-        return (; obj, entry, globals)
-    end
-end
-function link(@nospecialize(job::CompilerJob), compiled)
-    Runtime.@log_start(:link, (;fspec=job.source.specTypes), nothing)
-    device = job.config.params.device
-    global_hooks = job.config.params.global_hooks
-    (;obj, entry, globals) = compiled
+    # Workaround for the lack of zeroinitializer support for LDS.
+    zeroinit_lds!(mod, entry)
 
-    # create executable and kernel
-    obj = codeunits(obj)
-    exe = AMDGPU.create_executable(device, entry, obj; globals=globals)
-    mod = ROCModule(exe)
-    fun = ROCFunction(mod, entry, hash(job.source, UInt64(0)))
-
-    # initialize globals from hooks
-    for gname in first.(globals)
-        hook = nothing
-        if haskey(default_global_hooks, gname)
-            hook = default_global_hooks[gname]
-        elseif haskey(global_hooks, gname)
-            hook = global_hooks[gname]
-        end
-        if hook !== nothing
-            @debug "Initializing global $gname"
-            Runtime.@log_start(:global_init, (;fspec=job.source.specTypes, gname), nothing)
-            gbl = Runtime.get_global(exe, gname)
-            hook(gbl, mod, device)
-            Runtime.@log_finish(:global_init, (;fspec=job.source.specTypes, gname), nothing)
-        else
-            @debug "Uninitialized global $gname"
-            continue
-        end
-    end
-
-    Runtime.@log_finish(:link, (;fspec=job.source.specTypes), nothing)
-    return fun
-end
-
-function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
-    if LLVM.callconv(entry) != LLVM.API.LLVMAMDGPUKERNELCallConv
-        return entry
-    end
-    to_init = []
-    for gbl in LLVM.globals(mod)
-        if startswith(LLVM.name(gbl), "__zeroinit")
-            as = LLVM.addrspace(value_type(gbl))
-            if as == AMDGPU.Device.AS.Local
-                push!(to_init, gbl)
-            end
-        end
-    end
-    if length(to_init) > 0
-        ctx = LLVM.context(mod)
-        T_void = LLVM.VoidType(ctx)
-        LLVM.@dispose builder=LLVM.IRBuilder(ctx) begin
-            # Make these the first operations we do
-            position!(builder, first(LLVM.instructions(first(LLVM.blocks(entry)))))
-
-            # Use memset to clear all values to 0
-            for gbl in to_init
-                sz = llvmsize(eltype(value_type(gbl)))
-                if sz > 0
-                    LLVM.memset!(builder, gbl, ConstantInt(UInt8(0); ctx), ConstantInt(sz; ctx), LLVM.alignment(gbl))
-                end
-            end
-
-            # Synchronize the workgroup to prevent races
-            sync_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-            sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
-            call!(builder, sync_ft, sync_f)
-        end
+    # Force-inline exception-related functions.
+    # LLVM gets confused when not all functions are inlined,
+    # causing huge scratch memory usage.
+    # And GPUCompiler fails to inline all functions without forcing
+    # always-inline attributes on them. Add them here.
+    target_fns = (
+        "signal_exception", "report_exception", "malloc", "__throw_")
+    inline_attr = EnumAttribute("alwaysinline")
+    for fn in LLVM.functions(mod)
+        any(occursin.(target_fns, LLVM.name(fn))) || continue
+        attrs = LLVM.function_attributes(fn)
+        inline_attr ∈ collect(attrs) || push!(attrs, inline_attr)
     end
 
     return entry
 end
 
-## exception codegen
-# emit a global variable for storing the current exception status
-function emit_exception_user!(mod::LLVM.Module)
-    # add a fake user for __ockl_hsa_signal_store and __ockl_hsa_signal_load
-    if !haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
-        ctx = LLVM.context(mod)
-        ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-        fn = LLVM.Function(mod, "__fake_global_exception_flag_user", ft)
-        IRBuilder(ctx) do builder
-            entry = BasicBlock(fn, "entry"; ctx)
-            position!(builder, entry)
-            T_nothing = LLVM.VoidType(ctx)
-            T_i32 = LLVM.Int32Type(ctx)
-            T_i64 = LLVM.Int64Type(ctx)
+function compiler_config(
+    dev::HIP.HIPDevice; kernel::Bool = true,
+    name::Union{String, Nothing} = nothing, always_inline::Bool = true,
+)
+    hsa_isa = AMDGPU.default_isa(dev)
+    dev_isa, features = hsa_isa.arch_features
 
-            T_signal_store = LLVM.FunctionType(T_nothing, [T_i64, T_i64, T_i32])
-            signal_store = LLVM.Function(mod, "__ockl_hsa_signal_store", T_signal_store)
-            call!(builder, T_signal_store, signal_store,
-                [ConstantInt(0; ctx), ConstantInt(0; ctx),
-                #= __ATOMIC_RELEASE == 3 =#
-                ConstantInt(Int32(3); ctx)])
-
-            T_signal_load = LLVM.FunctionType(T_i64, [T_i64, T_i32])
-            signal_load = LLVM.Function(mod, "__ockl_hsa_signal_load", T_signal_load)
-            loaded_value = call!(builder, T_signal_load, signal_load,
-                [ConstantInt(0; ctx),
-                #= __ATOMIC_ACQUIRE == 2 =#
-                ConstantInt(Int32(2); ctx)])
-
-            T_signal_cas = LLVM.FunctionType(T_i64, [T_i64, T_i64, T_i64, T_i32])
-            signal_cas = LLVM.Function(mod, "__ockl_hsa_signal_cas", T_signal_cas)
-            loaded_value = call!(builder, T_signal_cas, signal_cas,
-                [ConstantInt(0; ctx), ConstantInt(0; ctx), ConstantInt(0; ctx),
-                 #= __ATOMIC_ACQ_REL == 4 =#
-                 ConstantInt(Int32(4); ctx)])
-
-            ret!(builder)
-        end
-    end
-    @assert haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
+    target = GCNCompilerTarget(; dev_isa, features)
+    params = HIPCompilerParams()
+    CompilerConfig(target, params; kernel, name, always_inline)
 end
-function delete_exception_user!(mod::LLVM.Module)
-    fns = LLVM.functions(mod)
-    if haskey(fns, "__fake_global_exception_flag_user")
-        unsafe_delete!(mod, fns["__fake_global_exception_flag_user"])
+
+const hipfunction_lock = ReentrantLock()
+
+function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
+    Base.@lock hipfunction_lock begin
+        dev = AMDGPU.device()
+        cache = compiler_cache(dev)
+        config = compiler_config(dev; kwargs...)
+
+        source = methodinstance(F, tt)
+        fun = GPUCompiler.cached_compilation(
+            cache, source, config, hipcompile, hiplink)
+
+        h = hash(fun, hash(f, hash(tt)))
+        kernel = get!(_kernel_instances, h) do
+            Runtime.HIPKernel{F, tt}(f, fun)
+        end
+        return kernel::Runtime.HIPKernel{F, tt}
     end
-    @assert !haskey(LLVM.functions(mod), "__fake_global_exception_flag_user")
+end
+
+function create_executable(obj)
+    lld = if AMDGPU.lld_artifact
+        `$(LLD_jll.lld()) -flavor gnu`
+    else
+        @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
+        `$(AMDGPU.lld_path)`
+    end
+
+    path_exe = mktemp() do path_o, io_o
+        write(io_o, obj)
+        flush(io_o)
+        path_exe = path_o * ".exe"
+        run(`$lld -shared -o $path_exe $path_o`)
+        path_exe
+    end
+    return read(path_exe)
+end
+
+function hipcompile(@nospecialize(job::CompilerJob))
+    obj, meta = JuliaContext() do ctx
+        GPUCompiler.compile(:obj, job)
+    end
+
+    entry = LLVM.name(meta.entry)
+    globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+
+    global_hostcall_names = (
+        :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
+    global_hostcalls = Symbol[]
+    for gbl in LLVM.globals(meta.ir), gbl_name in global_hostcall_names
+        occursin("__$gbl_name", LLVM.name(gbl)) || continue
+        push!(global_hostcalls, gbl_name)
+    end
+    if !isempty(global_hostcalls)
+        @warn """Global hostcalls detected: $global_hostcalls.
+        Use `AMDGPU.synchronize(; blocking=false)` to synchronize and stop them.
+        Otherwise, performance might degrade.
+        """ maxlog=1
+    end
+
+    if !isempty(globals)
+        @warn """
+        HIP backend does not support setting extinit globals.
+        But kernel `$entry` has following:
+        $globals
+
+        Compilation will likely fail.
+        """
+    end
+    (; obj=create_executable(codeunits(obj)), entry, global_hostcalls)
+end
+
+function hiplink(@nospecialize(job::CompilerJob), compiled)
+    (; obj, entry, global_hostcalls) = compiled
+    mod = HIP.HIPModule(obj)
+    HIP.HIPFunction(mod, entry, global_hostcalls)
+end
+
+function run_and_collect(cmd)
+    stdout = Pipe()
+    proc = run(pipeline(ignorestatus(cmd); stdout, stderr=stdout), wait=false)
+    close(stdout.in)
+
+    reader = Threads.@spawn String(read(stdout))
+    Base.wait(proc)
+    log = strip(fetch(reader))
+    return proc, log
 end

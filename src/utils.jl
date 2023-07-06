@@ -12,12 +12,11 @@ function hsa_version()
 end
 
 function versioninfo(io::IO=stdout)
-    println("Using ROCm provided by: ", use_artifacts ? "JLLs" : "System")
+    println("Using ROCm provided by: ", use_artifacts() ? "JLLs" : "System")
     println("HSA Runtime ($(functional(:hsa) ? "ready" : "MISSING"))")
     if functional(:hsa)
         println("- Path: $libhsaruntime_path")
         println("- Version: $(hsa_version())")
-        #println("- Initialized: $(repr(HSA_REFCOUNT[] > 0))")
     end
     println("ld.lld ($(functional(:lld) ? "ready" : "MISSING"))")
     if functional(:lld)
@@ -25,13 +24,11 @@ function versioninfo(io::IO=stdout)
     end
     println("ROCm-Device-Libs ($(functional(:device_libs) ? "ready" : "MISSING"))")
     if functional(:device_libs)
-        println("- Path: $device_libs_path")
-        # TODO: println("- Version: $(device_libs_version)")
+        println("- Path: $libdevice_libs")
     end
     println("HIP Runtime ($(functional(:hip) ? "ready" : "MISSING"))")
     if functional(:hip)
-        println("- Path: $libhip_path")
-        # TODO: println("- Version: $(libhip_version)")
+        println("- Path: $libhip")
     end
     println("rocBLAS ($(functional(:rocblas) ? "ready" : "MISSING"))")
     if functional(:rocblas)
@@ -63,7 +60,7 @@ function versioninfo(io::IO=stdout)
     end
 
     if functional(:hsa)
-        println("HSA Agents ($(length(Runtime.devices()))):")
+        println("HIP Devices ($(length(Runtime.devices()))):")
         for device in Runtime.devices()
             println("- ", repr(device))
         end
@@ -155,11 +152,8 @@ function functional(component::Symbol)
 end
 
 function has_rocm_gpu()
-    if !functional(:hsa)
-        return false
-    else
-        return length(devices(:gpu)) > 0
-    end
+    (functional(:hsa) && functional(:hip)) || return false
+    return length(devices()) > 0
 end
 
 function print_build_diagnostics()

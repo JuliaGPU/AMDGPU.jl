@@ -28,17 +28,12 @@ ROCDeviceArray
 struct ROCDeviceArray{T,N,A} <: AbstractArray{T,N}
     shape::Dims{N}
     ptr::LLVMPtr{T,A}
+    len::Int
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N} = new(shape,ptr)
-end
-
-# Define `khash` function to reduce runtime dispatches.
-function Runtime.khash(x::T, h::UInt=UInt(0)) where T <: AMDGPU.Device.ROCDeviceArray
-    for s in x.shape
-        h = hash(s, h)
+    function ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N}
+        new(shape, ptr, prod(shape))
     end
-    Runtime.khash(x.ptr, h)
 end
 
 const ROCDeviceVector = ROCDeviceArray{T,1,A} where {T,A}
@@ -67,11 +62,11 @@ ROCDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   
 
 Base.pointer(a::ROCDeviceArray) = a.ptr
 Base.pointer(a::ROCDeviceArray, i::Integer) =
-    pointer(a) + (i - 1) * Base.elsize(a)
+    pointer(a) + (i - 1) * Base.elsize(a) # TODO use _memory_offset(a, i)
 
 Base.elsize(::Type{<:ROCDeviceArray{T}}) where {T} = sizeof(T)
 Base.size(g::ROCDeviceArray) = g.shape
-Base.length(g::ROCDeviceArray) = prod(g.shape)
+Base.length(g::ROCDeviceArray) = g.len
 
 # conversions
 

@@ -57,13 +57,12 @@ function _softmax!(
             _logsoftmax!(y, x; dims) : _softmax!(y, x; dims)
     end
 
-    AMDGPU.wait!((x, y))
-    xdesc, ydesc = TensorDescriptor.((reshape(x, sdims), reshape(y, sdims)))
+    xr, yr = reshape(x, sdims), reshape(y, sdims)
+    xdesc, ydesc = TensorDescriptor.((xr, yr))
     (; handle, stream) = lib_state()
     miopenSoftmaxForward_V2(
-        handle, Ref{Float32}(1f0), xdesc.handle, x, Ref{Float32}(0f0),
-        ydesc.handle, y, algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
-    AMDGPU.mark!(y, stream)
+        handle, Ref{Float32}(1f0), xdesc.handle, xr, Ref{Float32}(0f0),
+        ydesc.handle, yr, algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
     y
 end
 
@@ -76,14 +75,12 @@ function _∇softmax!(
             _∇logsoftmax!(dx, dy, y; dims) : _∇softmax!(dx, dy, y; dims)
     end
 
-    AMDGPU.wait!((dx, dy, y))
     ydesc, dydesc, dxdesc = TensorDescriptor.((reshape(y, sdims), reshape(dy, sdims), reshape(dx, sdims)))
     (; handle, stream) = lib_state()
     miopenSoftmaxBackward_V2(
         handle, Ref{Float32}(1f0), ydesc.handle, y, dydesc.handle, dy,
         Ref{Float32}(0f0), dxdesc.handle, dx,
         algo, MIOPEN_SOFTMAX_MODE_CHANNEL) |> check
-    AMDGPU.mark!(dx, stream)
     dx
 end
 

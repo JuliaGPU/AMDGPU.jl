@@ -1,8 +1,5 @@
 using AMDGPU
-using AMDGPU: Runtime, Mem, Device, HSA, AS
-if AMDGPU.functional(:hip)
-    using AMDGPU: HIP
-end
+using AMDGPU: Runtime, Mem, Device, HIP, HSA, AS
 using GPUCompiler
 using LinearAlgebra
 using LLVM, LLVM.Interop
@@ -33,7 +30,7 @@ if isdefined(TestSuite, :WrapArray)
 end
 
 import AMDGPU: allowscalar, @allowscalar
-import AMDGPU.Device: HostCall, hostcall!
+import AMDGPU.Device: HostCallHolder, hostcall!
 allowscalar(false)
 
 CI = parse(Bool, get(ENV, "CI", "false"))
@@ -43,7 +40,4 @@ if CI
     AMDGPU.Runtime.EXIT_ON_MEMORY_FAULT[] = true
 end
 
-Runtime.DEFAULT_SIGNAL_TIMEOUT[] = 5.0
 Device.DEFAULT_HOSTCALL_TIMEOUT[] = 5.0
-
-const IS_NAVI_2 = AMDGPU.default_device().name in ("gfx1030", "gfx1031", "gfx1032")
