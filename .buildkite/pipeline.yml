@@ -57,7 +57,7 @@ steps:
     command: "julia --project -e 'using Pkg; Pkg.update()'"
     timeout_in_minutes: 180
     env:
-      JULIA_NUM_THREADS: 8
+      JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"

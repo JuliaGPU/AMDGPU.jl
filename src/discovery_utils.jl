@@ -11,8 +11,10 @@ function detect_projects()
     return (;amdgpu_project, current_project, julia_project)
 end
 
-julia_exeflags(projects = detect_projects()) =
-    String["--startup-file=no", "--project=$(projects.julia_project)"]
+julia_exeflags(projects = detect_projects()) = String[
+    "--startup-file=no",
+    "--project=$(projects.julia_project)",
+    "--threads=$(Threads.nthreads())"]
 
 function julia_cmd_projects(jl_str)
     projects = detect_projects()
