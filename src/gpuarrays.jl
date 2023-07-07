@@ -9,8 +9,6 @@ struct ROCKernelContext <: AbstractKernelContext end
     @roc gridsize=blocks groupsize=threads name=name f(ROCKernelContext(), args...)
 end
 
-## on-device
-
 # indexing
 
 for (f, froc) in (
@@ -46,3 +44,18 @@ end
 GPUArrays.device(x::ROCArray) = x.buf.device
 
 GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
+
+# @roc conversion
+
+function Base.convert(
+    ::Type{ROCDeviceArray{T, N, AS.Global}}, a::ROCArray{T, N},
+) where {T, N}
+    # If HostBuffer, use device pointer.
+    ptr = Base.unsafe_convert(Ptr{T},
+        typeof(a.buf) <: Mem.HIPBuffer ? a.buf : a.buf.dev_ptr)
+    ROCDeviceArray{T, N, AS.Global}(
+        a.dims, AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset))
+end
+
+Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
+    convert(ROCDeviceArray{T,N,AS.Global}, x)

@@ -165,12 +165,14 @@ function HostBuffer(bytesize::Integer, flags = 0)
     ptr_ref = Ref{Ptr{Cvoid}}()
     HIP.hipHostMalloc(ptr_ref, bytesize, flags) |> HIP.check
     ptr = ptr_ref[]
-    HostBuffer(ptr, get_device_ptr(ptr), bytesize, true, _buffer_id!())
+    dev_ptr = get_device_ptr(ptr)
+    HostBuffer(ptr, dev_ptr, bytesize, true, _buffer_id!())
 end
 
 function HostBuffer(ptr::Ptr{Cvoid}, sz::Integer)
     HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
-    HostBuffer(ptr, get_device_ptr(ptr), sz, false, _buffer_id!())
+    dev_ptr = get_device_ptr(ptr)
+    HostBuffer(ptr, dev_ptr, sz, false, _buffer_id!())
 end
 
 function view(buf::HostBuffer, bytesize::Int)
@@ -180,17 +182,31 @@ function view(buf::HostBuffer, bytesize::Int)
         buf.bytesize - bytesize, buf.own, buf._id)
 end
 
-function download!(dst::Ptr, src::HostBuffer, bytesize::Int; stream::HIP.HIPStream)
-    bytesize == 0 && return
-    HIP.hipMemcpyWithStream(
-        dst, src.ptr, bytesize, HIP.hipMemcpyHostToHost, stream) |> HIP.check
-    return
-end
+upload!(dst::HostBuffer, src::Ptr, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
 
-# TODO finish transfer functions
-# TODO provide dev pointer on pointer(buf) so that it can be used in kernels?
+upload!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where T = convert(Ptr{T}, buf.ptr)
+download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
+
+transfer!(dst::HostBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+# download!(::Ptr, ::HIPBuffer)
+transfer!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
+
+# upload!(::HIPBuffer, ::Ptr)
+transfer!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
+
+Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where T =
+    convert(Ptr{T}, buf.ptr)
 
 @inline device_ptr(buf::HostBuffer) = buf.dev_ptr
 

@@ -58,40 +58,57 @@ end
     end
 end
 
-# FIXME
-# @testset "unsafe_wrap" begin
-#     A = rand(4, 3)
-#     A_orig = copy(A)
-#     RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
-#     @test RA.buf.device == AMDGPU.default_device()
-#     @test RA isa ROCArray{Float64,2}
+@testset "unsafe_wrap" begin
+    @testset "Wrap host array" begin
+        A = rand(4, 4)
+        A_orig = copy(A)
 
-#     # GPU pointer works
-#     RA .+= 1.0
+        RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
+        # @test RA.buf.device == AMDGPU.default_device()
+        @test RA isa ROCArray{Float64, 2}
+        # pointer gives device mapped pointer, not host.
+        @test pointer(RA) == RA.buf.dev_ptr
 
-#     # Host pointer is updated
-#     @test A ≈ A_orig .+ 1.0
+        # ROCArray -> Array copy.
+        B = zeros(4, 4)
+        copyto!(B, RA)
+        @test B ≈ Array(RA)
 
-#     # Base.show
-#     @test (println(devnull, RA); true)
+        # GPU pointer works.
+        RA .+= 1.0
 
-#     # Mem.download!
-#     B = zeros(4, 3)
-#     copyto!(B, RA)
-#     @test B ≈ Array(RA)
+        # Host pointer is updated.
+        @test A ≈ A_orig .+ 1.0
 
-#     # Mem.upload!
-#     C = rand(4, 3)
-#     copyto!(RA, C)
-#     @test Array(RA) ≈ C
+        # Base.show
+        @test (println(devnull, RA); true)
 
-#     # Mem.transfer!
-#     D = rand(4, 3)
-#     D_orig = copy(D)
-#     RD = Base.unsafe_wrap(ROCArray, pointer(D), size(D))
-#     copyto!(RD, RA)
-#     @test Array(RD) ≈ Array(RA) ≈ C
-# end
+        # ROCArray -> ROCArray copy.
+        D = rand(4, 4)
+        RD = Base.unsafe_wrap(ROCArray, pointer(D), size(D))
+        copyto!(RD, RA)
+        @test Array(RD) ≈ Array(RA)
+
+        # Can use in HIP libraries.
+        @test Array(RA * RA) ≈ Array(A * A)
+    end
+
+    @testset "Wrap device array" begin
+        x = AMDGPU.rand(Float32, 4, 4)
+        xhost = Array(x)
+        xd = unsafe_wrap(ROCArray, pointer(x), size(x); lock=false)
+
+        xd .+= 1f0
+        @test Array(x) ≈ Array(xd) ≈ xhost .+ 1f0
+
+        y = AMDGPU.zeros(Float32, 4, 4)
+        copyto!(y, xd)
+        @test Array(y) ≈ Array(xd)
+
+        # Can use in HIP libraries.
+        @test Array(xd * xd) ≈ Array(x * x)
+    end
+end
 
 @testset "unsafe_free" begin
     A = AMDGPU.ones(4, 3)

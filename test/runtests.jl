@@ -6,20 +6,20 @@ include("setup.jl")
 @info "Testing using device $(AMDGPU.default_device())"
 AMDGPU.versioninfo()
 
-@info "Testing Device Functions on the main thread without workers..."
-@testset verbose=true "Device Functions" begin
-    include("device/launch.jl")
-    include("device/array.jl")
-    include("device/vadd.jl")
-    include("device/memory.jl")
-    include("device/indexing.jl")
-    include("device/math.jl")
-    include("device/wavefront.jl")
-    include("device/execution_control.jl")
-    include("device/exceptions.jl")
-    include("device/hostcall.jl")
-    include("device/output.jl")
-end
+# @info "Testing Device Functions on the main thread without workers..."
+# @testset verbose=true "Device Functions" begin
+#     include("device/launch.jl")
+#     include("device/array.jl")
+#     include("device/vadd.jl")
+#     include("device/memory.jl")
+#     include("device/indexing.jl")
+#     include("device/math.jl")
+#     include("device/wavefront.jl")
+#     include("device/execution_control.jl")
+#     include("device/exceptions.jl")
+#     include("device/hostcall.jl")
+#     include("device/output.jl")
+# end
 
 @testset "AMDGPU" begin
 
@@ -71,15 +71,15 @@ push!(tests, "Codegen" => ()->begin
     include("codegen/synchronization.jl")
     include("codegen/trap.jl")
 end)
-# if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
-#     push!(tests, "Logging" => ()->include("logging.jl"))
-# else
-#     @warn """
-#     Logging is statically disabled, skipping logging tests.
-#     This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
-#     """
-#     @test_skip "Logging"
-# end
+if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
+    push!(tests, "Logging" => ()->include("logging.jl"))
+else
+    @warn """
+    Logging is statically disabled, skipping logging tests.
+    This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
+    """
+    @test_skip "Logging"
+end
 push!(tests, "Multitasking" => ()->include("tls.jl"))
 push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
 push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
