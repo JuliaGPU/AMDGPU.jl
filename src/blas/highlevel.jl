@@ -71,9 +71,9 @@ for (t, uploc, isunitc) in (
     (:UnitUpperTriangular, 'U', 'U'),
 )
     @eval begin
-    LinearAlgebra.lmul!(A::$t{T, ROCMatrix{T}}, B::ROCVector{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.lmul!(A::$t{T, <: ROCMatrix}, B::ROCVector{T}) where T <: ROCBLASFloat =
         trmv!($uploc, 'N', $isunitc, parent(A), B)
-    LinearAlgebra.ldiv!(A::$t{T, ROCMatrix{T}}, B::ROCVector{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.ldiv!(A::$t{T, <: ROCMatrix}, B::ROCVector{T}) where T <: ROCBLASFloat =
         trsv!($uploc, 'N', $isunitc, parent(A), B)
     end
 end
@@ -86,18 +86,18 @@ for (t, uploc, isunitc) in (
     (:UnitUpperTriangular, 'L', 'U'),
 )
     @eval begin
-    LinearAlgebra.lmul!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix{T}}}, B::ROCVector{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.lmul!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASFloat =
         trmv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-    LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}, B::ROCVector{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASFloat =
         trmv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-    LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}, B::ROCVector{T}) where T <: ROCBLASComplex =
+    LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASComplex =
         trmv!($uploc, 'C', $isunitc, parent(parent(A)), B)
 
-    LinearAlgebra.ldiv!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix{T}}}, B::ROCVector{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.ldiv!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASFloat =
         trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-    LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}, B::ROCVector{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASFloat =
         trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-    LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}, B::ROCVector{T}) where T <: ROCBLASComplex =
+    LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASComplex =
         trsv!($uploc, 'C', $isunitc, parent(parent(A)), B)
     end
 end
@@ -199,14 +199,14 @@ for (t, uploc, isunitc) in (
     (:UnitUpperTriangular, 'U', 'U'),
 )
     @eval begin
-    LinearAlgebra.lmul!(A::$t{T, ROCMatrix{T}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.lmul!(A::$t{T, <: ROCMatrix}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
         trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B)
-    LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{T, ROCMatrix{T}}) where T <: ROCBLASFloat =
+    LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{T, <: ROCMatrix}) where T <: ROCBLASFloat =
         trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
 
-    LinearAlgebra.ldiv!(A::$t{T, ROCMatrix{T}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.ldiv!(A::$t{T, <: ROCMatrix}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
         trsm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B)
-    LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{T, ROCMatrix{T}}) where T <: ROCBLASFloat =
+    LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{T, <: ROCMatrix}) where T <: ROCBLASFloat =
         trsm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
     end
 end
@@ -220,34 +220,34 @@ for (t, uploc, isunitc) in (
 )
     @eval begin
     # Multiplication.
-    LinearAlgebra.lmul!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix{T}}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.lmul!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
         trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-    LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
         trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-    LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}, B::ROCMatrix{T}) where T <: ROCBLASComplex =
+    LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASComplex =
         trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B)
 
-    LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Transpose{T, <: ROCMatrix{T}}}) where T <: ROCBLASFloat =
+    LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Transpose{T, <: ROCMatrix}}) where T <: ROCBLASFloat =
         trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-    LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}) where T <: ROCBLASFloat =
+    LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}) where T <: ROCBLASFloat =
         trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-    LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}) where T <: ROCBLASComplex =
+    LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}) where T <: ROCBLASComplex =
         trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
 
     # Left division.
-    LinearAlgebra.ldiv!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix{T}}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.ldiv!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
         trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-    LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+    LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
         trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-    LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}, B::ROCMatrix{T}) where T <: ROCBLASComplex =
+    LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASComplex =
         trsm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B)
 
     # Right division.
-    LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Transpose{T, <: ROCMatrix{T}}}) where T <: ROCBLASFloat =
+    LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Transpose{T, <: ROCMatrix}}) where T <: ROCBLASFloat =
         trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-    LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}) where T <: ROCBLASFloat =
+    LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}) where T <: ROCBLASFloat =
         trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-    LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix{T}}}) where T <: ROCBLASComplex =
+    LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}) where T <: ROCBLASComplex =
         trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
     end
 end

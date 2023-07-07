@@ -211,11 +211,12 @@ Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where T =
 @inline device_ptr(buf::HostBuffer) = buf.dev_ptr
 
 function free(buf::HostBuffer; kwargs...)
-    # TODO unregister instead
-    buf.own || return
-
     buf.ptr == C_NULL && return
-    HIP.hipHostFree(buf) |> HIP.check
+    if buf.own
+        HIP.hipHostFree(buf) |> HIP.check
+    else
+        HIP.hipHostUnregister(buf.ptr) |> HIP.check
+    end
     return
 end
 
