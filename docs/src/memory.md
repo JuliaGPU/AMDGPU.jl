@@ -123,3 +123,44 @@ Like C, AMDGPU.jl provides the `memset!` and `memcpy!` intrinsics, which are
 useful for setting a memory region to a value, or copying one region to
 another, respectively.
 Check `test/device/memory.jl` for examples of their usage.
+
+## Wrapping in `ROCArray`
+
+You can wrap host array to be accessible (pinned) on the device with:
+
+```julia
+x = rand(Float32, 4, 4)
+xd = unsafe_wrap(ROCArray, pointer(x), size(x))
+
+# Pointer to `xd` is a device-mapped pointer, not host pointer.
+@show pointer(xd) == xd.buf.dev_ptr
+@show pointer(xd) == xd.buf.ptr
+
+# Can be used in kernels, host array `x` is also updated.
+xd .+= 1f0
+
+# Can be used with HIP libraries.
+xd * xd
+```
+
+Pinned memory is automatically unregistered upon array destruction.
+You can't free it, since it is managed by the host.
+
+Additionally, you can wrap the device array with:
+
+```julia
+x = AMDGPU.rand(Float32, 4, 4)
+xd = unsafe_wrap(ROCArray, pointer(x), size(x); lock=false)
+
+# Can be used in kernels, `x` is also updated.
+xd .+= 1f0
+
+# Can be used with HIP libraries.
+xd * xd
+
+# Freeing is a no-op for `xd`, since `xd` does not own the underlying memory.
+AMDGPU.unsafe_free!(xd) # No-op.
+```
+
+Notice mandatory `; lock=false` keyword, this is to be able to
+differentiate between host & device pointers.

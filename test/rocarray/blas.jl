@@ -226,4 +226,4 @@ end
     end
 end
 
-end # testset BLAS
+end

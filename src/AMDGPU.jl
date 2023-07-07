@@ -193,6 +193,7 @@ include("reflection.jl")
 import .Runtime: Mem
 
 include("array.jl")
+include("gpuarrays.jl")
 include("conversions.jl")
 include("broadcast.jl")
 include("mapreduce.jl")

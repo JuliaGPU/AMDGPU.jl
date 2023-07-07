@@ -63,4 +63,10 @@ function reclaim(bytes_to_keep::Integer = 0)
     trim(memory_pool(device()), bytes_to_keep)
 end
 
+function memcpy(dst, src, sz, kind, stream::HIPStream)
+    sz == 0 && return
+    HIP.hipMemcpyWithStream(dst, src, sz, kind, stream) |> HIP.check
+    return
+end
+
 end

@@ -1,77 +1,22 @@
-#
-# Device functionality
-#
-
-## execution
-
-struct ROCArrayBackend <: AbstractGPUBackend end
-
-struct ROCKernelContext <: AbstractKernelContext end
-
-@inline function GPUArrays.gpu_call(
-    ::ROCArrayBackend, f, args, threads::Int, blocks::Int;
-    name::Union{String, Nothing},
-)
-    @roc gridsize=blocks groupsize=threads name=name f(ROCKernelContext(), args...)
-end
-
-## on-device
-
-# indexing
-
-for (f, froc) in (
-    (:blockidx, :blockIdx),
-    (:blockdim, :blockDim),
-    (:threadidx, :threadIdx),
-    (:griddim, :gridGroupDim)
-)
-    @eval @inline GPUArrays.$f(::ROCKernelContext) = AMDGPU.$froc().x
-end
-
-# math
-
-@inline GPUArrays.cos(::ROCKernelContext, x) = cos(x)
-@inline GPUArrays.sin(::ROCKernelContext, x) = sin(x)
-@inline GPUArrays.sqrt(::ROCKernelContext, x) = sqrt(x)
-@inline GPUArrays.log(::ROCKernelContext, x) = log(x)
-
-# memory
-
-@inline function GPUArrays.LocalMemory(::ROCKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}) where {T,dims,id}
-    ptr = AMDGPU.Device.alloc_special(Val{id}(), T, Val{AMDGPU.AS.Local}(), Val{prod(dims)}())
-    ROCDeviceArray(dims, ptr)
-end
-
-# synchronization
-
-@inline function GPUArrays.synchronize_threads(::ROCKernelContext)
-    sync_workgroup()
-    return
-end
-
-#
-# Host abstractions
-#
-
-mutable struct ROCArray{T,N} <: AbstractGPUArray{T,N}
-    buf::Mem.HIPBuffer
+mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
+    buf::B
     dims::Dims{N}
     offset::Int
 
-    function ROCArray{T,N}(
-        buf::Mem.HIPBuffer, dims::Dims{N}; offset::Integer = 0,
-    ) where {T,N}
+    function ROCArray{T, N}(
+        buf::B, dims::Dims{N}; offset::Integer = 0,
+    ) where {T, N, B <: Union{Mem.HIPBuffer, Mem.HostBuffer}}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        xs = new{T,N}(buf, dims, offset)
+        xs = new{T, N, B}(buf, dims, offset)
         Mem.retain(buf)
         finalizer(_safe_free!, xs)
         return xs
     end
 end
 
-_safe_free!(xs::ROCArray) = Mem.release(xs.buf; stream=default_stream())
+_safe_free!(x::ROCArray) = Mem.release(x.buf; stream=default_stream())
 
-unsafe_free!(xs::ROCArray) = Mem.free_if_live(xs.buf; stream=stream())
+unsafe_free!(x::ROCArray) = Mem.free_if_live(x.buf; stream=stream())
 
 """
     device(A::ROCArray) -> HIPDevice
@@ -196,20 +141,17 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
+# TODO docs
 function Base.unsafe_wrap(
     ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
     lock::Bool = true,
 ) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
-    # TODO specialize ROCArray on a buffer type and pass HostBuffer.
     sz = prod(dims) * sizeof(T)
-    dptr = if lock
-        HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
-        Mem.device_ptr(Mem.HostBuffer(ptr, sz))
-    else
-        Ptr{Cvoid}(ptr)
-    end
-    return ROCArray{T, N}(Mem.HIPBuffer(dptr, sz), dims)
+    buf = lock ?
+        Mem.HostBuffer(Ptr{Cvoid}(ptr), sz) :
+        Mem.HIPBuffer(Ptr{Cvoid}(ptr), sz)
+    ROCArray{T, N}(buf, dims)
 end
 
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
@@ -282,20 +224,6 @@ function Base.reshape(a::ROCArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
     ROCArray{T,N}(a.buf, dims; offset=a.offset)
 end
 
-## GPUArrays interfaces
-
-GPUArrays.device(x::ROCArray) = x.buf.device
-
-GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
-
-function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) where {T,N}
-    ptr = Base.unsafe_convert(Ptr{T}, a.buf)
-    ROCDeviceArray{T,N,AS.Global}(a.dims, AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset))
-end
-Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
-    convert(ROCDeviceArray{T,N,AS.Global}, x)
-
-
 ## interop with CPU arrays
 
 # We don't convert isbits types in `adapt`, since they are already
@@ -330,9 +258,12 @@ Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
 
 roc(xs) = adapt(Float32Adaptor(), xs)
 
-
-Base.unsafe_convert(::Type{Ptr{T}}, x::ROCArray{T}) where T =
-    Base.unsafe_convert(Ptr{T}, x.buf) + x.offset
+function Base.unsafe_convert(::Type{Ptr{T}}, x::ROCArray{T}) where T
+    # TODO have specialized convert function for buffers:
+    # convert(hipPtr, buf) -> dev ptr
+    tmp = typeof(x.buf) <: Mem.HIPBuffer ? x.buf : x.buf.dev_ptr
+    Base.unsafe_convert(Ptr{T}, tmp) + x.offset
+end
 
 # some nice utilities
 

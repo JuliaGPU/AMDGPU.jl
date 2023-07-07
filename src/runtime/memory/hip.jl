@@ -63,13 +63,13 @@ struct HIPBuffer <: AbstractAMDBuffer
     device::HIPDevice
     ptr::Ptr{Cvoid}
     bytesize::Int
+    own::Bool
     _id::UInt64 # Unique ID used for refcounting.
 end
 
-# TODO pass device?
 function HIPBuffer(bytesize; stream::HIP.HIPStream)
     dev = stream.device
-    bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, _buffer_id!())
+    bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, true, _buffer_id!())
 
     mark_pool!(dev)
     pool = HIP.memory_pool(dev)
@@ -99,7 +99,7 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     ptr = ptr_ref[]
     @assert ptr != C_NULL "hipMallocAsync resulted in C_NULL for $(Base.format_bytes(bytesize))"
 
-    # TODO do not reclaim (ROCm 5.5+ has hard pool size limit)
+    # TODO ROCm 5.5+ has hard pool size limit
     if has_limit
         if HIP.reserved_memory(pool) > HARD_MEMORY_LIMIT
             HIP.reclaim() # TODO do not reclaim all memory
@@ -107,74 +107,124 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
         @assert HIP.reserved_memory(pool) ≤ HARD_MEMORY_LIMIT
     end
 
-    HIPBuffer(dev, ptr, bytesize, _buffer_id!())
+    HIPBuffer(dev, ptr, bytesize, true, _buffer_id!())
 end
 
-HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int) = HIPBuffer(
-    AMDGPU.device(), ptr, bytesize, _buffer_id!())
+HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int) =
+    HIPBuffer(AMDGPU.device(), ptr, bytesize, false, _buffer_id!())
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::HIPBuffer) where T = convert(Ptr{T}, buf.ptr)
+Base.unsafe_convert(::Type{Ptr{T}}, buf::HIPBuffer) where T =
+    convert(Ptr{T}, buf.ptr)
 
 function view(buf::HIPBuffer, bytesize::Int)
     bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
-    HIPBuffer(buf.device, buf.ptr + bytesize, buf.bytesize - bytesize, buf._id)
+    HIPBuffer(
+        buf.device, buf.ptr + bytesize,
+        buf.bytesize - bytesize, buf.own, buf._id)
 end
 
 function free(buf::HIPBuffer; stream::HIP.HIPStream)
+    buf.own || return
+
     buf.ptr == C_NULL && return
     HIP.hipFreeAsync(buf, stream) |> HIP.check
     return
 end
 
 function upload!(dst::HIPBuffer, src::Ptr, bytesize::Int; stream::HIP.HIPStream)
-    bytesize == 0 && return nothing
+    bytesize == 0 && return
     HIP.hipMemcpyHtoDAsync(dst, src, bytesize, stream) |> HIP.check
-    HIP.HIPEvent(stream)
+    return
 end
 
 function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
-    bytesize == 0 && return nothing
+    bytesize == 0 && return
     HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream) |> HIP.check
-    HIP.HIPEvent(stream)
+    return
 end
 
 function transfer!(dst::HIPBuffer, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
-    bytesize == 0 && return nothing
+    bytesize == 0 && return
     HIP.hipMemcpyDtoDAsync(dst, src, bytesize, stream) |> HIP.check
-    HIP.HIPEvent(stream)
+    return
 end
 
 struct HostBuffer <: AbstractAMDBuffer
+    device::HIPDevice
     ptr::Ptr{Cvoid}
+    dev_ptr::Ptr{Cvoid}
     bytesize::Int
+    own::Bool
+    _id::UInt64 # Unique ID used for refcounting.
 end
 
-HostBuffer() = HostBuffer(C_NULL, 0)
-
-Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where T = convert(Ptr{T}, buf.ptr)
+HostBuffer() = HostBuffer(AMDGPU.device(), C_NULL, C_NULL, 0, true, _buffer_id!())
 
 function HostBuffer(bytesize::Integer, flags = 0)
     bytesize == 0 && return HostBuffer()
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     HIP.hipHostMalloc(ptr_ref, bytesize, flags) |> HIP.check
-    HostBuffer(ptr_ref[], bytesize)
+    ptr = ptr_ref[]
+    dev_ptr = get_device_ptr(ptr)
+    HostBuffer(AMDGPU.device(), ptr, dev_ptr, bytesize, true, _buffer_id!())
 end
 
-function free(buf::HostBuffer)
+function HostBuffer(ptr::Ptr{Cvoid}, sz::Integer)
+    HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
+    dev_ptr = get_device_ptr(ptr)
+    HostBuffer(AMDGPU.device(), ptr, dev_ptr, sz, false, _buffer_id!())
+end
+
+function view(buf::HostBuffer, bytesize::Int)
+    bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
+    HostBuffer(
+        buf.device,
+        buf.ptr + bytesize, buf.dev_ptr + bytesize,
+        buf.bytesize - bytesize, buf.own, buf._id)
+end
+
+upload!(dst::HostBuffer, src::Ptr, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+upload!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
+
+download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
+
+transfer!(dst::HostBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+# download!(::Ptr, ::HIPBuffer)
+transfer!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
+
+# upload!(::HIPBuffer, ::Ptr)
+transfer!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
+
+Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where T =
+    convert(Ptr{T}, buf.ptr)
+
+@inline device_ptr(buf::HostBuffer) = buf.dev_ptr
+
+function free(buf::HostBuffer; kwargs...)
     buf.ptr == C_NULL && return
-    HIP.hipHostFree(buf) |> HIP.check
+    if buf.own
+        HIP.hipHostFree(buf) |> HIP.check
+    else
+        HIP.hipHostUnregister(buf.ptr) |> HIP.check
+    end
     return
 end
 
-# TODO
-# - introduce hipPtr.
-# - use Base.convert instead of `device_ptr`.
-# - define unsafe_copyto! for all buffers instead of upload!, etc.
-
-function device_ptr(buf::HostBuffer)
-    buf.ptr == C_NULL && return C_NULL
+function get_device_ptr(ptr::Ptr{Cvoid})
+    ptr == C_NULL && return C_NULL
     ptr_ref = Ref{Ptr{Cvoid}}()
-    HIP.hipHostGetDevicePointer(ptr_ref, buf.ptr, 0) |> HIP.check
+    HIP.hipHostGetDevicePointer(ptr_ref, ptr, 0) |> HIP.check
     ptr_ref[]
 end

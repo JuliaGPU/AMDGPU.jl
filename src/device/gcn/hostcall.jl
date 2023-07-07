@@ -182,7 +182,7 @@ function HostCallHolder(
                 if not_used
                     Mem.free(ret_buf[]) # `free` checks for C_NULL.
                     buf_ptr = reinterpret(Ptr{Cvoid}, hc.buf_ptr)
-                    Mem.free(Mem.HostBuffer(buf_ptr, 0))
+                    HIP.hipHostFree(buf_ptr) |> HIP.check
                     break
                 end
             end
