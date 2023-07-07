@@ -150,6 +150,7 @@ function transfer!(dst::HIPBuffer, src::HIPBuffer, bytesize::Int; stream::HIP.HI
 end
 
 struct HostBuffer <: AbstractAMDBuffer
+    device::HIPDevice
     ptr::Ptr{Cvoid}
     dev_ptr::Ptr{Cvoid}
     bytesize::Int
@@ -157,7 +158,7 @@ struct HostBuffer <: AbstractAMDBuffer
     _id::UInt64 # Unique ID used for refcounting.
 end
 
-HostBuffer() = HostBuffer(C_NULL, C_NULL, 0, true, _buffer_id!())
+HostBuffer() = HostBuffer(AMDGPU.device(), C_NULL, C_NULL, 0, true, _buffer_id!())
 
 function HostBuffer(bytesize::Integer, flags = 0)
     bytesize == 0 && return HostBuffer()
@@ -166,18 +167,19 @@ function HostBuffer(bytesize::Integer, flags = 0)
     HIP.hipHostMalloc(ptr_ref, bytesize, flags) |> HIP.check
     ptr = ptr_ref[]
     dev_ptr = get_device_ptr(ptr)
-    HostBuffer(ptr, dev_ptr, bytesize, true, _buffer_id!())
+    HostBuffer(AMDGPU.device(), ptr, dev_ptr, bytesize, true, _buffer_id!())
 end
 
 function HostBuffer(ptr::Ptr{Cvoid}, sz::Integer)
     HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
     dev_ptr = get_device_ptr(ptr)
-    HostBuffer(ptr, dev_ptr, sz, false, _buffer_id!())
+    HostBuffer(AMDGPU.device(), ptr, dev_ptr, sz, false, _buffer_id!())
 end
 
 function view(buf::HostBuffer, bytesize::Int)
     bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
     HostBuffer(
+        buf.device,
         buf.ptr + bytesize, buf.dev_ptr + bytesize,
         buf.bytesize - bytesize, buf.own, buf._id)
 end

@@ -64,7 +64,8 @@ end
         A_orig = copy(A)
 
         RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
-        # @test RA.buf.device == AMDGPU.default_device()
+        @test RA.buf.device == AMDGPU.device()
+        @test AMDGPU.device(RA)  == AMDGPU.device()
         @test RA isa ROCArray{Float64, 2}
         # pointer gives device mapped pointer, not host.
         @test pointer(RA) == RA.buf.dev_ptr
