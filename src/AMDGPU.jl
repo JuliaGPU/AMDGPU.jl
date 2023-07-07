@@ -353,4 +353,21 @@ function __init__()
     end
 end
 
+using LinearAlgebra
+
+function main()
+    A = triu(rand(Float32, 20, 20))
+    B = rand(Float32, 20, 20)
+    b = rand(Float32, 20)
+    dA, dB, db = ROCArray(A), ROCArray(B), ROCArray(b)
+
+    dC = copy(dB)
+    udA = UpperTriangular(dA)
+    return udA, dC
+    @show typeof(dC)
+    @show typeof(udA)
+    ldiv!(udA, dC)
+    return
+end
+
 end

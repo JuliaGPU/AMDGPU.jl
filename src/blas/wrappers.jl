@@ -1100,6 +1100,7 @@ for (mmname, smname, elty) in
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
             A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
         )
+            Core.println(">>> trsm!")
             rocside = rocblasside(side)
             rocuplo = rocblasfill(uplo)
             roctransa = rocblasop(transa)
