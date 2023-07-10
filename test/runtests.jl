@@ -107,14 +107,13 @@ push!(tests, "rocRAND" => ()->begin
         @test_skip "rocRAND"
     end
 end)
-# # FIXME outdated library
-# push!(tests, "rocFFT" => ()->begin
-#     if AMDGPU.functional(:rocfft)
-#         include("rocarray/fft.jl")
-#     else
-#         @test_skip "rocFFT"
-#     end
-# end)
+push!(tests, "rocFFT" => ()->begin
+    if AMDGPU.functional(:rocfft)
+        include("rocarray/fft.jl")
+    else
+        @test_skip "rocFFT"
+    end
+end)
 push!(tests, "MIOpen" => ()->begin
     if AMDGPU.functional(:MIOpen)
         include("dnn/miopen.jl")

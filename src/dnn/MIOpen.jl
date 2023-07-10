@@ -4,7 +4,7 @@ using CEnum
 
 using ..AMDGPU
 import AMDGPU: ROCArray, LockedObject, HandleCache, HIP, library_state
-import AMDGPU.Runtime.Mem
+import AMDGPU.Runtime.Mem # TODO remove?
 import .HIP: hipStream_t
 
 if AMDGPU.use_artifacts() && AMDGPU.functional(:MIOpen)

@@ -1,7 +1,3 @@
-export ROCFFTError
-
-import .AMDGPU: @check, check
-
 struct ROCFFTError <: Exception
     code::rocfft_status
     msg::AbstractString
@@ -30,8 +26,10 @@ function status_message(status)
         return "invalid distance"
     elseif status == rocfft_status_invalid_offset
         return "invalid offset"
+    elseif status == rocfft_status_invalid_work_buffer
+        return "invalid work buffer"
     else
-        return "unknown error"
+        return "unknown error: $status"
     end
 end
 
