@@ -59,9 +59,6 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
         rocfft_plan_create(
             handle_ref, placement, xtype, precision, nrank, sz, 1, C_NULL)
     else
-        cdims = collect(xdims)
-        cdims[region[1]] = div(cdims[region[1]], 2) + 1
-
         plan_desc_ref = Ref{rocfft_plan_description}()
         rocfft_plan_description_create(plan_desc_ref)
         description = plan_desc_ref[]
@@ -79,8 +76,8 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
             out_array_type = rocfft_array_type_complex_interleaved
         end
 
-        rsz = (length(sz) > 1) ? reverse(sz) : sz
-        if ((region...,) == ((1:nrank)...,))
+        # FIXME: gives out-of-bounds errors on real2complex: region=(1,) for 2D input
+        if false # ((region...,) == ((1:nrank)...,))
             # handle simple case ... simply! (for robustness)
             rocfft_plan_description_set_data_layout(
                 description, in_array_type, out_array_type,
@@ -89,8 +86,11 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
                 nrank, C_NULL, 0)
             rocfft_plan_create(
                 handle_ref, placement, xtype, precision,
-                nrank, Cint[rsz...], batch, description)
+                nrank, sz, batch, description)
         else
+            cdims = collect(xdims)
+            cdims[region[1]] = div(cdims[region[1]], 2) + 1
+
             strides = [prod(xdims[1:region[k] - 1]) for k in 1:nrank]
             real_strides = [prod(cdims[1:region[k] - 1]) for k in 1:nrank]
 
@@ -107,6 +107,7 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
                     idist = 1
                     cdist = 1
                 end
+
                 ostrides = copy(strides)
                 istrides = copy(strides)
                 if xtype == rocfft_transform_type_real_forward
@@ -125,26 +126,28 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
                 end
 
                 if region[1] == 1
-                    ii=1
-                    while (ii < nrank) && (region[ii] == region[ii+1]-1)
+                    ii = 1
+                    while (ii < nrank) && (region[ii] == region[ii + 1] - 1)
                         ii += 1
                     end
                     idist = prod(xdims[1:ii])
                     cdist = prod(cdims[1:ii])
                     ngaps = 0
                 else
-                    istride = prod(xdims[1:region[1]-1])
+                    istride = prod(xdims[1:region[1] - 1])
                     idist = 1
                     cdist = 1
                     ngaps = 1
                 end
-                nem = ones(Int,nrank)
-                cem = ones(Int,nrank)
+                nem = ones(Int, nrank)
+                cem = ones(Int, nrank)
+
                 id = 1
-                for ii=1:nrank-1
+                for ii in 1:nrank - 1
                     if region[ii + 1] > region[ii] + 1
                         ngaps += 1
                     end
+
                     while id < region[ii + 1]
                         nem[ii] *= xdims[id]
                         cem[ii] *= cdims[id]
@@ -186,9 +189,9 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
                 length(ostrides), ostrides, odist)
             rocfft_plan_create(
                 handle_ref, placement, xtype, precision,
-                nrank, Cint[rsz...], batch, description)
-            rocfft_plan_description_destroy(description)
+                nrank, sz, batch, description)
         end
+        rocfft_plan_description_destroy(description)
     end
     rocfft_plan_get_work_buffer_size(handle_ref[], worksize_ref)
     return handle_ref[], Int(worksize_ref[])

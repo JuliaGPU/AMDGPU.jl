@@ -44,7 +44,7 @@ function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
 end
 
 function batched(X::AbstractArray{T,N}, region) where {T <: Complex,N}
-    fftw_X = fft(X,region)
+    fftw_X = fft(X, region)
 
     dX = ROCArray(X)
     p = plan_fft!(dX, region)
@@ -75,7 +75,7 @@ function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
     @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
 end
 
-@testset for T in [ComplexF32,] #ComplexF64]
+@testset for T in [ComplexF32, ComplexF64]
     @testset "1D" begin
         dims = (N1,)
         X = rand(T, dims)
@@ -100,19 +100,19 @@ end
         in_place(X)
     end
 
-    # @testset "Batch 1D" begin
-    #     dims = (N1,N2)
-    #     X = rand(T, dims)
-    #     batched(X,1)
+    @testset "Batch 1D" begin
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, 1)
 
-    #     dims = (N1,N2)
-    #     X = rand(T, dims)
-    #     batched(X,2)
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, 2)
 
-    #     dims = (N1,N2)
-    #     X = rand(T, dims)
-    #     batched(X,(1,2))
-    # end
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, (1, 2))
+    end
 
     @testset "3D" begin
         dims = (N1,N2,N3)
@@ -126,29 +126,29 @@ end
         in_place(X)
     end
 
-    # @testset "Batch 2D (in 3D)" begin
-    #     dims = (N1, N2, N3)
-    #     for region in [(1, 2), (2, 3), (1, 3)]
-    #         X = rand(T, dims)
-    #         batched(X, region)
-    #     end
+    @testset "Batch 2D (in 3D)" begin
+        dims = (N1, N2, N3)
+        for region in [(1, 2), (2, 3), (1, 3)]
+            X = rand(T, dims)
+            batched(X, region)
+        end
 
-    #     X = rand(T, dims)
-    #     @test_throws ArgumentError batched(X,(3,1))
-    # end
+        X = rand(T, dims)
+        @test_throws ArgumentError batched(X, (3, 1))
+    end
 
-    # @testset "Batch 2D (in 4D)" begin
-    #     dims = (N1,N2,N3,N4)
-    #     # for (1,4) workarea allocates to much memory?
-    #     for region in [(1,2),(3,4),(1,4)]
-    #         X = rand(T, dims)
-    #         batched(X,region)
-    #     end
-    #     for region in [(1,3),(2,3),(2,4)]
-    #         X = rand(T, dims)
-    #         @test_throws ArgumentError batched(X,region)
-    #     end
-    # end
+    @testset "Batch 2D (in 4D)" begin
+        dims = (N1, N2, N3, N4)
+        # TODO for (1, 4) workarea allocates too much memory?
+        for region in [(1, 2), (3, 4), (1, 4)]
+            X = rand(T, dims)
+            batched(X, region)
+        end
+        for region in [(1, 3), (2, 3), (2, 4)]
+            X = rand(T, dims)
+            @test_throws ArgumentError batched(X, region)
+        end
+    end
 
     @testset "FFT Wrappers" begin
         X = rand(T, N1)
@@ -220,51 +220,51 @@ end
     end
 
     @testset "2D" begin
-        X = rand(T, N1,N2)
+        X = rand(T, N1, N2)
         out_of_place(X)
     end
 
-    # @testset "Batch 1D" begin
-    #     dims = (N1,N2)
-    #     X = rand(T, dims)
-    #     batched(X,1)
+    @testset "Batch 1D" begin
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, 1)
 
-    #     dims = (N1,N2)
-    #     X = rand(T, dims)
-    #     batched(X,2)
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, 2)
 
-    #     dims = (N1,N2)
-    #     X = rand(T, dims)
-    #     batched(X,(1,2))
-    # end
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, (1, 2))
+    end
 
     @testset "3D" begin
         X = rand(T, N1, N2, N3)
         out_of_place(X)
     end
 
-    # @testset "Batch 2D (in 3D)" begin
-    #     dims = (N1,N2,N3)
-    #     for region in [(1,2),(2,3),(1,3)]
-    #         X = rand(T, dims)
-    #         batched(X,region)
-    #     end
+    @testset "Batch 2D (in 3D)" begin
+        dims = (N1, N2, N3)
+        for region in [(1, 2), (2, 3), (1, 3)]
+            X = rand(T, dims)
+            batched(X, region)
+        end
 
-    #     X = rand(T, dims)
-    #     @test_throws ArgumentError batched(X,(3,1))
-    # end
+        X = rand(T, dims)
+        @test_throws ArgumentError batched(X, (3, 1))
+    end
 
-    # @testset "Batch 2D (in 4D)" begin
-    #     dims = (N1,N2,N3,N4)
-    #     for region in [(1,2),(1,4),(3,4)]
-    #         X = rand(T, dims)
-    #         batched(X,region)
-    #     end
-    #     for region in [(1,3),(2,3),(2,4)]
-    #         X = rand(T, dims)
-    #         @test_throws ArgumentError batched(X,region)
-    #     end
-    # end
+    @testset "Batch 2D (in 4D)" begin
+        dims = (N1, N2, N3, N4)
+        for region in [(1, 2), (1, 4), (3, 4)]
+            X = rand(T, dims)
+            batched(X, region)
+        end
+        for region in [(1, 3), (2, 3), (2, 4)]
+            X = rand(T, dims)
+            @test_throws ArgumentError batched(X, region)
+        end
+    end
 
     @testset "FFT Wrappers" begin
         X = rand(T, N1)
