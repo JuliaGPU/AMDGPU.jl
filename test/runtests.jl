@@ -1,24 +1,88 @@
 using Distributed
 using Test
 
+const TEST_NAMES = ["core", "hip", "ext", "gpuarrays", "kernelabstractions"]
+
+function parse_flags!(args, flag; default = nothing, typ = typeof(default))
+    for f in args
+        startswith(f, flag) || continue
+
+        if f != flag
+            val = split(f, '=')[2]
+            if typ ≢ nothing && typ <: AbstractString
+                val = parse(typ, val)
+            end
+        else
+            val = default
+        end
+
+        filter!(x -> x != f, args)
+        return true, val
+    end
+    return false, default
+end
+
+do_help, _ = parse_flags!(ARGS, "--help")
+if do_help
+    println("""
+    Usage: runtests.jl [--help] [--list] [TESTS...]
+
+        --help             Show this text.
+        --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS ÷ 2).
+        --list             List all available tests (default: all).
+
+        Remaining arguments filter the tests that will be executed.""")
+    exit(0)
+end
+
+do_list, _ = parse_flags!(ARGS, "--list")
+if do_list
+    println("Available tests to run: $TEST_NAMES.")
+    exit(0)
+end
+
+set_jobs, jobs = parse_flags!(ARGS, "--jobs"; typ=Int)
+
+# No options should remain.
+optlike_args = filter(startswith("-"), ARGS)
+if !isempty(optlike_args)
+    error("""
+    Unknown test options: `$(join(optlike_args, " "))`.
+    Try `--help` for usage instructions.
+    """)
+end
+
+for test_name in ARGS
+    test_name in ARGS || error("""
+    Unknown test name: `$test_name`.
+    Try `--list` for available tests.
+    """)
+end
+
+const TARGET_TESTS = isempty(ARGS) ? TEST_NAMES : ARGS
+
 include("setup.jl")
 
-@info "Testing using device $(AMDGPU.default_device())"
+@info "Running following tests: $TARGET_TESTS."
+@info "Testing using device $(AMDGPU.default_device())."
 AMDGPU.versioninfo()
 
-@info "Testing Device Functions on the main thread without workers..."
-@testset verbose=true "Device Functions" begin
-    include("device/launch.jl")
-    include("device/array.jl")
-    include("device/vadd.jl")
-    include("device/memory.jl")
-    include("device/indexing.jl")
-    include("device/math.jl")
-    include("device/wavefront.jl")
-    include("device/execution_control.jl")
-    include("device/exceptions.jl")
-    include("device/hostcall.jl")
-    include("device/output.jl")
+if "core" in TARGET_TESTS
+    @testset verbose=true "Device Functions" begin
+        @info "Testing `Device Functions` on the main thread without workers."
+
+        include("device/launch.jl")
+        include("device/array.jl")
+        include("device/vadd.jl")
+        include("device/memory.jl")
+        include("device/indexing.jl")
+        include("device/math.jl")
+        include("device/wavefront.jl")
+        include("device/execution_control.jl")
+        include("device/exceptions.jl")
+        include("device/hostcall.jl")
+        include("device/output.jl")
+    end
 end
 
 @testset "AMDGPU" begin
@@ -27,7 +91,7 @@ end
 
 # Run tests in parallel
 
-np = 4
+np = set_jobs ? jobs : (Sys.CPU_THREADS ÷ 2)
 ws = Int[]
 ws_pids = Int[]
 if np == 1
@@ -62,28 +126,31 @@ tasks = Dict{Int,String}()
 
 @info "Running tests with $(length(ws)) workers with flags: $(AMDGPU.julia_exeflags())"
 
-push!(tests, "HSA" => ()->begin
-    include("hsa/utils.jl")
-    include("hsa/getinfo.jl")
-    include("hsa/device.jl")
-end)
-push!(tests, "Codegen" => ()->begin
-    include("codegen/synchronization.jl")
-    include("codegen/trap.jl")
-end)
-# if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
-#     push!(tests, "Logging" => ()->include("logging.jl"))
-# else
-#     @warn """
-#     Logging is statically disabled, skipping logging tests.
-#     This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
-#     """
-#     @test_skip "Logging"
-# end
-push!(tests, "Multitasking" => ()->include("tls.jl"))
-push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
-push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
-if CI
+if "core" in TARGET_TESTS
+    push!(tests, "HSA" => ()->begin
+        include("hsa/utils.jl")
+        include("hsa/getinfo.jl")
+        include("hsa/device.jl")
+    end)
+    push!(tests, "Codegen" => ()->begin
+        include("codegen/synchronization.jl")
+        include("codegen/trap.jl")
+    end)
+    # if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
+    #     push!(tests, "Logging" => ()->include("logging.jl"))
+    # else
+    #     @warn """
+    #     Logging is statically disabled, skipping logging tests.
+    #     This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
+    #     """
+    #     @test_skip "Logging"
+    # end
+    push!(tests, "Multitasking" => ()->include("tls.jl"))
+    push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
+    push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
+end
+
+if "hip" in TARGET_TESTS
     push!(tests, "ROCm libraries are functional" => ()->begin
         @test AMDGPU.functional(:rocblas)
         @test AMDGPU.functional(:rocrand)
@@ -92,54 +159,61 @@ if CI
             @test AMDGPU.functional(:rocfft)
         end
     end)
-end
-push!(tests, "rocBLAS" => ()->begin
-    if AMDGPU.functional(:rocblas)
-        include("rocarray/blas.jl")
-    else
-        @test_skip "rocBLAS"
-    end
-end)
-push!(tests, "rocRAND" => ()->begin
-    if AMDGPU.functional(:rocrand)
-        include("rocarray/random.jl")
-    else
-        @test_skip "rocRAND"
-    end
-end)
-push!(tests, "rocFFT" => ()->begin
-    if AMDGPU.functional(:rocfft)
-        include("rocarray/fft.jl")
-    else
-        @test_skip "rocFFT"
-    end
-end)
-push!(tests, "MIOpen" => ()->begin
-    if AMDGPU.functional(:MIOpen)
-        include("dnn/miopen.jl")
-    else
-        @test_skip "MIOpen"
-    end
-end)
-push!(tests, "External Packages" => ()->include("external/forwarddiff.jl"))
-for (i, name) in enumerate(sort(collect(keys(TestSuite.tests))))
-    push!(tests, "GPUArrays TestSuite - $name" => () -> begin
-        TestSuite.tests[name](ROCArray)
-        # Multidimensional indexing contains boxing,
-        # launching global malloc hostcall.
-        # Synchronize to disable it.
-        if name == "indexing multidimensional"
-            AMDGPU.synchronize(; blocking=false)
+    push!(tests, "rocBLAS" => ()->begin
+        if AMDGPU.functional(:rocblas)
+            include("rocarray/blas.jl")
+        else
+            @test_skip "rocBLAS"
+        end
+    end)
+    push!(tests, "rocRAND" => ()->begin
+        if AMDGPU.functional(:rocrand)
+            include("rocarray/random.jl")
+        else
+            @test_skip "rocRAND"
+        end
+    end)
+    push!(tests, "rocFFT" => ()->begin
+        if AMDGPU.functional(:rocfft)
+            include("rocarray/fft.jl")
+        else
+            @test_skip "rocFFT"
+        end
+    end)
+    push!(tests, "MIOpen" => ()->begin
+        if AMDGPU.functional(:MIOpen)
+            include("dnn/miopen.jl")
+        else
+            @test_skip "MIOpen"
         end
     end)
 end
-push!(tests, "KernelAbstractions" => ()-> begin
-    Testsuite.testsuite(
-        ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
-        skip_tests=Set(["Printing", "sparse"])) # TODO fix KA printing
-    # Disable global malloc hostcall started by conversion tests.
-    AMDGPU.synchronize(; blocking=false)
-end)
+
+"ext" in TARGET_TESTS && push!(tests,
+    "External Packages" => () -> include("external/forwarddiff.jl"))
+
+if "gpuarrays" in TARGET_TESTS
+    for (i, name) in enumerate(sort(collect(keys(TestSuite.tests))))
+        push!(tests, "GPUArrays TestSuite - $name" => () -> begin
+            TestSuite.tests[name](ROCArray)
+            # Multidimensional indexing involves boxing, launching global malloc hostcall.
+            # Synchronize to disable it.
+            if name == "indexing multidimensional"
+                AMDGPU.synchronize(; blocking=false)
+            end
+        end)
+    end
+end
+
+if "kernelabstractions" in TARGET_TESTS
+    push!(tests, "KernelAbstractions" => ()-> begin
+        Testsuite.testsuite(
+            ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
+            skip_tests=Set(["Printing", "sparse"])) # TODO fix KA printing
+        # Disable global malloc hostcall started by conversion tests.
+        AMDGPU.synchronize(; blocking=false)
+    end)
+end
 
 function run_worker(w)
     while !isempty(tests)
