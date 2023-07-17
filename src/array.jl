@@ -30,6 +30,10 @@ device(A::ROCArray) = A.buf.device
 const ROCVector{T} = ROCArray{T,1}
 const ROCMatrix{T} = ROCArray{T,2}
 const ROCVecOrMat{T} = Union{ROCVector{T},ROCMatrix{T}}
+const DenseROCArray{T,N} = ROCArray{T,N}
+const DenseROCVector{T} = DenseROCArray{T,1}
+const DenseROCMatrix{T} = DenseROCArray{T,2}
+const DenseROCVecOrMat{T} = Union{DenseROCVector{T}, DenseROCMatrix{T}}
 
 # strided arrays
 const StridedSubROCArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,

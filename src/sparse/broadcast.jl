@@ -561,8 +561,8 @@ function Broadcast.copy(bc::Broadcasted{<:Union{ROCSparseVecStyle,ROCSparseMatSt
         end
         let
             args = (sparse_typ, offsets, bc.args...)
-            threads, blocks = compute_launch_config()
-            @roc threads=threads blocks=blocks compute_offsets_kernel(args...)
+            groupsize, gridsize = compute_launch_config()
+            @roc gridsize=gridsize groupsize=groupsize compute_offsets_kernel(args...)
         end
 
         # accumulate these values so that we can use them directly as row pointer offsets,
@@ -585,12 +585,12 @@ function Broadcast.copy(bc::Broadcasted{<:Union{ROCSparseVecStyle,ROCSparseMatSt
     # perform the actual broadcast
     if output isa AbstractROCSparseArray
         args = (bc.f, output, offsets, bc.args...)
-        threads, blocks = compute_launch_config()
-        @roc threads=threads blocks=blocks sparse_to_sparse_broadcast_kernel(args...)
+        groupsize, gridsize = compute_launch_config()
+        @roc gridsize=gridsize groupsize=groupsize sparse_to_sparse_broadcast_kernel(args...)
     else
         args = (sparse_typ, bc.f, output, bc.args...)
-        threads, blocks = compute_launch_config()
-        @roc threads=threads blocks=blocks sparse_to_dense_broadcast_kernel(args...)
+        groupsize, gridsize = compute_launch_config()
+        @roc gridsize=gridsize groupsize=groupsize sparse_to_dense_broadcast_kernel(args...)
     end
 
     return output

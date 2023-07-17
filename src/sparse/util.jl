@@ -92,13 +92,13 @@ function with_workspace(f::Function, eltyp::Type{T}, size::Union{Integer,Functio
         workspace = ROCVector{T}(undef, fallback)
     end
     workspace = workspace::ROCVector{T}
-    mark!(workspace, rocsparse_get_stream(handle()))
-
+    # mark!(workspace, rocsparse_get_stream(handle()))
     # use & free
     try
         f(workspace)
     finally
-        wait!(workspace)
+        AMDGPU.synchronize()
+        # wait!(workspace)
         keep || AMDGPU.unsafe_free!(workspace)
     end
 end

@@ -1,6 +1,7 @@
 # on-device sparse array functionality
 
 using SparseArrays
+import AMDGPU.Device: ROCDeviceVector
 
 # NOTE: this functionality is currently very bare-bones, only defining the array types
 #       without any device-compatible sparse array functionality

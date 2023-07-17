@@ -14,7 +14,7 @@ import Core: LLVMPtr
 
 export HIPDevice
 export has_rocm_gpu
-export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
+export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat, DenseROCArray, DenseROCVector, DenseROCMatrix, StridedROCMatrix
 export roc
 
 struct LockedObject{T}
@@ -218,6 +218,7 @@ end
 
 # Load ROCm external libraries
 include(joinpath("blas", "rocBLAS.jl"))
+include(joinpath("sparse", "rocSPARSE.jl"))
 include(joinpath("rand", "rocRAND.jl"))
 include(joinpath("fft", "rocFFT.jl"))
 include(joinpath("dnn", "MIOpen.jl"))

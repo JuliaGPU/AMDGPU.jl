@@ -18,9 +18,9 @@ for (fname,elty) in ((:rocsparse_saxpyi, :Float32),
                         X::ROCSparseVector{$elty},
                         Y::ROCVector{$elty},
                         index::SparseChar)
-            wait!((X, Y))
+            # wait!((X, Y))
             $fname(handle(), nnz(X), alpha, nonzeros(X), nonzeroinds(X), Y, index)
-            mark!((X, Y), rocsparse_get_stream(handle()))
+            # mark!((X, Y), rocsparse_get_stream(handle()))
             Y
         end
         function axpyi(alpha::Number,
@@ -51,9 +51,9 @@ for (fname,elty) in ((:rocsparse_sgthr, :Float32),
         function gthr!(X::ROCSparseVector{$elty},
                        Y::ROCVector{$elty},
                        index::SparseChar)
-            wait!((X, Y))
+            # wait!((X, Y))
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
-            mark!((X, Y), rocsparse_get_stream(handle()))
+            # mark!((X, Y), rocsparse_get_stream(handle()))
             X
         end
         function gthr(X::ROCSparseVector{$elty},
@@ -78,9 +78,9 @@ for (fname,elty) in ((:rocsparse_sgthrz, :Float32),
         function gthrz!(X::ROCSparseVector{$elty},
                         Y::ROCVector{$elty},
                         index::SparseChar)
-            wait!((X, Y))
+            # wait!((X, Y))
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
-            mark!((X, Y), rocsparse_get_stream(handle()))
+            # mark!((X, Y), rocsparse_get_stream(handle()))
             X,Y
         end
         function gthrz(X::ROCSparseVector{$elty},
@@ -105,9 +105,9 @@ for (fname,elty) in ((:rocsparse_sroti, :Float32),
                        c::Number,
                        s::Number,
                        index::SparseChar)
-            wait!((X, Y))
+            # wait!((X, Y))
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, c, s, index)
-            mark!((X, Y), rocsparse_get_stream(handle()))
+            # mark!((X, Y), rocsparse_get_stream(handle()))
             X,Y
         end
         function roti(X::ROCSparseVector{$elty},
@@ -134,9 +134,9 @@ for (fname,elty) in ((:rocsparse_ssctr, :Float32),
         function sctr!(X::ROCSparseVector{$elty},
                        Y::ROCVector{$elty},
                        index::SparseChar)
-            wait!((X, Y))
+            # wait!((X, Y))
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, index)
-            mark!((X, Y), rocpsarse_get_stream(handle()))
+            # mark!((X, Y), rocpsarse_get_stream(handle()))
             Y
         end
         function sctr(X::ROCSparseVector{$elty},
