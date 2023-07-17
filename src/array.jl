@@ -31,6 +31,14 @@ const ROCVector{T} = ROCArray{T,1}
 const ROCMatrix{T} = ROCArray{T,2}
 const ROCVecOrMat{T} = Union{ROCVector{T},ROCMatrix{T}}
 
+# strided arrays
+const StridedSubROCArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
+                                            Base.AbstractCartesianIndex}}}} = SubArray{T,N,<:ROCArray,I}
+const StridedROCArray{T,N} = Union{ROCArray{T,N}, StridedSubROCArray{T,N}}
+const StridedROCVector{T} = StridedROCArray{T,1}
+const StridedROCMatrix{T} = StridedROCArray{T,2}
+const StridedROCVecOrMat{T} = Union{StridedROCVector{T}, StridedROCMatrix{T}}
+
 # anything that's (secretly) backed by a ROCArray
 AnyROCArray{T,N} = Union{ROCArray{T,N}, WrappedArray{T,N,ROCArray,ROCArray{T,N}}}
 AnyROCVector{T} = AnyROCArray{T,1}

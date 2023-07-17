@@ -531,7 +531,7 @@ end
 
 # interop with device arrays
 
-function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseVector)
+function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseVector)
     return ROCSparseDeviceVector(
         adapt(to, x.iPtr),
         adapt(to, x.nzVal),
@@ -551,7 +551,7 @@ function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseVector)
     x
 end
 
-function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCSR)
+function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCSR)
     return ROCSparseDeviceMatrixCSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
@@ -574,7 +574,7 @@ function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixC
     x
 end
 
-function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCSC)
+function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCSC)
     return ROCSparseDeviceMatrixCSC(
         adapt(to, x.colPtr),
         adapt(to, x.rowVal),
@@ -597,7 +597,7 @@ function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixC
     x
 end
 
-function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixBSR)
+function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixBSR)
     return ROCSparseDeviceMatrixBSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
@@ -621,7 +621,7 @@ function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixB
     x
 end
 
-function Adapt.adapt_structure(to::AMDGPU.Adaptor, x::ROCSparseMatrixCOO)
+function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCOO)
     return ROCSparseDeviceMatrixCOO(
         adapt(to, x.rowInd),
         adapt(to, x.colInd),
