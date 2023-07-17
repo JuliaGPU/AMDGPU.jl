@@ -14,6 +14,7 @@ import Core: LLVMPtr
 
 export HIPDevice, has_rocm_gpu, roc
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
+export DenseROCArray, DenseROCVector, DenseROCMatrix, StridedROCMatrix
 
 struct LockedObject{T}
     lock::ReentrantLock
@@ -207,6 +208,7 @@ end
 
 include(joinpath("blas", "rocBLAS.jl"))
 include(joinpath("solver", "rocSOLVER.jl"))
+include(joinpath("sparse", "rocSPARSE.jl"))
 include(joinpath("rand", "rocRAND.jl"))
 include(joinpath("fft", "rocFFT.jl"))
 include(joinpath("dnn", "MIOpen.jl"))

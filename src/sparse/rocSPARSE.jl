@@ -4,7 +4,7 @@ module rocSparse
 
 using ..AMDGPU
 using ..AMDGPU: librocsparse
-using ..AMDGPU: @allowscalar, wait!, mark!
+using ..AMDGPU: @allowscalar
 
 using CEnum: @cenum
 

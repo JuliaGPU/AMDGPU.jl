@@ -16,9 +16,9 @@ function sum_dim1(A::ROCSparseMatrixCSR)
     Tnorm = typeof(float(real(zero(eltype(A)))))
     Tsum = promote_type(Float64,Tnorm)
     rowsum = AMDGPU.ROCArray{Tsum}(undef, m)
-    threads = n
-    blocks = cld(n, threads)
-    @roc threads=threads blocks=blocks kernel(Tnorm, rowsum, A)
+    groupsize = n
+    gridsize = cld(n, groupsize)
+    @roc gridsize=gridsize groupsize=groupsize kernel(Tnorm, rowsum, A)
     return rowsum
 end
 

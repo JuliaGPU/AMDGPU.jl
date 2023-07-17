@@ -1,6 +1,7 @@
 module ROCKernels
 
 import AMDGPU
+import AMDGPU: unsafe_free!
 import AMDGPU.Device: @device_override
 import KernelAbstractions
 import KernelAbstractions: Adapt, StaticArrays

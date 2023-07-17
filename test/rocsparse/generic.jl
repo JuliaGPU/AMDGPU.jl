@@ -2,6 +2,7 @@ using AMDGPU
 using Adapt
 using AMDGPU.rocSparse
 using SparseArrays
+using Test
 
 
 @testset "generic mv!" for T in [Float32, Float64, ComplexF32, ComplexF64]

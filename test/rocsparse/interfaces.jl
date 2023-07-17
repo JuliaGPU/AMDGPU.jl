@@ -1,6 +1,8 @@
 using Adapt
 using AMDGPU.rocSparse
 using LinearAlgebra, SparseArrays
+using AMDGPU
+using Test
 
 @testset "LinearAlgebra" begin
     @testset "$f(A)±$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
@@ -191,12 +193,12 @@ using LinearAlgebra, SparseArrays
             dims in [(10, 10), (5, 10), (10, 5)]
         S = sprand(Float32, dims..., 0.1)
         dA = typ(S)
+        
+        @test AMDGPU.@allowscalar Array(dA + I) == S + I
+        @test AMDGPU.@allowscalar Array(I + dA) == I + S
 
-        @test Array(dA + I) == S + I
-        @test Array(I + dA) == I + S
-
-        @test Array(dA - I) == S - I
-        @test Array(I - dA) == I - S
+        @test AMDGPU.@allowscalar Array(dA - I) == S - I
+        @test AMDGPU.@allowscalar Array(I - dA) == I - S
     end
 
     @testset "Diagonal with $typ(10, 10)" for
@@ -213,9 +215,9 @@ using LinearAlgebra, SparseArrays
         @test Array(dA - dD) == S - D
         @test Array(dD - dA) == D - S
 
-        @test dA + dD isa typ
-        @test dD + dA isa typ
-        @test dA - dD isa typ
-        @test dD - dA isa typ
+        @test AMDGPU.@allowscalar dA + dD isa typ
+        @test AMDGPU.@allowscalar dD + dA isa typ
+        @test AMDGPU.@allowscalar dA - dD isa typ
+        @test AMDGPU.@allowscalar dD - dA isa typ
     end
 end
