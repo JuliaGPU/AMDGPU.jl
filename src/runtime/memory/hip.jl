@@ -217,7 +217,7 @@ function free(buf::HostBuffer; kwargs...)
     if buf.own
         HIP.hipHostFree(buf) |> HIP.check
     else
-        HIP.hipHostUnregister(buf.ptr) |> HIP.check
+        is_pinned(buf.dev_ptr) && HIP.check(HIP.hipHostUnregister(buf.ptr))
     end
     return
 end
@@ -227,4 +227,22 @@ function get_device_ptr(ptr::Ptr{Cvoid})
     ptr_ref = Ref{Ptr{Cvoid}}()
     HIP.hipHostGetDevicePointer(ptr_ref, ptr, 0) |> HIP.check
     ptr_ref[]
+end
+
+function is_pinned(ptr::Ptr{Cvoid})
+    ptr == C_NULL && return false
+
+    st, data = attributes(ptr)
+    if st == HIP.hipErrorInvalidValue
+        return false
+    elseif st == HIP.hipSuccess
+        return data.memoryType == HIP.hipMemoryTypeHost
+    end
+    st |> HIP.check
+end
+
+function attributes(ptr::Ptr{Cvoid})
+    data = Ref{HIP.hipPointerAttribute_t}()
+    st = HIP.hipPointerGetAttributes(data, ptr)
+    st, data[]
 end

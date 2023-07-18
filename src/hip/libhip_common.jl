@@ -2,6 +2,23 @@ const HIP_LAUNCH_PARAM_BUFFER_POINTER = Ptr{Cvoid}(1)
 const HIP_LAUNCH_PARAM_BUFFER_SIZE = Ptr{Cvoid}(2)
 const HIP_LAUNCH_PARAM_END = Ptr{Cvoid}(3)
 
+@cenum hipMemoryType begin
+    hipMemoryTypeHost
+    hipMemoryTypeDevice
+    hipMemoryTypeArray
+    hipMemoryTypeUnified
+    hipMemoryTypeManaged
+end
+
+struct hipPointerAttribute_t
+    memoryType::hipMemoryType
+    device::Cint
+    devicePointer::Ptr{Cvoid}
+    hostPointer::Ptr{Cvoid}
+    isManaged::Cint
+    allocationFlags::Cuint
+end
+
 @cenum hipMemcpyKind begin
     hipMemcpyHostToHost
     hipMemcpyHostToDevice
