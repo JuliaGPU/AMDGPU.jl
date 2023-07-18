@@ -109,6 +109,27 @@ end
         # Can use in HIP libraries.
         @test Array(xd * xd) ≈ Array(x * x)
     end
+
+    @testset "Multiple wraps of the same array" begin
+        x = zeros(Float32, 16)
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x))) == false
+
+        xd1 = unsafe_wrap(ROCArray, pointer(x), size(x))
+        xd2 = unsafe_wrap(ROCArray, pointer(x), size(x))
+
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd1))) == true
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == true
+
+        AMDGPU.unsafe_free!(xd1)
+
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd1))) == false
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == false
+
+        AMDGPU.unsafe_free!(xd2)
+
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd1))) == false
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == false
+    end
 end
 
 @testset "unsafe_free" begin

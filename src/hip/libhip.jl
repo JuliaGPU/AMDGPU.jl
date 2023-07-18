@@ -136,6 +136,11 @@ function hipHostGetDevicePointer(devPtr, hstPtr, flags)
         (Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, Cuint), devPtr, hstPtr, flags)
 end
 
+function hipPointerGetAttributes(attribute, ptr)
+    ccall((:hipPointerGetAttributes, libhip), hipError_t,
+        (Ptr{hipPointerAttribute_t}, Ptr{Cvoid}), attribute, ptr)
+end
+
 function hipMallocAsync(ptr, sz, stream)
     ccall((:hipMallocAsync, libhip), hipError_t,
         (Ptr{Ptr{Cvoid}}, Csize_t, hipStream_t),
