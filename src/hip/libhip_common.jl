@@ -2,29 +2,20 @@ const HIP_LAUNCH_PARAM_BUFFER_POINTER = Ptr{Cvoid}(1)
 const HIP_LAUNCH_PARAM_BUFFER_SIZE = Ptr{Cvoid}(2)
 const HIP_LAUNCH_PARAM_END = Ptr{Cvoid}(3)
 
-@cenum hipMemoryType begin
-    hipMemoryTypeHost
-    hipMemoryTypeDevice
-    hipMemoryTypeArray
-    hipMemoryTypeUnified
-    hipMemoryTypeManaged
-end
-
-struct hipPointerAttribute_t
-    memoryType::hipMemoryType
-    device::Cint
-    devicePointer::Ptr{Cvoid}
-    hostPointer::Ptr{Cvoid}
-    isManaged::Cint
-    allocationFlags::Cuint
-end
-
 @cenum hipMemcpyKind begin
     hipMemcpyHostToHost
     hipMemcpyHostToDevice
     hipMemcpyDeviceToHost
     hipMemcpyDeviceToDevice
     hipMemcpyDefault
+end
+
+@cenum hipMemoryType begin
+    hipMemoryTypeHost
+    hipMemoryTypeDevice
+    hipMemoryTypeArray
+    hipMemoryTypeUnified
+    hipMemoryTypeManaged
 end
 
 @cenum hiprtcResult::UInt32 begin
@@ -204,6 +195,45 @@ end
     hipErrorRuntimeMemory = 1052
     hipErrorRuntimeOther = 1053
     hipErrorTbd
+end
+
+struct hipPos
+    x::Csize_t
+    y::Csize_t
+    z::Csize_t
+end
+
+struct hipPitchedPtr
+    ptr::Ptr{Cvoid}
+    pitch::Csize_t
+    xsize::Csize_t
+    ysize::Csize_t
+end
+
+struct hipExtent
+    width::Csize_t
+    height::Csize_t
+    depth::Csize_t
+end
+
+struct hipMemcpy3DParms
+    stcArray::Ptr{Cvoid}
+    srcPos::hipPos
+    srcPtr::hipPitchedPtr
+    dstArray::Ptr{Cvoid}
+    dstPos::hipPos
+    dstPtr::hipPitchedPtr
+    extent::hipExtent
+    kind::hipMemcpyKind
+end
+
+struct hipPointerAttribute_t
+    memoryType::hipMemoryType
+    device::Cint
+    devicePointer::Ptr{Cvoid}
+    hostPointer::Ptr{Cvoid}
+    isManaged::Cint
+    allocationFlags::Cuint
 end
 
 hipContext_t = Ptr{Cvoid}

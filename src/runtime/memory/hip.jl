@@ -246,3 +246,54 @@ function attributes(ptr::Ptr{Cvoid})
     st = HIP.hipPointerGetAttributes(data, ptr)
     st, data[]
 end
+
+"""
+Asynchronous 3D array copy.
+
+# Arguments:
+
+- `width::Integer`: Width of 3D memory copy.
+- `height::Integer = 1`: Height of 3D memory copy.
+- `depth::Integer = 1`: Depth of 3D memory copy.
+- `dstPos::ROCDim3 = (1, 1, 1)`:
+    Starting position of the destination data for the copy.
+- `srcPos::ROCDim3 = (1, 1, 1)`:
+    Starting position of the source data for the copy.
+- `dstPitch::Integer = 0`: Pitch in bytes of the destination data for the copy.
+- `srcPitch::Integer = 0`: Pitch in bytes of the source data for the copy.
+- `async::Bool = false`: If `false`, then synchronize `stream` immediately.
+- `stream::HIP.HIPStream = AMDGPU.stream()`: Stream on which to perform the copy.
+"""
+function unsafe_copy3d!(
+    dst::Ptr{T}, dstTyp::Type{D},
+    src::Ptr{T}, srcTyp::Type{S},
+    width::Integer, height::Integer = 1, depth::Integer = 1;
+    dstPos::ROCDim3 = ROCDim3(1, 1, 1), srcPos::ROCDim3 = ROCDim3(1, 1, 1),
+    dstPitch::Integer = 0, dstWidth::Integer = 0, dstHeight::Integer = 0,
+    srcPitch::Integer = 0, srcWidth::Integer = 0, srcHeight::Integer = 0,
+    async::Bool = false, stream::HIP.HIPStream = AMDGPU.stream(),
+) where {T, D, S}
+    srcPos = HIP.hipPos(srcPos[1] - 1, srcPos[2] - 1, srcPos[3] - 1)
+    dstPos = HIP.hipPos(dstPos[1] - 1, dstPos[2] - 1, dstPos[3] - 1)
+
+    extent = HIP.hipExtent(width * sizeof(T), height, depth)
+    kind = if D <: HIPBuffer && S <: HIPBuffer
+        HIP.hipMemcpyDeviceToDevice
+    elseif D <: HIPBuffer && S <: HostBuffer
+        HIP.hipMemcpyHostToDevice
+    elseif D <: HostBuffer && S <: HIPBuffer
+        HIP.hipMemcpyDeviceToHost
+    elseif D <: HostBuffer && S <: HostBuffer
+        HIP.hipMemcpyHostToHost
+    end
+
+    srcPtr = HIP.hipPitchedPtr(src, srcPitch, srcWidth, srcHeight)
+    dstPtr = HIP.hipPitchedPtr(dst, dstPitch, dstWidth, dstHeight)
+    params = Ref(HIP.hipMemcpy3DParms(
+        C_NULL, srcPos, srcPtr,
+        C_NULL, dstPos, dstPtr, extent, kind))
+
+    HIP.hipMemcpy3DAsync(params, stream) |> HIP.check
+    async || AMDGPU.synchronize(stream)
+    return dst
+end

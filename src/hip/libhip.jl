@@ -141,6 +141,11 @@ function hipPointerGetAttributes(attribute, ptr)
         (Ptr{hipPointerAttribute_t}, Ptr{Cvoid}), attribute, ptr)
 end
 
+function hipMemcpy3DAsync(p, stream)
+    ccall((:hipMemcpy3DAsync, libhip), hipError_t,
+        (Ptr{hipMemcpy3DParms}, hipStream_t), p, stream)
+end
+
 function hipMallocAsync(ptr, sz, stream)
     ccall((:hipMallocAsync, libhip), hipError_t,
         (Ptr{Ptr{Cvoid}}, Csize_t, hipStream_t),
