@@ -234,59 +234,6 @@ end
         @test Array(src) == Array(dst)
     end
 
-    @testset "Copy x-z planes" begin
-        nx, ny, nz = 4, 4, 4
-        src = ROCArray(collect(reshape(1:(nx * nz), nx, nz)))
-        dst = ROCArray(zeros(Int, nx, ny, nz))
-        Mem.unsafe_copy3d!(
-            pointer(dst), typeof(dst.buf),
-            pointer(src), typeof(src.buf),
-            nx, 1, nz;
-            dstPitch=nx * sizeof(Int), dstHeight=ny,
-            srcPitch=nx * sizeof(Int), srcWidth=nz)
-        @test Array(src) == Array(dst)[:, 1, :]
-    end
-
-    @testset "Copy x-z planes, each dimension is different in size" begin
-        nx, ny, nz = 2, 3, 4
-        src = ROCArray(collect(reshape(1:(nx * nz), nx, nz)))
-        dst = ROCArray(zeros(Int, nx, ny, nz))
-        Mem.unsafe_copy3d!(
-            pointer(dst), typeof(dst.buf),
-            pointer(src), typeof(src.buf),
-            nx, 1, nz;
-            dstPitch=nx * sizeof(Int), dstHeight=ny,
-            srcPitch=nx * sizeof(Int), srcWidth=nz)
-        @test Array(src) == Array(dst)[:, 1, :]
-    end
-
-    @testset "3D Copy y-z planes, each dimension is different in size" begin
-        nx, ny, nz = 2, 3, 4
-        src = ROCArray(collect(reshape(1:(nx * ny * nz), nx, ny, nz)))
-        dst = ROCArray(zeros(Int, nx, ny, nz))
-        Mem.unsafe_copy3d!(
-            pointer(dst), typeof(dst.buf),
-            pointer(src), typeof(src.buf),
-            1, ny, nz;
-            dstPitch=nx * sizeof(Int), dstHeight=ny,
-            srcPitch=nx * sizeof(Int), srcHeight=ny)
-        @test Array(src)[1, :, :] == Array(dst)[1, :, :]
-    end
-
-    @testset "Copy middle part of x-z planes, each dimension is different in size" begin
-        nx, ny, nz = 4, 6, 8
-        src = ROCArray(collect(reshape(1:(nx * nz), nx, nz)))
-        dst = ROCArray(zeros(Int, nx, ny, nz))
-        Mem.unsafe_copy3d!(
-            pointer(dst), typeof(dst.buf),
-            pointer(src), typeof(src.buf),
-            2, 1, 4;
-            dstPos=(2, 1, 3), srcPos=(2, 1, 3),
-            dstPitch=nx * sizeof(Int), dstHeight=ny,
-            srcPitch=nx * sizeof(Int), srcWidth=ny)
-        @test Array(src)[2:3, 3:6] == Array(dst)[2:3, 1, 3:6]
-    end
-
     @testset "3D Copy middle part of y-z planes, each dimension is different in size" begin
         nx, ny, nz = 4, 6, 8
         src = ROCArray(collect(reshape(1:(nx * ny * nz), nx, ny, nz)))
@@ -315,20 +262,64 @@ end
         @test Array(src)[2:3, 2:5, 3:6] == Array(dst)[2:3, 2:5, 3:6]
     end
 
-    @testset "3D -> 2D copy y-z planes" begin
-        nx, ny, nz = 4, 6, 8
-        src = ROCArray(collect(reshape(1:(nx * ny * nz), nx, ny, nz)))
-        dst = ROCArray(zeros(Int, ny, nz))
-        dst_view = reshape(dst, 1, ny, nz)
+    @testset "3D -> 2D -> 3D copy" begin
+        nx, ny, nz = 2, 3, 4
+        T = Int
+        P = ROCArray(reshape(1:(2 * 3 * 4), nx, ny, nz))
 
-        AMDGPU.Mem.unsafe_copy3d!(
-            pointer(dst), typeof(dst.buf),
-            pointer(src), typeof(src.buf),
-            1, 3, 4;
-            dstPos=(1, 1, 1), srcPos=(2, 1, 1),
-            dstPitch=size(dst_view, 1) * sizeof(Int), dstHeight=size(dst_view, 2),
-            srcPitch=size(src, 1) * sizeof(Int), srcHeight=size(src, 2))
-        @test Array(src)[2, 1:3, 1:4] == Array(dst)[1:3, 1:4]
+        for dim in 1:3
+            if dim == 1
+                ranges = [2:2, 1:size(P,2), 1:size(P,3)]
+                buf = zeros(T, size(P,2), size(P,3))
+                buf_view_shape = (1, size(P,2), size(P,3))
+            elseif dim == 2
+                ranges = [1:size(P,1), 3:3, 1:size(P,3)]
+                buf = zeros(T, size(P,1), size(P,3))
+                buf_view_shape = (size(P,1), 1, size(P,3))
+            elseif dim == 3
+                ranges = [1:size(P,1), 1:size(P,2), 3:3]
+                buf = zeros(T, size(P,1), size(P,2))
+                buf_view_shape = (size(P,1), size(P,2), 1)
+            end
+
+            # Reshape 2D to 3D for simplicity.
+            buf_view = reshape(buf, buf_view_shape)
+
+            AMDGPU.Mem.unsafe_copy3d!(
+                pointer(buf), AMDGPU.Mem.HostBuffer,
+                pointer(P), typeof(P.buf),
+                length(ranges[1]), length(ranges[2]), length(ranges[3]);
+                srcPos=(ranges[1][1], ranges[2][1], ranges[3][1]),
+                dstPitch=sizeof(T) * size(buf_view, 1), dstHeight=size(buf_view, 2),
+                srcPitch=sizeof(T) * size(P, 1), srcHeight=size(P, 2))
+
+            if dim == 1
+                @assert buf == Array(P)[2, :, :]
+            elseif dim == 2
+                @assert buf == Array(P)[:, 3, :]
+            elseif dim == 3
+                @assert buf == Array(P)[:, :, 3]
+            end
+
+            # host to device
+            P2 = similar(P)
+
+            AMDGPU.Mem.unsafe_copy3d!(
+                pointer(P2), typeof(P2.buf),
+                pointer(buf), AMDGPU.Mem.HostBuffer,
+                length(ranges[1]), length(ranges[2]), length(ranges[3]);
+                dstPos=(ranges[1][1], ranges[2][1], ranges[3][1]),
+                dstPitch=sizeof(T) * size(P2,1), dstHeight=size(P2, 2),
+                srcPitch=sizeof(T) * size(buf_view, 1), srcHeight=size(buf_view, 2))
+
+            if dim == 1
+                @assert Array(P2)[2, :, :] == Array(P)[2, :, :]
+            elseif dim == 2
+                @assert Array(P2)[:, 3, :] == Array(P)[:, 3, :]
+            elseif dim == 3
+                @assert Array(P2)[:, :, 3] == Array(P)[:, :, 3]
+            end
+        end
     end
 end
 
