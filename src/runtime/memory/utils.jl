@@ -32,8 +32,6 @@ Returns the used amount of memory (in bytes), allocated on the device.
 """
 used() = total() - free()
 
-const ALL_ALLOCS = Threads.Atomic{Int64}(0)
-
 function parse_memory_limit(limit_str::String)
     limit_str == "none" && return typemax(UInt64)
 
@@ -117,41 +115,3 @@ function alloc_or_retry!(f)
     check(status)
     return
 end
-
-"""
-Allocate linear memory on the device and return a buffer to the allocated memory. The
-allocated memory is suitably aligned for any kind of variable. The memory will not be freed
-automatically, use [`free(::Buffer)`](@ref) for that.
-"""
-function alloc end
-
-"""
-Free device memory.
-"""
-function free end
-
-"""
-Initialize device memory with a repeating value.
-"""
-function set! end
-
-"""
-Upload memory from host to device.
-Executed asynchronously on `queue` if `async` is true.
-"""
-function upload end
-@doc (@doc upload) upload!
-
-"""
-Download memory from device to host.
-Executed asynchronously on `queue` if `async` is true.
-"""
-function download end
-@doc (@doc download) download!
-
-"""
-Transfer memory from device to device.
-Executed asynchronously on `queue` if `async` is true.
-"""
-function transfer end
-@doc (@doc transfer) transfer!
