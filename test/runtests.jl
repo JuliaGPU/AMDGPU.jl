@@ -136,6 +136,10 @@ if "core" in TARGET_TESTS
         include("codegen/synchronization.jl")
         include("codegen/trap.jl")
     end)
+    push!(tests, "Multitasking" => ()->include("tls.jl"))
+    push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
+    push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
+
     # if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
     #     push!(tests, "Logging" => ()->include("logging.jl"))
     # else
@@ -145,9 +149,6 @@ if "core" in TARGET_TESTS
     #     """
     #     @test_skip "Logging"
     # end
-    push!(tests, "Multitasking" => ()->include("tls.jl"))
-    push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
-    push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
 end
 
 if "hip" in TARGET_TESTS

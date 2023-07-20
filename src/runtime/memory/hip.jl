@@ -268,13 +268,16 @@ function unsafe_copy3d!(
     dst::Ptr{T}, dstTyp::Type{D},
     src::Ptr{T}, srcTyp::Type{S},
     width::Integer, height::Integer = 1, depth::Integer = 1;
-    dstPos::ROCDim3 = ROCDim3(1, 1, 1), srcPos::ROCDim3 = ROCDim3(1, 1, 1),
+    dstPos::ROCDim = (1, 1, 1), srcPos::ROCDim = (1, 1, 1),
     dstPitch::Integer = 0, dstWidth::Integer = 0, dstHeight::Integer = 0,
     srcPitch::Integer = 0, srcWidth::Integer = 0, srcHeight::Integer = 0,
     async::Bool = false, stream::HIP.HIPStream = AMDGPU.stream(),
 ) where {T, D, S}
-    srcPos = HIP.hipPos(srcPos[1] - 1, srcPos[2] - 1, srcPos[3] - 1)
-    dstPos = HIP.hipPos(dstPos[1] - 1, dstPos[2] - 1, dstPos[3] - 1)
+    (width == 0 || height == 0 || depth == 0) && return dst
+
+    srcPos, dstPos = ROCDim3(srcPos), ROCDim3(dstPos)
+    srcPos = HIP.hipPos((srcPos[1] - 1) * sizeof(T), srcPos[2] - 1, srcPos[3] - 1)
+    dstPos = HIP.hipPos((dstPos[1] - 1) * sizeof(T), dstPos[2] - 1, dstPos[3] - 1)
 
     extent = HIP.hipExtent(width * sizeof(T), height, depth)
     kind = if D <: HIPBuffer && S <: HIPBuffer
