@@ -235,7 +235,7 @@ function __init__()
     end
 
     if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
-        env_use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
+        env_use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "true"))
         if use_artifacts() != env_use_artifacts
             enable_artifacts!(env_use_artifacts)
             @warn """

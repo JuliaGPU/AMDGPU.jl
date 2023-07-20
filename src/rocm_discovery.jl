@@ -8,6 +8,7 @@ const rocm_ext_libs = [
     (:MIOpen, :MIOpen_jll)]
 
 function enable_artifacts!(flag::Bool = true; show_message::Bool = true)
+    flag && error("No supported artifacts for AMDGPU 0.5+. See: https://github.com/JuliaGPU/AMDGPU.jl/issues/440.")
     @set_preferences!("use_artifacts" => flag)
     if show_message
         @info """
@@ -21,7 +22,8 @@ end
 use_artifacts()::Bool = @load_preference("use_artifacts", false)
 
 if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
-    disable_artifacts = parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "false"))
+    disable_artifacts = parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "true"))
+    disable_artifacts || error("No supported artifacts for AMDGPU 0.5+. See: https://github.com/JuliaGPU/AMDGPU.jl/issues/440.")
     enable_artifacts!(!disable_artifacts; show_message=false)
 end
 
