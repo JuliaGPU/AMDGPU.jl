@@ -1,68 +1,63 @@
-function hsa_version()
-    major_ref = Ref{Cushort}(typemax(Cushort))
-    minor_ref = Ref{Cushort}(typemax(Cushort))
-    major_status = ccall((:hsa_system_get_info, libhsaruntime_path), Cint, (Cint, Ptr{Cushort}), HSA.SYSTEM_INFO_VERSION_MAJOR, major_ref)
-    minor_status = ccall((:hsa_system_get_info, libhsaruntime_path), Cint, (Cint, Ptr{Cushort}), HSA.SYSTEM_INFO_VERSION_MINOR, minor_ref)
-    if major_status != HSA.STATUS_SUCCESS ||
-       minor_status != HSA.STATUS_SUCCESS
-        @warn "Failed to detect HSA version: $major_status"
-        return v"0"
-    end
-    return VersionNumber(major_ref[], minor_ref[])
-end
 
 function versioninfo(io::IO=stdout)
-    println("Using ROCm provided by: ", use_artifacts() ? "JLLs" : "System")
-    println("HSA Runtime ($(functional(:hsa) ? "ready" : "MISSING"))")
-    if functional(:hsa)
-        println("- Path: $libhsaruntime_path")
-        println("- Version: $(hsa_version())")
-    end
-    println("ld.lld ($(functional(:lld) ? "ready" : "MISSING"))")
-    if functional(:lld)
-        println("- Path: $lld_path")
-    end
-    println("ROCm-Device-Libs ($(functional(:device_libs) ? "ready" : "MISSING"))")
-    if functional(:device_libs)
-        println("- Path: $libdevice_libs")
-    end
-    println("HIP Runtime ($(functional(:hip) ? "ready" : "MISSING"))")
-    if functional(:hip)
-        println("- Path: $libhip")
-    end
-    println("rocBLAS ($(functional(:rocblas) ? "ready" : "MISSING"))")
-    if functional(:rocblas)
-        println("- Path: $(Libdl.dlpath(librocblas))")
-    end
-    println("rocSOLVER ($(functional(:rocsolver) ? "ready" : "MISSING"))")
-    if functional(:rocsolver)
-        println("- Path: $(Libdl.dlpath(librocsolver))")
-    end
-    println("rocALUTION ($(functional(:rocalution) ? "ready" : "MISSING"))")
-    if functional(:rocalution)
-        println("- Path: $(Libdl.dlpath(librocalution))")
-    end
-    println("rocSPARSE ($(functional(:rocsparse) ? "ready" : "MISSING"))")
-    if functional(:rocsparse)
-        println("- Path: $(Libdl.dlpath(librocsparse))")
-    end
-    println("rocRAND ($(functional(:rocrand) ? "ready" : "MISSING"))")
-    if functional(:rocrand)
-        println("- Path: $(Libdl.dlpath(librocrand))")
-    end
-    println("rocFFT ($(functional(:rocfft) ? "ready" : "MISSING"))")
-    if functional(:rocfft)
-        println("- Path: $(Libdl.dlpath(librocfft))")
-    end
-    println("MIOpen ($(functional(:MIOpen) ? "ready" : "MISSING"))")
-    if functional(:MIOpen)
-        println("- Path: $(Libdl.dlpath(libMIOpen))")
+    _status(st::Bool) = st ? "+" : "-"
+    function _lib_title(name::String, sym::Symbol; version_fn::Function)
+        st = _status(functional(sym))
+        ver = (functional(sym) && version_fn ≢ identity) ? "v$(version_fn())" : ""
+        "[$st] $name $ver"
     end
 
+    println("ROCm provided by: ", use_artifacts() ? "JLLs" : "system")
+    println(_lib_title("HSA Runtime", :hsa; version_fn=HSA.version))
     if functional(:hsa)
-        println("HIP Devices ($(length(Runtime.devices()))):")
-        for device in Runtime.devices()
-            println("- ", repr(device))
+        println("    @ $libhsaruntime_path")
+    end
+    println("[$(_status(functional(:lld)))] ld.lld")
+    if functional(:lld)
+        println("    @ $lld_path")
+    end
+    println("[$(_status(functional(:device_libs)))] ROCm-Device-Libs")
+    if functional(:device_libs)
+        println("    @ $libdevice_libs")
+    end
+    println(_lib_title("HIP Runtime", :hip; version_fn=HIP.runtime_version))
+    if functional(:hip)
+        println("    @ $libhip")
+    end
+    println(_lib_title("rocBLAS", :rocblas; version_fn=rocBLAS.version))
+    if functional(:rocblas)
+        println("    @ $(Libdl.dlpath(librocblas))")
+    end
+    println("[$(_status(functional(:rocsolver)))] rocSOLVER")
+    if functional(:rocsolver)
+        println("    @ $(Libdl.dlpath(librocsolver))")
+    end
+    println("[$(_status(functional(:rocalution)))] rocALUTION")
+    if functional(:rocalution)
+        println("    @ $(Libdl.dlpath(librocalution))")
+    end
+    println("[$(_status(functional(:rocsparse)))] rocSPARSE")
+    if functional(:rocsparse)
+        println("    @ $(Libdl.dlpath(librocsparse))")
+    end
+    println(_lib_title("rocRAND", :rocrand; version_fn=rocRAND.version))
+    if functional(:rocrand)
+        println("    @ $(Libdl.dlpath(librocrand))")
+    end
+    println(_lib_title("rocFFT", :rocfft; version_fn=rocFFT.version))
+    if functional(:rocfft)
+        println("    @ $(Libdl.dlpath(librocfft))")
+    end
+    println(_lib_title("MIOpen", :MIOpen; version_fn=MIOpen.version))
+    if functional(:MIOpen)
+        println("    @ $(Libdl.dlpath(libMIOpen))")
+    end
+
+    if functional(:hsa) && functional(:hip)
+        println()
+        println("HIP Devices [$(length(Runtime.devices()))]")
+        for (i, device) in enumerate(Runtime.devices())
+            println("    $i. ", repr(device))
         end
     end
 end

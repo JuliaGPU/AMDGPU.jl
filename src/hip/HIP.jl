@@ -10,6 +10,13 @@ include("error.jl")
 include("libhip.jl")
 include("device.jl")
 
+function runtime_version()
+    rt_ref = Ref{Cint}()
+    hipRuntimeGetVersion(rt_ref) |> check
+    rt = rt_ref[]
+    VersionNumber(rt ÷ Int(1e7), rt ÷ Int(1e5), rt % Int(1e5))
+end
+
 mutable struct HIPContext
     context::hipContext_t
 end

@@ -21,4 +21,16 @@ for func in filter(n->startswith(n, "hsa_") && getproperty(LibHSARuntime, Symbol
     @eval const $newfunc = LibHSARuntime.$(Symbol(func))
 end
 
+function version()
+    major_ref = Ref{Cushort}(typemax(Cushort))
+    minor_ref = Ref{Cushort}(typemax(Cushort))
+    major_status = system_get_info(SYSTEM_INFO_VERSION_MAJOR, major_ref)
+    minor_status = system_get_info(SYSTEM_INFO_VERSION_MINOR, minor_ref)
+    if major_status != STATUS_SUCCESS || minor_status != STATUS_SUCCESS
+        @warn "Failed to detect HSA version: $major_status"
+        return v"0"
+    end
+    return VersionNumber(major_ref[], minor_ref[])
+end
+
 end
