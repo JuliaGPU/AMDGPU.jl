@@ -566,4 +566,3 @@ const hipHostAllocMapped = 0x02
 const hipHostRegisterDefault = 0x0
 const hipHostRegisterPortable = 0x1
 const hipHostRegisterMapped = 0x2
-

@@ -1,3 +1,11 @@
+function hipDriverGetVersion(driverVersion)
+    ccall((:hipDriverGetVersion, libhip), hipError_t, (Ptr{Cint},), driverVersion)
+end
+
+function hipRuntimeGetVersion(runtimeVersion)
+    ccall((:hipRuntimeGetVersion, libhip), hipError_t, (Ptr{Cint},), runtimeVersion)
+end
+
 function hipInit(flags)
     ccall((:hipInit, libhip), hipError_t, (Cint,), flags)
 end
