@@ -2,7 +2,7 @@ steps:
   - label: "Documentation"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.10-nightly
+          version: 1.9-nightly
     command: |
       julia --project -e '
         println("--- :julia: Instantiating project")
@@ -22,10 +22,10 @@ steps:
     if: build.message !~ /\[skip docs\]/
     timeout_in_minutes: 10
 
-  - label: "Julia 1.10 - No Artifacts"
+  - label: "Julia 1.9 - No Artifacts"
     plugins:
       - JuliaCI/julia#v1:
-          version: 1.10-nightly
+          version: 1.9-nightly
       - JuliaCI/julia-test#v1:
       - JuliaCI/julia-coverage#v1:
           codecov: true
