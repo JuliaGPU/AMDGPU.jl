@@ -1,5 +1,3 @@
-## ROCm device library
-
 import AMDGPU: libdevice_libs
 
 function locate_lib(file)
@@ -19,15 +17,9 @@ mutable struct DevLib
     path::String
     data::Vector{UInt8}
     fn_names::Set{String}
-    mod::Union{LLVM.Module, Nothing}
 
-    function DevLib(name::String, path::String)
-        new(name, path, read(path), Set{String}(), nothing)
-    end
-
-    function DevLib(name::String, ::Nothing)
-        new(name, "", UInt8[], Set{String}(), nothing)
-    end
+    DevLib(name::String, path::String) = new(name, path, read(path), Set{String}())
+    DevLib(name::String, ::Nothing) = new(name, "", UInt8[], Set{String}())
 end
 
 const DEVICE_LIBS::Dict{String, DevLib} = Dict{String, DevLib}()
@@ -37,8 +29,6 @@ function link_device_libs!(
 )
     isnothing(libdevice_libs) && return
     isempty(undefined_fns) && return
-
-    # TODO update `undefined_fns`.
 
     # 1. Load other libraries.
     lib_names = ("hc", "hip", "irif", "ockl", "opencl", "ocml")
@@ -54,21 +44,21 @@ function link_device_libs!(
         isa_short = replace(target.dev_isa, "gfx"=>"")
         DevLib("oclc", locate_lib("oclc_isa_version_$isa_short"))
     end
-    load_and_link!(devlib, mod, String[])
+    load_and_link!(devlib, mod)
 
     # 3. Load OCLC ABI library.
     devlib = get!(DEVICE_LIBS, "oclc_abi") do
         DevLib("oclc_abi", locate_lib("oclc_abi_version_500"))
     end
-    load_and_link!(devlib, mod, String[])
+    load_and_link!(devlib, mod)
 
     # 4. Load options libraries.
-    options = Dict(
-        :finite_only => false,
-        :unsafe_math => false,
-        :correctly_rounded_sqrt => true,
-        :daz_opt => false,
-        :wavefrontsize64 => true)
+    options = (
+        (:finite_only, false),
+        (:unsafe_math, false),
+        (:correctly_rounded_sqrt, true),
+        (:daz_opt, false),
+        (:wavefrontsize64, true))
 
     for (option, value) in options
         toggle = value ? "on" : "off"
@@ -76,12 +66,12 @@ function link_device_libs!(
         devlib = get!(DEVICE_LIBS, name) do
             DevLib(name, locate_lib(name))
         end
-        load_and_link!(devlib, mod, String[])
+        load_and_link!(devlib, mod)
     end
 end
 
 function load_and_link!(
-    devlib::DevLib, mod::LLVM.Module, undefined_fns::Vector{String},
+    devlib::DevLib, mod::LLVM.Module, undefined_fns::Vector{String} = String[],
 )
     isempty(devlib.path) && return
 

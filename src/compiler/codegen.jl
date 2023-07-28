@@ -34,7 +34,7 @@ end
 function GPUCompiler.finish_ir!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
-    undefined_fns = collect(GPUCompiler.decls(mod))
+    undefined_fns = GPUCompiler.decls(mod)
     isempty(undefined_fns) && return entry
     link_device_libs!(job.config.target, mod, LLVM.name.(undefined_fns))
     return entry
