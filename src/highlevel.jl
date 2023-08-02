@@ -177,26 +177,16 @@ function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
 end
 
 """
-    @sync [blocking=true/false] ex
+    @sync ex
 
 Run expression `ex` and synchronize the GPU afterwards.
 
 See also: [`synchronize`](@ref).
 """
-macro sync(ex...)
-    kwargs = ex[1:end - 1]
-    code = ex[end]
-
-    # decode keyword arguments
-    for kwarg in kwargs
-        Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
-        key, _ = kwarg.args
-        (key != :blocking) && error("Unknown keyword argument $kwarg")
-    end
-
+macro sync(ex)
     quote
-        local ret = $(esc(code))
-        synchronize(; $(esc(kwargs...)))
+        local ret = $(esc(ex))
+        AMDGPU.synchronize()
         ret
     end
 end
