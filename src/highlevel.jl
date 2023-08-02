@@ -3,7 +3,6 @@
 import AMDGPU: Runtime, Compiler
 import .Runtime: ROCDim, ROCDim3
 import .Compiler: hipfunction
-import Base: @sync
 
 export @roc, rocconvert
 
@@ -187,19 +186,19 @@ See also: [`synchronize`](@ref).
 macro sync(ex...)
     # destructure the `@sync` expression
     code = ex[end]
-    kwargs = ex[1:end-1]
+    # kwargs = ex[1:end-1]
 
     # decode keyword arguments
-    for kwarg in kwargs
-        Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
-        key, _ = kwarg.args
-        (key != :blocking) && error("Unknown keyword argument $kwarg")
-    end
+    # for kwarg in kwargs
+    #     Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
+    #     key, _ = kwarg.args
+    #     (key != :blocking) && error("Unknown keyword argument $kwarg")
+    # end
 
-    quote
+    @show quote
         local ret = $(esc(code))
+        synchronize()
         ret
-        AMDGPU.synchronize()
     end
 end
 
