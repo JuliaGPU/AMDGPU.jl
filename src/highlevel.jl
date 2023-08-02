@@ -198,8 +198,8 @@ macro sync(ex...)
 
     quote
         local ret = $(esc(code))
-        AMDGPU.synchronize()
         ret
+        AMDGPU.synchronize()
     end
 end
 
