@@ -196,8 +196,9 @@ macro sync(ex...)
     #     (key != :blocking) && error("Unknown keyword argument $kwarg")
     # end
 
-    @show quote
+    quote
         local ret = $(esc(code))
+        @show "hi"
         synchronize()
         ret
     end
