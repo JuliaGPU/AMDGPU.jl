@@ -161,8 +161,8 @@ function find_hip!(config)
 end
 
 function find_hip_based_libs!(config, rocm_ext_libs)
-    @sync for (name, pkg) in rocm_ext_libs
-        @async begin
+    Base.@sync for (name, pkg) in rocm_ext_libs
+        Base.@async begin
             lib = Symbol(:lib, string(name))
             if use_artifacts()
                 find_artifact_library!(config, pkg; name, lib)

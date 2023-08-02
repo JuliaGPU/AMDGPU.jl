@@ -176,7 +176,20 @@ function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
     return
 end
 
-## @roc interface
+"""
+    @sync ex
+
+Run expression `ex` and synchronize the GPU afterwards.
+
+See also: [`synchronize`](@ref).
+"""
+macro sync(ex)
+    quote
+        local ret = $(esc(ex))
+        AMDGPU.synchronize()
+        ret
+    end
+end
 
 """
     rocconvert(x)
