@@ -187,18 +187,17 @@ See also: [`synchronize`](@ref).
 macro sync(ex...)
     # destructure the `@sync` expression
     code = ex[end]
-    # kwargs = ex[1:end-1]
+    kwargs = ex[1:end-1]
 
     # decode keyword arguments
-    # for kwarg in kwargs
-    #     Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
-    #     key, _ = kwarg.args
-    #     (key != :blocking) && error("Unknown keyword argument $kwarg")
-    # end
+    for kwarg in kwargs
+        Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
+        key, _ = kwarg.args
+        (key != :blocking) && error("Unknown keyword argument $kwarg")
+    end
 
     quote
         local ret = $(esc(code))
-        @show "hi"
         synchronize()
         ret
     end
