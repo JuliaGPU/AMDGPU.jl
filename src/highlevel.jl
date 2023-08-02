@@ -3,7 +3,6 @@
 import AMDGPU: Runtime, Compiler
 import .Runtime: ROCDim, ROCDim3
 import .Compiler: hipfunction
-import Base: @sync
 
 export @roc, rocconvert
 
@@ -178,16 +177,15 @@ function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
 end
 
 """
-    @sync ex
+    @sync [blocking=true/false] ex
 
 Run expression `ex` and synchronize the GPU afterwards.
 
 See also: [`synchronize`](@ref).
 """
 macro sync(ex...)
-    # destructure the `@sync` expression
+    kwargs = ex[1:end - 1]
     code = ex[end]
-    kwargs = ex[1:end-1]
 
     # decode keyword arguments
     for kwarg in kwargs
@@ -198,12 +196,10 @@ macro sync(ex...)
 
     quote
         local ret = $(esc(code))
-        synchronize()
+        synchronize(; $(esc(kwargs...)))
         ret
     end
 end
-
-## @roc interface
 
 """
     rocconvert(x)

@@ -76,8 +76,7 @@ end
         @test B ≈ Array(RA)
 
         # GPU pointer works.
-        RA .+= 1.0
-        AMDGPU.synchronize()
+        AMDGPU.@sync RA .+= 1.0
 
         # Host pointer is updated.
         @test A ≈ A_orig .+ 1.0
