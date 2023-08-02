@@ -3,6 +3,7 @@
 import AMDGPU: Runtime, Compiler
 import .Runtime: ROCDim, ROCDim3
 import .Compiler: hipfunction
+import Base: @sync
 
 export @roc, rocconvert
 
