@@ -15,9 +15,8 @@ include("highlevel.jl")
 
 function rocblas_get_version_string()
     vec = zeros(UInt8, 64)
-    str = reinterpret(Cstring, pointer(vec))
     rocblas_get_version_string(vec, 64) |> check
-    return unsafe_string(str)
+    return unsafe_string(reinterpret(Cstring, pointer(vec)))
 end
 
 function version()
