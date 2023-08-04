@@ -60,7 +60,57 @@ m, n = 15, 10
         @test Array(dq) ≈ Array(q)
         @test Array(dr) ≈ Array(r)
 
-        # TODO the rest
-        # https://github.com/JuliaGPU/CUDA.jl/blob/d79adbfd090b0e51ccaf4c74710eaa610e0bf998/test/libraries/cusolver/dense.jl#L409
+        # TODO
+    end
+end
+
+@testset "Matrix division $elty1 \\ $elty2" for elty1 in (
+    Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64,
+), elty2 in (
+    Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64,
+)
+    @testset "Underdetermined linear system" begin
+        A = rand(elty1, n, m)
+        B = rand(elty2, n, 5)
+        b = rand(elty2, n)
+
+        rocblasfloat = promote_type(Float32, promote_type(elty1, elty2))
+        Af, Bf, bf = map(x -> rocblasfloat.(x), (A, B, b))
+
+        dA, dB, db = ROCArray.((A, B, b))
+        @test Array(dA \ dB) ≈ (Af \ Bf)
+        @test Array(dA \ db) ≈ (Af \ bf)
+        @inferred dA \ dB
+        @inferred dA \ db
+    end
+
+    @testset "Square linear system" begin
+        A = rand(elty1, n, n)
+        B = rand(elty2, n, 5)
+        b = rand(elty2, n)
+
+        rocblasfloat = promote_type(Float32, promote_type(elty1, elty2))
+        Af, Bf, bf = map(x -> rocblasfloat.(x), (A, B, b))
+
+        dA, dB, db = ROCArray.((A, B, b))
+        @test Array(dA \ dB) ≈ (Af \ Bf)
+        @test Array(dA \ db) ≈ (Af \ bf)
+        @inferred dA \ dB
+        @inferred dA \ db
+    end
+
+    @testset "Overdetermined linear system" begin
+        A = rand(elty1, m, n)
+        B = rand(elty2, m, 5)
+        b = rand(elty2, m)
+
+        rocblasfloat = promote_type(Float32, promote_type(elty1, elty2))
+        Af, Bf, bf = map(x -> rocblasfloat.(x), (A, B, b))
+
+        dA, dB, db = ROCArray.((A, B, b))
+        @test Array(dA \ dB) ≈ (Af \ Bf)
+        @test Array(dA \ db) ≈ (Af \ bf)
+        @inferred dA \ dB
+        @inferred dA \ db
     end
 end

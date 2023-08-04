@@ -27,14 +27,85 @@ for (fname, elty) in (
             side::Char, trans::Char, A::ROCMatrix{$elty},
             τ::ROCVector{$elty}, C::ROCVecOrMat{$elty},
         )
+            trans = ($elty <: Real && trans == 'C') ? 'T' : trans
+            chkside(side)
+            chktrans(trans)
+
             m, n = (ndims(C) == 2) ? size(C) : (size(C, 1), 1)
             k = length(τ)
+            mA  = size(A, 1)
+
+            side == 'L' && m != mA && throw(DimensionMismatch(
+                "for a left-sided multiplication, the first dimension of C, $m, must equal the second dimension of A, $mA"))
+            side == 'R' && n != mA && throw(DimensionMismatch(
+                "for a right-sided multiplication, the second dimension of C, $m, must equal the second dimension of A, $mA"))
+            side == 'L' && k > m && throw(DimensionMismatch(
+                "invalid number of reflectors: k = $k should be <= m = $m"))
+            side == 'R' && k > n && throw(DimensionMismatch(
+                "invalid number of reflectors: k = $k should be <= n = $n"))
+
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
             $fname(
-                rocBLAS.handle(), rocBLAS.rocblasside(side),
-                rocBLAS.rocblasop(trans), m, n, k, A, lda, τ, C, ldc) |> check
+                rocBLAS.handle(), rocBLAS.rocblasside(side), rocBLAS.rocblasop(trans),
+                m, n, k, A, lda, τ, C, ldc) |> check
             C
+        end
+    end
+end
+
+for (fname, elty) in (
+    (:rocsolver_sgetrf, Float32),
+    (:rocsolver_dgetrf, Float64),
+    (:rocsolver_cgetrf, ComplexF32),
+    (:rocsolver_zgetrf, ComplexF64),
+)
+    @eval begin
+        function getrf!(A::ROCMatrix{$elty})
+            m, n = size(A)
+            lda = max(1, stride(A, 2))
+
+            ipiv = ROCArray{Cint}(undef, min(m, n))
+            devinfo = ROCArray{Cint}(undef, 1)
+            $fname(rocBLAS.handle(), m, n, A, lda, ipiv, devinfo) |> check
+
+            info = AMDGPU.@allowscalar devinfo[1]
+            AMDGPU.unsafe_free!(devinfo)
+            chkargsok(BlasInt(info))
+
+            A, ipiv
+        end
+    end
+end
+
+for (fname, elty) in (
+    (:rocsolver_sgetrs, Float32),
+    (:rocsolver_dgetrs, Float64),
+    (:rocsolver_cgetrs, ComplexF32),
+    (:rocsolver_zgetrs, ComplexF64),
+)
+    @eval begin
+        function getrs!(
+            trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint},
+            B::ROCVecOrMat{$elty}
+        )
+            trans = ($elty <: Real && trans == 'C') ? 'T' : trans
+            chktrans(trans)
+            n = checksquare(A)
+
+            size(B, 1) != n && throw(DimensionMismatch(
+                "first dimension of B, $(size(B,1)), must match dimension of A, $n"))
+            length(ipiv) != n && throw(DimensionMismatch(
+                "length of ipiv, $(length(ipiv)), must match dimension of A, $n"))
+
+            nrhs = size(B, 2)
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+
+            $fname(
+                rocBLAS.handle(), rocBLAS.rocblasop(trans),
+                n, nrhs, A, lda, ipiv, B, ldb) |> check
+            B
         end
     end
 end
@@ -69,6 +140,64 @@ function Base.getindex(Q::QRPackedQ{<:Any, <:ROCArray}, ::Colon, j::Int)
     y = AMDGPU.zeros(eltype(Q), size(Q, 2))
     y[j] = 1
     lmul!(Q, y)
+end
+
+const ROCMatOrAdj{T} = Union{
+    ROCMatrix{T},
+    LinearAlgebra.Adjoint{T, <:ROCMatrix{T}},
+    LinearAlgebra.Transpose{T, <:ROCMatrix{T}}}
+
+const ROCOrAdj{T} = Union{
+    ROCVecOrMat{T},
+    LinearAlgebra.Adjoint{T, <:ROCVecOrMat{T}},
+    LinearAlgebra.Transpose{T, <:ROCVecOrMat{T}}}
+
+function copy_rocblasfloat(As...)
+    eltypes = eltype.(As)
+    promoted_eltype = reduce(promote_type, eltypes)
+    rocblasfloat = promote_type(Float32, promoted_eltype)
+    rocblasfloat <: rocBLAS.ROCBLASFloat ||
+        throw(ArgumentError("Cannot promote eltypes `$eltypes` to a ROCBLAS float type `$(rocBLAS.ROCBLASFloat)`."))
+
+    out = _copywitheltype(rocblasfloat, As...)
+    length(out) == 1 && return first(out)
+    return out
+end
+
+_copywitheltype(::Type{T}, As...) where T = map(A -> copyto!(similar(A, T), A), As)
+
+function Base.:\(_A::ROCMatOrAdj, _B::ROCOrAdj)
+    A, B = copy_rocblasfloat(_A, _B)
+    T = eltype(A)
+    n, m = size(A)
+
+    if n < m # LQ decomposition
+        F, τ = geqrf!(ROCMatrix(A'))
+        if B isa ROCVector{T}
+            rocBLAS.trsv!('U', 'C', 'N', F[1:n, 1:n], B) # TODO use @view
+            X = AMDGPU.zeros(T, m)
+            view(X, 1:n) .= B
+        else
+            rocBLAS.trsm!('L', 'U', 'C', 'N', one(T), F[1:n, 1:n], B) # TODO use @view
+            X = AMDGPU.zeros(T, m, size(B, 2))
+            view(X, 1:n, :) .= B
+        end
+        ormqr!('L', 'N', F, τ, X)
+    elseif n == m # LU decomposition with partial pivoting
+        F, p = getrf!(A)
+        X = getrs!('N', F, p, B)
+    else # QR decomposition
+        F, τ = geqrf!(A)
+        ormqr!('L', 'C', F, τ, B)
+        if B isa ROCVector{T}
+            X = B[1:m]
+            rocBLAS.trsv!('U', 'N', 'N', F[1:m, 1:m], X) # TODO use @view
+        else
+            X = B[1:m, :]
+            rocBLAS.trsm!('L', 'U', 'N', 'N', one(T), F[1:m, 1:m], X) # TODO use @view
+        end
+    end
+    return X
 end
 
 # TODO

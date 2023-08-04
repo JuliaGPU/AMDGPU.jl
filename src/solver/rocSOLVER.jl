@@ -2,6 +2,8 @@ module rocSOLVER
 
 using LinearAlgebra
 using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ
+using LinearAlgebra: BlasInt, checksquare
+using LinearAlgebra.LAPACK: chkargsok, chklapackerror, chktrans, chkside, chkdiag
 
 using ..AMDGPU
 import AMDGPU: librocsolver
