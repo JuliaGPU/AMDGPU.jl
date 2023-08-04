@@ -167,6 +167,13 @@ if "hip" in TARGET_TESTS
             @test_skip "rocBLAS"
         end
     end)
+    push!(tests, "rocSOLVER" => ()->begin
+        if AMDGPU.functional(:rocsolver)
+            include("rocarray/solver.jl")
+        else
+            @test_skip "rocSOLVER"
+        end
+    end)
     push!(tests, "rocRAND" => ()->begin
         if AMDGPU.functional(:rocrand)
             include("rocarray/random.jl")

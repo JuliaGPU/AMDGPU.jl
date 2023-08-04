@@ -28,7 +28,7 @@ function versioninfo(io::IO=stdout)
     if functional(:rocblas)
         println("    @ $(Libdl.dlpath(librocblas))")
     end
-    println("[$(_status(functional(:rocsolver)))] rocSOLVER")
+    println(_lib_title("rocSOLVER", :rocsolver; version_fn=rocSOLVER.version))
     if functional(:rocsolver)
         println("    @ $(Libdl.dlpath(librocsolver))")
     end
