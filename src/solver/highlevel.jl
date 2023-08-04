@@ -73,7 +73,7 @@ for (fname, elty) in (
             AMDGPU.unsafe_free!(devinfo)
             chkargsok(BlasInt(info))
 
-            A, ipiv
+            A, ipiv, info
         end
     end
 end
@@ -184,7 +184,7 @@ function Base.:\(_A::ROCMatOrAdj, _B::ROCOrAdj)
         end
         ormqr!('L', 'N', F, τ, X)
     elseif n == m # LU decomposition with partial pivoting
-        F, p = getrf!(A)
+        F, p, _ = getrf!(A)
         X = getrs!('N', F, p, B)
     else # QR decomposition
         F, τ = geqrf!(A)
@@ -251,3 +251,26 @@ LinearAlgebra.rmul!(
     trA::Transpose{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
 ) where T <: rocBLAS.ROCBLASFloat =
     ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
+
+function LinearAlgebra.ldiv!(_qr::QR, b::ROCVector)
+    m, n = size(_qr)
+    _x = UpperTriangular(_qr.R[1:min(m, n), 1:n]) \ ((_qr.Q' * b)[1:n])
+    b[1:n] .= _x
+    AMDGPU.unsafe_free!(_x)
+    return b[1:n]
+end
+
+function LinearAlgebra.ldiv!(_qr::QR, B::ROCMatrix)
+    m,n = size(_qr)
+    _x = UpperTriangular(_qr.R[1:min(m,n), 1:n]) \ ((_qr.Q' * B)[1:n, 1:size(B, 2)])
+    B[1:n, 1:size(B, 2)] .= _x
+    AMDGPU.unsafe_free!(_x)
+    return B[1:n, 1:size(B, 2)]
+end
+
+function LinearAlgebra.ldiv!(x::ROCArray, _qr::QR, b::ROCArray)
+    _x = ldiv!(_qr, b)
+    x .= vec(_x)
+    AMDGPU.unsafe_free!(_x)
+    return x
+end

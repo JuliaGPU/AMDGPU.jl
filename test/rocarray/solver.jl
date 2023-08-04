@@ -59,8 +59,6 @@ m, n = 15, 10
         q, r = qr(A)
         @test Array(dq) ≈ Array(q)
         @test Array(dr) ≈ Array(r)
-
-        # TODO
     end
 end
 
@@ -112,5 +110,20 @@ end
         @test Array(dA \ db) ≈ (Af \ bf)
         @inferred dA \ dB
         @inferred dA \ db
+    end
+end
+
+@testset "ldiv!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A, x, y = rand(elty, m, m), rand(elty, m), rand(elty, m)
+        dA, dx, dy = ROCArray.((A, x, y))
+
+        b = ldiv!(qr(A), x)
+        db = ldiv!(qr(dA), dx)
+        @test Array(db) ≈ b
+
+        b = ldiv!(y, qr(A), x)
+        db = ldiv!(dy, qr(dA), dx)
+        @test Array(db) ≈ b
     end
 end
