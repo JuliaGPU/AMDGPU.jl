@@ -164,6 +164,7 @@ end
     hipErrorSharedObjectInitFailed = 303
     hipErrorOperatingSystem = 304
     hipErrorInvalidHandle = 400
+    hipErrorInvalidResourceHandle = 400
     hipErrorIllegalState = 401
     hipErrorNotFound = 500
     hipErrorNotReady = 600
