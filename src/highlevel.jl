@@ -125,7 +125,12 @@ stream!(stream::HIPStream) = task_local_state!(;stream)
 """
     stream!(f::Base.Callable, stream::HIPStream)
 
-Change the default stream to be used **within the same Julia task**.
+Change the default stream to be used **within the same Julia task**,
+execute `f` and revert to the original stream.
+
+# Returns
+
+Return value of the function `f`.
 """
 stream!(f::Base.Callable, stream::HIPStream) = task_local_state!(f; stream)
 
