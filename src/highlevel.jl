@@ -107,12 +107,28 @@ end
 # Streams.
 
 default_stream() = HIP.default_stream()
+
+"""
+    stream()
+
+Get the HIP stream that should be used as the default one for the currently executing task.
+"""
 stream() = task_local_state().stream::HIPStream
-function stream!(stream::HIPStream)
-    task_local_state!(;stream)
-    return stream
-end
+
+"""
+    stream!(stream::HIPStream)
+
+Change the default stream to be used **within the same Julia task**.
+"""
+stream!(stream::HIPStream) = task_local_state!(;stream)
+
+"""
+    stream!(f::Base.Callable, stream::HIPStream)
+
+Change the default stream to be used **within the same Julia task**.
+"""
 stream!(f::Base.Callable, stream::HIPStream) = task_local_state!(f; stream)
+
 device(stream::HIPStream) = stream.device
 
 priority() = task_local_state().priority
