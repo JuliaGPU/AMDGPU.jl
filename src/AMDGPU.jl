@@ -12,10 +12,8 @@ using Printf
 import LinearAlgebra
 import Core: LLVMPtr
 
-export HIPDevice
-export has_rocm_gpu
+export HIPDevice, has_rocm_gpu, roc
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
-export roc
 
 struct LockedObject{T}
     lock::ReentrantLock
@@ -50,7 +48,6 @@ struct KernelState
     printf_output_context::Ptr{Cvoid}
 end
 
-# Load HSA Runtime.
 const libhsaruntime = "libhsa-runtime64.so.1"
 include(joinpath("hsa", "HSA.jl"))
 
@@ -59,10 +56,8 @@ include("discovery_utils.jl")
 include("rocm_discovery.jl")
 populate_globals!(bindeps_setup())
 
-# Utilities
 include("utils.jl")
 
-# Load HIP
 include(joinpath("hip", "HIP.jl"))
 import .HIP: HIPContext, HIPDevice, HIPStream
 export HIPContext, HIPDevice, HIPStream
@@ -99,8 +94,7 @@ module Runtime
         using Preferences
 
         import AMDGPU
-        import AMDGPU: HIP, HSA
-        import AMDGPU: Runtime
+        import AMDGPU: HIP, HSA, Runtime
         import .HIP: HIPDevice
         import .Runtime: ROCDim, ROCDim3, check
 
@@ -187,11 +181,6 @@ end
 include("tls.jl")
 include("highlevel.jl")
 include("reflection.jl")
-
-### ROCArray ###
-
-import .Runtime: Mem
-
 include("array.jl")
 include("gpuarrays.jl")
 include("conversions.jl")
@@ -216,7 +205,6 @@ function hsaunref!()
     end
 end
 
-# Load ROCm external libraries
 include(joinpath("blas", "rocBLAS.jl"))
 include(joinpath("solver", "rocSOLVER.jl"))
 include(joinpath("rand", "rocRAND.jl"))
@@ -225,7 +213,6 @@ include(joinpath("dnn", "MIOpen.jl"))
 
 include("random.jl")
 
-# KernelAbstractions
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
@@ -251,18 +238,27 @@ function __init__()
         @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
         return
     end
+
     has_gpu = false
+    has_navi2 = false
     if isdir("/sys/class/kfd/kfd/topology/nodes/")
         for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
-            # CPU nodes don't have names
-            if !isempty(readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name")))
-                has_gpu = true
-            end
+            node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
+            # CPU nodes don't have names.
+            isempty(node_name) && continue
+
+            has_gpu = true
+            has_navi2 = has_navi2 ? has_navi2 : (node_name == "navy_flounder")
         end
     end
     if !has_gpu
-        @debug "No GPUs found, silently skipping initialization"
+        @warn "No GPUs found, skipping initialization."
         return
+    end
+
+    if has_navi2
+        @info "Navi 2 GPU detected, setting ENV variable: `HSA_OVERRIDE_GFX_VERSION=10.3.0`."
+        ENV["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
     end
 
     # Verbose path, something is misconfigured
