@@ -42,7 +42,7 @@ Currently, AMDGPU.jl utilizes following libraries:
 * [HIP](https://github.com/ROCm-Developer-Tools/HIP)
 * [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for BLAS support
 * [rocFFT](https://github.com/ROCmSoftwarePlatform/rocFFT) for FFT support
-* [rocFFT](https://github.com/ROCmSoftwarePlatform/rocSOLVER) for LAPACK support
+* [rocSOLVER](https://github.com/ROCmSoftwarePlatform/rocSOLVER) for LAPACK support
 * [rocRAND](https://github.com/ROCmSoftwarePlatform/rocRAND) for RNG support
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for DNN support
 
