@@ -146,13 +146,15 @@ priority!(f::Base.Callable, priority::Symbol) = task_local_state!(f; priority)
 default_isa(device::HIPDevice) = Runtime.default_isa(Runtime.hsa_device(device))
 
 """
-    synchronize(stream::HIPStream = stream())
+    synchronize(stream::HIPStream = stream(); blocking::Bool = true)
 
 Blocks until all kernels currently executing on `stream` have completed.
+
+If there are running HostCalls, then it non-blocking synchronization is required
+which can be done with `blocking=false` keyword.
+Additionally, it stops any running global hostcall afterwards.
+Note, that non-blocking synchronization is slower than blocking.
 """
-# TODO
-#   allow non blocking sync of several HIPStreams
-#   and only then disable global hostcall
 function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
     throw_if_exception(stm.device)
     HIP.synchronize(stm; blocking)
@@ -175,11 +177,15 @@ function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
     end
     return
 end
+# TODO
+#   allow non blocking sync of several HIPStreams
+#   and only then disable global hostcall
 
 """
     @sync ex
 
-Run expression `ex` and synchronize the GPU afterwards.
+Run expression `ex` on currently active stream
+and synchronize the GPU on that stream afterwards.
 
 See also: [`synchronize`](@ref).
 """
@@ -190,6 +196,12 @@ macro sync(ex)
         ret
     end
 end
+
+"""
+Blocks until all kernels on all streams have completed.
+Uses currently active device.
+"""
+device_synchronize() = HIP.device_synchronize()
 
 """
     rocconvert(x)
