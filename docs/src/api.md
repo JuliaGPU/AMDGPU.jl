@@ -1,12 +1,11 @@
 # AMDGPU API Reference
 
-## Kernel launching
+## Synchronization
 
 ```@docs
-@roc
-AMDGPU.AbstractKernel
-AMDGPU.HostKernel
-AMDGPU.rocfunction
+AMDGPU.synchronize
+AMDGPU.@sync
+AMDGPU.device_synchronize
 ```
 
 ## Device code API
@@ -37,10 +36,4 @@ AMDGPU.Device.blockDim
 
 ```@docs
 AMDGPU.sync_workgroup
-```
-
-### Global Variables
-
-```@docs
-AMDGPU.Device.get_global_pointer
 ```
