@@ -128,4 +128,4 @@ As a quick summary, here is a mapping of the most common terms:
 !!! warning
     Since AMDGPU v0.5.0 `gridsize` represents the number of "workgroups"
     (or `blocks` in CUDA) and no longer "workitems * workgroups"
-    (or `threads * blocks` in CUDA) as HIP is used for kernel launches instead of HSA.
+    (or `threads * blocks` in CUDA).
