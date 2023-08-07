@@ -36,10 +36,15 @@ end
 # cache for created, but unused handles
 const IDLE_HANDLES = HandleCache{HIPContext, rocblas_handle}()
 
-lib_state() = library_state(
-    :rocBLAS, rocblas_handle, IDLE_HANDLES,
-    create_handle, destroy_handle!,
-    (nh, s) -> check(rocblas_set_stream(nh, s)))
+function lib_state()
+    if !AMDGPU.functional(:rocblas)
+        throw(ArgumentError("rocBLAS is not available"))
+    end
+    return library_state(
+        :rocBLAS, rocblas_handle, IDLE_HANDLES,
+        create_handle, destroy_handle!,
+        (nh, s) -> check(rocblas_set_stream(nh, s)))
+end
 
 handle() = lib_state().handle
 stream() = lib_state().stream
