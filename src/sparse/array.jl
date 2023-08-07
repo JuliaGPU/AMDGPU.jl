@@ -1,10 +1,8 @@
 # custom extension of ROCArray in ROCM for sparse vectors/matrices
 # using CSC format for interop with Julia's native sparse functionality
 
-export ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixBSR, ROCSparseMatrixCOO,
-       ROCSparseMatrix, AbstractROCSparseMatrix,
-       ROCSparseVector,
-       ROCSparseVecOrMat
+export ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixBSR, ROCSparseMatrixCOO
+export ROCSparseMatrix, AbstractROCSparseMatrix, ROCSparseVector, ROCSparseVecOrMat
 
 using LinearAlgebra: BlasFloat
 using SparseArrays: nonzeroinds, dimlub
@@ -21,8 +19,9 @@ mutable struct ROCSparseVector{Tv, Ti} <: AbstractROCSparseVector{Tv, Ti}
     len::Int
     nnz::Ti
 
-    function ROCSparseVector{Tv, Ti}(iPtr::ROCVector{<:Integer}, nzVal::ROCVector,
-                                     len::Integer) where {Tv, Ti <: Integer}
+    function ROCSparseVector{Tv, Ti}(
+        iPtr::ROCVector{<:Integer}, nzVal::ROCVector, len::Integer,
+    ) where {Tv, Ti <: Integer}
         new{Tv, Ti}(iPtr, nzVal, len, length(nzVal))
     end
 end
@@ -40,8 +39,10 @@ mutable struct ROCSparseMatrixCSC{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
     dims::NTuple{2,Int}
     nnz::Ti
 
-    function ROCSparseMatrixCSC{Tv, Ti}(colPtr::ROCVector{<:Integer}, rowVal::ROCVector{<:Integer},
-                                        nzVal::ROCVector, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
+    function ROCSparseMatrixCSC{Tv, Ti}(
+        colPtr::ROCVector{<:Integer}, rowVal::ROCVector{<:Integer},
+        nzVal::ROCVector, dims::NTuple{2,<:Integer},
+    ) where {Tv, Ti <: Integer}
         new{Tv, Ti}(colPtr, rowVal, nzVal, dims, length(nzVal))
     end
 end
@@ -72,8 +73,10 @@ mutable struct ROCSparseMatrixCSR{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
     dims::NTuple{2,Int}
     nnz::Ti
 
-    function ROCSparseMatrixCSR{Tv, Ti}(rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
-                                   nzVal::ROCVector, dims::NTuple{2,Int}) where {Tv, Ti<:Integer}
+    function ROCSparseMatrixCSR{Tv, Ti}(
+        rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
+        nzVal::ROCVector, dims::NTuple{2, Int},
+    ) where {Tv, Ti<:Integer}
         new{Tv, Ti}(rowPtr, colVal, nzVal, dims, length(nzVal))
     end
 end
@@ -101,9 +104,11 @@ mutable struct ROCSparseMatrixBSR{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
     dir::SparseChar
     nnzb::Ti
 
-    function ROCSparseMatrixBSR{Tv, Ti}(rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
-                                   nzVal::ROCVector, dims::NTuple{2,<:Integer},
-                                   blockDim::Integer, dir::SparseChar, nnz::Integer) where {Tv, Ti<:Integer}
+    function ROCSparseMatrixBSR{Tv, Ti}(
+        rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
+        nzVal::ROCVector, dims::NTuple{2,<:Integer},
+        blockDim::Integer, dir::SparseChar, nnz::Integer,
+    ) where {Tv, Ti<:Integer}
         new{Tv, Ti}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
     end
 end
@@ -129,9 +134,11 @@ mutable struct ROCSparseMatrixCOO{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
     dims::NTuple{2,Int}
     nnz::Ti
 
-    function ROCSparseMatrixCOO{Tv, Ti}(rowInd::ROCVector{<:Integer}, colInd::ROCVector{<:Integer},
-                                   nzVal::ROCVector, dims::NTuple{2,Int}=(dimlub(rowInd),dimlub(colInd)),
-                                   nnz::Integer=length(nzVal)) where {Tv, Ti}
+    function ROCSparseMatrixCOO{Tv, Ti}(
+        rowInd::ROCVector{<:Integer}, colInd::ROCVector{<:Integer},
+        nzVal::ROCVector, dims::NTuple{2,Int} = (dimlub(rowInd),dimlub(colInd)),
+        nnz::Integer = length(nzVal),
+    ) where {Tv, Ti}
         new{Tv, Ti}(rowInd,colInd,nzVal,dims,nnz)
     end
 end
@@ -146,57 +153,70 @@ const ROCSparseMatrix{Tv, Ti} = Union{
     ROCSparseMatrixCSC{Tv, Ti},
     ROCSparseMatrixCSR{Tv, Ti},
     ROCSparseMatrixBSR{Tv, Ti},
-    ROCSparseMatrixCOO{Tv, Ti}
-}
+    ROCSparseMatrixCOO{Tv, Ti}}
 
 const ROCSparseVecOrMat = Union{ROCSparseVector, ROCSparseMatrix}
-
 
 # NOTE: we use Cint as default Ti on CUDA instead of Int to provide
 # maximum compatiblity to old CUSPARSE APIs
 # The same pattern was followed for AMDGPU as well
-function ROCSparseVector{Tv}(iPtr::ROCVector{<:Integer}, nzVal::ROCVector, len::Integer) where {Tv}
+function ROCSparseVector{Tv}(iPtr::ROCVector{<:Integer}, nzVal::ROCVector, len::Integer) where Tv
     ROCSparseVector{Tv, Cint}(convert(ROCVector{Cint}, iPtr), nzVal, len)
 end
 
-function ROCSparseMatrixCSC{Tv}(colPtr::ROCVector{<:Integer}, rowVal::ROCVector{<:Integer},
-                               nzVal::ROCVector, dims::NTuple{2,<:Integer}) where {Tv}
+function ROCSparseMatrixCSC{Tv}(
+    colPtr::ROCVector{<:Integer}, rowVal::ROCVector{<:Integer},
+    nzVal::ROCVector, dims::NTuple{2,<:Integer},
+) where Tv
     ROCSparseMatrixCSC{Tv, Cint}(colPtr, rowVal, nzVal, dims)
 end
 
-function ROCSparseMatrixCSR{Tv}(rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
-                               nzVal::ROCVector, dims::NTuple{2,Int}) where {Tv}
+function ROCSparseMatrixCSR{Tv}(
+    rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
+    nzVal::ROCVector, dims::NTuple{2,Int},
+) where Tv
     ROCSparseMatrixCSR{Tv, Cint}(rowPtr, colVal, nzVal, dims)
 end
 
-function ROCSparseMatrixBSR{Tv}(rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
-                               nzVal::ROCVector, dims::NTuple{2,<:Integer},
-                               blockDim::Integer, dir::SparseChar, nnz::Integer) where {Tv}
+function ROCSparseMatrixBSR{Tv}(
+    rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
+    nzVal::ROCVector, dims::NTuple{2,<:Integer},
+    blockDim::Integer, dir::SparseChar, nnz::Integer,
+) where Tv
     ROCSparseMatrixBSR{Tv, Cint}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 end
 
-function ROCSparseMatrixCOO{Tv}(rowInd::ROCVector{<:Integer}, colInd::ROCVector{<:Integer},
-                               nzVal::ROCVector, dims::NTuple{2,Int}=(dimlub(rowInd),dimlub(colInd)),
-                               nnz::Integer=length(nzVal)) where {Tv}
+function ROCSparseMatrixCOO{Tv}(
+    rowInd::ROCVector{<:Integer}, colInd::ROCVector{<:Integer},
+    nzVal::ROCVector, dims::NTuple{2,Int} = (dimlub(rowInd), dimlub(colInd)),
+    nnz::Integer = length(nzVal),
+) where Tv
     ROCSparseMatrixCOO{Tv, Cint}(rowInd,colInd,nzVal,dims,nnz)
 end
 
 ## convenience constructors
-ROCSparseVector(iPtr::DenseROCArray{<:Integer}, nzVal::DenseROCArray{T}, len::Integer) where {T} =
+ROCSparseVector(iPtr::DenseROCArray{<:Integer}, nzVal::DenseROCArray{T}, len::Integer) where T =
     ROCSparseVector{T}(iPtr, nzVal, len)
 
-ROCSparseMatrixCSC(colPtr::DenseROCArray{<:Integer}, rowVal::DenseROCArray{<:Integer},
-                  nzVal::DenseROCArray{T}, dims::NTuple{2,Int}) where {T} =
+ROCSparseMatrixCSC(
+    colPtr::DenseROCArray{<:Integer}, rowVal::DenseROCArray{<:Integer},
+    nzVal::DenseROCArray{T}, dims::NTuple{2,Int},
+) where {T} =
     ROCSparseMatrixCSC{T}(colPtr, rowVal, nzVal, dims)
 
 ROCSparseMatrixCSR(rowPtr::DenseROCArray, colVal::DenseROCArray, nzVal::DenseROCArray{T}, dims::NTuple{2,Int}) where T =
     ROCSparseMatrixCSR{T}(rowPtr, colVal, nzVal, dims)
 
-ROCSparseMatrixBSR(rowPtr::DenseROCArray, colVal::DenseROCArray, nzVal::DenseROCArray{T}, blockDim, dir, nnz,
-                  dims::NTuple{2,Int}) where T =
+ROCSparseMatrixBSR(
+    rowPtr::DenseROCArray, colVal::DenseROCArray, nzVal::DenseROCArray{T},
+    blockDim, dir, nnz, dims::NTuple{2,Int},
+) where T =
     ROCSparseMatrixBSR{T}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 
-ROCSparseMatrixCOO(rowInd::DenseROCArray, colInd::DenseROCArray, nzVal::DenseROCArray{T}, dims::NTuple{2,Int}, nnz) where T =
+ROCSparseMatrixCOO(
+    rowInd::DenseROCArray, colInd::DenseROCArray, nzVal::DenseROCArray{T},
+    dims::NTuple{2,Int}, nnz,
+) where T =
     ROCSparseMatrixCOO{T}(rowInd, colInd, nzVal, dims, nnz)
 
 Base.similar(Vec::ROCSparseVector) = ROCSparseVector(copy(nonzeroinds(Vec)), similar(nonzeros(Vec)), length(Vec))
@@ -210,7 +230,6 @@ Base.similar(Mat::ROCSparseMatrixCSC, T::Type) = ROCSparseMatrixCSC(copy(Mat.col
 Base.similar(Mat::ROCSparseMatrixCSR, T::Type) = ROCSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), size(Mat))
 Base.similar(Mat::ROCSparseMatrixBSR, T::Type) = ROCSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.blockDim, Mat.dir, nnz(Mat), size(Mat))
 Base.similar(Mat::ROCSparseMatrixCOO, T::Type) = ROCSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
-
 
 ## array interface
 
@@ -244,7 +263,6 @@ end
 
 Base.eltype(g::ROCSparseMatrix{T}) where T = T
 
-
 ## sparse array interface
 
 SparseArrays.nnz(g::AbstractROCSparseArray) = g.nnz
@@ -267,7 +285,6 @@ LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractRO
 Hermitian{T}(Mat::ROCSparseMatrix{T}) where T = Hermitian{T,typeof(Mat)}(Mat,'U')
 
 SparseArrays.nnz(g::ROCSparseMatrixBSR) = g.nnzb * g.blockDim * g.blockDim
-
 
 ## indexing
 
@@ -347,7 +364,6 @@ function Base.getindex(A::ROCSparseMatrixBSR{T}, i0::Integer, i1::Integer) where
     nonzeros(A)[c1+block_idx]
 end
 
-
 ## interop with sparse CPU arrays
 
 # cpu to gpu
@@ -359,17 +375,21 @@ ROCSparseVector{T}(Mat::SparseMatrixCSC) where {T} =
         ROCSparseVector(ROCVector{Cint}(Mat.rowval), ROCVector{T}(Mat.nzval), size(Mat)[1]) :
         throw(ArgumentError("The input argument must have a single column"))
 ROCSparseMatrixCSC{T}(Vec::SparseVector) where {T} =
-    ROCSparseMatrixCSC{T}(ROCVector{Cint}([1]), ROCVector{Cint}(Vec.nzind),
-                         ROCVector{T}(Vec.nzval), size(Vec))
+    ROCSparseMatrixCSC{T}(
+        ROCVector{Cint}([1]), ROCVector{Cint}(Vec.nzind),
+        ROCVector{T}(Vec.nzval), size(Vec))
 ROCSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} =
-    ROCSparseMatrixCSC{T}(ROCVector{Cint}(Mat.colptr), ROCVector{Cint}(Mat.rowval),
-                         ROCVector{T}(Mat.nzval), size(Mat))
+    ROCSparseMatrixCSC{T}(
+        ROCVector{Cint}(Mat.colptr), ROCVector{Cint}(Mat.rowval),
+        ROCVector{T}(Mat.nzval), size(Mat))
 ROCSparseMatrixCSR{T}(Mat::Transpose{Tv, <:SparseMatrixCSC}) where {T, Tv} =
-    ROCSparseMatrixCSR{T}(ROCVector{Cint}(parent(Mat).colptr), ROCVector{Cint}(parent(Mat).rowval),
-                         ROCVector{T}(parent(Mat).nzval), size(Mat))
+    ROCSparseMatrixCSR{T}(
+        ROCVector{Cint}(parent(Mat).colptr), ROCVector{Cint}(parent(Mat).rowval),
+        ROCVector{T}(parent(Mat).nzval), size(Mat))
 ROCSparseMatrixCSR{T}(Mat::Adjoint{Tv, <:SparseMatrixCSC}) where {T, Tv} =
-    ROCSparseMatrixCSR{T}(ROCVector{Cint}(parent(Mat).colptr), ROCVector{Cint}(parent(Mat).rowval),
-                         ROCVector{T}(conj.(parent(Mat).nzval)), size(Mat))
+    ROCSparseMatrixCSR{T}(
+        ROCVector{Cint}(parent(Mat).colptr), ROCVector{Cint}(parent(Mat).rowval),
+        ROCVector{T}(conj.(parent(Mat).nzval)), size(Mat))
 ROCSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = ROCSparseMatrixCSR(ROCSparseMatrixCSC{T}(Mat))
 ROCSparseMatrixBSR{T}(Mat::SparseMatrixCSC, blockdim) where {T} = ROCSparseMatrixBSR(ROCSparseMatrixCSR{T}(Mat), blockdim)
 ROCSparseMatrixCOO{T}(Mat::SparseMatrixCSC) where {T} = ROCSparseMatrixCOO(ROCSparseMatrixCSR{T}(Mat))
@@ -386,7 +406,7 @@ ROCSparseMatrixCSC(x::Transpose{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 ROCSparseMatrixCSC(x::Adjoint{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 
 # gpu to cpu
-function SparseVector(x::ROCSparseVector) 
+function SparseVector(x::ROCSparseVector)
     SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
 end
 
@@ -417,7 +437,6 @@ Adapt.adapt_storage(::AMDGPU.Float32Adaptor, xs::AbstractSparseArray{<:AbstractF
 
 Adapt.adapt_storage(::Type{Array}, xs::ROCSparseVector) = SparseVector(xs)
 Adapt.adapt_storage(::Type{Array}, xs::ROCSparseMatrixCSC) = SparseMatrixCSC(xs)
-
 
 ## copying between sparse GPU arrays
 
@@ -482,7 +501,6 @@ Base.copy(Mat::ROCSparseMatrixCSR) = copyto!(similar(Mat), Mat)
 Base.copy(Mat::ROCSparseMatrixBSR) = copyto!(similar(Mat), Mat)
 Base.copy(Mat::ROCSparseMatrixCOO) = copyto!(similar(Mat), Mat)
 
-
 # input/output
 
 for (gpu, cpu) in [ROCSparseVector => SparseVector]
@@ -501,8 +519,7 @@ for (gpu, cpu) in [ROCSparseMatrixCSC => SparseMatrixCSC,
                    ROCSparseMatrixCSR => SparseMatrixCSC,
                    ROCSparseMatrixBSR => SparseMatrixCSC,
                    ROCSparseMatrixCOO => SparseMatrixCSC]
-    @eval Base.show(io::IOContext, x::$gpu) =
-        show(io, $cpu(x))
+    @eval Base.show(io::IOContext, x::$gpu) = show(io, $cpu(x))
 
     @eval function Base.show(io::IO, mime::MIME"text/plain", S::$gpu)
         xnnz = nnz(S)
@@ -522,118 +539,27 @@ for (gpu, cpu) in [ROCSparseMatrixCSC => SparseMatrixCSC,
     end
 end
 
-
 # interop with device arrays
 
-function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseVector)
-    return ROCSparseDeviceVector(
-        adapt(to, x.iPtr),
-        adapt(to, x.nzVal),
-        length(x), x.nnz
-    )
-end
+Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseVector) =
+    ROCSparseDeviceVector(adapt(to, x.iPtr), adapt(to, x.nzVal), length(x), x.nnz)
 
-# function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseVector)
-#     Adapt.adapt_storage(ma, x.iPtr)
-#     Adapt.adapt_storage(ma, x.nzVal)
-#     x
-# end
+Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCSR) =
+    ROCSparseDeviceMatrixCSR(
+        adapt(to, x.rowPtr), adapt(to, x.colVal), adapt(to, x.nzVal),
+        size(x), x.nnz)
 
-# function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseVector)
-#     Adapt.adapt_storage(wa, x.iPtr)
-#     Adapt.adapt_storage(wa, x.nzVal)
-#     x
-# end
+Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCSC) =
+    ROCSparseDeviceMatrixCSC(
+        adapt(to, x.colPtr), adapt(to, x.rowVal), adapt(to, x.nzVal),
+        size(x), x.nnz)
 
-function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCSR)
-    return ROCSparseDeviceMatrixCSR(
-        adapt(to, x.rowPtr),
-        adapt(to, x.colVal),
-        adapt(to, x.nzVal),
-        size(x), x.nnz
-    )
-end
+Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixBSR) =
+    ROCSparseDeviceMatrixBSR(
+        adapt(to, x.rowPtr), adapt(to, x.colVal), adapt(to, x.nzVal),
+        size(x), x.blockDim, x.dir, x.nnzb)
 
-# function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseMatrixCSR)
-#     Adapt.adapt_storage(ma, x.rowPtr)
-#     Adapt.adapt_storage(ma, x.colVal)
-#     Adapt.adapt_storage(ma, x.nzVal)
-#     x
-# end
-
-# function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixCSR)
-#     Adapt.adapt_storage(wa, x.rowPtr)
-#     Adapt.adapt_storage(wa, x.colVal)
-#     Adapt.adapt_storage(wa, x.nzVal)
-#     x
-# end
-
-function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCSC)
-    return ROCSparseDeviceMatrixCSC(
-        adapt(to, x.colPtr),
-        adapt(to, x.rowVal),
-        adapt(to, x.nzVal),
-        size(x), x.nnz
-    )
-end
-
-# function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseMatrixCSC)
-#     Adapt.adapt_storage(ma, x.colPtr)
-#     Adapt.adapt_storage(ma, x.rowVal)
-#     Adapt.adapt_storage(ma, x.nzVal)
-#     x
-# end
-
-# function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixCSC)
-#     Adapt.adapt_storage(wa, x.colPtr)
-#     Adapt.adapt_storage(wa, x.rowVal)
-#     Adapt.adapt_storage(wa, x.nzVal)
-#     x
-# end
-
-function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixBSR)
-    return ROCSparseDeviceMatrixBSR(
-        adapt(to, x.rowPtr),
-        adapt(to, x.colVal),
-        adapt(to, x.nzVal),
-        size(x), x.blockDim,
-        x.dir, x.nnzb
-    )
-end
-
-# function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseMatrixBSR)
-#     Adapt.adapt_storage(ma, x.rowPtr)
-#     Adapt.adapt_storage(ma, x.colVal)
-#     Adapt.adapt_storage(ma, x.nzVal)
-#     x
-# end
-
-# function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixBSR)
-#     Adapt.adapt_storage(wa, x.rowPtr)
-#     Adapt.adapt_storage(wa, x.colVal)
-#     Adapt.adapt_storage(wa, x.nzVal)
-#     x
-# end
-
-function Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCOO)
-    return ROCSparseDeviceMatrixCOO(
-        adapt(to, x.rowInd),
-        adapt(to, x.colInd),
-        adapt(to, x.nzVal),
-        size(x), x.nnz
-    )
-end
-
-# function Adapt.adapt_storage(ma::AMDGPU.Runtime.MarkAdaptor, x::ROCSparseMatrixCOO)
-#     Adapt.adapt_storage(ma, x.rowInd)
-#     Adapt.adapt_storage(ma, x.colInd)
-#     Adapt.adapt_storage(ma, x.nzVal)
-#     x
-# end
-
-# function Adapt.adapt_storage(wa::AMDGPU.Runtime.WaitAdaptor, x::ROCSparseMatrixCOO)
-#     Adapt.adapt_storage(wa, x.rowInd)
-#     Adapt.adapt_storage(wa, x.colInd)
-#     Adapt.adapt_storage(wa, x.nzVal)
-#     x
-# end
+Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCOO) =
+    ROCSparseDeviceMatrixCOO(
+        adapt(to, x.rowInd), adapt(to, x.colInd), adapt(to, x.nzVal),
+        size(x), x.nnz)
