@@ -14,6 +14,7 @@ import Core: LLVMPtr
 
 export HIPDevice, has_rocm_gpu, roc
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
+export DenseROCArray, DenseROCVector, DenseROCMatrix, StridedROCMatrix
 
 struct LockedObject{T}
     lock::ReentrantLock
@@ -192,6 +193,7 @@ allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
 ### Initialization and Shutdown ###
 
+# TODO remove refcount, not used
 const HSA_REFCOUNT = Threads.Atomic{UInt}(0)
 function hsaref!()
     if Threads.atomic_add!(HSA_REFCOUNT, UInt(1)) > typemax(UInt)-10
@@ -207,6 +209,7 @@ end
 
 include(joinpath("blas", "rocBLAS.jl"))
 include(joinpath("solver", "rocSOLVER.jl"))
+include(joinpath("sparse", "rocSPARSE.jl"))
 include(joinpath("rand", "rocRAND.jl"))
 include(joinpath("fft", "rocFFT.jl"))
 include(joinpath("dnn", "MIOpen.jl"))

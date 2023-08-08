@@ -30,6 +30,18 @@ device(A::ROCArray) = A.buf.device
 const ROCVector{T} = ROCArray{T,1}
 const ROCMatrix{T} = ROCArray{T,2}
 const ROCVecOrMat{T} = Union{ROCVector{T},ROCMatrix{T}}
+const DenseROCArray{T,N} = ROCArray{T,N}
+const DenseROCVector{T} = DenseROCArray{T,1}
+const DenseROCMatrix{T} = DenseROCArray{T,2}
+const DenseROCVecOrMat{T} = Union{DenseROCVector{T}, DenseROCMatrix{T}}
+
+# strided arrays
+const StridedSubROCArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
+                                            Base.AbstractCartesianIndex}}}} = SubArray{T,N,<:ROCArray,I}
+const StridedROCArray{T,N} = Union{ROCArray{T,N}, StridedSubROCArray{T,N}}
+const StridedROCVector{T} = StridedROCArray{T,1}
+const StridedROCMatrix{T} = StridedROCArray{T,2}
+const StridedROCVecOrMat{T} = Union{StridedROCVector{T}, StridedROCMatrix{T}}
 
 # anything that's (secretly) backed by a ROCArray
 AnyROCArray{T,N} = Union{ROCArray{T,N}, WrappedArray{T,N,ROCArray,ROCArray{T,N}}}
@@ -271,6 +283,8 @@ ones(dims...) = ones(Float32, dims...)
 ones(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), one(T))
 zeros(dims...) = zeros(Float32, dims...)
 zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
+fill(v, dims...) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
+fill(v, dims::Dims) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
 
 # create a derived array (reinterpreted or reshaped) that's still a ROCArray
 # TODO: Move this to GPUArrays?
