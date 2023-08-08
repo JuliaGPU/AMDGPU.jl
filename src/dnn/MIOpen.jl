@@ -70,6 +70,8 @@ function version()
 end
 
 function create_handle()::miopenHandle_t
+    AMDGPU.functional(:MIOpen) || error("MIOpen is not available")
+
     handle = Ref{miopenHandle_t}()
     miopenCreate(handle) |> check
     handle[]

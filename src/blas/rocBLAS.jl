@@ -24,6 +24,8 @@ function version()
 end
 
 function create_handle()
+    AMDGPU.functional(:rocblas) || error("rocBLAS is not available")
+
     handle_ref = Ref{rocblas_handle}()
     @check rocblas_create_handle(handle_ref)
     handle_ref[]
@@ -37,9 +39,6 @@ end
 const IDLE_HANDLES = HandleCache{HIPContext, rocblas_handle}()
 
 function lib_state()
-    if !AMDGPU.functional(:rocblas)
-        throw(ArgumentError("rocBLAS is not available"))
-    end
     return library_state(
         :rocBLAS, rocblas_handle, IDLE_HANDLES,
         create_handle, destroy_handle!,
@@ -52,8 +51,7 @@ stream() = lib_state().stream
 if AMDGPU.functional(:rocblas)
     @eval rocblas_check_functional() = nothing
 else
-    @eval rocblas_check_functional() =
-        throw(ArgumentError("rocBLAS is not functional"))
+    @eval rocblas_check_functional() = error("rocBLAS is not functional")
 end
 
 end

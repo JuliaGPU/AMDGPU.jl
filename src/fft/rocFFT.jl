@@ -34,8 +34,7 @@ if AMDGPU.functional(:rocfft)
         end
     end
 else
-    @eval rocfft_setup_once() =
-        throw(ArgumentError("rocFFT is not available"))
+    @eval rocfft_setup_once() = error("rocFFT is not available")
 end
 
 end
