@@ -193,6 +193,7 @@ allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
 ### Initialization and Shutdown ###
 
+# TODO remove refcount, not used
 const HSA_REFCOUNT = Threads.Atomic{UInt}(0)
 function hsaref!()
     if Threads.atomic_add!(HSA_REFCOUNT, UInt(1)) > typemax(UInt)-10

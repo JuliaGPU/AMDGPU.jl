@@ -1,38 +1,43 @@
-module rocSparse
-
-# using ..APIUtils
-
-using ..AMDGPU
-using ..AMDGPU: librocsparse
-using ..AMDGPU: @allowscalar
-
-using CEnum: @cenum
-
-using LinearAlgebra
-using LinearAlgebra: HermOrSym
+module rocSPARSE
 
 using Adapt: Adapt, adapt
-
+using Base.Broadcast: Broadcasted
+using CEnum: @cenum
+using LinearAlgebra
+using LinearAlgebra: HermOrSym, BlasComplex, BlasFloat, BlasReal
 using SparseArrays
+using SparseArrays: nonzeroinds, dimlub
 
+using ..AMDGPU
+using ..AMDGPU: librocsparse, @allowscalar
+using ..AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
+
+import AMDGPU.Device: ROCDeviceVector
+import AMDGPU: HandleCache, HIP, library_state
+import .HIP: HIPContext, HIPStream, hipStream_t
+
+# TODO replace
 const SparseChar = Char
-
 
 # core library
 include("librocsparse_common.jl")
 include("error.jl")
 include("librocsparse.jl")
 
-const _handle = Ref{rocsparse_handle}(C_NULL)
-function handle()
-    if _handle[] == C_NULL
-        @assert rocsparse_status_success == rocsparse_create_handle(_handle)
-        atexit(()->rocsparse_destroy_handle(_handle[]))
-    end
-    return _handle[]
+function create_handle()
+    handle_ref = Ref{rocsparse_handle}()
+    rocsparse_create_handle(handle_ref)
+    handle_ref[]
 end
 
+const IDLE_HANDLES = HandleCache{HIPContext, rocsparse_handle}()
 
+lib_state() = library_state(
+    :rocSPARSE, rocsparse_handle, IDLE_HANDLES,
+    create_handle, rocsparse_destroy_handle, rocsparse_set_stream)
+
+handle() = lib_state().handle
+stream() = lib_state().stream
 
 include("array.jl")
 include("util.jl")
@@ -44,7 +49,6 @@ include("broadcast.jl")
 
 # low-level wrappers
 include("helpers.jl")
-include("management.jl")
 include("level1.jl")
 include("level2.jl")
 include("level3.jl")

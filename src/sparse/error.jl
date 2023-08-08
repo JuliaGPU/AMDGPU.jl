@@ -43,7 +43,6 @@ end
 
 name(err::ROCSPARSEError) = rocsparse_get_error_name(err.code)
 
-
 ## API call wrapper
 
 # outlined functionality to avoid GC frame allocation

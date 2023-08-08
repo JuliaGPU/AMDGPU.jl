@@ -127,21 +127,21 @@ tasks = Dict{Int,String}()
 @info "Running tests with $(length(ws)) workers with flags: $(AMDGPU.julia_exeflags())"
 
 if "core" in TARGET_TESTS
-    push!(tests, "HSA" => ()->begin
+    push!(tests, "HSA" => () -> begin
         include("hsa/utils.jl")
         include("hsa/getinfo.jl")
         include("hsa/device.jl")
     end)
-    push!(tests, "Codegen" => ()->begin
+    push!(tests, "Codegen" => () -> begin
         include("codegen/synchronization.jl")
         include("codegen/trap.jl")
     end)
-    push!(tests, "Multitasking" => ()->include("tls.jl"))
-    push!(tests, "ROCArray - Base" => ()->include("rocarray/base.jl"))
-    push!(tests, "ROCArray - Broadcast" => ()->include("rocarray/broadcast.jl"))
+    push!(tests, "Multitasking" => () -> include("tls.jl"))
+    push!(tests, "ROCArray - Base" => () -> include("rocarray/base.jl"))
+    push!(tests, "ROCArray - Broadcast" => () -> include("rocarray/broadcast.jl"))
 
     # if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
-    #     push!(tests, "Logging" => ()->include("logging.jl"))
+    #     push!(tests, "Logging" => () -> include("logging.jl"))
     # else
     #     @warn """
     #     Logging is statically disabled, skipping logging tests.
@@ -152,7 +152,7 @@ if "core" in TARGET_TESTS
 end
 
 if "hip" in TARGET_TESTS
-    push!(tests, "ROCm libraries are functional" => ()->begin
+    push!(tests, "ROCm libraries are functional" => () -> begin
         @test AMDGPU.functional(:rocblas)
         @test AMDGPU.functional(:rocrand)
         if !AMDGPU.use_artifacts()
@@ -160,35 +160,42 @@ if "hip" in TARGET_TESTS
             @test AMDGPU.functional(:rocfft)
         end
     end)
-    push!(tests, "rocBLAS" => ()->begin
+    push!(tests, "rocBLAS" => () -> begin
         if AMDGPU.functional(:rocblas)
             include("rocarray/blas.jl")
         else
             @test_skip "rocBLAS"
         end
     end)
-    push!(tests, "rocSOLVER" => ()->begin
+    push!(tests, "rocSOLVER" => () -> begin
         if AMDGPU.functional(:rocsolver)
             include("rocarray/solver.jl")
         else
             @test_skip "rocSOLVER"
         end
     end)
-    push!(tests, "rocRAND" => ()->begin
+    push!(tests, "rocSPARSE" => () -> begin
+        if AMDGPU.functional(:rocsparse)
+            include("rocsparse/rocsparse.jl")
+        else
+            @test_skip "rocSPARSE"
+        end
+    end)
+    push!(tests, "rocRAND" => () -> begin
         if AMDGPU.functional(:rocrand)
             include("rocarray/random.jl")
         else
             @test_skip "rocRAND"
         end
     end)
-    push!(tests, "rocFFT" => ()->begin
+    push!(tests, "rocFFT" => () -> begin
         if AMDGPU.functional(:rocfft)
             include("rocarray/fft.jl")
         else
             @test_skip "rocFFT"
         end
     end)
-    push!(tests, "MIOpen" => ()->begin
+    push!(tests, "MIOpen" => () -> begin
         if AMDGPU.functional(:MIOpen)
             include("dnn/miopen.jl")
         else

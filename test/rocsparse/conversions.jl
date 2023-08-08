@@ -1,7 +1,3 @@
-using LinearAlgebra
-using AMDGPU.rocSparse, SparseArrays
-using AMDGPU
-
 @testset "sparse" begin
     n, m = 4, 4
     I = [1,2,3] |> roc
@@ -14,11 +10,12 @@ using AMDGPU
     @test sparse(I, J, V) isa ROCSparseMatrixCSC
     @test sparse(dense) isa ROCSparseMatrixCSC
 
-    for (fmt, T) in  [(:coo, ROCSparseMatrixCOO),
-                      (:csc, ROCSparseMatrixCSC),
-                      (:csr, ROCSparseMatrixCSR),
-                      (:bsr, ROCSparseMatrixBSR)
-                     ]
+    for (fmt, T) in  [
+        (:coo, ROCSparseMatrixCOO),
+        (:csc, ROCSparseMatrixCSC),
+        (:csr, ROCSparseMatrixCSR),
+        (:bsr, ROCSparseMatrixBSR),
+    ]
         if fmt != :bsr # bsr not supported
             x = sparse(I, J, V; fmt=fmt)
             @test x isa T{Float32}

@@ -27,14 +27,13 @@ SparseArrays.sparse(I::ROCVector, J::ROCVector, V::ROCVector; kws...) =
 SparseArrays.sparse(I::ROCVector, J::ROCVector, V::ROCVector, m, n; kws...) =
     sparse(Cint.(I), Cint.(J), V, m, n; kws...)
 
-function SparseArrays.sparse(I::ROCVector{Cint}, J::ROCVector{Cint}, V::ROCVector{Tv}, m, n;
-                             fmt=:csc, sorted::Bool=false) where Tv
+function SparseArrays.sparse(
+    I::ROCVector{Cint}, J::ROCVector{Cint}, V::ROCVector{Tv}, m, n;
+    fmt = :csc, sorted::Bool = false,
+) where Tv
     coo = ROCSparseMatrixCOO{Tv}(I, J, V, (m, n))
-
     # The COO format is assumed to be sorted by row.
-    if !sorted
-        coo = sort_rows(coo)
-    end
+    sorted || (coo = sort_rows(coo);)
 
     if fmt == :csc
         return ROCSparseMatrixCSC(coo)
@@ -47,25 +46,25 @@ function SparseArrays.sparse(I::ROCVector{Cint}, J::ROCVector{Cint}, V::ROCVecto
     end
 end
 
-function sort_rows(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat,Ti}
+function sort_rows(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat, Ti}
     m,n = size(coo)
-    stream = rocsparse_get_stream(handle())
     perm = ROCArray{Ti}(undef, nnz(coo))
 
     rocsparse_create_identity_permutation(handle(), nnz(coo), perm)
 
     sorted_rowInd = copy(coo.rowInd)
     sorted_colInd = copy(coo.colInd)
-    
+
     function bufferSize()
         out = Ref{Csize_t}()
-        rocsparse_coosort_buffer_size(handle(), m, n, nnz(coo), coo.rowInd, coo.colInd, out)
+        rocsparse_coosort_buffer_size(
+            handle(), m, n, nnz(coo), coo.rowInd, coo.colInd, out)
         return out[]
     end
 
     with_workspace(bufferSize) do buffer
-        rocsparse_coosort_by_row(handle(), m, n, nnz(coo), sorted_rowInd, sorted_colInd, perm, buffer)
-        # mark!((sorted_rowInd, sorted_colInd, perm, buffer), stream)
+        rocsparse_coosort_by_row(
+            handle(), m, n, nnz(coo), sorted_rowInd, sorted_colInd, perm, buffer)
     end
 
     sorted_nzVal = similar(coo.nzVal)
@@ -86,7 +85,6 @@ function sort_rows(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv,Ti}
 
     ROCSparseMatrixCOO{Tv}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(coo))
 end
-
 
 ## CSR to CSC
 
@@ -132,7 +130,6 @@ for SparseMatrixType in [:ROCSparseMatrixCSC, :ROCSparseMatrixCSR]
     end
 end
 
-
 # by flipping rows and columns, we can use that to get CSC to CSR too
 for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcsr2csc),
                      (:ComplexF32, :rocsparse_ccsr2csc), (:ComplexF64, :rocsparse_zcsr2csc))
@@ -153,13 +150,11 @@ for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcs
                 $fname(handle(), m, n, nnz(csr), nonzeros(csr),
                     csr.rowPtr, csr.colVal, nzVal, rowVal, colPtr,
                     rocsparse_action_numeric, inda, buffer)
-                # mark!((csr, colPtr, rowVal, nzVal, buffer), rocsparse_get_stream(handle()))
             end
-            # wait!((csr, colPtr, rowVal, nzVal))
             ROCSparseMatrixCSC(colPtr, rowVal, nzVal, size(csr))
         end
 
-        function ROCSparseMatrixCSR{$elty}(csc::ROCSparseMatrixCSC{$elty}; inda::SparseChar='O')
+        function ROCSparseMatrixCSR{$elty}(csc::ROCSparseMatrixCSC{$elty}; inda::SparseChar = 'O')
             m,n    = size(csc)
             rowPtr = AMDGPU.zeros(Cint, m+1)
             colVal = AMDGPU.zeros(Cint, nnz(csc))
@@ -171,54 +166,37 @@ for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcs
                     rocsparse_action_numeric, out)
                 return out[]
             end
-            # wait!((csc, rowPtr, colVal, nzVal))
             with_workspace(bufferSize) do buffer
                 $fname(handle(), n, m, nnz(csc), nonzeros(csc),
                     csc.colPtr, rowvals(csc), nzVal, colVal, rowPtr,
                     rocsparse_action_numeric, inda, buffer)
-                # mark!((csc, rowPtr, colVal, nzVal, buffer), rocsparse_get_stream(handle()))
             end
-            # wait!((csc, rowPtr, colVal, nzVal))
             ROCSparseMatrixCSR(rowPtr, colVal, nzVal, size(csc))
         end
     end
 end
 
 # implement Int conversions using reinterpreted Float
-for (elty, felty) in ((:Int32, :Float32),
-                      (:Int64, :Float64),
-                      (:Int128, :ComplexF64))
+for (elty, felty) in ((:Int32, :Float32), (:Int64, :Float64), (:Int128, :ComplexF64))
     @eval begin
         function ROCSparseMatrixCSR{$elty}(csc::ROCSparseMatrixCSC{$elty})
             csc_compat = ROCSparseMatrixCSC(
-                csc.colPtr,
-                csc.rowVal,
-                reinterpret($felty, csc.nzVal),
-                size(csc)
-            )
+                csc.colPtr, csc.rowVal,
+                reinterpret($felty, csc.nzVal), size(csc))
             csr_compat = ROCSparseMatrixCSR(csc_compat)
             ROCSparseMatrixCSR(
-                csr_compat.rowPtr,
-                csr_compat.colVal,
-                reinterpret($elty, csr_compat.nzVal),
-                size(csr_compat)
-            )
+                csr_compat.rowPtr, csr_compat.colVal,
+                reinterpret($elty, csr_compat.nzVal), size(csr_compat))
         end
 
         function ROCSparseMatrixCSC{$elty}(csr::ROCSparseMatrixCSR{$elty})
             csr_compat = ROCSparseMatrixCSR(
-                csr.rowPtr,
-                csr.colVal,
-                reinterpret($felty, csr.nzVal),
-                size(csr)
-            )
+                csr.rowPtr, csr.colVal,
+                reinterpret($felty, csr.nzVal), size(csr))
             csc_compat = ROCSparseMatrixCSC(csr_compat)
             ROCSparseMatrixCSC(
-                csc_compat.colPtr,
-                csc_compat.rowVal,
-                reinterpret($elty, csc_compat.nzVal),
-                size(csc_compat)
-            )
+                csc_compat.colPtr, csc_compat.rowVal,
+                reinterpret($elty, csc_compat.nzVal), size(csc_compat))
         end
     end
 end
@@ -230,9 +208,10 @@ for (fname,elty) in ((:rocsparse_scsr2bsr, :Float32),
                      (:rocsparse_ccsr2bsr, :ComplexF32),
                      (:rocsparse_zcsr2bsr, :ComplexF64))
     @eval begin
-        function ROCSparseMatrixBSR{$elty}(csr::ROCSparseMatrixCSR{$elty}, blockDim::Integer;
-                                          dir::SparseChar='R', inda::SparseChar='O',
-                                          indc::SparseChar='O')
+        function ROCSparseMatrixBSR{$elty}(
+            csr::ROCSparseMatrixCSR{$elty}, blockDim::Integer;
+            dir::SparseChar = 'R', inda::SparseChar = 'O', indc::SparseChar = 'O',
+        )
             m,n = size(csr)
             nnz_ref = Ref{Cint}()
             mb = cld(m, blockDim)
@@ -240,25 +219,22 @@ for (fname,elty) in ((:rocsparse_scsr2bsr, :Float32),
             bsrRowPtr = AMDGPU.zeros(Cint,mb + 1)
             rocdesca = ROCMatrixDescriptor('G', 'L', 'N', inda)
             rocdescc = ROCMatrixDescriptor('G', 'L', 'N', indc)
-            stream = rocsparse_get_stream(handle())
 
-            # wait!((csr, bsrRowPtr))
-            rocsparse_csr2bsr_nnz(handle(), dir, m, n, rocdesca, csr.rowPtr,
-                                csr.colVal, blockDim, rocdescc, bsrRowPtr, nnz_ref)
-            # mark!((csr, bsrRowPtr), stream)
+            rocsparse_csr2bsr_nnz(
+                handle(), dir, m, n, rocdesca, csr.rowPtr,
+                csr.colVal, blockDim, rocdescc, bsrRowPtr, nnz_ref)
 
             bsrNzVal = AMDGPU.zeros($elty, nnz_ref[] * blockDim * blockDim )
             bsrColInd = AMDGPU.zeros(Cint, nnz_ref[])
 
-            # wait!((csr, bsrRowPtr, bsrNzVal, bsrColInd))
-            $fname(handle(), dir, m, n,
-                   rocdesca, nonzeros(csr), csr.rowPtr, csr.colVal,
-                   blockDim, rocdescc, bsrNzVal, bsrRowPtr,
-                   bsrColInd)
-            # mark!((csr, bsrRowPtr, bsrNzVal, bsrColInd), stream)
-            # sleep(1)
-            # wait!((csr, bsrRowPtr, bsrNzVal))
-            ROCSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, size(csr), blockDim, dir, nnz_ref[])
+            $fname(
+                handle(), dir, m, n,
+                rocdesca, nonzeros(csr), csr.rowPtr, csr.colVal,
+                blockDim, rocdescc, bsrNzVal, bsrRowPtr, bsrColInd)
+
+            ROCSparseMatrixBSR{$elty}(
+                bsrRowPtr, bsrColInd, bsrNzVal, size(csr),
+                blockDim, dir, nnz_ref[])
         end
     end
 end
@@ -268,8 +244,10 @@ for (fname,elty) in ((:rocsparse_sbsr2csr, :Float32),
                      (:rocsparse_cbsr2csr, :ComplexF32),
                      (:rocsparse_zbsr2csr, :ComplexF64))
     @eval begin
-        function ROCSparseMatrixCSR{$elty}(bsr::ROCSparseMatrixBSR{$elty};
-                                          inda::SparseChar='O', indc::SparseChar='O')
+        function ROCSparseMatrixCSR{$elty}(
+            bsr::ROCSparseMatrixBSR{$elty};
+            inda::SparseChar = 'O', indc::SparseChar = 'O',
+        )
             m,n = size(bsr)
             mb = cld(m, bsr.blockDim)
             nb = cld(n, bsr.blockDim)
@@ -279,17 +257,14 @@ for (fname,elty) in ((:rocsparse_sbsr2csr, :Float32),
             csrColInd = AMDGPU.zeros(Cint, nnz(bsr))
             csrNzVal  = AMDGPU.zeros($elty, nnz(bsr))
 
-            # wait!((bsr, csrRowPtr, csrColInd, csrNzVal))
             $fname(handle(), bsr.dir, mb, nb,
                    rocdesca, nonzeros(bsr), bsr.rowPtr, bsr.colVal,
-                   bsr.blockDim, rocdescc, csrNzVal, csrRowPtr,
-                   csrColInd)
-            # mark!((bsr, csrRowPtr, csrColInd, csrNzVal), rocsparse_get_stream(handle()))
-            # sleep(1)
+                   bsr.blockDim, rocdescc, csrNzVal, csrRowPtr, csrColInd)
             # XXX: the size here may not match the expected size, when the matrix dimension
             #      is not a multiple of the block dimension!
-            # wait!((bsr, csrRowPtr, csrColInd))
-            ROCSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, (mb*bsr.blockDim, nb*bsr.blockDim))
+            ROCSparseMatrixCSR(
+                csrRowPtr, csrColInd, csrNzVal,
+                (mb * bsr.blockDim, nb * bsr.blockDim))
         end
     end
 end
@@ -302,40 +277,25 @@ for (elty, felty) in ((:Int16, :Float16),
     @eval begin
         function ROCSparseMatrixCSR{$elty}(bsr::ROCSparseMatrixBSR{$elty})
             bsr_compat = ROCSparseMatrixBSR(
-                bsr.rowPtr,
-                bsr.colVal,
+                bsr.rowPtr, bsr.colVal,
                 reinterpret($felty, bsr.nzVal),
-                bsr.blockDim,
-                bsr.dir,
-                bsr.nnzb,
-                size(bsr)
-            )
+                bsr.blockDim, bsr.dir, bsr.nnzb, size(bsr))
             csr_compat = ROCSparseMatrixCSR(bsr_compat)
             ROCSparseMatrixCSR(
-                csr_compat.rowPtr,
-                csr_compat.colVal,
-                reinterpret($elty, csr_compat.nzVal),
-                size(csr_compat)
-            )
+                csr_compat.rowPtr, csr_compat.colVal,
+                reinterpret($elty, csr_compat.nzVal), size(csr_compat))
         end
 
         function ROCSparseMatrixBSR{$elty}(csr::ROCSparseMatrixCSR{$elty}, blockDim)
             csr_compat = ROCSparseMatrixCSR(
-                csr.rowPtr,
-                csr.colVal,
-                reinterpret($felty, csr.nzVal),
-                size(csr)
-            )
+                csr.rowPtr, csr.colVal,
+                reinterpret($felty, csr.nzVal), size(csr))
             bsr_compat = ROCSparseMatrixBSR(csr_compat, blockDim)
             ROCSparseMatrixBSR(
-                bsr_compat.rowPtr,
-                bsr_compat.colVal,
+                bsr_compat.rowPtr, bsr_compat.colVal,
                 reinterpret($elty, bsr_compat.nzVal),
-                bsr_compat.blockDim,
-                bsr_compat.dir,
-                bsr_compat.nnzb,
-                size(bsr_compat)
-            )
+                bsr_compat.blockDim, bsr_compat.dir, bsr_compat.nnzb,
+                size(bsr_compat))
         end
     end
 end
@@ -344,22 +304,17 @@ end
 
 # TODO: we can do similar for CSC conversions, but that requires the columns to be sorted
 
-function ROCSparseMatrixCSR(coo::ROCSparseMatrixCOO{Tv}, ind::SparseChar='O') where {Tv}
+function ROCSparseMatrixCSR(coo::ROCSparseMatrixCOO{Tv}, ind::SparseChar='O') where Tv
     m,n = size(coo)
-    csrRowPtr = ROCVector{Cint}(undef, m+1)
+    csrRowPtr = ROCVector{Cint}(undef, m + 1)
     rocsparse_coo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, ind)
     ROCSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
 
-function ROCSparseMatrixCOO(csr::ROCSparseMatrixCSR{Tv}, ind::SparseChar='O') where {Tv}
+function ROCSparseMatrixCOO(csr::ROCSparseMatrixCSR{Tv}, ind::SparseChar='O') where Tv
     m,n = size(csr)
     cooRowInd = ROCVector{Cint}(undef, Int.(nnz(csr)))
-
-    # wait!((csr.rowPtr, cooRowInd))
     rocsparse_csr2coo(handle(), csr.rowPtr, nnz(csr), m, cooRowInd, ind)
-    # mark!((csr.rowPtr, cooRowInd), rocsparse_get_stream(handle()))
-    # sleep(1)
-    # wait!((csr.rowPtr, cooRowInd))
     ROCSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, nonzeros(csr), size(csr), nnz(csr))
 end
 
@@ -369,7 +324,6 @@ ROCSparseMatrixCSC(coo::ROCSparseMatrixCOO) = ROCSparseMatrixCSC(ROCSparseMatrix
 ROCSparseMatrixCOO(csc::ROCSparseMatrixCSC) = ROCSparseMatrixCOO(ROCSparseMatrixCSR(csc)) # no direct conversion
 ROCSparseMatrixBSR(coo::ROCSparseMatrixCOO, blockdim) = ROCSparseMatrixBSR(ROCSparseMatrixCSR(coo), blockdim) # no direct conversion
 ROCSparseMatrixCOO(bsr::ROCSparseMatrixBSR) = ROCSparseMatrixCOO(ROCSparseMatrixCSR(bsr)) # no direct conversion
-
 
 ## sparse to dense, and vice-versa
 
@@ -381,15 +335,12 @@ for (cname,rname,elty) in ((:rocsparse_scsc2dense, :rocsparse_scsr2dense, :Float
         function AMDGPU.ROCMatrix{$elty}(csr::ROCSparseMatrixCSR{$elty}; ind::SparseChar='O')
             m,n = size(csr)
             denseA = AMDGPU.zeros($elty,m,n)
-
             rocdesc = ROCMatrixDescriptor('G', 'L', 'N', ind)
             lda = max(1,stride(denseA,2))
 
-            # wait!((csr, denseA))
-            $rname(handle(), m, n, rocdesc, nonzeros(csr),
-                   csr.rowPtr, csr.colVal, denseA, lda)
-            # mark!((csr, denseA), rocsparse_get_stream(handle()))
-            # sleep(1)
+            $rname(
+                handle(), m, n, rocdesc, nonzeros(csr),
+                csr.rowPtr, csr.colVal, denseA, lda)
             return denseA
         end
         function AMDGPU.ROCMatrix{$elty}(csc::ROCSparseMatrixCSC{$elty}; ind::SparseChar='O')
@@ -397,13 +348,10 @@ for (cname,rname,elty) in ((:rocsparse_scsc2dense, :rocsparse_scsr2dense, :Float
             denseA = AMDGPU.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
             rocdesc = ROCMatrixDescriptor('G', 'L', 'N', ind)
-            
-            # wait!((csc, denseA))
-            $cname(handle(), m, n, rocdesc, nonzeros(csc),
-                   rowvals(csc), csc.colPtr, denseA, lda)
-            # mark!((csc, denseA), rocsparse_get_stream(handle()))
-            # sleep(1)
-            # wait!((csc, denseA))
+
+            $cname(
+                handle(), m, n, rocdesc, nonzeros(csc),
+                rowvals(csc), csc.colPtr, denseA, lda)
             return denseA
         end
     end
@@ -425,14 +373,10 @@ for (elty, welty) in ((:Float16, :Float32),
                 return out[]
             end
 
-            # wait!((csr, denseA))
             with_workspace(bufferSize) do buffer
                 rocsparse_sparse_to_dense(handle(), desc_csr, desc_dense,
                     rocsparse_sparse_to_dense_alg_default, bufferSize, buffer)
-                # mark!((csr, denseA, buffer), rocsparse_get_stream(handle()))
             end
-            # wait!((csr, denseA))
-            # sleep(1)
             return denseA
         end
         function AMDGPU.ROCMatrix{$elty}(csc::ROCSparseMatrixCSC{$elty}; ind::SparseChar='O')
@@ -447,111 +391,91 @@ for (elty, welty) in ((:Float16, :Float32),
                     rocsparse_sparse_to_dense_alg_default, out, Ptr{Cvoid}())
                 return out[]
             end
-            
-            # wait!((csc, denseA))
+
             with_workspace(bufferSize) do buffer
                 rocsparse_sparse_to_dense(handle(), desc_csc, desc_dense,
                     rocsparse_sparse_to_dense_alg_default, bufferSize, buffer)
-                # mark!((csc, denseA, buffer), rocsparse_get_stream(handle()))
             end
-            # wait!((csc, denseA))
-            # sleep(1)
             return denseA
         end
     end
 end
 
-Base.copyto!(dest::Array{T, 2}, src::AbstractROCSparseMatrix{T}) where T = copyto!(dest, ROCMatrix{T}(src))
+function Base.copyto!(dest::Array{T, 2}, src::AbstractROCSparseMatrix{T}) where T
+    copyto!(dest, ROCMatrix{T}(src))
+end
 
-for (nname,cname,rname,elty) in ((:rocsparse_snnz, :rocsparse_sdense2csc, :rocsparse_sdense2csr, :Float32),
-                                 (:rocsparse_dnnz, :rocsparse_ddense2csc, :rocsparse_ddense2csr, :Float64),
-                                 (:rocsparse_cnnz, :rocsparse_cdense2csc, :rocsparse_cdense2csr, :ComplexF32),
-                                 (:rocsparse_znnz, :rocsparse_zdense2csc, :rocsparse_zdense2csr, :ComplexF64))
+for (nname,cname,rname,elty) in (
+    (:rocsparse_snnz, :rocsparse_sdense2csc, :rocsparse_sdense2csr, :Float32),
+    (:rocsparse_dnnz, :rocsparse_ddense2csc, :rocsparse_ddense2csr, :Float64),
+    (:rocsparse_cnnz, :rocsparse_cdense2csc, :rocsparse_cdense2csr, :ComplexF32),
+    (:rocsparse_znnz, :rocsparse_zdense2csc, :rocsparse_zdense2csr, :ComplexF64),
+)
     @eval begin
         function ROCSparseMatrixCSR(A::ROCMatrix{$elty}; ind::SparseChar='O')
             m,n = size(A)
-            lda = max(1, stride(A,2))
-            rocdesc = ROCMatrixDescriptor('G',
-                                        'L',
-                                        'N', ind)
+            lda = max(1, stride(A, 2))
+            rocdesc = ROCMatrixDescriptor('G', 'L', 'N', ind)
             nnzRowCol = AMDGPU.zeros(Cint, m)
             nnzTotal = Ref{Cint}(1)
-            stream = rocsparse_get_stream(handle())
 
-            # wait!((A, nnzRowCol))
-            $nname(handle(),
-                   'R', m, n, rocdesc, A, lda, nnzRowCol,
-                   nnzTotal)
-            # mark!((A, nnzRowCol), stream)
-            # sleep(1)
+            $nname(handle(), 'R', m, n, rocdesc, A, lda, nnzRowCol, nnzTotal)
 
             nzVal = AMDGPU.zeros($elty,nnzTotal[])
-            rowPtr = AMDGPU.zeros(Cint,m+1)
+            rowPtr = AMDGPU.zeros(Cint,m + 1)
             colInd = AMDGPU.zeros(Cint,nnzTotal[])
 
-            # wait!((nzVal, rowPtr, colInd, A, nnzRowCol))
-            $rname(handle(), m, n, rocdesc, A,
-                    lda, nnzRowCol, nzVal, rowPtr, colInd)
-            # mark!((nzVal, rowPtr, colInd, A, nnzRowCol), stream)
-            # sleep(1)
-            # wait!((nzVal, rowPtr, colInd, A, nnzRowCol))
-            return ROCSparseMatrixCSR(rowPtr,colInd,nzVal,size(A))
+            $rname(
+                handle(), m, n, rocdesc, A,
+                lda, nnzRowCol, nzVal, rowPtr, colInd)
+            return ROCSparseMatrixCSR(rowPtr, colInd, nzVal, size(A))
         end
 
         function ROCSparseMatrixCSC(A::ROCMatrix{$elty}; ind::SparseChar='O')
             m,n = size(A)
             lda = max(1, stride(A,2))
-            rocdesc = ROCMatrixDescriptor('G',
-                                        'L',
-                                        'N', ind)
+            rocdesc = ROCMatrixDescriptor('G', 'L', 'N', ind)
             nnzRowCol = AMDGPU.zeros(Cint, n)
             nnzTotal = Ref{Cint}(1)
-            stream = rocsparse_get_stream(handle())
 
-            # wait!((nnzRowCol, A))
-            $nname(handle(),
-                   'C', m, n, rocdesc, A, lda, nnzRowCol,
-                   nnzTotal)
-            # mark!((nnzRowCol, A), stream)
-            # sleep(1)
+            $nname(handle(), 'C', m, n, rocdesc, A, lda, nnzRowCol, nnzTotal)
 
-            nzVal = AMDGPU.zeros($elty,nnzTotal[])
+            nzVal = AMDGPU.zeros($elty, nnzTotal[])
+            colPtr = AMDGPU.zeros(Cint, n + 1)
+            rowInd = AMDGPU.zeros(Cint, nnzTotal[])
 
-            colPtr = AMDGPU.zeros(Cint,n+1)
-            rowInd = AMDGPU.zeros(Cint,nnzTotal[])
-
-            # wait!((nzVal, colPtr, rowInd, A, nnzRowCol))
-            $cname(handle(), m, n, rocdesc, A,
-                    lda, nnzRowCol, nzVal, colPtr, rowInd)
-            # mark!((nzVal, colPtr, rowInd, A, nnzRowCol), stream)
-            # sleep(1)
-            # wait!((nzVal, colPtr, rowInd, A, nnzRowCol))
+            $cname(
+                handle(), m, n, rocdesc, A,
+                lda, nnzRowCol, nzVal, colPtr, rowInd)
             return ROCSparseMatrixCSC(colPtr,rowInd,nzVal,size(A))
         end
     end
 end
 
-
-for (elty, welty) in ((:Float16, :Float32),
-                      (:ComplexF16, :ComplexF32))
+for (elty, welty) in ((:Float16, :Float32), (:ComplexF16, :ComplexF32))
     @eval begin
         function ROCSparseMatrixCSR(A::ROCMatrix{$elty}; ind::SparseChar='O')
             wide_csr = ROCSparseMatrixCSR(convert(ROCMatrix{$welty}, A))
-            return ROCSparseMatrixCSR(wide_csr.rowPtr, wide_csr.colVal, convert(ROCVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
+            return ROCSparseMatrixCSR(
+                wide_csr.rowPtr, wide_csr.colVal,
+                convert(ROCVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
         end
         function ROCSparseMatrixCSC(A::ROCMatrix{$elty}; ind::SparseChar='O')
             wide_csc = ROCSparseMatrixCSC(convert(ROCMatrix{$welty}, A))
-            return ROCSparseMatrixCSC(wide_csc.colPtr, wide_csc.rowVal, convert(ROCVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
+            return ROCSparseMatrixCSC(
+                wide_csc.colPtr, wide_csc.rowVal,
+                convert(ROCVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
         end
     end
 end
 
-function AMDGPU.ROCMatrix{T}(bsr::ROCSparseMatrixBSR{T}; inda::SparseChar='O',
-                          indc::SparseChar='O') where {T}
+function AMDGPU.ROCMatrix{T}(
+    bsr::ROCSparseMatrixBSR{T}; inda::SparseChar = 'O', indc::SparseChar = 'O',
+) where T
     ROCMatrix{T}(ROCSparseMatrixCSR{T}(bsr; inda, indc))
 end
 
-function ROCSparseMatrixBSR(A::ROCMatrix; ind::SparseChar='O')
-    m,n = size(A)   # TODO: always let the user choose, or provide defaults for other methods too
+function ROCSparseMatrixBSR(A::ROCMatrix; ind::SparseChar = 'O')
+    m, n = size(A)   # TODO: always let the user choose, or provide defaults for other methods too
     ROCSparseMatrixBSR(ROCSparseMatrixCSR(A; ind), gcd(m,n))
 end

@@ -14,24 +14,14 @@ for (fname,elty) in ((:rocsparse_saxpyi, :Float32),
                      (:rocsparse_caxpyi, :ComplexF32),
                      (:rocsparse_zaxpyi, :ComplexF64))
     @eval begin
-        function axpyi!(alpha::Number,
-                        X::ROCSparseVector{$elty},
-                        Y::ROCVector{$elty},
-                        index::SparseChar)
-            # wait!((X, Y))
+        function axpyi!(alpha::Number, X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
             $fname(handle(), nnz(X), alpha, nonzeros(X), nonzeroinds(X), Y, index)
-            # mark!((X, Y), rocsparse_get_stream(handle()))
             Y
         end
-        function axpyi(alpha::Number,
-                       X::ROCSparseVector{$elty},
-                       Y::ROCVector{$elty},
-                       index::SparseChar)
+        function axpyi(alpha::Number, X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
             axpyi!(alpha,X,copy(Y),index)
         end
-        function axpyi(X::ROCSparseVector{$elty},
-                       Y::ROCVector{$elty},
-                       index::SparseChar)
+        function axpyi(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
             axpyi!(one($elty),X,copy(Y),index)
         end
     end
@@ -48,17 +38,11 @@ for (fname,elty) in ((:rocsparse_sgthr, :Float32),
                      (:rocsparse_cgthr, :ComplexF32),
                      (:rocsparse_zgthr, :ComplexF64))
     @eval begin
-        function gthr!(X::ROCSparseVector{$elty},
-                       Y::ROCVector{$elty},
-                       index::SparseChar)
-            # wait!((X, Y))
+        function gthr!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
-            # mark!((X, Y), rocsparse_get_stream(handle()))
             X
         end
-        function gthr(X::ROCSparseVector{$elty},
-                      Y::ROCVector{$elty},
-                      index::SparseChar)
+        function gthr(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
             gthr!(copy(X),Y,index)
         end
     end
@@ -75,18 +59,12 @@ for (fname,elty) in ((:rocsparse_sgthrz, :Float32),
                      (:rocsparse_cgthrz, :ComplexF32),
                      (:rocsparse_zgthrz, :ComplexF64))
     @eval begin
-        function gthrz!(X::ROCSparseVector{$elty},
-                        Y::ROCVector{$elty},
-                        index::SparseChar)
-            # wait!((X, Y))
+        function gthrz!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
-            # mark!((X, Y), rocsparse_get_stream(handle()))
             X,Y
         end
-        function gthrz(X::ROCSparseVector{$elty},
-                       Y::ROCVector{$elty},
-                       index::SparseChar)
-            gthrz!(copy(X),copy(Y),index)
+        function gthrz(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            gthrz!(copy(X), copy(Y), index)
         end
     end
 end
@@ -100,21 +78,11 @@ roti!(X::ROCSparseVector, Y::ROCVector, c::BlasFloat, s::BlasFloat, index::Spars
 for (fname,elty) in ((:rocsparse_sroti, :Float32),
                      (:rocsparse_droti, :Float64))
     @eval begin
-        function roti!(X::ROCSparseVector{$elty},
-                       Y::ROCVector{$elty},
-                       c::Number,
-                       s::Number,
-                       index::SparseChar)
-            # wait!((X, Y))
+        function roti!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, c::Number, s::Number, index::SparseChar)
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, c, s, index)
-            # mark!((X, Y), rocsparse_get_stream(handle()))
             X,Y
         end
-        function roti(X::ROCSparseVector{$elty},
-                      Y::ROCVector{$elty},
-                      c::Number,
-                      s::Number,
-                      index::SparseChar)
+        function roti(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, c::Number, s::Number, index::SparseChar)
             roti!(copy(X),copy(Y),c,s,index)
         end
     end
@@ -131,16 +99,11 @@ for (fname,elty) in ((:rocsparse_ssctr, :Float32),
                      (:rocsparse_csctr, :ComplexF32),
                      (:rocsparse_zsctr, :ComplexF64))
     @eval begin
-        function sctr!(X::ROCSparseVector{$elty},
-                       Y::ROCVector{$elty},
-                       index::SparseChar)
-            # wait!((X, Y))
+        function sctr!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, index)
-            # mark!((X, Y), rocpsarse_get_stream(handle()))
             Y
         end
-        function sctr(X::ROCSparseVector{$elty},
-                      index::SparseChar)
+        function sctr(X::ROCSparseVector{$elty}, index::SparseChar)
             sctr!(X, AMDGPU.zeros($elty, size(X)[1]),index)
         end
     end

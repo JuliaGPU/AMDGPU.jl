@@ -1,6 +1,5 @@
 # rocSPARSE helper functions
 
-
 ## matrix descriptor
 
 mutable struct ROCMatrixDescriptor
@@ -17,7 +16,9 @@ end
 
 Base.unsafe_convert(::Type{rocsparse_mat_descr}, desc::ROCMatrixDescriptor) = desc.handle
 
-function ROCMatrixDescriptor(MatrixType::Char, FillMode::Char, DiagType::Char, IndexBase::Char)
+function ROCMatrixDescriptor(
+    MatrixType::Char, FillMode::Char, DiagType::Char, IndexBase::Char,
+)
     desc = ROCMatrixDescriptor()
     if MatrixType != 'G'
         rocsparse_set_mat_type(desc, MatrixType)

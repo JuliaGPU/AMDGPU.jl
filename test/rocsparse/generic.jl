@@ -1,33 +1,26 @@
-using AMDGPU
-using Adapt
-using AMDGPU.rocSparse
-using SparseArrays
-using Test
-
-
-@testset "generic mv!" for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "generic mv!" for T in (Float32, Float64, ComplexF32, ComplexF64)
     A = sprand(T, 10, 10, 0.1)
     x = rand(T, 10)
-    y = similar(x)
     dx = adapt(ROCArray, x)
-    dy = adapt(ROCArray, y)
 
     dA = adapt(ROCArray, A)
+    dy = ROCArray(zeros(T, 10))
     mv!('N', T(1.0), dA, dx, T(0.0), dy, 'O')
     @test Array(dy) ≈ A * x
 
     dA = ROCSparseMatrixCSR(dA)
+    dy = ROCArray(zeros(T, 10))
     mv!('N', T(1.0), dA, dx, T(0.0), dy, 'O')
     @test Array(dy) ≈ A * x
 end
 
-@testset "mm algo=$algo" for algo in [
-    rocSparse.rocsparse_spmm_alg_default,
-    rocSparse.rocsparse_spmm_alg_csr,
-    rocSparse.rocsparse_spmm_alg_csr_merge,
-    rocSparse.rocsparse_spmm_alg_csr_row_split,
-]
-    @testset "mm $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "mm algo=$algo" for algo in (
+    rocSPARSE.rocsparse_spmm_alg_default,
+    rocSPARSE.rocsparse_spmm_alg_csr,
+    rocSPARSE.rocsparse_spmm_alg_csr_merge,
+    rocSPARSE.rocsparse_spmm_alg_csr_row_split,
+)
+    @testset "mm $T" for T in (Float32, Float64, ComplexF32, ComplexF64)
         A = sprand(T, 10, 10, 0.1)
         B = rand(T, 10, 2)
         C = rand(T, 10, 2)
@@ -42,12 +35,12 @@ end
     end
 end
 
-@testset "mv algo=$algo" for algo in [
-    rocSparse.rocsparse_spmv_alg_default,
-    rocSparse.rocsparse_spmv_alg_coo,
-    rocSparse.rocsparse_spmv_alg_ell,
-]
-    @testset "mv $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "mv algo=$algo" for algo in (
+    rocSPARSE.rocsparse_spmv_alg_default,
+    # rocSPARSE.rocsparse_spmv_alg_coo, # No COO or ELL matrix types
+    # rocSPARSE.rocsparse_spmv_alg_ell,
+)
+    @testset "mv $T" for T in (Float32, Float64, ComplexF32, ComplexF64)
         A = sprand(T, 10, 10, 0.1)
         B = rand(T, 10)
         C = rand(T, 10)

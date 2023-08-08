@@ -4,9 +4,6 @@
 export ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixBSR, ROCSparseMatrixCOO
 export ROCSparseMatrix, AbstractROCSparseMatrix, ROCSparseVector, ROCSparseVecOrMat
 
-using LinearAlgebra: BlasFloat
-using SparseArrays: nonzeroinds, dimlub
-
 abstract type AbstractROCSparseArray{Tv, Ti, N} <: AbstractSparseArray{Tv, Ti, N} end
 const AbstractROCSparseVector{Tv, Ti} = AbstractROCSparseArray{Tv, Ti, 1}
 const AbstractROCSparseMatrix{Tv, Ti} = AbstractROCSparseArray{Tv, Ti, 2}

@@ -1,8 +1,3 @@
-using AMDGPU.rocSparse
-using SparseArrays
-using AMDGPU.rocSparse: ROCSparseDeviceVector, ROCSparseDeviceMatrixCSC, ROCSparseDeviceMatrixCSR,
-                     ROCSparseDeviceMatrixBSR, ROCSparseDeviceMatrixCOO
-
 @testset "rocconvert" begin
     @test isbitstype(ROCSparseDeviceVector{Float32, Cint, AMDGPU.Device.AS.Global})
     @test isbitstype(ROCSparseDeviceMatrixCSC{Float32, Cint, AMDGPU.Device.AS.Global})

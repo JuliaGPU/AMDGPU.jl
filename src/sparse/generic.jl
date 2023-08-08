@@ -6,10 +6,8 @@ mutable struct ROCDenseVectorDescriptor
     handle::rocsparse_dnvec_descr
 
     function ROCDenseVectorDescriptor(x::DenseROCVector)
-        # wait!(x)
         desc_ref = Ref{rocsparse_dnvec_descr}()
         rocsparse_create_dnvec_descr(desc_ref, length(x), x, eltype(x))
-        # mark!(x, rocsparse_get_stream(handle()))
         obj = new(desc_ref[])
         finalizer(rocsparse_destroy_dnvec_descr, obj)
         obj
@@ -18,18 +16,16 @@ end
 
 Base.unsafe_convert(::Type{rocsparse_dnvec_descr}, desc::ROCDenseVectorDescriptor) = desc.handle
 
-
 ## sparse vector descriptor
 
 mutable struct ROCSparseVectorDescriptor
     handle::rocsparse_spvec_descr
 
     function ROCSparseVectorDescriptor(x::ROCSparseVector, IndexBase::Char)
-        # wait!(x)
         desc_ref = Ref{rocsparse_spvec_descr}()
-        rocsparse_create_spvec_descr(desc_ref, length(x), nnz(x), nonzeroinds(x), nonzeros(x),
-                                     eltype(nonzeroinds(x)), IndexBase, eltype(x))
-        # mark!(x, rocsparse_get_stream(handle()))
+        rocsparse_create_spvec_descr(
+            desc_ref, length(x), nnz(x), nonzeroinds(x), nonzeros(x),
+            eltype(nonzeroinds(x)), IndexBase, eltype(x))
         obj = new(desc_ref[])
         finalizer(rocsparse_destroy_spvec_descr, obj)
         obj
@@ -38,25 +34,23 @@ end
 
 Base.unsafe_convert(::Type{rocsparse_spvec_descr}, desc::ROCSparseVectorDescriptor) = desc.handle
 
-
 ## dense matrix descriptor
 
 mutable struct ROCDenseMatrixDescriptor
     handle::rocsparse_dnmat_descr
 
     function ROCDenseMatrixDescriptor(x::DenseROCMatrix)
-        # wait!(x)
         desc_ref = Ref{rocsparse_dnmat_descr}()
-        rocsparse_create_dnmat_descr(desc_ref, size(x)..., stride(x,2), x, eltype(x), rocsparse_order_column)
+        rocsparse_create_dnmat_descr(
+            desc_ref, size(x)..., stride(x,2), x, eltype(x),
+            rocsparse_order_column)
         obj = new(desc_ref[])
-        # mark!(x, rocsparse_get_stream(handle()))
         finalizer(rocsparse_destroy_dnmat_descr, obj)
         obj
     end
 end
 
 Base.unsafe_convert(::Type{rocsparse_dnmat_descr}, desc::ROCDenseMatrixDescriptor) = desc.handle
-
 
 ## sparse matrix descriptor
 
@@ -65,14 +59,10 @@ mutable struct ROCSparseMatrixDescriptor
 
     function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCSR, IndexBase::Char)
         desc_ref = Ref{rocsparse_spmat_descr}()
-        # wait!(A)
         rocsparse_create_csr_descr(
-            desc_ref,
-            size(A)..., length(nonzeros(A)),
+            desc_ref, size(A)..., length(nonzeros(A)),
             A.rowPtr, A.colVal, nonzeros(A),
-            eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
-        )
-        # mark!(A, rocsparse_get_stream(handle()))
+            eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A)))
         obj = new(desc_ref[])
         finalizer(rocsparse_destroy_spmat_descr, obj)
         return obj
@@ -80,25 +70,19 @@ mutable struct ROCSparseMatrixDescriptor
 
     function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCSC, IndexBase::Char; convert=true)
         desc_ref = Ref{rocsparse_spmat_descr}()
-        # wait!(A)
         if convert
             # many algorithms, e.g. mv! and mm!, do not support CSC sparse format
             # so we eagerly convert this to a CSR matrix.
             rocsparse_create_csr_descr(
-                desc_ref,
-                reverse(size(A))..., length(nonzeros(A)),
+                desc_ref, reverse(size(A))..., length(nonzeros(A)),
                 A.colPtr, rowvals(A), nonzeros(A),
-                eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
-            )
+                eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A)))
         else
             rocsparse_create_csc_descr(
-                desc_ref,
-                size(A)..., length(nonzeros(A)),
+                desc_ref, size(A)..., length(nonzeros(A)),
                 A.colPtr, rowvals(A), nonzeros(A),
-                eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
-            )
+                eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A)))
         end
-        # mark!(A, rocsparse_get_stream(handle()))
         obj = new(desc_ref[])
         finalizer(rocsparse_destroy_spmat_descr, obj)
         return obj
@@ -107,23 +91,20 @@ end
 
 Base.unsafe_convert(::Type{rocsparse_spmat_descr}, desc::ROCSparseMatrixDescriptor) = desc.handle
 
-
 ## API functions
 
 function gather!(X::ROCSparseVector, Y::ROCVector, index::SparseChar)
     descX = ROCSparseVectorDescriptor(X, index)
     descY = ROCDenseVectorDescriptor(Y)
-
-    # wait!((X, Y))
     rocsparse_gather(handle(), descY, descX)
-    # mark!((X, Y), rocsparse_get_stream(handle()))
-
     X
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::Union{ROCSparseMatrixBSR{TA},ROCSparseMatrixCSR{TA}},
-             X::DenseROCVector{T}, beta::Number, Y::DenseROCVector{T}, index::SparseChar, 
-             algo::rocsparse_spmv_alg=rocsparse_spmv_alg_default) where {TA, T}
+function mv!(
+    transa::SparseChar, alpha::Number, A::Union{ROCSparseMatrixBSR{TA}, ROCSparseMatrixCSR{TA}},
+    X::DenseROCVector{T}, beta::Number, Y::DenseROCVector{T}, index::SparseChar,
+    algo::rocsparse_spmv_alg = rocsparse_spmv_alg_default,
+) where {TA, T}
     m,n = size(A)
 
     if transa == 'N'
@@ -149,38 +130,37 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{ROCSparseMatrixBSR{TA},
 
     function bufferSize()
         out = Ref{Csize_t}()
-        rocsparse_spmv(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                              descY, compute_type, algo, out, Ptr{Cvoid}(C_NULL))
-        AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
+        rocsparse_spmv(
+            handle(), transa, Ref{compute_type}(alpha), descA, descX,
+            Ref{compute_type}(beta), descY, compute_type, algo, out, C_NULL)
         return out[]
     end
 
-    # wait!((A, X, Y))
     size_ref = Ref{Csize_t}()
     with_workspace(bufferSize) do buffer
-        # @show Ref{Csize_t}(sizeof(buffer))
-        # @show sizeof(buffer)
         size_ref[] = sizeof(buffer)
-        rocsparse_spmv(handle(), transa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                     descY, compute_type, algo, size_ref, buffer)
-        AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
-        # mark!((A, X, Y, buffer), rocsparse_get_stream(handle()))
+        rocsparse_spmv(
+            handle(), transa, Ref{compute_type}(alpha), descA, descX,
+            Ref{compute_type}(beta), descY, compute_type, algo, size_ref, buffer)
     end
-    AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
     Y
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{TA}, X::DenseROCVector{T},
-             beta::Number, Y::DenseROCVector{T}, index::SparseChar, algo::rocsparse_spmv_alg=rocsparse_spmv_alg_default) where {TA, T}
+function mv!(
+    transa::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{TA}, X::DenseROCVector{T},
+    beta::Number, Y::DenseROCVector{T}, index::SparseChar,
+    algo::rocsparse_spmv_alg = rocsparse_spmv_alg_default,
+) where {TA, T}
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
     elseif transa == 'C' && TA <: Complex
-        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR matrix instead."))
+        throw(ArgumentError(
+            "Matrix-vector multiplication with the adjoint of a CSC matrix" *
+            " is not supported. Use a CSR matrix instead."))
     end
 
-    n,m = size(A)
+    n, m = size(A)
 
     if ctransa == 'N'
         chkmvdims(X,n,Y,m)
@@ -205,28 +185,28 @@ function mv!(transa::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{TA}, X::De
 
     function bufferSize()
         out = Ref{Csize_t}()
-        rocsparse_spmv(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                                 descY, compute_type, algo, out, Ptr{Cvoid}(C_NULL))
-        AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
+        rocsparse_spmv(
+            handle(), ctransa, Ref{compute_type}(alpha), descA, descX,
+            Ref{compute_type}(beta), descY, compute_type, algo, out, C_NULL)
         return out[]
     end
 
     buff_size = Ref{Csize_t}()
-    # wait!((A, X, Y))
     with_workspace(bufferSize) do buffer
         buff_size[] = sizeof(buffer)
-        rocsparse_spmv(handle(), ctransa, Ref{compute_type}(alpha), descA, descX, Ref{compute_type}(beta),
-                      descY, compute_type, algo, buff_size, buffer)
-        # mark!((A, X, Y, buffer), rocsparse_get_stream(handle()))
+        rocsparse_spmv(
+            handle(), ctransa, Ref{compute_type}(alpha), descA, descX,
+            Ref{compute_type}(beta), descY, compute_type, algo, buff_size, buffer)
     end
-    AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
     return Y
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{T},
-             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
-             algo::rocsparse_spmm_alg=rocsparse_spmm_alg_default) where {T}
-    m,k = size(A)
+function mm!(
+    transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{T},
+    B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
+    algo::rocsparse_spmm_alg=rocsparse_spmm_alg_default,
+) where T
+    m, k = size(A)
     n = size(C)[2]
 
     if transa == 'N' && transb == 'N'
@@ -247,39 +227,37 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparse
         out = Ref{Csize_t}()
         rocsparse_spmm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, Ptr{Cvoid}(C_NULL))
-        AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
+            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, C_NULL)
         return out[]
     end
 
-    # wait!((A, B, C))
     with_workspace(bufferSize) do buffer
         buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spmm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, rocsparse_spmm_stage_preprocess, buffer_len_ref, buffer)
-
         rocsparse_spmm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
-        # mark!((A, B, C, buffer), rocsparse_get_stream(handle()))
     end
-    AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
     return C
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{T},
-             B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
-             algo::rocsparse_spmm_alg=rocsparse_spmm_alg_default) where {T}
+function mm!(
+    transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{T},
+    B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
+    algo::rocsparse_spmm_alg = rocsparse_spmm_alg_default,
+) where T
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
     elseif transa == 'C' && T <: Complex
-        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a CSC matrix" *
-                            " is not supported. Use a CSR matrix instead."))
+        throw(ArgumentError(
+            "Matrix-matrix multiplication with the adjoint of a CSC matrix" *
+            " is not supported. Use a CSR matrix instead."))
     end
 
-    k,m = size(A)
+    k, m = size(A)
     n = size(C)[2]
 
     if ctransa == 'N' && transb == 'N'
@@ -300,12 +278,10 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparse
         out = Ref{Csize_t}()
         rocsparse_spmm(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, Ptr{Cvoid}(C_NULL))
-        AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
+            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, C_NULL)
         return out[]
     end
 
-    # wait!((A, B, C))
     with_workspace(bufferSize) do buffer
         buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spmm(
@@ -314,19 +290,19 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparse
         rocsparse_spmm(
             handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
-        # mark!((A, B, C, buffer), rocsparse_get_stream(handle()))
     end
-    AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
-
     return C
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, α::Number, A::ROCSparseMatrixCSR{T},
-             B::ROCSparseMatrixCSR{T}, β::Number, C::ROCSparseMatrixCSR{T}, index::SparseChar) where {T}
-    m,k = size(A)
+function mm!(
+    transa::SparseChar, transb::SparseChar, α::Number, A::ROCSparseMatrixCSR{T},
+    B::ROCSparseMatrixCSR{T}, β::Number, C::ROCSparseMatrixCSR{T},
+    index::SparseChar,
+) where T
+    m, k = size(A)
     n = size(C)[2]
     alpha = convert(T, α)
-    beta  = convert(T, β)
+    beta = convert(T, β)
 
     if transa == 'N' && transb == 'N'
         chkmmdims(B,C,k,n,m,n)
@@ -342,24 +318,20 @@ function mm!(transa::SparseChar, transb::SparseChar, α::Number, A::ROCSparseMat
         out = Ref{Csize_t}(0)
         rocsparse_spgemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_buffer_size, out,
-            Ptr{Cvoid}(C_NULL))
-        AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
+            descC, descC, T, rocsparse_spgemm_alg_default,
+            rocsparse_spgemm_stage_buffer_size, out, C_NULL)
         return out[]
     end
-    # wait!((A, B, C))
     with_workspace(bufferSize) do buffer
         buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spgemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_nnz, buffer_len_ref, buffer)
+            descC, descC, T, rocsparse_spgemm_alg_default,
+            rocsparse_spgemm_stage_nnz, buffer_len_ref, buffer)
         rocsparse_spgemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default, rocsparse_spgemm_stage_compute, buffer_len_ref, buffer)
-        # mark!((A, B, C, buffer), rocsparse_get_stream(handle()))
+            descC, descC, T, rocsparse_spgemm_alg_default,
+            rocsparse_spgemm_stage_compute, buffer_len_ref, buffer)
     end
-    AMDGPU.synchronize(HIPStream(rocsparse_get_stream(handle())))
-
     return C
 end
-

@@ -1,9 +1,4 @@
-using Base.Broadcast: Broadcasted
-
-using AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
-
 # TODO: support more types (SparseVector, SparseMatrixCSC, COO, BSR)
-
 
 ## sparse broadcast style
 
@@ -32,7 +27,6 @@ Broadcast.BroadcastStyle(::ROCSparseMatStyle, ::ROCArrayStyle{2}) = ROCSparseMat
 
 # don't wrap sparse arrays with Extruded
 Broadcast.extrude(x::ROCSparseVecOrMat) = x
-
 
 ## detection of zero-preserving functions
 
@@ -99,7 +93,6 @@ end
 @inline _iszero(x::AbstractArray) = Base.iszero(x)
 @inline _zeros_eltypes(A) = (zero(eltype(A)),)
 @inline _zeros_eltypes(A, Bs...) = (zero(eltype(A)), _zeros_eltypes(Bs...)...)
-
 
 ## iteration helpers
 
@@ -302,8 +295,9 @@ _getindex(arg, I, ptr) = Broadcast._broadcast_getindex(arg, I)
 # TODO: unify CSC/CSR kernels
 
 # kernel to count the number of non-zeros in a row, to determine the row offsets
-function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSR}, offsets::ROCDeviceVector{Ti},
-                                args...) where Ti
+function compute_offsets_kernel(
+    ::Type{<:ROCSparseMatrixCSR}, offsets::ROCDeviceVector{Ti}, args...,
+) where Ti
     # every thread processes an entire row
     row::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     row > length(offsets) - 1 && return
@@ -323,11 +317,12 @@ function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSR}, offsets::ROCDevice
         end
         offsets[row+1] = accum
     end
-
     return
 end
-function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSC}, offsets::ROCDeviceVector{Ti},
-                                args...) where Ti
+
+function compute_offsets_kernel(
+    ::Type{<:ROCSparseMatrixCSC}, offsets::ROCDeviceVector{Ti}, args...,
+) where Ti
     # every thread processes an entire columm
     col::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     col > length(offsets)-1 && return
@@ -347,14 +342,14 @@ function compute_offsets_kernel(::Type{<:ROCSparseMatrixCSC}, offsets::ROCDevice
         end
         offsets[col+1] = accum
     end
-
     return
 end
 
 # broadcast kernels that iterate the elements of sparse arrays
-function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSR{<:Any,Ti},
-                                           offsets::Union{ROCDeviceVector,Nothing},
-                                           args...) where {Ti}
+function sparse_to_sparse_broadcast_kernel(
+    f, output::ROCSparseDeviceMatrixCSR{<:Any,Ti},
+    offsets::Union{ROCDeviceVector,Nothing}, args...,
+) where Ti
     # every thread processes an entire row
     row::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     row > size(output, 1) && return
@@ -381,12 +376,13 @@ function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSR{<
         @inbounds output.nzVal[output_ptr] = f(vals...)
         output_ptr += one(Ti)
     end
-
     return
 end
-function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSC{<:Any,Ti},
-                                           offsets::Union{ROCDeviceVector,Nothing},
-                                           args...) where {Ti}
+
+function sparse_to_sparse_broadcast_kernel(
+    f, output::ROCSparseDeviceMatrixCSC{<:Any,Ti},
+    offsets::Union{ROCDeviceVector,Nothing}, args...,
+) where Ti
     # every thread processes an entire column
     col::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     col > size(output, 2) && return
@@ -413,11 +409,12 @@ function sparse_to_sparse_broadcast_kernel(f, output::ROCSparseDeviceMatrixCSC{<
         @inbounds output.nzVal[output_ptr] = f(vals...)
         output_ptr += one(Ti)
     end
-
     return
 end
-function sparse_to_dense_broadcast_kernel(::Type{<:ROCSparseMatrixCSR}, f,
-                                          output::ROCDeviceArray, args...)
+
+function sparse_to_dense_broadcast_kernel(
+    ::Type{<:ROCSparseMatrixCSR}, f, output::ROCDeviceArray, args...,
+)
     # every thread processes an entire row
     row::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     row > size(output, 1) && return
@@ -434,11 +431,12 @@ function sparse_to_dense_broadcast_kernel(::Type{<:ROCSparseMatrixCSR}, f,
 
         @inbounds output[I] = f(vals...)
     end
-
     return
 end
-function sparse_to_dense_broadcast_kernel(::Type{<:ROCSparseMatrixCSC}, f,
-                                          output::ROCDeviceArray, args...)
+
+function sparse_to_dense_broadcast_kernel(
+    ::Type{<:ROCSparseMatrixCSC}, f, output::ROCDeviceArray, args...,
+)
     # every thread processes an entire column
     col::UInt32 = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     col > size(output, 2) && return
@@ -455,44 +453,40 @@ function sparse_to_dense_broadcast_kernel(::Type{<:ROCSparseMatrixCSC}, f,
 
         @inbounds output[I] = f(vals...)
     end
-
     return
 end
 
 function Broadcast.copy(bc::Broadcasted{<:Union{ROCSparseVecStyle,ROCSparseMatStyle}})
-    # on 1.6, ntuple closures often fail to infer
-    VERSION < v"1.7" && @warn "Sparse broadcast is only supported on Julia 1.7 or higher" maxlog=1
-
     # find the sparse inputs
     bc = Broadcast.flatten(bc)
-    sparse_args = findall(bc.args) do arg
-        arg isa AbstractROCSparseArray
-    end
-    sparse_types = unique(map(i->nameof(typeof(bc.args[i])), sparse_args))
-    if length(sparse_types) > 1
-        error("broadcast with multiple types of sparse arrays ($(join(sparse_types, ", "))) is not supported")
-    end
+    sparse_args = findall(arg -> arg isa AbstractROCSparseArray, bc.args)
+
+    sparse_types = unique(map(i -> nameof(typeof(bc.args[i])), sparse_args))
+    length(sparse_types) > 1 && error(
+        "broadcast with multiple types of sparse arrays ($(join(sparse_types, ", "))) is not supported")
+
     sparse_typ = typeof(bc.args[first(sparse_args)])
-    sparse_typ <: Union{ROCSparseMatrixCSR,ROCSparseMatrixCSC} ||
-        error("broadcast with sparse arrays is currently only implemented for CSR and CSC matrices")
+    sparse_typ <: Union{ROCSparseMatrixCSR,ROCSparseMatrixCSC} || error(
+        "broadcast with sparse arrays is currently only implemented for CSR and CSC matrices")
+
     Ti = if sparse_typ <: ROCSparseMatrixCSR
-        reduce(promote_type, map(i->eltype(bc.args[i].rowPtr), sparse_args))
+        reduce(promote_type, map(i -> eltype(bc.args[i].rowPtr), sparse_args))
     elseif sparse_typ <: ROCSparseMatrixCSC
-        reduce(promote_type, map(i->eltype(bc.args[i].colPtr), sparse_args))
+        reduce(promote_type, map(i -> eltype(bc.args[i].colPtr), sparse_args))
     end
 
     # determine the output type
     Tv = Broadcast.combine_eltypes(bc.f, eltype.(bc.args))
-    if !Base.isconcretetype(Tv)
-        error("""GPU sparse broadcast resulted in non-concrete element type $Tv.
-                 This probably means that the function you are broadcasting contains an error or type instability.""")
-    end
+    Base.isconcretetype(Tv) || error("""
+        GPU sparse broadcast resulted in non-concrete element type $Tv.
+        This probably means that the function you are broadcasting contains an error or type instability.
+    """)
 
     # partially-evaluate the function, removing scalars.
     parevalf, passedsrcargstup = capturescalars(bc.f, bc.args)
     # check if the partially-evaluated function preserves zeros. if so, we'll only need to
     # apply it to the sparse input arguments, preserving the sparse structure.
-    if all(arg->isa(arg, AbstractSparseArray), passedsrcargstup)
+    if all(arg -> isa(arg, AbstractSparseArray), passedsrcargstup)
         fofzeros = parevalf(_zeros_eltypes(passedsrcargstup...)...)
         fpreszeros = _iszero(fofzeros)
     else
@@ -568,7 +562,7 @@ function Broadcast.copy(bc::Broadcasted{<:Union{ROCSparseVecStyle,ROCSparseMatSt
         # accumulate these values so that we can use them directly as row pointer offsets,
         # as well as to get the total nnz count to allocate the sparse output array.
         # cusparseXcsrgeam2Nnz computes this in one go, but it doesn't seem worth the effort
-        accumulate!(Base.add_sum, offsets, offsets)
+        accumulate!(Base.add_sum, offsets, offsets) # TODO implement accumulate
         total_nnz = @allowscalar last(offsets[end]) - 1
 
         output = if sparse_typ <: ROCSparseMatrixCSR

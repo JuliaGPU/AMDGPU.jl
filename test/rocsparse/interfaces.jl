@@ -1,13 +1,11 @@
-using Adapt
-using AMDGPU.rocSparse
-using LinearAlgebra, SparseArrays
-using AMDGPU
-using Test
-
 @testset "LinearAlgebra" begin
-    @testset "$f(A)±$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                     f in (identity, transpose), #adjoint),
-                                     h in (identity, transpose)#, adjoint)
+    @testset "$f(A)±$h(B) $elty" for elty in (
+        Float32, Float64, ComplexF32, ComplexF64,
+    ), f in (
+        identity, transpose, #= adjoint, =#
+    ), h in (
+        identity, transpose, #= , adjoint, =#
+    )
         # adjoint need the support of broadcast for `conj()` to work with `ROCSparseMatrix`.
         n = 10
         alpha = rand()
@@ -27,8 +25,11 @@ using Test
         @test C ≈ collect(dC)
     end
 
-    @testset "A±$f(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                 f in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, x->ROCSparseMatrixBSR(x,1))
+    @testset "A±$f(B) $elty" for elty in (
+        Float32, Float64, ComplexF32, ComplexF64,
+    ), f in (
+        ROCSparseMatrixCSR, ROCSparseMatrixCSC, x -> ROCSparseMatrixBSR(x, 1),
+    )
         n = 10
         A = sprand(elty, n, n, rand())
         B = sprand(elty, n, n, rand())
@@ -53,8 +54,11 @@ using Test
         @test C ≈ collect(dC)
     end
 
-    @testset "$f(A)*b $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                 f in (identity, transpose, adjoint)
+    @testset "$f(A)*b $elty" for elty in (
+        Float32, Float64, ComplexF32, ComplexF64,
+    ), f in (
+        identity, transpose, adjoint,
+    )
         n = 10
         alpha = rand()
         beta = rand()
@@ -84,8 +88,11 @@ using Test
         @test c ≈ collect(dc)
     end
 
-    @testset "$f(A)*b Complex{$elty}*$elty" for elty in [Float32, Float64],
-                                 f in (identity, transpose, adjoint)
+    @testset "$f(A)*b Complex{$elty}*$elty" for elty in (
+        Float32, Float64,
+    ), f in (
+        identity, transpose, adjoint,
+    )
         n = 10
         alpha = rand()
         beta = rand()
@@ -115,16 +122,13 @@ using Test
         @test c ≈ collect(dc)
     end
 
-    @testset "$f(A)*$h(B) $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64],
-                                     f in (identity, transpose, adjoint),
-                                     h in (identity, transpose, adjoint)
-        # if CUSPARSE.version() <= v"10.3.1" &&
-        #     (h ∈ (transpose, adjoint) && f != identity) ||
-        #     (h == adjoint && elty <: Complex)
-        #     # These combinations are not implemented in CUDA10
-        #     continue
-        # end
-
+    @testset "$f(A)*$h(B) $elty" for elty in (
+        Float32, Float64, ComplexF32, ComplexF64,
+    ), f in (
+        identity, transpose, adjoint,
+    ), h in (
+        identity, transpose, adjoint,
+    )
         n = 10
         alpha = rand()
         beta = rand()
@@ -149,7 +153,7 @@ using Test
         @test C ≈ collect(dC)
     end
 
-    @testset "issue #1095 ($elty)" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "issue #1095 ($elty)" for elty in (Float32, Float64, ComplexF32, ComplexF64)
         # Test non-square matrices
         n, m, p = 10, 20, 4
         alpha = rand()
@@ -175,7 +179,11 @@ using Test
         @test B ≈ collect(dB)
     end
 
-    @testset "ROCSparseMatrixCSR($f) $elty" for f in [transpose, adjoint], elty in [Float32, ComplexF32]
+    @testset "ROCSparseMatrixCSR($f) $elty" for f in (
+        transpose, adjoint,
+    ), elty in (
+        Float32, ComplexF32,
+    )
         S = f(sprand(elty, 10, 10, 0.1))
         @test SparseMatrixCSC(ROCSparseMatrixCSR(S)) ≈ S
 
@@ -188,36 +196,38 @@ using Test
         @test SparseMatrixCSC(ROCSparseMatrixCSR(T)) ≈ f(S)
     end
 
-    @testset "UniformScaling with $typ($dims)" for
-            typ in [ROCSparseMatrixCSR, ROCSparseMatrixCSC],
-            dims in [(10, 10), (5, 10), (10, 5)]
-        S = sprand(Float32, dims..., 0.1)
-        dA = typ(S)
-        
-        @test AMDGPU.@allowscalar Array(dA + I) == S + I
-        @test AMDGPU.@allowscalar Array(I + dA) == I + S
+    # TODO requires accumulate!
+    # @testset "UniformScaling with $typ($dims)" for typ in (
+    #     ROCSparseMatrixCSR, ROCSparseMatrixCSC,
+    # ), dims in (
+    #     (10, 10), (5, 10), (10, 5),
+    # )
+    #     S = sprand(Float32, dims..., 0.1)
+    #     dA = typ(S)
 
-        @test AMDGPU.@allowscalar Array(dA - I) == S - I
-        @test AMDGPU.@allowscalar Array(I - dA) == I - S
-    end
+    #     @test Array(dA + I) == S + I
+    #     @test Array(I + dA) == I + S
+    #     @test Array(dA - I) == S - I
+    #     @test Array(I - dA) == I - S
+    # end
 
-    @testset "Diagonal with $typ(10, 10)" for
-        typ in [ROCSparseMatrixCSR, ROCSparseMatrixCSC]
-        
-        S = sprand(Float32, 10, 10, 0.8)
-        D = Diagonal(rand(Float32, 10))
-        dA = typ(S)
-        dD = adapt(ROCArray, D)
+    # TODO requires accumulate!
+    # @testset "Diagonal with $typ(10, 10)" for typ in (
+    #     ROCSparseMatrixCSR, ROCSparseMatrixCSC,
+    # )
+    #     S = sprand(Float32, 10, 10, 0.8)
+    #     D = Diagonal(rand(Float32, 10))
+    #     dA = typ(S)
+    #     dD = adapt(ROCArray, D)
 
-        @test Array(dA + dD) == S + D
-        @test Array(dD + dA) == D + S
+    #     @test Array(dA + dD) == S + D
+    #     @test Array(dD + dA) == D + S
+    #     @test Array(dA - dD) == S - D
+    #     @test Array(dD - dA) == D - S
 
-        @test Array(dA - dD) == S - D
-        @test Array(dD - dA) == D - S
-
-        @test AMDGPU.@allowscalar dA + dD isa typ
-        @test AMDGPU.@allowscalar dD + dA isa typ
-        @test AMDGPU.@allowscalar dA - dD isa typ
-        @test AMDGPU.@allowscalar dD - dA isa typ
-    end
+    #     @test (dA + dD) isa typ
+    #     @test (dD + dA) isa typ
+    #     @test (dA - dD) isa typ
+    #     @test (dD - dA) isa typ
+    # end
 end

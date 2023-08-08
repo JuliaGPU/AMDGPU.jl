@@ -1,5 +1,3 @@
-using CEnum
-
 struct rocsparse_float_complex
     x::Cfloat
     y::Cfloat
@@ -11,8 +9,6 @@ struct rocsparse_double_complex
 end
 
 const rocsparse_int = Int32
-
-const hipStream_t = Ptr{Cvoid}
 
 mutable struct _rocsparse_handle end
 
