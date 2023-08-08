@@ -25,6 +25,8 @@ include("error.jl")
 include("librocsparse.jl")
 
 function create_handle()
+    AMDGPU.functional(:rocsparse) || error("rocSPARSE is not available")
+
     handle_ref = Ref{rocsparse_handle}()
     rocsparse_create_handle(handle_ref)
     handle_ref[]
