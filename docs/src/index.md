@@ -36,15 +36,16 @@ Refer to official ROCm stack installation instructions: <https://rocm.docs.amd.c
 
 Currently, AMDGPU.jl utilizes following libraries:
 
-* [ROCT](https://github.com/RadeonOpenCompute/ROCT-Thunk-Interface)
-* [ROCR](https://github.com/RadeonOpenCompute/ROCR-Runtime)
-* [ROCm-Device-Libs](https://github.com/RadeonOpenCompute/ROCm-Device-Libs)
-* [HIP](https://github.com/ROCm-Developer-Tools/HIP)
-* [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for BLAS support
-* [rocFFT](https://github.com/ROCmSoftwarePlatform/rocFFT) for FFT support
-* [rocSOLVER](https://github.com/ROCmSoftwarePlatform/rocSOLVER) for LAPACK support
-* [rocRAND](https://github.com/ROCmSoftwarePlatform/rocRAND) for RNG support
-* [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for DNN support
+[ROCT](https://github.com/RadeonOpenCompute/ROCT-Thunk-Interface),
+[ROCR](https://github.com/RadeonOpenCompute/ROCR-Runtime),
+[ROCm-Device-Libs](https://github.com/RadeonOpenCompute/ROCm-Device-Libs),
+[HIP](https://github.com/ROCm-Developer-Tools/HIP),
+[rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS),
+[rocFFT](https://github.com/ROCmSoftwarePlatform/rocFFT),
+[rocSOLVER](https://github.com/ROCmSoftwarePlatform/rocSOLVER),
+[rocSPARSE](https://github.com/ROCmSoftwarePlatform/rocSPARSE),
+[rocRAND](https://github.com/ROCmSoftwarePlatform/rocRAND),
+[MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen).
 
 Other ROCm packages are currently unused by AMDGPU.
 
