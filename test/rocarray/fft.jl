@@ -129,7 +129,7 @@ end
     @testset "Batch 2D (in 3D)" begin
         dims = (N1, N2, N3)
         # for region in [(1, 2), (2, 3), (1, 3)]
-        for region in [(1, 2),]# (2, 3), (1, 3)]
+        for region in [(1, 3),]
             X = rand(T, dims)
             batched(X, region)
         end
