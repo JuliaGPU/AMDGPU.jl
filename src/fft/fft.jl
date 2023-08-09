@@ -201,6 +201,13 @@ end
 # TODO update stream
 
 function unsafe_execute!(plan::cROCFFTPlan{T,K,true,N}, X::ROCArray{T,N}) where {T,K,N}
+    println("LLLLLLLLLLLLLLLLLLLLll")
+    @show plan
+    @show plan.sz
+    @show plan.osz
+    @show plan.execution_info
+    @show size(plan.workarea)
+    @show sum(plan.workarea)
     rocfft_execute(plan, [pointer(X),], C_NULL, plan.execution_info)
 end
 
