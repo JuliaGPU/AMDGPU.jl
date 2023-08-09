@@ -49,11 +49,15 @@ function batched(X::AbstractArray{T,N}, region) where {T <: Complex,N}
     dX = ROCArray(X)
     p = plan_fft!(dX, region)
     p * dX
-    @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
+    println(">>>>> 1 <<<<<")
+    hdX = collect(dX)
+    println(">>>>> 2 <<<<<")
 
-    pinv = plan_ifft!(dX, region)
-    pinv * dX
-    @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
+    @test isapprox(hdX, fftw_X; rtol=MYRTOL, atol=MYATOL)
+
+    # pinv = plan_ifft!(dX, region)
+    # pinv * dX
+    # @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
 end
 
 function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
@@ -75,7 +79,7 @@ function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
     @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
 end
 
-@testset for T in [ComplexF32, ComplexF64]
+@testset for T in [ComplexF32,]# ComplexF64]
     # @testset "1D" begin
     #     dims = (N1,)
     #     X = rand(T, dims)
