@@ -30,50 +30,50 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
 end
 
-# function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
-#     fftw_X = fft(X)
+function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
+    fftw_X = fft(X)
 
-#     dX = ROCArray(X)
-#     p = plan_fft!(dX)
-#     p * dX
-#     @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
+    dX = ROCArray(X)
+    p = plan_fft!(dX)
+    p * dX
+    @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-#     pinv = plan_ifft!(dX)
-#     pinv * dX
-#     @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
-# end
+    pinv = plan_ifft!(dX)
+    pinv * dX
+    @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
+end
 
-# function batched(X::AbstractArray{T,N}, region) where {T <: Complex,N}
-#     fftw_X = fft(X, region)
+function batched(X::AbstractArray{T,N}, region) where {T <: Complex,N}
+    fftw_X = fft(X, region)
 
-#     dX = ROCArray(X)
-#     p = plan_fft!(dX, region)
-#     p * dX
-#     @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
+    dX = ROCArray(X)
+    p = plan_fft!(dX, region)
+    p * dX
+    @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-#     pinv = plan_ifft!(dX, region)
-#     pinv * dX
-#     @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
-# end
+    pinv = plan_ifft!(dX, region)
+    pinv * dX
+    @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
+end
 
-# function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
-#     fftw_X = fft(X)
+function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
+    fftw_X = fft(X)
 
-#     dX = ROCArray(X)
-#     dY = fft(dX)
-#     @test typeof(dY) <: ROCArray
-#     @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
+    dX = ROCArray(X)
+    dY = fft(dX)
+    @test typeof(dY) <: ROCArray
+    @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-#     dZ = ifft(dY)
-#     @test typeof(dZ) <: ROCArray
-#     @test isapprox(collect(dZ), X, rtol=MYRTOL, atol=MYATOL)
+    dZ = ifft(dY)
+    @test typeof(dZ) <: ROCArray
+    @test isapprox(collect(dZ), X, rtol=MYRTOL, atol=MYATOL)
 
-#     fft!(dX)
-#     @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
+    fft!(dX)
+    @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-#     ifft!(dX)
-#     @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
-# end
+    ifft!(dX)
+    @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
+end
 
 # @testset for T in [ComplexF32, ComplexF64]
 #     @testset "1D" begin
