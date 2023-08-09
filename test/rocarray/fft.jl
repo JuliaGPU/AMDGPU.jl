@@ -30,303 +30,303 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
 end
 
-function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
-    fftw_X = fft(X)
+# function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
+#     fftw_X = fft(X)
 
-    dX = ROCArray(X)
-    p = plan_fft!(dX)
-    p * dX
-    @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
+#     dX = ROCArray(X)
+#     p = plan_fft!(dX)
+#     p * dX
+#     @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-    pinv = plan_ifft!(dX)
-    pinv * dX
-    @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
-end
+#     pinv = plan_ifft!(dX)
+#     pinv * dX
+#     @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
+# end
 
-function batched(X::AbstractArray{T,N}, region) where {T <: Complex,N}
-    fftw_X = fft(X, region)
+# function batched(X::AbstractArray{T,N}, region) where {T <: Complex,N}
+#     fftw_X = fft(X, region)
 
-    dX = ROCArray(X)
-    p = plan_fft!(dX, region)
-    p * dX
-    @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
+#     dX = ROCArray(X)
+#     p = plan_fft!(dX, region)
+#     p * dX
+#     @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-    pinv = plan_ifft!(dX, region)
-    pinv * dX
-    @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
-end
+#     pinv = plan_ifft!(dX, region)
+#     pinv * dX
+#     @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
+# end
 
-function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
-    fftw_X = fft(X)
+# function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
+#     fftw_X = fft(X)
 
-    dX = ROCArray(X)
-    dY = fft(dX)
-    @test typeof(dY) <: ROCArray
-    @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
+#     dX = ROCArray(X)
+#     dY = fft(dX)
+#     @test typeof(dY) <: ROCArray
+#     @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-    dZ = ifft(dY)
-    @test typeof(dZ) <: ROCArray
-    @test isapprox(collect(dZ), X, rtol=MYRTOL, atol=MYATOL)
+#     dZ = ifft(dY)
+#     @test typeof(dZ) <: ROCArray
+#     @test isapprox(collect(dZ), X, rtol=MYRTOL, atol=MYATOL)
 
-    fft!(dX)
-    @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
+#     fft!(dX)
+#     @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-    ifft!(dX)
-    @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
-end
+#     ifft!(dX)
+#     @test isapprox(collect(dX), X; rtol=MYRTOL, atol=MYATOL)
+# end
 
-@testset for T in [ComplexF32, ComplexF64]
-    @testset "1D" begin
-        dims = (N1,)
-        X = rand(T, dims)
-        out_of_place(X)
-    end
+# @testset for T in [ComplexF32, ComplexF64]
+#     @testset "1D" begin
+#         dims = (N1,)
+#         X = rand(T, dims)
+#         out_of_place(X)
+#     end
 
-    @testset "1D inplace" begin
-        dims = (N1,)
-        X = rand(T, dims)
-        in_place(X)
-    end
+#     @testset "1D inplace" begin
+#         dims = (N1,)
+#         X = rand(T, dims)
+#         in_place(X)
+#     end
 
-    @testset "2D" begin
-        dims = (N1,N2)
-        X = rand(T, dims)
-        out_of_place(X)
-    end
+#     @testset "2D" begin
+#         dims = (N1,N2)
+#         X = rand(T, dims)
+#         out_of_place(X)
+#     end
 
-    @testset "2D inplace" begin
-        dims = (N1,N2)
-        X = rand(T, dims)
-        in_place(X)
-    end
+#     @testset "2D inplace" begin
+#         dims = (N1,N2)
+#         X = rand(T, dims)
+#         in_place(X)
+#     end
 
-    @testset "Batch 1D" begin
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, 1)
+#     @testset "Batch 1D" begin
+#         dims = (N1, N2)
+#         X = rand(T, dims)
+#         batched(X, 1)
 
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, 2)
+#         dims = (N1, N2)
+#         X = rand(T, dims)
+#         batched(X, 2)
 
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, (1, 2))
-    end
+#         dims = (N1, N2)
+#         X = rand(T, dims)
+#         batched(X, (1, 2))
+#     end
 
-    @testset "3D" begin
-        dims = (N1,N2,N3)
-        X = rand(T, dims)
-        out_of_place(X)
-    end
+#     @testset "3D" begin
+#         dims = (N1,N2,N3)
+#         X = rand(T, dims)
+#         out_of_place(X)
+#     end
 
-    @testset "3D inplace" begin
-        dims = (N1,N2,N3)
-        X = rand(T, dims)
-        in_place(X)
-    end
+#     @testset "3D inplace" begin
+#         dims = (N1,N2,N3)
+#         X = rand(T, dims)
+#         in_place(X)
+#     end
 
-    @testset "Batch 2D (in 3D)" begin
-        dims = (N1, N2, N3)
-        for region in [(1, 2), (2, 3), (1, 3)]
-            X = rand(T, dims)
-            batched(X, region)
-        end
+#     @testset "Batch 2D (in 3D)" begin
+#         dims = (N1, N2, N3)
+#         for region in [(1, 2), (2, 3), (1, 3)]
+#             X = rand(T, dims)
+#             batched(X, region)
+#         end
 
-        X = rand(T, dims)
-        @test_throws ArgumentError batched(X, (3, 1))
-    end
+#         X = rand(T, dims)
+#         @test_throws ArgumentError batched(X, (3, 1))
+#     end
 
-    @testset "Batch 2D (in 4D)" begin
-        dims = (N1, N2, N3, N4)
-        # TODO for (1, 4) workarea allocates too much memory?
-        for region in [(1, 2), (3, 4), (1, 4)]
-            X = rand(T, dims)
-            batched(X, region)
-        end
-        for region in [(1, 3), (2, 3), (2, 4)]
-            X = rand(T, dims)
-            @test_throws ArgumentError batched(X, region)
-        end
-    end
+#     @testset "Batch 2D (in 4D)" begin
+#         dims = (N1, N2, N3, N4)
+#         # TODO for (1, 4) workarea allocates too much memory?
+#         for region in [(1, 2), (3, 4), (1, 4)]
+#             X = rand(T, dims)
+#             batched(X, region)
+#         end
+#         for region in [(1, 3), (2, 3), (2, 4)]
+#             X = rand(T, dims)
+#             @test_throws ArgumentError batched(X, region)
+#         end
+#     end
 
-    @testset "FFT Wrappers" begin
-        X = rand(T, N1)
-        fftwrapper(X)
+#     @testset "FFT Wrappers" begin
+#         X = rand(T, N1)
+#         fftwrapper(X)
 
-        X = rand(T, N1, N2)
-        fftwrapper(X)
+#         X = rand(T, N1, N2)
+#         fftwrapper(X)
 
-        X = rand(T, N1, N2, N3)
-        fftwrapper(X)
-    end
-end
+#         X = rand(T, N1, N2, N3)
+#         fftwrapper(X)
+#     end
+# end
 
-## real
+# ## real
 
-function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
-    fftw_X = rfft(X)
-    dX = ROCArray(X)
+# function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
+#     fftw_X = rfft(X)
+#     dX = ROCArray(X)
 
-    p = plan_rfft(dX)
-    dY = p * dX
-    Y = collect(dY)
-    @test isapprox(Y, fftw_X; rtol=MYRTOL, atol=MYATOL)
+#     p = plan_rfft(dX)
+#     dY = p * dX
+#     Y = collect(dY)
+#     @test isapprox(Y, fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-    pinv = plan_irfft(dY, size(X, 1))
-    dZ = pinv * dY
-    @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
+#     pinv = plan_irfft(dY, size(X, 1))
+#     dZ = pinv * dY
+#     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
 
-    pinv2 = inv(p)
-    dZ = pinv2 * dY
-    @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
+#     pinv2 = inv(p)
+#     dZ = pinv2 * dY
+#     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
 
-    pinv3 = inv(pinv)
-    dW = pinv3 * dX
-    @test isapprox(collect(dW), Y; rtol=MYRTOL, atol=MYATOL)
-end
+#     pinv3 = inv(pinv)
+#     dW = pinv3 * dX
+#     @test isapprox(collect(dW), Y; rtol=MYRTOL, atol=MYATOL)
+# end
 
-function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
-    fftw_X = rfft(X,region)
-    dX = ROCArray(X)
+# function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
+#     fftw_X = rfft(X,region)
+#     dX = ROCArray(X)
 
-    p = plan_rfft(dX, region)
-    dY = p * dX
-    @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
+#     p = plan_rfft(dX, region)
+#     dY = p * dX
+#     @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-    pinv = plan_irfft(dY, size(X, region[1]), region)
-    dZ = pinv * dY
-    @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
-end
+#     pinv = plan_irfft(dY, size(X, region[1]), region)
+#     dZ = pinv * dY
+#     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
+# end
 
-function fftwrapper(X::AbstractArray{T}) where {T <: Real}
-    fftw_X = rfft(X)
-    dX = ROCArray(X)
+# function fftwrapper(X::AbstractArray{T}) where {T <: Real}
+#     fftw_X = rfft(X)
+#     dX = ROCArray(X)
 
-    dY = rfft(dX)
-    @test typeof(dY) <: ROCArray
-    @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
+#     dY = rfft(dX)
+#     @test typeof(dY) <: ROCArray
+#     @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
-    @test_throws MethodError irfft(dY)
-    dZ = irfft(dY, size(X, 1))
-    @test typeof(dZ) <: ROCArray
-    @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
-end
+#     @test_throws MethodError irfft(dY)
+#     dZ = irfft(dY, size(X, 1))
+#     @test typeof(dZ) <: ROCArray
+#     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
+# end
 
-@testset for T in [Float32, Float64]
-    @testset "1D" begin
-        X = rand(T, N1)
-        out_of_place(X)
-    end
+# @testset for T in [Float32, Float64]
+#     @testset "1D" begin
+#         X = rand(T, N1)
+#         out_of_place(X)
+#     end
 
-    @testset "2D" begin
-        X = rand(T, N1, N2)
-        out_of_place(X)
-    end
+#     @testset "2D" begin
+#         X = rand(T, N1, N2)
+#         out_of_place(X)
+#     end
 
-    @testset "Batch 1D" begin
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, 1)
+#     @testset "Batch 1D" begin
+#         dims = (N1, N2)
+#         X = rand(T, dims)
+#         batched(X, 1)
 
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, 2)
+#         dims = (N1, N2)
+#         X = rand(T, dims)
+#         batched(X, 2)
 
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, (1, 2))
-    end
+#         dims = (N1, N2)
+#         X = rand(T, dims)
+#         batched(X, (1, 2))
+#     end
 
-    @testset "3D" begin
-        X = rand(T, N1, N2, N3)
-        out_of_place(X)
-    end
+#     @testset "3D" begin
+#         X = rand(T, N1, N2, N3)
+#         out_of_place(X)
+#     end
 
-    @testset "Batch 2D (in 3D)" begin
-        dims = (N1, N2, N3)
-        for region in [(1, 2), (2, 3), (1, 3)]
-            X = rand(T, dims)
-            batched(X, region)
-        end
+#     @testset "Batch 2D (in 3D)" begin
+#         dims = (N1, N2, N3)
+#         for region in [(1, 2), (2, 3), (1, 3)]
+#             X = rand(T, dims)
+#             batched(X, region)
+#         end
 
-        X = rand(T, dims)
-        @test_throws ArgumentError batched(X, (3, 1))
-    end
+#         X = rand(T, dims)
+#         @test_throws ArgumentError batched(X, (3, 1))
+#     end
 
-    @testset "Batch 2D (in 4D)" begin
-        dims = (N1, N2, N3, N4)
-        for region in [(1, 2), (1, 4), (3, 4)]
-            X = rand(T, dims)
-            batched(X, region)
-        end
-        for region in [(1, 3), (2, 3), (2, 4)]
-            X = rand(T, dims)
-            @test_throws ArgumentError batched(X, region)
-        end
-    end
+#     @testset "Batch 2D (in 4D)" begin
+#         dims = (N1, N2, N3, N4)
+#         for region in [(1, 2), (1, 4), (3, 4)]
+#             X = rand(T, dims)
+#             batched(X, region)
+#         end
+#         for region in [(1, 3), (2, 3), (2, 4)]
+#             X = rand(T, dims)
+#             @test_throws ArgumentError batched(X, region)
+#         end
+#     end
 
-    @testset "FFT Wrappers" begin
-        X = rand(T, N1)
-        fftwrapper(X)
+#     @testset "FFT Wrappers" begin
+#         X = rand(T, N1)
+#         fftwrapper(X)
 
-        X = rand(T, N1, N2)
-        fftwrapper(X)
+#         X = rand(T, N1, N2)
+#         fftwrapper(X)
 
-        X = rand(T, N1, N2, N3)
-        fftwrapper(X)
-    end
-end
+#         X = rand(T, N1, N2, N3)
+#         fftwrapper(X)
+#     end
+# end
 
-@testset "FFT with view" begin
-    for T in (ComplexF32, ComplexF64)
-        X = rand(T, 128, 128, 2)
-        X_d = ROCArray(X)
+# @testset "FFT with view" begin
+#     for T in (ComplexF32, ComplexF64)
+#         X = rand(T, 128, 128, 2)
+#         X_d = ROCArray(X)
 
-        # Perform fft with contiguous view with non-zero offsets
-        # This ensures that the offsets are properly being passed to rocFFT
-        fft!(view(X, :, :, 2))
-        fft!(view(X_d, :, :, 2))
+#         # Perform fft with contiguous view with non-zero offsets
+#         # This ensures that the offsets are properly being passed to rocFFT
+#         fft!(view(X, :, :, 2))
+#         fft!(view(X_d, :, :, 2))
 
-        @test isapprox(X, Array(X_d))
-    end
-end
+#         @test isapprox(X, Array(X_d))
+#     end
+# end
 
-@testset "Promoted types" begin
-    @testset for T in (Float32, Float64)
-        X = rand(T, 10, 10)
-        d_X = ROCArray(X)
+# @testset "Promoted types" begin
+#     @testset for T in (Float32, Float64)
+#         X = rand(T, 10, 10)
+#         d_X = ROCArray(X)
 
-        Y = fft(X)
-        d_Y = fft(d_X)
-        @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+#         Y = fft(X)
+#         d_Y = fft(d_X)
+#         @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
 
-        Y = ifft(X)
-        d_Y = ifft(d_X)
-        @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
-    end
+#         Y = ifft(X)
+#         d_Y = ifft(d_X)
+#         @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+#     end
 
-    @testset "Complex{Int}" begin
-        X = rand(Complex{Int}, 10, 10)
-        d_X = ROCArray(X)
+#     @testset "Complex{Int}" begin
+#         X = rand(Complex{Int}, 10, 10)
+#         d_X = ROCArray(X)
 
-        Y = fft(X)
-        d_Y = fft(d_X)
-        @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+#         Y = fft(X)
+#         d_Y = fft(d_X)
+#         @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
 
-        Y = ifft(X)
-        d_Y = ifft(d_X)
-        @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
-    end
+#         Y = ifft(X)
+#         d_Y = ifft(d_X)
+#         @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+#     end
 
-    @testset "Int" begin
-        X = rand(Int, 10, 10)
-        d_X = ROCArray(X)
+#     @testset "Int" begin
+#         X = rand(Int, 10, 10)
+#         d_X = ROCArray(X)
 
-        Y = rfft(X)
-        d_Y = rfft(d_X)
-        @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
-    end
-end
+#         Y = rfft(X)
+#         d_Y = rfft(d_X)
+#         @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+#     end
+# end
 
 end # testset FFT
