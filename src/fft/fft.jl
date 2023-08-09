@@ -108,7 +108,7 @@ for (f, xtype, inplace, forward) in (
             _inplace = $(inplace)
             _xtype = $(xtype)
             pp = get_plan(_xtype, size(X), T, _inplace, region)
-            return cROCFFTPlan{T, $forward, _inplace, N}(pp..., X, size(X), _xtype, region)
+            cROCFFTPlan{T,$forward,_inplace,N}(pp..., X, size(X), _xtype, region)
         end
     end
 end
