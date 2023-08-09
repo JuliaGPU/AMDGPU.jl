@@ -82,23 +82,23 @@ end
         out_of_place(X)
     end
 
-    # @testset "1D inplace" begin
-    #     dims = (N1,)
-    #     X = rand(T, dims)
-    #     in_place(X)
-    # end
+    @testset "1D inplace" begin
+        dims = (N1,)
+        X = rand(T, dims)
+        in_place(X)
+    end
 
-    # @testset "2D" begin
-    #     dims = (N1,N2)
-    #     X = rand(T, dims)
-    #     out_of_place(X)
-    # end
+    @testset "2D" begin
+        dims = (N1,N2)
+        X = rand(T, dims)
+        out_of_place(X)
+    end
 
-    # @testset "2D inplace" begin
-    #     dims = (N1,N2)
-    #     X = rand(T, dims)
-    #     in_place(X)
-    # end
+    @testset "2D inplace" begin
+        dims = (N1,N2)
+        X = rand(T, dims)
+        in_place(X)
+    end
 
     # @testset "Batch 1D" begin
     #     dims = (N1, N2)
