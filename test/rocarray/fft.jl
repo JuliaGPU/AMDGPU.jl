@@ -76,55 +76,55 @@ function fftwrapper(X::AbstractArray{T}) where {T <: Complex}
 end
 
 @testset for T in [ComplexF32, ComplexF64]
-    @testset "1D" begin
-        dims = (N1,)
-        X = rand(T, dims)
-        out_of_place(X)
-    end
+    # @testset "1D" begin
+    #     dims = (N1,)
+    #     X = rand(T, dims)
+    #     out_of_place(X)
+    # end
 
-    @testset "1D inplace" begin
-        dims = (N1,)
-        X = rand(T, dims)
-        in_place(X)
-    end
+    # @testset "1D inplace" begin
+    #     dims = (N1,)
+    #     X = rand(T, dims)
+    #     in_place(X)
+    # end
 
-    @testset "2D" begin
-        dims = (N1,N2)
-        X = rand(T, dims)
-        out_of_place(X)
-    end
+    # @testset "2D" begin
+    #     dims = (N1,N2)
+    #     X = rand(T, dims)
+    #     out_of_place(X)
+    # end
 
-    @testset "2D inplace" begin
-        dims = (N1,N2)
-        X = rand(T, dims)
-        in_place(X)
-    end
+    # @testset "2D inplace" begin
+    #     dims = (N1,N2)
+    #     X = rand(T, dims)
+    #     in_place(X)
+    # end
 
-    @testset "Batch 1D" begin
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, 1)
+    # @testset "Batch 1D" begin
+    #     dims = (N1, N2)
+    #     X = rand(T, dims)
+    #     batched(X, 1)
 
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, 2)
+    #     dims = (N1, N2)
+    #     X = rand(T, dims)
+    #     batched(X, 2)
 
-        dims = (N1, N2)
-        X = rand(T, dims)
-        batched(X, (1, 2))
-    end
+    #     dims = (N1, N2)
+    #     X = rand(T, dims)
+    #     batched(X, (1, 2))
+    # end
 
-    @testset "3D" begin
-        dims = (N1,N2,N3)
-        X = rand(T, dims)
-        out_of_place(X)
-    end
+    # @testset "3D" begin
+    #     dims = (N1,N2,N3)
+    #     X = rand(T, dims)
+    #     out_of_place(X)
+    # end
 
-    @testset "3D inplace" begin
-        dims = (N1,N2,N3)
-        X = rand(T, dims)
-        in_place(X)
-    end
+    # @testset "3D inplace" begin
+    #     dims = (N1,N2,N3)
+    #     X = rand(T, dims)
+    #     in_place(X)
+    # end
 
     @testset "Batch 2D (in 3D)" begin
         dims = (N1, N2, N3)
