@@ -100,42 +100,42 @@ end
         in_place(X)
     end
 
-    # @testset "Batch 1D" begin
-    #     dims = (N1, N2)
-    #     X = rand(T, dims)
-    #     batched(X, 1)
+    @testset "Batch 1D" begin
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, 1)
 
-    #     dims = (N1, N2)
-    #     X = rand(T, dims)
-    #     batched(X, 2)
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, 2)
 
-    #     dims = (N1, N2)
-    #     X = rand(T, dims)
-    #     batched(X, (1, 2))
-    # end
+        dims = (N1, N2)
+        X = rand(T, dims)
+        batched(X, (1, 2))
+    end
 
-    # @testset "3D" begin
-    #     dims = (N1,N2,N3)
-    #     X = rand(T, dims)
-    #     out_of_place(X)
-    # end
+    @testset "3D" begin
+        dims = (N1,N2,N3)
+        X = rand(T, dims)
+        out_of_place(X)
+    end
 
-    # @testset "3D inplace" begin
-    #     dims = (N1,N2,N3)
-    #     X = rand(T, dims)
-    #     in_place(X)
-    # end
+    @testset "3D inplace" begin
+        dims = (N1,N2,N3)
+        X = rand(T, dims)
+        in_place(X)
+    end
 
-    # @testset "Batch 2D (in 3D)" begin
-    #     dims = (N1, N2, N3)
-    #     for region in [(1, 2), (2, 3), (1, 3)]
-    #         X = rand(T, dims)
-    #         batched(X, region)
-    #     end
+    @testset "Batch 2D (in 3D)" begin
+        dims = (N1, N2, N3)
+        for region in [(1, 2), (2, 3), (1, 3)]
+            X = rand(T, dims)
+            batched(X, region)
+        end
 
-    #     X = rand(T, dims)
-    #     @test_throws ArgumentError batched(X, (3, 1))
-    # end
+        X = rand(T, dims)
+        @test_throws ArgumentError batched(X, (3, 1))
+    end
 
     # @testset "Batch 2D (in 4D)" begin
     #     dims = (N1, N2, N3, N4)
