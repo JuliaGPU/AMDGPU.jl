@@ -1,8 +1,8 @@
-const m, n = 2, 3
-const p = 0.5
+m, n = 2, 3
+p = 0.5
 
-for elty in [Int32,]# Int64, Float32, Float64]
-    @testset "$typ($elty)" for typ in [ROCSparseMatrixCSR,]# ROCSparseMatrixCSC]
+for elty in [Int32, Int64, Float32, Float64]
+    @testset "$typ($elty)" for typ in [ROCSparseMatrixCSR, ROCSparseMatrixCSC]
         x = sprand(elty, m, n, p)
         dx = typ(x)
 

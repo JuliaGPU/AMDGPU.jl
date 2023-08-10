@@ -9,7 +9,7 @@ function parse_flags!(args, flag; default = nothing, typ = typeof(default))
 
         if f != flag
             val = split(f, '=')[2]
-            if typ ≢ nothing && typ <: AbstractString
+            if !(typ ≡ nothing && typ <: AbstractString)
                 val = parse(typ, val)
             end
         else
@@ -89,9 +89,11 @@ end
 
 @test length(AMDGPU.devices()) > 0
 
-# Run tests in parallel
-
+# Run tests in parallel.
 np = set_jobs ? jobs : (Sys.CPU_THREADS ÷ 2)
+# Limit to 4 workers, otherwise unfortunate things happen (fences timeout).
+np = clamp(np, 1, 4)
+
 ws = Int[]
 ws_pids = Int[]
 if np == 1
