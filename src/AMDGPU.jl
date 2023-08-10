@@ -65,86 +65,17 @@ export HIPContext, HIPDevice, HIPStream
 
 include("cache.jl")
 
-module Runtime
-    using ..CEnum
-    using ..GPUCompiler
-
-    import ..Adapt
-    import Preferences: @load_preference, @set_preferences!
-    import TimespanLogging
-    import TimespanLogging: timespan_start, timespan_finish
-
-    import ..HSA
-    import ..HIP
-    import ..AMDGPU
-    import ..AMDGPU: getinfo, LockedObject
-    import .HIP: HIPDevice
-
-    struct Adaptor end
-
-    const RT_LOCK = Threads.ReentrantLock()
-    const RT_EXITING = Ref{Bool}(false)
-
-    include(joinpath("runtime", "logging.jl"))
-    include(joinpath("runtime", "error.jl"))
-    include(joinpath("runtime", "hsa_device.jl"))
-    include(joinpath("runtime", "device.jl"))
-    include(joinpath("runtime", "dims.jl"))
-
-    module Mem
-        using Preferences
-
-        import AMDGPU
-        import AMDGPU: HIP, HSA, Runtime
-        import .HIP: HIPDevice
-        import .Runtime: ROCDim, ROCDim3, check
-
-        const refcounts_lock = Threads.ReentrantLock()
-
-        abstract type AbstractAMDBuffer end
-
-        include(joinpath("runtime", "memory", "utils.jl"))
-        include(joinpath("runtime", "memory", "hip.jl"))
-        include(joinpath("runtime", "memory", "refcount.jl"))
-    end
-
-    include(joinpath("runtime", "execution.jl"))
-    include(joinpath("runtime", "hip-execution.jl"))
-    include(joinpath("runtime", "fault.jl"))
-end
-
+include("runtime/Runtime.jl")
 import .Runtime: Mem
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
 
-module Device
-    using ..GPUCompiler
-    using ..LLVM
-    using ..LLVM.Interop
-
-    import ..Adapt
-    import Core: LLVMPtr
-    import ..LinearAlgebra
-
-    import ..HSA
-    import ..HIP
-    import ..Runtime
-    import ..Mem
-    import ..AMDGPU
-    import .AMDGPU: method_table
-
-    # Device sources must load _before_ the compiler infrastructure
-    # because of generated functions.
-    include(joinpath("device", "addrspaces.jl"))
-    include(joinpath("device", "globals.jl"))
-    include(joinpath("device", "strings.jl"))
-    include(joinpath("device", "exceptions.jl"))
-    include(joinpath("device", "gcn.jl"))
-    include(joinpath("device", "runtime.jl"))
-    include(joinpath("device", "quirks.jl"))
-end
-import .Device: malloc, signal_exception, report_exception, report_oom, report_exception_frame, report_exception_name
+# Device sources must load _before_ the compiler infrastructure,
+# because of generated functions.
+include("device/Device.jl")
+import .Device: malloc, signal_exception, report_exception, report_oom
+import .Device: report_exception_frame, report_exception_name
 import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
@@ -156,28 +87,7 @@ export @rocprint, @rocprintln, @rocprintf
 export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup
 
-module Compiler
-    import Core: LLVMPtr
-    import LLD_jll
-
-    using ..GPUCompiler
-    using ..LLVM
-    using Printf
-
-    import ..AMDGPU
-    import ..AMDGPU: AS
-    import ..Runtime
-    import ..Device
-    import ..HIP
-    import ..Mem
-
-    include(joinpath("compiler", "zeroinit_lds.jl"))
-    include(joinpath("compiler", "device_libs.jl"))
-    include(joinpath("compiler", "exceptions.jl"))
-    include(joinpath("compiler", "output_context.jl"))
-    include(joinpath("compiler", "dynamic_memory.jl"))
-    include(joinpath("compiler", "codegen.jl"))
-end
+include("compiler/Compiler.jl")
 
 include("tls.jl")
 include("highlevel.jl")
