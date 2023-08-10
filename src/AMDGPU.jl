@@ -191,22 +191,6 @@ include("exception_handler.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
-### Initialization and Shutdown ###
-
-# TODO remove refcount, not used
-const HSA_REFCOUNT = Threads.Atomic{UInt}(0)
-function hsaref!()
-    if Threads.atomic_add!(HSA_REFCOUNT, UInt(1)) > typemax(UInt)-10
-        Core.println("HSA_REFCOUNT OVERFLOW!")
-        exit(1)
-    end
-end
-function hsaunref!()
-    if Threads.atomic_sub!(HSA_REFCOUNT, UInt(1)) == 1
-        HSA.shut_down()
-    end
-end
-
 include(joinpath("blas", "rocBLAS.jl"))
 include(joinpath("solver", "rocSOLVER.jl"))
 include(joinpath("sparse", "rocSPARSE.jl"))
@@ -271,14 +255,10 @@ function __init__()
         # TODO: Do the same (if possible) for the debug library
 
         # Initialize the HSA runtime
-        HSA_REFCOUNT[] = 0
         status = HSA.init()
         if status == HSA.STATUS_SUCCESS
-            hsaref!()
             # Register shutdown hook
-            atexit() do
-                hsaunref!()
-            end
+            atexit(() -> HSA.shut_down())
 
             # Select the default device
             Runtime.fetch_hsa_devices()
