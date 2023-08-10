@@ -112,7 +112,7 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hsa
-        return hsa_configured && !isempty(Runtime.ALL_DEVICES)
+        return hsa_configured && !isempty(Runtime.HSA_DEVICES)
     elseif component == :hip
         return hip_configured
     elseif component == :lld
