@@ -52,7 +52,7 @@ function safe_import(pkg)
     return loaded, available, error_str
 end
 
-function find_rocm_library(lib, dirs, ext=dlext)
+function find_rocm_library(lib::String, dirs, ext=dlext)
     path = Libdl.find_library(lib)
     if path != ""
         return Libdl.dlpath(path)
@@ -60,7 +60,7 @@ function find_rocm_library(lib, dirs, ext=dlext)
     for dir in dirs
         files = readdir(dir)
         for file in files
-            matched = startswith(basename(file), lib*".$ext")
+            matched = startswith(basename(file), lib * ".$ext")
             if matched
                 return joinpath(dir, file)
             end
@@ -80,9 +80,9 @@ function find_roc_paths()
     return filter(isdir, paths)
 end
 
-function find_rocm_library(libs::Vector, dirs)
+function find_rocm_library(libs::Vector, dirs, ext=dlext)
     for lib in libs
-        path = find_rocm_library(lib, dirs)
+        path = find_rocm_library(lib, dirs, ext)
         if path != ""
             return path
         end
