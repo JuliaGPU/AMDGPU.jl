@@ -159,7 +159,7 @@ function __init__()
     end
 
     # Verbose path, something is misconfigured
-    if hsa_configured
+    if hsa_configured && functional(:hip)
         # Make sure we load the right library
         push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
         # TODO: Do the same (if possible) for the debug library
@@ -182,7 +182,7 @@ function __init__()
         end
     else
         @warn """
-        HSA runtime is unavailable, compilation and runtime functionality will be disabled.
+        HSA/HIP runtime is unavailable, compilation and runtime functionality will be disabled.
         Reason: $hsa_build_reason
         """
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
