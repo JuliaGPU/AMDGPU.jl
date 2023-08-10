@@ -88,7 +88,6 @@ function HostCallHolder(
     signal_ref = Ref{HSA.Signal}()
     HSA.signal_create(1, 0, C_NULL, signal_ref) |> Runtime.check
     signal = signal_ref[]
-    AMDGPU.hsaref!()
 
     hc = HostCall(rettype, argtypes, signal.handle; buf_len)
     finish_ref = Ref{Bool}(false)
@@ -188,7 +187,6 @@ function HostCallHolder(
             end
             # Destroy HSA signal.
             HSA.signal_destroy(signal) |> Runtime.check
-            AMDGPU.hsaunref!()
         end
         return
     end

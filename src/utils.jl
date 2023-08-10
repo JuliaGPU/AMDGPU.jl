@@ -112,9 +112,7 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hsa
-        return hsa_configured &&
-               HSA_REFCOUNT[] > 0 &&
-               length(devices()) > 0
+        return hsa_configured && !isempty(devices())
     elseif component == :hip
         return hip_configured
     elseif component == :lld
