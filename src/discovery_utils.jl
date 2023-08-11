@@ -52,18 +52,23 @@ function safe_import(pkg)
     return loaded, available, error_str
 end
 
-function find_rocm_library(lib, dirs, ext=dlext)
-    path = Libdl.find_library(lib)
-    if path != ""
-        return Libdl.dlpath(path)
+function find_rocm_library(libs::Vector, dirs::Vector{String}, ext::String = dlext)
+    for lib in libs
+        path = find_rocm_library(lib, dirs, ext)
+        isempty(path) || return path
     end
+    return ""
+end
+
+function find_rocm_library(lib::String, dirs::Vector{String}, ext::String = dlext)
+    path = Libdl.find_library(lib)
+    isempty(path) || return Libdl.dlpath(path)
+
     for dir in dirs
         files = readdir(dir)
         for file in files
-            matched = startswith(basename(file), lib*".$ext")
-            if matched
-                return joinpath(dir, file)
-            end
+            matched = startswith(basename(file), lib * ".$ext")
+            matched && return joinpath(dir, file)
         end
     end
     return ""
@@ -71,23 +76,13 @@ end
 
 function find_roc_paths()
     paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
-    paths = filter(path -> path != "", paths)
+    paths = filter(!isempty, paths)
     paths = map(Base.Filesystem.abspath, paths)
     push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
     if haskey(ENV, "ROCM_PATH")
         push!(paths, joinpath(ENV["ROCM_PATH"], "lib"))
     end
     return filter(isdir, paths)
-end
-
-function find_rocm_library(libs::Vector, dirs)
-    for lib in libs
-        path = find_rocm_library(lib, dirs)
-        if path != ""
-            return path
-        end
-    end
-    return ""
 end
 
 function find_ld_lld()

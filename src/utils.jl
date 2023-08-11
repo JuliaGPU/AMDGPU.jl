@@ -112,7 +112,7 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hsa
-        return hsa_configured && !isempty(devices())
+        return hsa_configured && !isempty(Runtime.HSA_DEVICES)
     elseif component == :hip
         return hip_configured
     elseif component == :lld
@@ -134,8 +134,10 @@ function functional(component::Symbol)
     elseif component == :MIOpen
         return libMIOpen !== nothing
     elseif component == :all
-        for component in (:hsa, :hip, :lld, :device_libs, :rocblas, :rocsolver,
-                          :rocalution, :rocsparse, :rocrand, :rocfft, :MIOpen)
+        for component in (
+            :hsa, :hip, :lld, :device_libs, :rocblas, :rocsolver,
+            :rocalution, :rocsparse, :rocrand, :rocfft, :MIOpen,
+        )
             functional(component) || return false
         end
         return true
