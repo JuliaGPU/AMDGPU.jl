@@ -152,37 +152,31 @@ function __init__()
         @warn "No GPUs found, skipping initialization."
         return
     end
-
     if has_navi2
-        @info "Navi 2 GPU detected, setting ENV variable: `HSA_OVERRIDE_GFX_VERSION=10.3.0`."
         ENV["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
     end
 
     # Verbose path, something is misconfigured
-    if hsa_configured && functional(:hip)
+    if hsa_configured
         # Make sure we load the right library
         push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
         # TODO: Do the same (if possible) for the debug library
 
-        # Initialize the HSA runtime
+        # Initialize the HSA runtime.
         status = HSA.init()
         if status == HSA.STATUS_SUCCESS
-            # Register shutdown hook
+            # Register shutdown hook.
             atexit(() -> HSA.shut_down())
-
-            # Select the default device
+            # Fetch HSA devices.
             Runtime.fetch_hsa_devices()
-            devs = Runtime.fetch_devices()
-            Runtime.set_default_device!(first(devs))
-
-            # Setup HSA fault handler
+            # Setup HSA fault handler.
             Runtime.setup_fault_handler()
         else
             @warn "HSA initialization failed with code $status"
         end
     else
         @warn """
-        HSA/HIP runtime is unavailable, compilation and runtime functionality will be disabled.
+        HSA runtime is unavailable, compilation and runtime functionality will be disabled.
         Reason: $hsa_build_reason
         """
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
@@ -216,7 +210,11 @@ function __init__()
     end
 
     # Check whether HIP is available
-    if !functional(:hip)
+    if functional(:hip)
+        # Fetch HIP devices and select default one.
+        devs = Runtime.fetch_devices()
+        Runtime.set_default_device!(first(devs))
+    else
         @warn """
         HIP library is unavailable, HIP integration will be disabled.
         Reason: $hip_build_reason
