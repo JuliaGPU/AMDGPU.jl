@@ -12,6 +12,8 @@ using Printf
 import LinearAlgebra
 import Core: LLVMPtr
 
+const Maybe{T} = Union{Nothing, T}
+
 export HIPDevice, has_rocm_gpu, roc
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export DenseROCArray, DenseROCVector, DenseROCMatrix, StridedROCMatrix
@@ -97,6 +99,7 @@ include("gpuarrays.jl")
 include("conversions.jl")
 include("broadcast.jl")
 include("mapreduce.jl")
+include("accumulate.jl")
 include("exception_handler.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)

@@ -144,16 +144,13 @@ end
 function llvm_arch_features(isa::HSA.ISA)
     m = parse_isa(isa)
     arch = String(m.captures[4])
-    features = join(map(x->x[1:end-1],
-                        filter!(x->!isempty(x) && (x[end]=='+'),
-                               split(m.captures[5], ':'))),
-                    ",+")
-    if !isempty(features)
-        features = '+'*features
-    end
-    if Base.libllvm_version < v"12"
-        features = replace(features, "sramecc"=>"sram-ecc")
-    end
+    features = join(
+        map(x -> x[1:end - 1],
+            filter!(
+                x -> !isempty(x) && (x[end] == '+'),
+                split(m.captures[5], ':'))),
+        ",+")
+    isempty(features) || (features = '+' * features;)
     (arch, features)
 end
 
