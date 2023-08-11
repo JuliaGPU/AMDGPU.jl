@@ -196,7 +196,6 @@
         @test SparseMatrixCSC(ROCSparseMatrixCSR(T)) ≈ f(S)
     end
 
-    # TODO requires accumulate!
     # @testset "UniformScaling with $typ($dims)" for typ in (
     #     ROCSparseMatrixCSR, ROCSparseMatrixCSC,
     # ), dims in (
@@ -211,7 +210,6 @@
     #     @test Array(I - dA) == I - S
     # end
 
-    # TODO requires accumulate!
     # @testset "Diagonal with $typ(10, 10)" for typ in (
     #     ROCSparseMatrixCSR, ROCSparseMatrixCSC,
     # )

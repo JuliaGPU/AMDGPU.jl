@@ -323,4 +323,37 @@ end
     end
 end
 
+@testset "accumulate" begin
+    for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384 + 1)
+        x = rand(n)
+        xd = ROCArray(x)
+        init = rand()
+        @test Array(accumulate(+, xd)) ≈ accumulate(+, x)
+        @test Array(accumulate(+, xd; init)) ≈ accumulate(+, x; init)
+    end
+
+    # Multidimensional.
+    for (sizes, dims) in (
+        (2,) => 2,
+        (3, 4, 5) => 2,
+        (1, 70, 50, 20) => 3,
+    )
+        x = rand(Int, sizes)
+        xd = ROCArray(x)
+        @test Array(accumulate(+, xd; dims)) ≈ accumulate(+, x; dims)
+        @test Array(accumulate(+, xd; dims)) ≈ accumulate(+, x; dims)
+    end
+
+    # In-place.
+    x = rand(2)
+    xd = ROCArray(x)
+    accumulate!(+, x, copy(x))
+    accumulate!(+, xd, copy(xd))
+    @test Array(xd) ≈ x
+
+    # Specialized.
+    @test Array(cumsum(xd)) ≈ cumsum(x)
+    @test Array(cumprod(xd)) ≈ cumprod(x)
+end
+
 end
