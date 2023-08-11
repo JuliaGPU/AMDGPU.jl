@@ -52,7 +52,7 @@ function safe_import(pkg)
     return loaded, available, error_str
 end
 
-function find_rocm_library(libs::Vector, dirs, ext=dlext)
+function find_rocm_library(libs::Vector, dirs::Vector{String}, ext::String = dlext)
     for lib in libs
         path = find_rocm_library(lib, dirs, ext)
         isempty(path) || return path
@@ -60,7 +60,7 @@ function find_rocm_library(libs::Vector, dirs, ext=dlext)
     return ""
 end
 
-function find_rocm_library(lib::String, dirs, ext=dlext)
+function find_rocm_library(lib::String, dirs::Vector{String}, ext::String = dlext)
     path = Libdl.find_library(lib)
     isempty(path) || return Libdl.dlpath(path)
 
@@ -76,7 +76,7 @@ end
 
 function find_roc_paths()
     paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
-    paths = filter(path -> path != "", paths)
+    paths = filter(!isempty, paths)
     paths = map(Base.Filesystem.abspath, paths)
     push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
     if haskey(ENV, "ROCM_PATH")
