@@ -22,13 +22,15 @@ function mm_wrapper(
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
 end
 
-tag_wrappers = ((identity, identity),
-                (T -> :(HermOrSym{T, <:$T}), A -> :(parent($A))))
+tag_wrappers = (
+    (identity, identity),
+    (T -> :(HermOrSym{T, <:$T}), A -> :(parent($A))))
+
 op_wrappers = (
     (identity, T -> 'N', identity),
     (T -> :(Transpose{<:T, <:$T}), T -> 'T', A -> :(parent($A))),
-    (T -> :(Adjoint{<:T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A)))
-)
+    (T -> :(Adjoint{<:T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
+
 for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     TypeA = wrapa(taga(:(ROCSparseMatrix{T})))
 
@@ -135,10 +137,12 @@ end
 # triangular
 
 ## direct
-for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
-                            (:UnitLowerTriangular, 'L', 'U'),
-                            (:UpperTriangular, 'U', 'N'),
-                            (:UnitUpperTriangular, 'U', 'U'))
+for (t, uploc, isunitc) in (
+    (:LowerTriangular, 'L', 'N'),
+    (:UnitLowerTriangular, 'L', 'U'),
+    (:UpperTriangular, 'U', 'N'),
+    (:UnitUpperTriangular, 'U', 'U'),
+)
     @eval begin
         # Left division
         LinearAlgebra.ldiv!(
@@ -154,10 +158,12 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
 end
 
 ## adjoint/transpose ('uploc' reversed)
-for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
-                            (:UnitLowerTriangular, 'U', 'U'),
-                            (:UpperTriangular, 'L', 'N'),
-                            (:UnitUpperTriangular, 'L', 'U'))
+for (t, uploc, isunitc) in (
+    (:LowerTriangular, 'U', 'N'),
+    (:UnitLowerTriangular, 'U', 'U'),
+    (:UpperTriangular, 'L', 'N'),
+    (:UnitUpperTriangular, 'L', 'U'),
+)
     @eval begin
         # Left division with vectors
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractROCSparseMatrix}},
@@ -213,6 +219,8 @@ function _sparse_identity(
     nzVal = AMDGPU.fill(I.λ, len)
     ROCSparseMatrixCSC{Tv,Ti}(colPtr, rowVal, nzVal, dims)
 end
+
+# TODO COO
 
 Base.:(+)(A::Union{ROCSparseMatrixCSR,ROCSparseMatrixCSC}, J::UniformScaling) =
     A .+ _sparse_identity(typeof(A), J, size(A))

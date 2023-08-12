@@ -196,36 +196,34 @@
         @test SparseMatrixCSC(ROCSparseMatrixCSR(T)) ≈ f(S)
     end
 
-    # @testset "UniformScaling with $typ($dims)" for typ in (
-    #     ROCSparseMatrixCSR, ROCSparseMatrixCSC,
-    # ), dims in (
-    #     (10, 10), (5, 10), (10, 5),
-    # )
-    #     S = sprand(Float32, dims..., 0.1)
-    #     dA = typ(S)
+    @testset "UniformScaling with $typ($dims)" for typ in (
+        ROCSparseMatrixCSR, ROCSparseMatrixCSC,
+    ), dims in ((10, 10), (5, 10), (10, 5))
+        S = sprand(Float32, dims..., 0.1)
+        dA = typ(S)
 
-    #     @test Array(dA + I) == S + I
-    #     @test Array(I + dA) == I + S
-    #     @test Array(dA - I) == S - I
-    #     @test Array(I - dA) == I - S
-    # end
+        @test Array(dA + I) ≈ (S + I)
+        @test Array(I + dA) ≈ (I + S)
+        @test Array(dA - I) ≈ (S - I)
+        @test Array(I - dA) ≈ (I - S)
+    end
 
-    # @testset "Diagonal with $typ(10, 10)" for typ in (
-    #     ROCSparseMatrixCSR, ROCSparseMatrixCSC,
-    # )
-    #     S = sprand(Float32, 10, 10, 0.8)
-    #     D = Diagonal(rand(Float32, 10))
-    #     dA = typ(S)
-    #     dD = adapt(ROCArray, D)
+    @testset "Diagonal with $typ(10, 10)" for typ in (
+        ROCSparseMatrixCSR, ROCSparseMatrixCSC,
+    )
+        S = sprand(Float32, 10, 10, 0.8)
+        D = Diagonal(rand(Float32, 10))
+        dA = typ(S)
+        dD = adapt(ROCArray, D)
 
-    #     @test Array(dA + dD) == S + D
-    #     @test Array(dD + dA) == D + S
-    #     @test Array(dA - dD) == S - D
-    #     @test Array(dD - dA) == D - S
+        @test Array(dA + dD) ≈ S + D
+        @test Array(dD + dA) ≈ D + S
+        @test Array(dA - dD) ≈ S - D
+        @test Array(dD - dA) ≈ D - S
 
-    #     @test (dA + dD) isa typ
-    #     @test (dD + dA) isa typ
-    #     @test (dA - dD) isa typ
-    #     @test (dD - dA) isa typ
-    # end
+        @test (dA + dD) isa typ
+        @test (dD + dA) isa typ
+        @test (dA - dD) isa typ
+        @test (dD - dA) isa typ
+    end
 end
