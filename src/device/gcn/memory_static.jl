@@ -71,10 +71,6 @@ macro ROCStaticLocalArray(T, dims, zeroinit=true)
 end
 
 macro ROCDynamicLocalArray(T, dims, zeroinit=true)
-    if Base.libllvm_version < v"14"
-        @warn "@ROCDynamicLocalArray is unsupported on LLVM <14\nUndefined behavior may result"
-    end
-
     zeroinit = zeroinit isa Expr ? zeroinit.args[1] : zeroinit
     @assert zeroinit isa Bool "@ROCDynamicLocalArray requires a constant `zeroinit` argument"
 

@@ -24,14 +24,13 @@ for elty in [Int32, Int64, Float32, Float64]
         @test dy isa ROCArray{elty}
         @test y == Array(dy)
 
-        # TODO requires accumulate!
-        # # multiple inputs
-        # y = sprand(elty, m, n, p)
-        # dy = typ(y)
-        # z = x .* y .* elty(2)
-        # dz = dx .* dy .* elty(2)
-        # @test dz isa typ{elty}
-        # @test z == SparseMatrixCSC(dz)
+        # multiple inputs
+        y = sprand(elty, m, n, p)
+        dy = typ(y)
+        z = x .* y .* elty(2)
+        dz = dx .* dy .* elty(2)
+        @test dz isa typ{elty}
+        @test z == SparseMatrixCSC(dz)
     end
 end
 

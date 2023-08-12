@@ -327,17 +327,18 @@ ROCSparseMatrixCOO(bsr::ROCSparseMatrixBSR) = ROCSparseMatrixCOO(ROCSparseMatrix
 
 ## sparse to dense, and vice-versa
 
-for (cname,rname,elty) in ((:rocsparse_scsc2dense, :rocsparse_scsr2dense, :Float32),
-                           (:rocsparse_dcsc2dense, :rocsparse_dcsr2dense, :Float64),
-                           (:rocsparse_ccsc2dense, :rocsparse_ccsr2dense, :ComplexF32),
-                           (:rocsparse_zcsc2dense, :rocsparse_zcsr2dense, :ComplexF64))
+for (cname,rname,elty) in (
+    (:rocsparse_scsc2dense, :rocsparse_scsr2dense, :Float32),
+    (:rocsparse_dcsc2dense, :rocsparse_dcsr2dense, :Float64),
+    (:rocsparse_ccsc2dense, :rocsparse_ccsr2dense, :ComplexF32),
+    (:rocsparse_zcsc2dense, :rocsparse_zcsr2dense, :ComplexF64),
+)
     @eval begin
         function AMDGPU.ROCMatrix{$elty}(csr::ROCSparseMatrixCSR{$elty}; ind::SparseChar='O')
             m,n = size(csr)
             denseA = AMDGPU.zeros($elty,m,n)
             rocdesc = ROCMatrixDescriptor('G', 'L', 'N', ind)
             lda = max(1,stride(denseA,2))
-
             $rname(
                 handle(), m, n, rocdesc, nonzeros(csr),
                 csr.rowPtr, csr.colVal, denseA, lda)
@@ -348,17 +349,15 @@ for (cname,rname,elty) in ((:rocsparse_scsc2dense, :rocsparse_scsr2dense, :Float
             denseA = AMDGPU.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
             rocdesc = ROCMatrixDescriptor('G', 'L', 'N', ind)
-
             $cname(
                 handle(), m, n, rocdesc, nonzeros(csc),
-                rowvals(csc), csc.colPtr, denseA, lda)
+                csc.colPtr, rowvals(csc), denseA, lda)
             return denseA
         end
     end
 end
 
-for (elty, welty) in ((:Float16, :Float32),
-                      (:ComplexF16, :ComplexF32))
+for (elty, welty) in ((:Float16, :Float32), (:ComplexF16, :ComplexF32))
     @eval begin
         function AMDGPU.ROCMatrix{$elty}(csr::ROCSparseMatrixCSR{$elty}; ind::SparseChar='O')
             m,n = size(csr)
