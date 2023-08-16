@@ -62,7 +62,7 @@ populate_globals!(bindeps_setup())
 include("utils.jl")
 
 include(joinpath("hip", "HIP.jl"))
-import .HIP: HIPContext, HIPDevice, HIPStream, @elapsed
+import .HIP: HIPContext, HIPDevice, HIPStream
 export HIPContext, HIPDevice, HIPStream
 
 include("cache.jl")

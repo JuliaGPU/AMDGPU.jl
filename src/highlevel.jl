@@ -307,3 +307,22 @@ function launch_configuration(
 )
     HIP.launch_configuration(kern.fun; shmem, max_block_size)
 end
+
+"""
+    @elapsed ex
+
+A macro to evaluate an expression, discarding the resulting value, instead returning the
+number of seconds it took to execute on the GPU, as a floating-point number.
+"""
+macro elapsed(ex)
+    quote
+        current_stream = stream()
+        t0 = HIP.HIPEvent(current_stream; do_record=false, disable_timing=false)
+        t1 = HIP.HIPEvent(current_stream; do_record=false, disable_timing=false)
+        HIP.record(t0)
+        $(esc(ex))
+        HIP.record(t1)
+        HIP.synchronize(t1)
+        HIP.elapsed(t0, t1)
+    end
+end
