@@ -71,6 +71,8 @@ HIPEvent(stream::HIPStream; kwargs...) = HIPEvent(stream.stream; kwargs...)
     elapsed(start::HIPEvent, stop::HIPEvent)
 
 Computes the elapsed time between two events (in seconds).
+
+See also [`@elapsed`](@ref).
 """
 function elapsed(start::HIPEvent, stop::HIPEvent)
     time_ref = Ref{Cfloat}()
