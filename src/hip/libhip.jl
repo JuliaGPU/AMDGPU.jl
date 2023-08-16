@@ -86,6 +86,11 @@ function hipEventSynchronize(event)
     ccall((:hipEventSynchronize, libhip), hipError_t, (hipEvent_t,), event)
 end
 
+function hipEventElapsedTime(ms_ref, start_event, stop_event)
+    ccall((:hipEventElapsedTime, libhip), hipError_t,
+        (Ptr{Cfloat}, hipEvent_t, hipEvent_t), ms_ref, start_event, stop_event)
+end
+
 function hipStreamCreateWithPriority(stream_ref, flags, priority)
     ccall((:hipStreamCreateWithPriority, libhip), hipError_t,
         (Ptr{hipStream_t}, Cuint, Cint), stream_ref, flags, priority)
