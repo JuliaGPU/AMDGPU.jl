@@ -218,6 +218,12 @@ if "hip" in TARGET_TESTS
         @test t isa AbstractFloat
         @test t >= 0
     end)
+    if length(AMDGPU.devices()) > 1
+        push!(tests, "HIP Peer Access" => () -> begin
+            dev1, dev2, _ = AMDGPU.devices()
+            @test AMDGPU.HIP.can_access_peer(dev1, dev2) isa Bool
+        end)
+    end
 end
 
 "ext" in TARGET_TESTS && push!(tests,
