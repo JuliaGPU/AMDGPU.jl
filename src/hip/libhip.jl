@@ -306,3 +306,8 @@ function hipModuleOccupancyMaxPotentialBlockSize(
         (Ptr{Cint}, Ptr{Cint}, hipFunction_t, Csize_t, Cint),
         gridSize, blockSize, f, dynSharedMemPerBlk, blockSizeLimit)
 end
+
+function hipDeviceCanAccessPeer(can_access_peer_ref, deviceid, peer_deviceid)
+    ccall((:hipDeviceCanAccessPeer, libhip), hipError_t, (Ptr{Cint}, Cint, Cint),
+        can_access_peer_ref, deviceid, peer_deviceid)
+end

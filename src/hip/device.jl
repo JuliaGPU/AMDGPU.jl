@@ -97,3 +97,9 @@ function device!(f::Base.Callable, device::HIPDevice)
         device!(old_device_id_ref[] + 1)
     end
 end
+
+function can_access_peer(dev::HIPDevice, peer::HIPDevice)
+    result = Ref{Cint}(0)
+    hipDeviceCanAccessPeer(result, device_id(dev), device_id(peer)) |> check
+    return result[] == 1
+end
