@@ -317,8 +317,8 @@ number of seconds it took to execute on the GPU, as a floating-point number.
 macro elapsed(ex)
     quote
         current_stream = stream()
-        t0 = HIP.HIPEvent(current_stream; do_record=false, disable_timing=false)
-        t1 = HIP.HIPEvent(current_stream; do_record=false, disable_timing=false)
+        t0 = HIP.HIPEvent(current_stream; do_record=false, timing=true)
+        t1 = HIP.HIPEvent(current_stream; do_record=false, timing=true)
         HIP.record(t0)
         $(esc(ex))
         HIP.record(t1)
