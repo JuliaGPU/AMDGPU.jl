@@ -204,6 +204,20 @@ if "hip" in TARGET_TESTS
             @test_skip "MIOpen"
         end
     end)
+    push!(tests, "AMDGPU.@elapsed" => () -> begin
+        xgpu = AMDGPU.rand(Float32, 100)
+        t = AMDGPU.@elapsed xgpu .+= 1
+        @test t isa AbstractFloat
+        @test t >= 0
+
+        x = rand(Float32, 100)
+        t = AMDGPU.@elapsed begin
+            copyto!(xgpu, x)
+            copyto!(x, xgpu)
+        end
+        @test t isa AbstractFloat
+        @test t >= 0
+    end)
 end
 
 "ext" in TARGET_TESTS && push!(tests,
