@@ -50,9 +50,13 @@ function synchronize(event::HIPEvent)
     return
 end
 
-function HIPEvent(stream::hipStream_t; do_record::Bool = true)
+function HIPEvent(stream::hipStream_t; do_record::Bool = true, timing=false)
     event_ref = Ref{hipEvent_t}()
-    hipEventCreateWithFlags(event_ref, hipEventDisableTiming) |> check
+    if !timing
+        hipEventCreateWithFlags(event_ref, hipEventDisableTiming) |> check
+    else
+        hipEventCreate(event_ref) |> check
+    end
     event = HIPEvent(event_ref[], stream)
     do_record && record(event)
 
@@ -61,4 +65,17 @@ function HIPEvent(stream::hipStream_t; do_record::Bool = true)
     end
     event
 end
-HIPEvent(stream::HIPStream; do_record::Bool = true) = HIPEvent(stream.stream; do_record)
+HIPEvent(stream::HIPStream; kwargs...) = HIPEvent(stream.stream; kwargs...)
+
+"""
+    elapsed(start::HIPEvent, stop::HIPEvent)
+
+Computes the elapsed time between two events (in seconds).
+
+See also [`@elapsed`](@ref).
+"""
+function elapsed(start::HIPEvent, stop::HIPEvent)
+    time_ref = Ref{Cfloat}()
+    hipEventElapsedTime(time_ref, start, stop) |> check
+    return time_ref[]/1000
+end
