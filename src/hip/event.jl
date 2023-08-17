@@ -76,6 +76,6 @@ See also [`@elapsed`](@ref).
 """
 function elapsed(start::HIPEvent, stop::HIPEvent)
     time_ref = Ref{Cfloat}()
-    hipEventElapsedTime(time_ref, start, stop)
+    hipEventElapsedTime(time_ref, start, stop) |> check
     return time_ref[]/1000
 end
