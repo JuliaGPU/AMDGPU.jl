@@ -144,6 +144,7 @@ end
     hipErrorInvalidContext = 201
     hipErrorContextAlreadyCurrent = 202
     hipErrorMapFailed = 205
+    hipErrorMapBufferObjectFailed = 205
     hipErrorUnmapFailed = 206
     hipErrorArrayIsMapped = 207
     hipErrorAlreadyMapped = 208
