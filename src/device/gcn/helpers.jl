@@ -82,7 +82,7 @@ import ExprTools
 
 macro device_override(ex)
     esc(quote
-        $GPUCompiler.@override(AMDGPU.method_table, $ex)
+        $Base.Experimental.@overlay(AMDGPU.method_table, $ex)
     end)
 end
 
