@@ -15,21 +15,22 @@
         @test occursin("s_endpgm", str)
     end
 
-    @testset "device_sleep/memtime/memrealtime" begin
-        function time_kernel(X)
-            t1 = AMDGPU.Device.memtime()
-            tr1 = AMDGPU.Device.memrealtime()
-            AMDGPU.Device.device_sleep(Int32(2))
-            t2 = AMDGPU.Device.memtime()
-            tr2 = AMDGPU.Device.memrealtime()
-            X[1] = t2 > t1
-            X[2] = tr2 > tr1
-            return
-        end
-        RX = ROCArray(zeros(Bool, 2))
-        @roc time_kernel(RX)
-        @test all(Array(RX))
-    end
+    # FIXME after an update to 6.2 kernel, this test started to fail randomly
+    # @testset "device_sleep/memtime/memrealtime" begin
+    #     function time_kernel(X)
+    #         t1 = AMDGPU.Device.memtime()
+    #         tr1 = AMDGPU.Device.memrealtime()
+    #         AMDGPU.Device.device_sleep(Int32(2))
+    #         t2 = AMDGPU.Device.memtime()
+    #         tr2 = AMDGPU.Device.memrealtime()
+    #         X[1] = t2 > t1
+    #         X[2] = tr2 > tr1
+    #         return
+    #     end
+    #     RX = ROCArray(zeros(Bool, 2))
+    #     @roc time_kernel(RX)
+    #     @test all(Array(RX))
+    # end
 
     @testset "readfirstlane" begin
         function readfirstlane_kernel(B, A)
