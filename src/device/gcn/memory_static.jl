@@ -70,16 +70,18 @@ macro ROCStaticLocalArray(T, dims, zeroinit=true)
     end
 end
 
-macro ROCDynamicLocalArray(T, dims, zeroinit=true)
+# TODO docs
+macro ROCDynamicLocalArray(T, dims, zeroinit=true, offset=0)
     zeroinit = zeroinit isa Expr ? zeroinit.args[1] : zeroinit
     @assert zeroinit isa Bool "@ROCDynamicLocalArray requires a constant `zeroinit` argument"
 
-    @gensym id DA
+    @gensym id DA ptr
     quote
         let
-            $DA = $ROCDeviceArray($(esc(dims)),
-                $alloc_local($(QuoteNode(Symbol(:ROCDynamicLocalArray_, id))),
-                $(esc(T)), 0, $zeroinit))
+            $ptr = $alloc_local(
+                $(QuoteNode(Symbol(:ROCDynamicLocalArray_, id))),
+                $(esc(T)), 0, $zeroinit)
+            $DA = $ROCDeviceArray($(esc(dims)), $ptr + $(esc(offset)))
             if $zeroinit
                 # Zeroinit doesn't work at the compiler level for dynamic LDS
                 # allocations, so zero it here
