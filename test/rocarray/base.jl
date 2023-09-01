@@ -64,11 +64,10 @@ end
         A_orig = copy(A)
 
         RA = Base.unsafe_wrap(ROCArray, pointer(A), size(A))
-        @test RA.buf.device == AMDGPU.device()
-        @test AMDGPU.device(RA)  == AMDGPU.device()
+        @test AMDGPU.device(RA) == AMDGPU.device()
         @test RA isa ROCArray{Float64, 2}
         # pointer gives device mapped pointer, not host.
-        @test pointer(RA) == RA.buf.dev_ptr
+        @test pointer(RA) == RA.buf[].dev_ptr
 
         # ROCArray -> Array copy.
         B = zeros(4, 4)
@@ -121,14 +120,11 @@ end
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == true
 
         AMDGPU.unsafe_free!(xd1)
-
-        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd1))) == false
+        @test_throws ArgumentError pointer(xd1)
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == false
 
         AMDGPU.unsafe_free!(xd2)
-
-        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd1))) == false
-        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == false
+        @test_throws ArgumentError pointer(xd2)
     end
 end
 
@@ -138,98 +134,14 @@ end
     finalize(A)
 end
 
-@testset "Refcounting" begin
-    refcount_live(A) = (get(AMDGPU.Mem.refcounts, A.buf._id, 0),
-                        get(AMDGPU.Mem.liveness, A.buf._id, false))
-
-    for (f, switch) in [(A->view(A, 2:4), false),
-                        (A->resize!(A, 8), true),
-                        (A->reinterpret(UInt8, A), false),
-                        (A->reshape(A, 4, 4), false)]
-
-        # Safe free
-        A = AMDGPU.ones(16)
-        @test refcount_live(A) == (1, true)
-        B = f(A)
-        @test A.buf.ptr == B.buf.ptr
-        @test refcount_live(A) == refcount_live(B)
-        @test refcount_live(B) == (2-switch, true)
-        finalize(B)
-        @test refcount_live(B) == (1-switch, !switch)
-        finalize(A)
-        @test refcount_live(B) == (0, false)
-
-        # Unsafe free original
-        A = AMDGPU.ones(16)
-        B = f(A)
-        AMDGPU.unsafe_free!(A)
-        @test refcount_live(B) == (2-switch, false)
-        finalize(B)
-        @test refcount_live(B) == (1-switch, false)
-        finalize(A)
-        @test refcount_live(B) == (0, false)
-
-        # Unsafe free derived
-        A = AMDGPU.ones(16)
-        B = f(A)
-        AMDGPU.unsafe_free!(B)
-        @test refcount_live(B) == (2-switch, false)
-        finalize(A)
-        @test refcount_live(B) == (1-switch, false)
-        finalize(B)
-        @test refcount_live(B) == (0, false)
-
-        # Unsafe free original and derived
-        A = AMDGPU.ones(16)
-        B = f(A)
-        AMDGPU.unsafe_free!(A)
-        AMDGPU.unsafe_free!(B)
-        @test refcount_live(B) == (2-switch, false)
-        finalize(A)
-        @test refcount_live(B) == (1-switch, false)
-        finalize(B)
-        @test refcount_live(B) == (0, false)
-    end
-
-    # Chained Safe free
-    A = AMDGPU.ones(16)
-    @test refcount_live(A) == (1, true)
-    B = reshape(A, 4, 4)
-    @test refcount_live(A) == (2, true)
-    C = reshape(B, 2, 8)
-    @test refcount_live(A) == (3, true)
-    finalize(B)
-    @test refcount_live(A) == (2, true)
-    finalize(A)
-    @test refcount_live(A) == (1, true)
-    finalize(C)
-    @test refcount_live(A) == (0, false)
-
-    # Chained Unsafe free
-    A = AMDGPU.ones(16)
-    @test refcount_live(A) == (1, true)
-    B = reshape(A, 4, 4)
-    @test refcount_live(A) == (2, true)
-    C = reshape(B, 2, 8)
-    @test refcount_live(A) == (3, true)
-    AMDGPU.unsafe_free!(A)
-    @test refcount_live(A) == (3, false)
-    finalize(B)
-    @test refcount_live(A) == (2, false)
-    finalize(A)
-    @test refcount_live(A) == (1, false)
-    finalize(C)
-    @test refcount_live(A) == (0, false)
-end
-
 @testset "unsafe_copy3d!" begin
     @testset "Full copy" begin
         T = Int32
         src = ROCArray(ones(T, 4, 4, 4))
         dst = ROCArray(zeros(T, 4, 4, 4))
         Mem.unsafe_copy3d!(
-            pointer(dst), typeof(dst.buf),
-            pointer(src), typeof(src.buf),
+            pointer(dst), typeof(dst.buf[]),
+            pointer(src), typeof(src.buf[]),
             length(src))
         @test Array(src) == Array(dst)
     end
@@ -239,8 +151,8 @@ end
         src = ROCArray(collect(reshape(1:(nx * ny * nz), nx, ny, nz)))
         dst = ROCArray(zeros(Int, nx, ny, nz))
         Mem.unsafe_copy3d!(
-            pointer(dst), typeof(dst.buf),
-            pointer(src), typeof(src.buf),
+            pointer(dst), typeof(dst.buf[]),
+            pointer(src), typeof(src.buf[]),
             1, 4, 4;
             dstPos=(1, 2, 3), srcPos=(1, 2, 3),
             dstPitch=nx * sizeof(Int), dstHeight=ny,
@@ -253,8 +165,8 @@ end
         src = ROCArray(collect(reshape(1:(nx * ny * nz), nx, ny, nz)))
         dst = ROCArray(zeros(Int, nx, ny, nz))
         Mem.unsafe_copy3d!(
-            pointer(dst), typeof(dst.buf),
-            pointer(src), typeof(src.buf),
+            pointer(dst), typeof(dst.buf[]),
+            pointer(src), typeof(src.buf[]),
             2, 4, 4;
             dstPos=(2, 2, 3), srcPos=(2, 2, 3),
             dstPitch=nx * sizeof(Int), dstHeight=ny,
@@ -287,7 +199,7 @@ end
 
             AMDGPU.Mem.unsafe_copy3d!(
                 pointer(buf), AMDGPU.Mem.HostBuffer,
-                pointer(P), typeof(P.buf),
+                pointer(P), typeof(P.buf[]),
                 length(ranges[1]), length(ranges[2]), length(ranges[3]);
                 srcPos=(ranges[1][1], ranges[2][1], ranges[3][1]),
                 dstPitch=sizeof(T) * size(buf_view, 1), dstHeight=size(buf_view, 2),
@@ -305,7 +217,7 @@ end
             P2 = similar(P)
 
             AMDGPU.Mem.unsafe_copy3d!(
-                pointer(P2), typeof(P2.buf),
+                pointer(P2), typeof(P2.buf[]),
                 pointer(buf), AMDGPU.Mem.HostBuffer,
                 length(ranges[1]), length(ranges[2]), length(ranges[3]);
                 dstPos=(ranges[1][1], ranges[2][1], ranges[3][1]),

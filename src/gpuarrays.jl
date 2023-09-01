@@ -41,9 +41,15 @@ end
     return
 end
 
-GPUArrays.device(x::ROCArray) = x.buf.device
+GPUArrays.device(x::ROCArray) = x.buf[].device
 
 GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
+
+function GPUArrays.derive(::Type{T}, N::Int, x::ROCArray, dims::Dims, offset::Int) where T
+    ref = copy(x.buf)
+    offset += (x.offset * Base.elsize(x)) ÷ sizeof(T)
+    ROCArray{T, N}(ref, dims; offset)
+end
 
 # @roc conversion
 
@@ -52,9 +58,9 @@ function Base.convert(
 ) where {T, N}
     # If HostBuffer, use device pointer.
     ptr = Base.unsafe_convert(Ptr{T},
-        typeof(a.buf) <: Mem.HIPBuffer ? a.buf : a.buf.dev_ptr)
-    ROCDeviceArray{T, N, AS.Global}(
-        a.dims, AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset))
+        typeof(a.buf[]) <: Mem.HIPBuffer ? a.buf[] : a.buf[].dev_ptr)
+    llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset * sizeof(T))
+    ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
 end
 
 Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =

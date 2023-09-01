@@ -33,13 +33,10 @@ module Mem
     import .HIP: HIPDevice
     import .Runtime: ROCDim, ROCDim3, check
 
-    const refcounts_lock = Threads.ReentrantLock()
-
     abstract type AbstractAMDBuffer end
 
     include(joinpath("memory", "utils.jl"))
     include(joinpath("memory", "hip.jl"))
-    include(joinpath("memory", "refcount.jl"))
 end
 
 include("execution.jl")
