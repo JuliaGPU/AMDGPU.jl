@@ -98,9 +98,11 @@ include("array.jl")
 include("gpuarrays.jl")
 include("conversions.jl")
 include("broadcast.jl")
-include("mapreduce.jl")
-include("accumulate.jl")
 include("exception_handler.jl")
+
+include("kernels/mapreduce.jl")
+include("kernels/accumulate.jl")
+include("kernels/sorting.jl")
 
 allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 

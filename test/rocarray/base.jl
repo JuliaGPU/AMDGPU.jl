@@ -356,4 +356,6 @@ end
     @test Array(cumprod(xd)) ≈ cumprod(x)
 end
 
+include("sorting.jl")
+
 end
