@@ -110,30 +110,39 @@ for (fname, elty) in (
     end
 end
 
-ROCMatrix{T}(Q::QRPackedQ{S}) where {T, S} =
+# Conversions.
+
+AMDGPU.ROCArray(Q::AbstractQ) = ROCMatrix(Q)
+AMDGPU.ROCArray{T}(Q::AbstractQ) where T = ROCMatrix{T}(Q)
+
+AMDGPU.ROCMatrix(Q::AbstractQ{T}) where T = ROCMatrix{T}(Q)
+AMDGPU.ROCMatrix{T}(Q::QRPackedQ{S}) where {T, S} =
     ROCMatrix{T}(lmul!(Q, ROCMatrix{S}(I, size(Q, 1), min(size(Q.factors)...))))
-ROCMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = ROCMatrix{T}(Q)
+AMDGPU.ROCMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = ROCMatrix{T}(Q)
+AMDGPU.ROCMatrix{T}(Q::QRCompactWYQ) where T = error("QRCompactWY format is not supported.")
 
 Matrix{T}(Q::QRPackedQ{S ,<:ROCArray, <:ROCArray}) where {T, S} = Array(ROCMatrix{T}(Q))
 Matrix{T}(Q::QRCompactWYQ{S, <:ROCArray, <:ROCArray}) where {T, S} = Array(ROCMatrix{T}(Q))
 
-function Base.collect(src::Union{
-    QRPackedQ{<:Any, <:ROCArray, <:ROCArray},
-    QRCompactWYQ{<:Any, <:ROCArray, <:ROCArray}}
-)
-    dest = similar(src)
-    copyto!(dest, I)
-    lmul!(src, dest)
-    collect(dest)
-end
-
-function Base.similar(
-    src::Union{
+if VERSION < v"1.10-"
+    function Base.collect(src::Union{
         QRPackedQ{<:Any, <:ROCArray, <:ROCArray},
-        QRCompactWYQ{<:Any, <:ROCArray, <:ROCArray}},
-    ::Type{T}, dims::Dims{N},
-) where {T, N}
-    ROCArray{T, N}(undef, dims)
+        QRCompactWYQ{<:Any, <:ROCArray, <:ROCArray}}
+    )
+        dest = similar(src)
+        copyto!(dest, I)
+        lmul!(src, dest)
+        collect(dest)
+    end
+
+    function Base.similar(
+        src::Union{
+            QRPackedQ{<:Any, <:ROCArray, <:ROCArray},
+            QRCompactWYQ{<:Any, <:ROCArray, <:ROCArray}},
+        ::Type{T}, dims::Dims{N},
+    ) where {T, N}
+        ROCArray{T, N}(undef, dims)
+    end
 end
 
 function Base.getindex(Q::QRPackedQ{<:Any, <:ROCArray}, ::Colon, j::Int)
@@ -199,9 +208,6 @@ function Base.:\(_A::ROCMatOrAdj, _B::ROCOrAdj)
     end
     return X
 end
-
-# TODO
-# - ldiv
 
 LinearAlgebra.qr!(A::ROCMatrix{T}) where T = QR(geqrf!(A)...)
 
@@ -273,4 +279,21 @@ function LinearAlgebra.ldiv!(x::ROCArray, _qr::QR, b::ROCArray)
     x .= vec(_x)
     AMDGPU.unsafe_free!(_x)
     return x
+end
+
+# LAPACK
+
+for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
+    @eval begin
+        LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}) = rocSOLVER.geqrf!(A)
+        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}) = rocSOLVER.getrf!(A)
+        LinearAlgebra.LAPACK.getrs!(
+            trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint},
+            B::ROCVecOrMat{$elty},
+        ) = rocSOLVER.getrs!(trans, A, ipiv, B)
+        LinearAlgebra.LAPACK.ormqr!(
+            side::Char, trans::Char, A::ROCMatrix{$elty},
+            tau::ROCVector{$elty}, C::ROCVecOrMat{$elty},
+        ) = rocSOLVER.ormqr!(side, trans, A, tau, C)
+    end
 end
