@@ -246,19 +246,4 @@ function __init__()
     end
 end
 
-function main()
-    for sz in (3, 33, 127, 333, 3333, 2, 4, 16, 128, 4096)
-        x = Base.rand(Int16, sz)
-        xd = ROCArray(x)
-
-        y = sort(x)
-        yd = sort(xd)
-        @assert all(y .== Array(yd))
-
-        p = sortperm(xd)
-        @assert all(y .== Array(xd[p]))
-    end
-    return
-end
-
 end

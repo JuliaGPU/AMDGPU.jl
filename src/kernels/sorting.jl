@@ -1,3 +1,6 @@
+# Ported from CUDA.jl.
+# Originally developed by @xaellison (Alex Ellison).
+
 Base.sort!(x::AnyROCVector; kwargs...) = bitonic_sort!(x; dims=1, kwargs...)
 
 Base.sort!(x::AnyROCArray; dims, kwargs...) = bitonic_sort!(x; dims, kwargs...)
@@ -16,11 +19,11 @@ function Base.sortperm!(
 end
 
 function Base.sortperm(x::AnyROCVector; kwargs...)
-    sortperm!(ROCArray(1:length(x)), x; initialized=true, dims=1)
+    sortperm!(ROCArray(1:length(x)), x; initialized=true, dims=1, kwargs...)
 end
 
 function Base.sortperm(x::AnyROCArray; dims, kwargs...)
-    sortperm!(ROCArray(1:length(x)), x; initialized=true, dims)
+    sortperm!(ROCArray(1:length(x)), x; initialized=true, dims, kwargs...)
 end
 
 # TODO dims
@@ -119,12 +122,11 @@ function bisect_range(idx::I, lo::I, n::I) where I
     lo, n
 end
 
-# TODO inbounds
 function cmp!(
     x::AbstractArray, i1::I, i2::I, dir::Bool, by, lt, rev,
 ) where I
     i1, i2 = i1 + one(I), i2 + one(I)
-    if dir != _lt_fn(by(x[i1]), by(x[i2]), lt, rev)
+    @inbounds if dir != _lt_fn(by(x[i1]), by(x[i2]), lt, rev)
         x[i1], x[i2] = x[i2], x[i1]
     end
 end
@@ -137,7 +139,7 @@ function cmp!(
     cmp_res = _lt_fn(
         (by(x[ix[i1]]), ix[i1]),
         (by(x[ix[i2]]), ix[i2]), lt, rev)
-    if dir != cmp_res
+    @inbounds if dir != cmp_res
         ix[i1], ix[i2] = ix[i2], ix[i1]
     end
 end
@@ -146,7 +148,7 @@ function cmp_small!(
     swap::AbstractArray, i1::I, i2::I, dir::Bool, by, lt, rev,
 ) where I
     i1, i2 = i1 + one(I), i2 + one(I)
-    if dir != _lt_fn(by(swap[i1]), by(swap[i2]), lt, rev)
+    @inbounds if dir != _lt_fn(by(swap[i1]), by(swap[i2]), lt, rev)
         swap[i1], swap[i2] = swap[i2], swap[i1]
     end
 end
@@ -159,20 +161,24 @@ function cmp_small!(
     cmp_res = _lt_fn(
         (by(x[i1]), ix[i1]),
         (by(x[i2]), ix[i2]), lt, rev)
-    if dir != cmp_res
+    @inbounds if dir != cmp_res
         x[i1], x[i2] = x[i2], x[i1]
         ix[i1], ix[i2] = ix[i2], ix[i1]
     end
 end
 
 @inline function _lt_fn(a::T, b::T, lt, rev::Val{R}) where {T, R}
-    R ? lt(b, a) : lt(a, b)
+    if R
+        lt(b, a)
+    else
+        lt(a, b)
+    end
 end
 
 @inline function _lt_fn(a::Tuple{T, J}, b::Tuple{T, J}, lt, rev::Val{R}) where {T, J, R}
     if R
-        if b[1] == a[1]
-            return b[2] > a[2] # Compare indices.
+        if a[1] == b[1]
+            return a[2] < b[2] # Compare indices.
         else
             return lt(b[1], a[1])
         end
@@ -181,15 +187,14 @@ end
     end
 end
 
-# TODO inbounds
 function init_shmem(x::AbstractArray{T}, idx, in_range::Bool, offset=0) where T
     swap = @ROCDynamicLocalArray(
         T, (workgroupDim().x, workgroupDim().y), false, offset)
     if in_range
-        swap[workitemIdx().x, workitemIdx().y] = x[idx + 0x1]
+        @inbounds swap[workitemIdx().x, workitemIdx().y] = x[idx + 0x1]
     end
     sync_workgroup()
-    @view(swap[:, workitemIdx().y])
+    @inbounds @view(swap[:, workitemIdx().y])
 end
 
 function init_shmem(
@@ -209,8 +214,7 @@ function finalize_shmem!(
     x::AbstractArray, swap::AbstractArray, idx, in_range::Bool,
 )
     if in_range
-        # TODO inbounds
-        x[idx + 0x1] = swap[workitemIdx().x]
+        @inbounds x[idx + 0x1] = swap[workitemIdx().x]
     end
 end
 
@@ -246,16 +250,12 @@ function get_range_part2(lo::I, n::I, index::I, j::I) where I
     lo, n
 end
 
-"""
-Determines parameters for swapping when the grid index directly maps to an
-Array index for swapping.
-"""
+# Determine parameters for swapping.
 function get_range(n, idx, k, j)
     lo, n, dir = get_range_part1(n, idx, k)
     lo, n = get_range_part2(lo, n, idx, j)
     lo, n, dir
 end
-
 
 function block_range(n::I, bidx::I, k::I, j::I) where I
     lo = zero(I)
