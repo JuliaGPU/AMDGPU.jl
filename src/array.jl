@@ -61,13 +61,17 @@ function ROCArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
     ROCArray{T, N}(DataRef(_free_buf, buf), dims)
 end
 
-# type and dimensionality specified, accepting dims as series of Ints
-ROCArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} = ROCArray{T,N}(undef, dims)
+# type and dimensionality specified
+ROCArray{T,N}(::UndefInitializer, dims::NTuple{N, Integer}) where {T,N} =
+    ROCArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
+ROCArray{T,N}(::UndefInitializer, dims::Vararg{Integer, N}) where {T,N} =
+    ROCArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # type but not dimensionality specified
-ROCArray{T}(::UndefInitializer, dims::Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
-ROCArray{T}(::UndefInitializer, dims::Integer...) where {T} =
-    ROCArray{T}(undef, convert(Tuple{Vararg{Int}}, dims))
+ROCArray{T}(::UndefInitializer, dims::NTuple{N, Integer}) where {T,N} =
+    ROCArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
+ROCArray{T}(::UndefInitializer, dims::Vararg{Integer, N}) where {T, N} =
+    ROCArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
 
 # from Base arrays
 function ROCArray{T,N}(x::Array{T,N}, dims::Dims{N}) where {T,N}
