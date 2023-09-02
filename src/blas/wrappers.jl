@@ -174,49 +174,24 @@ function axpy!(
     y
 end
 
-#= FIXME
-## iamax
-# TODO: fix iamax in julia base
-for (fname, elty) in ((:rocblasIdamax,:Float64),
-                      (:rocblasIsamax,:Float32),
-                      (:rocblasIzamax,:ComplexF64),
-                      (:rocblasIcamax,:ComplexF32))
+for (fname, elty, cty, sty) in (
+    (:rocblas_srot,  :Float32,    :Float32, :Float32),
+    (:rocblas_drot,  :Float64,    :Float64, :Float64),
+    (:rocblas_crot,  :ComplexF32, :Float32, :ComplexF32),
+    (:rocblas_csrot, :ComplexF32, :Float32, :Float32),
+    (:rocblas_zrot,  :ComplexF64, :Float64, :ComplexF64),
+    (:rocblas_zdrot, :ComplexF64, :Float64, :Float64),
+)
     @eval begin
-        function iamax(n::Integer,
-                       dx::ROCArray{$elty},
-                       incx::Integer)
-            result = Ref{Cint}()
-            @check ccall(($(string(fname)), librocblas), rocblas_status,
-                         (rocblas_handle, Cint, Ptr{$elty}, Cint,
-                          Ptr{Cint}),
-                         handle(), n, dx, incx, result)
-            return result[]
+        function rot!(
+            n::Integer, dx::ROCArray{$elty}, incx::Integer, dy::ROCArray{$elty},
+            incy::Integer, c::$cty, s::$sty,
+        )
+            $fname(handle(), n, dx, incx, dy, incy, c, s)
+            dx, dy
         end
     end
 end
-iamax(dx::ROCArray) = iamax(length(dx), dx, 1)
-
-## iamin
-# iamin is not in standard blas is a ROCBLAS extension
-for (fname, elty) in ((:rocblasIdamin,:Float64),
-                      (:rocblasIsamin,:Float32),
-                      (:rocblasIzamin,:ComplexF64),
-                      (:rocblasIcamin,:ComplexF32))
-    @eval begin
-        function iamin(n::Integer,
-                       dx::ROCArray{$elty},
-                       incx::Integer)
-            result = Ref{Cint}()
-            @check ccall(($(string(fname)), librocblas), rocblas_status,
-                         (rocblas_handle, Cint, Ptr{$elty}, Cint,
-                          Ptr{Cint}),
-                         handle(), n, dx, incx, result)
-            return result[]
-        end
-    end
-end
-iamin(dx::ROCArray) = iamin(length(dx), dx, 1)
-=#
 
 # Level 2
 
