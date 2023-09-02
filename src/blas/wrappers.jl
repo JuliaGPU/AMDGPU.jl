@@ -187,7 +187,7 @@ for (fname, elty, cty, sty) in (
             n::Integer, dx::ROCArray{$elty}, incx::Integer, dy::ROCArray{$elty},
             incy::Integer, c::$cty, s::$sty,
         )
-            $fname(handle(), n, dx, incx, dy, incy, c, s)
+            $fname(handle(), n, dx, incx, dy, incy, Ref(c), Ref(s))
             dx, dy
         end
     end

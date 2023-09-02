@@ -78,7 +78,7 @@ end
             Rx, Ry = ROCArray(x), ROCArray(y)
             alpha = rand(T)
             axpy!(alpha, Rx, Ry)
-            @test alpha * x + y ≈ Array(Ry))
+            @test alpha * x + y ≈ Array(Ry)
         end
     end
     @testset "axpby!" begin
