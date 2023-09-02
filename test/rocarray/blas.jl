@@ -72,24 +72,44 @@ end
             @test LinearAlgebra.dot(A, B) ≈ result
         end
     end
-
-    # TODO this tests direct ccall without synchronization.
-    # Replace with better test.
-    # @testset "swap()" begin
-    #     for T in (Float32, Float64)
-    #         A = rand(T, 8)
-    #         B = rand(T, 8)
-    #         RA = ROCArray(A)
-    #         RB = ROCArray(B)
-    #         if T === Float32
-    #             rocBLAS.rocblas_sswap(handle, 8, RA, 1, RB, 1)
-    #         else
-    #             rocBLAS.rocblas_dswap(handle, 8, RA, 1, RB, 1)
-    #         end
-    #         @test A ≈ Array(RB)
-    #         @test B ≈ Array(RA)
-    #     end
-    # end
+    @testset "axpy!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x, y = rand(T, 8), rand(T, 8)
+            Rx, Ry = ROCArray(x), ROCArray(y)
+            alpha = rand(T)
+            axpy!(alpha, Rx, Ry)
+            @test alpha * x + y ≈ Array(Ry)
+        end
+    end
+    @testset "axpby!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x, y = rand(T, 8), rand(T, 8)
+            Rx, Ry = ROCArray(x), ROCArray(y)
+            alpha, beta = rand(T), rand(T)
+            axpby!(alpha, Rx, beta, Ry)
+            @test alpha * x + beta * y ≈ Array(Ry)
+        end
+    end
+    @testset "rotate!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x, y = rand(T, 8), rand(T, 8)
+            Rx, Ry = ROCArray(x), ROCArray(y)
+            c, s = rand(real(T)), rand(T)
+            rotate!(Rx, Ry, c, s)
+            @test c * x + s * y ≈ Array(Rx)
+            @test -conj(s) * x + c * y ≈ Array(Ry)
+        end
+    end
+    @testset "reflect!" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            x, y = rand(T, 8), rand(T, 8)
+            Rx, Ry = ROCArray(x), ROCArray(y)
+            c, s = rand(real(T)), rand(T)
+            reflect!(Rx, Ry, c, s)
+            @test c * x + s * y ≈ Array(Rx)
+            @test conj(s) * x - c * y ≈ Array(Ry)
+        end
+    end
 end
 
 @testset "Level 2 BLAS" begin
