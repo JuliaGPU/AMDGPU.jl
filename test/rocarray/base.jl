@@ -269,5 +269,6 @@ end
 end
 
 include("sorting.jl")
+include("reverse.jl")
 
 end
