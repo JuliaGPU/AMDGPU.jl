@@ -41,9 +41,9 @@ numeric ID that is produced by this function.
 default_device_id() = default_device().device_id
 
 """
-    default_device_id!(idx::Integer, kind::Symbol=:gpu)
+    default_device_id!(idx::Integer)
 
-Sets the default device to `AMDGPU.devices(kind)[idx]`. See
+Sets the default device to `AMDGPU.devices()[idx]`. See
 [`default_device_id`](@ref) for details on the numbering semantics.
 """
 default_device_id!(idx::Integer) = default_device!(devices()[idx])
@@ -88,9 +88,9 @@ for details on the numbering semantics.
 device_id(device::HIPDevice) = device.device_id
 
 """
-    device_id!(idx::Integer, kind::Symbol=:gpu)
+    device_id!(idx::Integer)
 
-Sets the current device to `AMDGPU.devices(kind)[idx]`. See
+Sets the current device to `AMDGPU.devices()[idx]`. See
 [`device_id`](@ref) for details on the numbering semantics.
 """
 device_id!(idx::Integer) = device!(devices()[idx])
