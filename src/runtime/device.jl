@@ -1,4 +1,4 @@
-const DEFAULT_DEVICE = Ref{HIPDevice}()
+const DEFAULT_DEVICE = Ref{Union{Nothing, HIPDevice}}(nothing)
 const ALL_DEVICES = Vector{HIPDevice}()
 const HSA_DEVICES = Vector{ROCDevice}()
 
@@ -27,32 +27,6 @@ function fetch_hsa_devices()
 end
 
 hsa_device(device::HIPDevice) = HSA_DEVICES[device.device_id]
-
-"""
-    get_default_device() -> HIPDevice
-
-TODO update docs
-
-# Returns the default device, which is used for all kernel and array operations
-# when one is not explicitly specified. May be changed with
-# [`set_default_device!`](@ref).
-"""
-function get_default_device()
-    if !isassigned(DEFAULT_DEVICE)
-        error("No GPU devices detected!")
-    end
-    DEFAULT_DEVICE[]
-end
-
-"""
-    set_default_device!(device::ROCDevice) -> ROCDevice
-
-Sets the default device to `device`. See [`get_default_device`](@ref) for more
-details.
-"""
-function set_default_device!(device::HIPDevice)
-    DEFAULT_DEVICE[] = device
-end
 
 "Return all devices available to the runtime."
 devices() = copy(ALL_DEVICES)

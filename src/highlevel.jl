@@ -6,48 +6,6 @@ import .Compiler: hipfunction
 
 export @roc, rocconvert
 
-## Devices
-
-"""
-    default_device()::HIPDevice
-
-Default device which will be used by default in tasks.
-Meaning when a task is created, it selects this device as default.
-
-All subsequent uses rely on [`device()`](@ref) for device selection.
-"""
-default_device() = Runtime.get_default_device()
-
-"""
-    default_device!(device::HIPDevice)
-
-Set default device that will be used when creating new tasks.
-
-!!! note
-    This does not change current device being used.
-    Refer to [`device!`](@ref) for that.
-"""
-default_device!(device::HIPDevice) = Runtime.set_default_device!(device)
-
-"""
-    default_device_id() -> Int
-
-Returns the numeric ID of the current default device,
-which is in the range of `1:length(AMDGPU.devices())`.
-This number should be stable for all processes on the same node,
-The [`default_device_id!`](@ref) function accepts the same
-numeric ID that is produced by this function.
-"""
-default_device_id() = default_device().device_id
-
-"""
-    default_device_id!(idx::Integer)
-
-Sets the default device to `AMDGPU.devices()[idx]`. See
-[`default_device_id`](@ref) for details on the numbering semantics.
-"""
-default_device_id!(idx::Integer) = default_device!(devices()[idx])
-
 """
     device()::HIPDevice
 
@@ -61,10 +19,6 @@ device() = task_local_state().device
 
 Switch current device being used.
 This switches only for a task inside which it is called.
-
-!!! note
-    To select default device that will be used when creating new tasks,
-    refer to [`default_device!`](@ref) for that.
 """
 function device!(device::HIPDevice)
     task_local_state!(; device)
@@ -82,8 +36,7 @@ devices() = Runtime.fetch_devices()
 """
     device_id(device::HIPDevice) -> Int
 
-Returns the numerical device ID for `device`. See [`default_device_id`](@ref)
-for details on the numbering semantics.
+Returns the numerical device ID for `device`.
 """
 device_id(device::HIPDevice) = device.device_id
 

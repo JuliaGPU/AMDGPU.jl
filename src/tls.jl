@@ -5,12 +5,18 @@ struct TaskLocalState
     priority::Symbol
 end
 function TaskLocalState(
-    device::Union{HIPDevice,Nothing}, context::Union{HIPContext,Nothing},
+    device::Union{HIPDevice,Nothing},
+    context::Union{HIPContext,Nothing},
     stream::Union{HIPStream,Nothing}, priority::Symbol,
 )
     if device === nothing
         # TODO get from stream if provided
-        device = Runtime.get_default_device()
+        # Try getting the default device, otherwise use first device.
+        device = Runtime.DEFAULT_DEVICE[]
+        if device ≡ nothing
+            device = devices()[1]
+            Runtime.DEFAULT_DEVICE[] = device
+        end
     end
     if context === nothing
         context = HIPContext(device)
@@ -81,6 +87,8 @@ function task_local_state!(; device=nothing, stream=nothing, priority::Symbol=:n
             device = old_state.device
             context = old_state.context
         else
+            # Make new device the default device for TLS.
+            Runtime.DEFAULT_DEVICE[] = device
             context = HIPContext(device)
         end
         HIP.context!(context)
@@ -94,8 +102,13 @@ function task_local_state!(; device=nothing, stream=nothing, priority::Symbol=:n
         end
         streams = copy(old_state.streams)
     else # TODO Use default constructor?
-        if device === nothing
-            device = Runtime.get_default_device()
+        if device ≡ nothing
+            # Try getting the default device, otherwise use first device.
+            device = Runtime.DEFAULT_DEVICE[]
+            if device ≡ nothing
+                device = devices()[1]
+                Runtime.DEFAULT_DEVICE[] = device
+            end
         end
 
         context = HIPContext(device_id(device))
