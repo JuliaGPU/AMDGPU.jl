@@ -40,11 +40,39 @@ end
     # rocSPARSE.rocsparse_spmv_alg_coo, # No COO or ELL matrix types
     # rocSPARSE.rocsparse_spmv_alg_ell,
 )
-    @testset "mv $T" for T in (Float32, Float64, ComplexF32, ComplexF64)
-        A = sprand(T, 10, 10, 0.1)
-        B = rand(T, 10)
+    @testset "mv -- CSR -- $T" for T in (Float32, Float64, ComplexF32, ComplexF64)
+        A = sprand(T, 10, 20, 0.1)
+        B = rand(T, 20)
         C = rand(T, 10)
         dA = ROCSparseMatrixCSR(A)
+        dB = ROCArray(B)
+        dC = ROCArray(C)
+
+        alpha = 1.2
+        beta = 1.3
+        mv!('N', alpha, dA, dB, beta, dC, 'O', algo)
+        @test alpha * A * B + beta * C ≈ collect(dC)
+    end
+
+    @testset "mv -- CSC -- $T" for T in (Float32, Float64, ComplexF32, ComplexF64)
+        A = sprand(T, 10, 20, 0.1)
+        B = rand(T, 20)
+        C = rand(T, 10)
+        dA = ROCSparseMatrixCSC(A)
+        dB = ROCArray(B)
+        dC = ROCArray(C)
+
+        alpha = 1.2
+        beta = 1.3
+        mv!('N', alpha, dA, dB, beta, dC, 'O', algo)
+        @test alpha * A * B + beta * C ≈ collect(dC)
+    end
+
+    @testset "mv -- COO -- $T" for T in (Float32, Float64, ComplexF32, ComplexF64)
+        A = sprand(T, 10, 20, 0.1)
+        B = rand(T, 20)
+        C = rand(T, 10)
+        dA = ROCSparseMatrixCOO(A)
         dB = ROCArray(B)
         dC = ROCArray(C)
 
