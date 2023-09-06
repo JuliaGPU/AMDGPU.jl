@@ -217,9 +217,7 @@ function __init__()
 
     # Check whether HIP is available
     if functional(:hip)
-        # Fetch HIP devices and select default one.
-        devs = Runtime.fetch_devices()
-        Runtime.set_default_device!(first(devs))
+        Runtime.fetch_devices()
     else
         @warn """
         HIP library is unavailable, HIP integration will be disabled.

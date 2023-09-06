@@ -64,7 +64,7 @@ const TARGET_TESTS = isempty(ARGS) ? TEST_NAMES : ARGS
 include("setup.jl")
 
 @info "Running following tests: $TARGET_TESTS."
-@info "Testing using device $(AMDGPU.default_device())."
+@info "Testing using device $(AMDGPU.device())."
 AMDGPU.versioninfo()
 
 if "core" in TARGET_TESTS
