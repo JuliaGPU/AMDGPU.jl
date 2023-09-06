@@ -190,7 +190,7 @@ function mm!(
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
-    if isa(A, ROCSparseMatrixCSC) && transa == 'C' && TA <: Complex
+    if isa(A, ROCSparseMatrixCSC) && transa == 'C' && T <: Complex
         throw(ArgumentError(
             "Matrix-matrix multiplication with the adjoint of a CSC matrix" *
             " is not supported. Use a CSR or COO matrix instead."))
@@ -234,57 +234,6 @@ function mm!(
             descC, T, algo, rocsparse_spmm_stage_preprocess, buffer_len_ref, buffer)
         rocsparse_spmm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
-    end
-    return C
-end
-
-function mm!(
-    transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{T},
-    B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
-    algo::rocsparse_spmm_alg = rocsparse_spmm_alg_default,
-) where T
-    ctransa = 'N'
-    if transa == 'N'
-        ctransa = 'T'
-    elseif transa == 'C' && T <: Complex
-        throw(ArgumentError(
-            "Matrix-matrix multiplication with the adjoint of a CSC matrix" *
-            " is not supported. Use a CSR matrix instead."))
-    end
-
-    k, m = size(A)
-    n = size(C)[2]
-
-    if ctransa == 'N' && transb == 'N'
-        chkmmdims(B,C,k,n,m,n)
-    elseif ctransa == 'N' && transb != 'N'
-        chkmmdims(B,C,n,k,m,n)
-    elseif ctransa != 'N' && transb == 'N'
-        chkmmdims(B,C,m,n,k,n)
-    elseif ctransa != 'N' && transb != 'N'
-        chkmmdims(B,C,n,m,k,n)
-    end
-
-    descA = ROCSparseMatrixDescriptor(A, index)
-    descB = ROCDenseMatrixDescriptor(B)
-    descC = ROCDenseMatrixDescriptor(C)
-
-    function bufferSize()
-        out = Ref{Csize_t}()
-        rocsparse_spmm(
-            handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, C_NULL)
-        return out[]
-    end
-
-    with_workspace(bufferSize) do buffer
-        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
-        rocsparse_spmm(
-            handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_preprocess, buffer_len_ref, buffer)
-        rocsparse_spmm(
-            handle(), ctransa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
     end
     return C
