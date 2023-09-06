@@ -68,7 +68,7 @@ mutable struct ROCSparseMatrixDescriptor
         return obj
     end
 
-    function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCSC, IndexBase::Char; transposed::Bool=true)
+    function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCSC, IndexBase::Char; transposed::Bool=false)
         desc_ref = Ref{rocsparse_spmat_descr}()
         if transposed
             rocsparse_create_csr_descr(
