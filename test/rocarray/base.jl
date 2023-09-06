@@ -1,5 +1,15 @@
 @testset "Base" begin
 
+@testset "Specifying buffer type" begin
+    B = AMDGPU.Runtime.Mem.HIPBuffer
+    x = ROCArray{Float32, 2, B}(undef, 16, 12)
+    @test size(x) == (16, 12)
+    @test x.buf isa B
+    x = ROCArray{Float32, 2, B}(undef, (16, 12))
+    @test size(x) == (16, 12)
+    @test x.buf isa B
+end
+
 @testset "ones/zeros" begin
     x = @inferred AMDGPU.ones(4, 3)
     @test x isa ROCArray
