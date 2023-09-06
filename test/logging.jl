@@ -38,7 +38,7 @@
     @testset "Buffer" begin
         local buf_ptr
         logs = AMDGPU.Runtime.log_and_fetch!() do
-            buf = AMDGPU.Runtime.Mem.alloc(AMDGPU.default_device(), 64)
+            buf = AMDGPU.Runtime.Mem.alloc(AMDGPU.device(), 64)
             buf_ptr = buf.ptr
             AMDGPU.Runtime.Mem.free(buf)
         end
