@@ -137,7 +137,7 @@ function mv!(
         descA = ROCSparseMatrixDescriptor(A, index, transposed=true)
         n,m = size(A)
         transa = transa == 'N' ? 'T' : 'N'
-    else    
+    else
         descA = ROCSparseMatrixDescriptor(A, index)
         m,n = size(A)
     end
@@ -200,7 +200,7 @@ function mm!(
         descA = ROCSparseMatrixDescriptor(A, index, transposed=true)
         k,m = size(A)
         transa = transa == 'N' ? 'T' : 'N'
-    else    
+    else
         descA = ROCSparseMatrixDescriptor(A, index)
         m,k = size(A)
     end
