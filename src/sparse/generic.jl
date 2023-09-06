@@ -123,7 +123,24 @@ function mv!(
     X::DenseROCVector{T}, beta::Number, Y::DenseROCVector{T}, index::SparseChar,
     algo::rocsparse_spmv_alg = rocsparse_spmv_alg_default,
 ) where {TA, T}
-    m,n = size(A)
+
+    # Support transa = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+
+    if isa(A, ROCSparseMatrixCSC) && transa == 'C' && TA <: Complex
+        throw(ArgumentError(
+            "Matrix-vector multiplication with the adjoint of a CSC matrix" *
+            " is not supported. Use a CSR or COO matrix instead."))
+    end
+
+    if isa(A, ROCSparseMatrixCSC)
+        descA = ROCSparseMatrixDescriptor(A, index, transposed=true)
+        n,m = size(A)
+        transa = transa == 'N' ? 'T' : 'N'
+    else    
+        descA = ROCSparseMatrixDescriptor(A, index)
+        m,n = size(A)
+    end
 
     if transa == 'N'
         chkmvdims(X,n,Y,m)
@@ -131,7 +148,6 @@ function mv!(
         chkmvdims(X,m,Y,n)
     end
 
-    descA = ROCSparseMatrixDescriptor(A, index)
     descX = ROCDenseVectorDescriptor(X)
     descY = ROCDenseVectorDescriptor(Y)
 
@@ -165,11 +181,29 @@ function mv!(
 end
 
 function mm!(
-    transa::SparseChar, transb::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{T},
+    transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{ROCSparseMatrixCSR{T}, ROCSparseMatrixCSC{T}, ROCSparseMatrixCOO{T}},
     B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
     algo::rocsparse_spmm_alg=rocsparse_spmm_alg_default,
 ) where T
-    m, k = size(A)
+
+    # Support transa = 'C' and `transb = 'C' for real matrices
+    transa = T <: Real && transa == 'C' ? 'T' : transa
+    transb = T <: Real && transb == 'C' ? 'T' : transb
+
+    if isa(A, ROCSparseMatrixCSC) && transa == 'C' && TA <: Complex
+        throw(ArgumentError(
+            "Matrix-matrix multiplication with the adjoint of a CSC matrix" *
+            " is not supported. Use a CSR or COO matrix instead."))
+    end
+
+    if isa(A, ROCSparseMatrixCSC)
+        descA = ROCSparseMatrixDescriptor(A, index, transposed=true)
+        k,m = size(A)
+        transa = transa == 'N' ? 'T' : 'N'
+    else    
+        descA = ROCSparseMatrixDescriptor(A, index)
+        m,k = size(A)
+    end
     n = size(C)[2]
 
     if transa == 'N' && transb == 'N'
@@ -182,7 +216,6 @@ function mm!(
         chkmmdims(B,C,n,m,k,n)
     end
 
-    descA = ROCSparseMatrixDescriptor(A, index)
     descB = ROCDenseMatrixDescriptor(B)
     descC = ROCDenseMatrixDescriptor(C)
 
