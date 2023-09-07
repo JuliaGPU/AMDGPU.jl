@@ -32,10 +32,6 @@ function KernelAbstractions.priority!(::ROCBackend, priority::Symbol)
     AMDGPU.priority!(priority)
 end
 
-##
-# copyto!
-##
-
 function KernelAbstractions.copyto!(::ROCBackend, A, B)
     GC.@preserve A B begin
         copyto!(A, 1, B, 1, length(A))

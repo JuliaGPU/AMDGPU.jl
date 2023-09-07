@@ -14,7 +14,8 @@ import Core: LLVMPtr
 
 const Maybe{T} = Union{Nothing, T}
 
-export HIPDevice, has_rocm_gpu, roc
+export @roc, roc, rocconvert
+export HIPDevice, has_rocm_gpu
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
 export DenseROCArray, DenseROCVector, DenseROCMatrix, StridedROCMatrix
 
@@ -68,7 +69,8 @@ export HIPContext, HIPDevice, HIPStream
 include("cache.jl")
 
 include("runtime/Runtime.jl")
-import .Runtime: Mem
+import .Runtime
+import .Runtime: Mem, ROCDim, ROCDim3
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
@@ -90,6 +92,8 @@ export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup
 
 include("compiler/Compiler.jl")
+import .Compiler
+import .Compiler: hipfunction
 
 include("tls.jl")
 include("highlevel.jl")
