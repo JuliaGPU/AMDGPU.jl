@@ -57,23 +57,20 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
     end
 
     @testset "$SparseMatrixType -- mm! algo=$algo" for algo in (rocSPARSE.rocsparse_spmm_alg_default,)
-            @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-                for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                    for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                        SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
-                        SparseMatrixType == ROCSparseMatrixCOO && transa != 'N' && continue
-                        A = sprand(T, 10, 10, 0.1)
-                        B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
-                        C = rand(T, 10, 2)
-                        dA = SparseMatrixType(A)
-                        dB = ROCArray(B)
-                        dC = ROCArray(C)
+        @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                    SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                    SparseMatrixType == ROCSparseMatrixCOO && transa != 'N' && continue
+                    A = sprand(T, 10, 10, 0.1)
+                    B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
+                    C = rand(T, 10, 2)
+                    dA = SparseMatrixType(A)
+                    dB, dC = ROCArray(B), ROCArray(C)
 
-                        alpha = rand(T)
-                        beta = rand(T)
-                        mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
-                        @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
-                    end
+                    alpha, beta = rand(T), rand(T)
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
                 end
             end
         end
