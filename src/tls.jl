@@ -1,155 +1,141 @@
-struct TaskLocalState
+mutable struct TaskLocalState
     device::HIPDevice
     context::HIPContext
     streams::Vector{Union{HIPStream,Nothing}}
-    priority::Symbol
 end
-function TaskLocalState(
-    device::Union{HIPDevice,Nothing},
-    context::Union{HIPContext,Nothing},
-    stream::Union{HIPStream,Nothing}, priority::Symbol,
-)
-    if device === nothing
-        # TODO get from stream if provided
-        # Try getting the default device, otherwise use first device.
-        device = Runtime.DEFAULT_DEVICE[]
-        if device ≡ nothing
-            device = devices()[1]
-            Runtime.DEFAULT_DEVICE[] = device
-        end
-    end
-    if context === nothing
-        context = HIPContext(device)
-    end
-    HIP.context!(context) # Switches HIP active device as well.
 
-    if stream === nothing
-        stream = HIPStream(priority)
-    else
-        stream.device == device || throw(ArgumentError("""
-        Provided HIPStream is on a differen device `$(stream.device)`
-        from the default one `$device`.
-        """))
-        @assert stream.priority == priority
-    end
-    streams = Union{HIPStream, Nothing}[nothing for _ in 1:length(devices())]
-    streams[device_id(device)] = stream
-    return TaskLocalState(device, context, streams, priority)
+function TaskLocalState(
+    dev::HIPDevice = something(Runtime.DEFAULT_DEVICE[], HIPDevice(1)),
+    ctx::HIPContext = HIPContext(dev),
+)
+    streams = Union{Nothing, HIPStream}[nothing for _ in 1:HIP.ndevices()]
+    TaskLocalState(dev, ctx, streams)
 end
-TaskLocalState() = TaskLocalState(nothing, nothing, nothing, :normal)
 
 function Base.getproperty(state::TaskLocalState, field::Symbol)
-    # Helpers to return active stream
-    if field == :stream
-        return state.streams[device_id(state.device)]::HIPStream
+    if field == :stream # Helpers to return active stream.
+        return stream(state)
     else
         return getfield(state, field)
     end
 end
+
+task_local_state()::Union{Nothing, TaskLocalState} =
+    get(task_local_storage(), :AMDGPU, nothing)
+
+task_local_state!(args...)::TaskLocalState =
+    get!(() -> TaskLocalState(args...), task_local_storage(), :AMDGPU)
+
+device() = task_local_state!().device
+
+function device!(dev::HIPDevice)
+    # Set the new default device.
+    Runtime.DEFAULT_DEVICE[] = dev
+
+    ctx = HIPContext(dev)
+    state = task_local_state()
+    if state ≡ nothing
+        task_local_state!(dev, ctx)
+    else
+        state.device = dev
+        state.context = ctx
+    end
+    HIP.context!(ctx)
+    return
+end
+
+device!(f::Function, dev::HIPDevice) = context!(f, HIPContext(dev))
+
+function stream(state::TaskLocalState)::HIPStream
+    i = device_id(state.device)
+    if state.streams[i] ≡ nothing
+        state.streams[i] = HIPStream(:normal)
+    else
+        state.streams[i]
+    end
+end
+
+stream()::HIPStream = stream(task_local_state!())
+
+function stream!(s::HIPStream)
+    state = task_local_state!()
+    state.streams[device_id(state.device)] = s
+    return
+end
+
+function stream!(f::Function, s::HIPStream)
+    old_s = stream()
+    try
+        f()
+    finally
+        stream!(old_s)
+    end
+end
+
+context() = task_local_state!().context
+
+function context!(ctx::HIPContext)
+    state = task_local_state()
+    if state ≡ nothing
+        old_ctx = nothing
+        HIP.context!(ctx)
+        task_local_state!(HIP.device(), ctx)
+    else
+        old_ctx = state.ctx
+        if old_ctx != ctx
+            HIP.context!(state.ctx)
+            state.device = HIP.device()
+            state.context = ctx
+        end
+    end
+    return old_ctx
+end
+
+function context!(f::Function, ctx::HIPContext)
+    old_ctx = context!(ctx)
+    try
+        f()
+    finally
+        old_ctx ≢ nothing && old_ctx != ctx && context!(old_ctx)
+    end
+end
+
+priority() = task_local_state!().stream.priority
+
+function priority!(p::Symbol)
+    state = task_local_state!()
+    state.stream.priority == p && return
+
+    state.streams[device_id(state.device)] = HIPStream(p)
+    return
+end
+
+function priority!(f::Function, p::Symbol)
+    state = task_local_state!()
+    idx = device_id(state.device)
+
+    old_s = state.stream
+    swap = p != old_s.priority
+    swap && (state.streams[idx] = HIPStream(p);)
+
+    try
+        f()
+    finally
+        swap && (state.streams[idx] = old_s;)
+    end
+end
+
 Base.copy(state::TaskLocalState) = TaskLocalState(
-    state.device, state.context, copy(state.streams), state.priority)
+    state.device, state.context, copy(state.streams))
 
 function Base.show(io::IO, state::TaskLocalState)
     println(io, "TaskLocalState:")
     println(io, "  Device: $(state.device)")
     println(io, "  HIP Context: $(state.context)")
     println(io, "  HIP Stream: $(state.stream)")
-    print(io, "  Priority: $(state.priority)")
 end
 
-"""
-    task_local_state() -> TaskLocalState
-
-Returns the task-local state in the form of a `TaskLocalState`. Automatically
-picks a device, context, and stream if they haven't already been selected.
-"""
-task_local_state()::TaskLocalState =
-    get!(()->TaskLocalState(), task_local_storage(), :AMDGPU)
-
-"""
-    task_local_state!(; device=nothing, context=nothing, stream=nothing, priority::Symbol=:normal)
-
-Sets the task-local device and HIP stream.
-If `device`, , or `stream` is `nothing` and an existing task-local state
-has been configured, then those values are retrived from the existing state
-(unless the `priority` has changed, in which case a new stream is selected);
-if no task-local state has been configured, then defaults are used
-when `nothing` is supplied.
-
-Note that these are only task-local defaults; when a device or stream is
-manually passed to an AMDGPU operation (such as `@roc`), then the task-local
-value is ignored in favor of the passed argument.
-"""
-function task_local_state!(; device=nothing, stream=nothing, priority::Symbol=:normal)
-    if haskey(task_local_storage(), :AMDGPU)
-        old_state = task_local_state()
-        if device === nothing
-            device = old_state.device
-            context = old_state.context
-        else
-            # Make new device the default device for TLS.
-            Runtime.DEFAULT_DEVICE[] = device
-            context = HIPContext(device)
-        end
-        HIP.context!(context)
-
-        if stream === nothing
-            if priority == old_state.priority && old_state.streams[device_id(device)] !== nothing
-                stream = old_state.streams[device_id(device)]
-            else
-                stream = HIPStream(priority)
-            end
-        end
-        streams = copy(old_state.streams)
-    else # TODO Use default constructor?
-        if device ≡ nothing
-            # Try getting the default device, otherwise use first device.
-            device = Runtime.DEFAULT_DEVICE[]
-            if device ≡ nothing
-                device = devices()[1]
-                Runtime.DEFAULT_DEVICE[] = device
-            end
-        end
-
-        context = HIPContext(device_id(device))
-        HIP.context!(context)
-        if stream === nothing
-            stream = HIPStream(priority)
-        end
-        streams = Union{HIPStream,Nothing}[nothing for _ in 1:length(devices())]
-    end
-
-    streams[device_id(device)] = stream
-    new_state = TaskLocalState(device, context, streams, priority)
-    task_local_storage(:AMDGPU, new_state)
-end
-
-task_local_state!(state::TaskLocalState) = task_local_storage(:AMDGPU, state)
-
-"""
-    task_local_state!(f::Base.Callable; device=nothing, stream=nothing, priority::Symbol=:normal)
-
-Executes `f` with the given task-local state, and when finished, resets the
-state back to previous values and returns the result of `f()`.
-"""
-function task_local_state!(
-    f::Base.Callable; device=nothing, stream=nothing, priority::Symbol=:normal,
-)
-    restore = haskey(task_local_storage(), :AMDGPU)
-    if restore
-        old_state = task_local_state()
-    end
-    task_local_state!(; device, stream, priority)
-
-    return try
-        f()
-    finally
-        if restore
-            task_local_state!(old_state)
-        else
-            # We want a fresh state and default priority
-            delete!(task_local_storage(), :AMDGPU)
-            task_local_state!()
-        end
-    end
+@inline function prepare_state(state = task_local_state!())
+    state.context != HIP.HIPContext() && HIP.context!(state.context)
+    return
 end

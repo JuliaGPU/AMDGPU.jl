@@ -91,7 +91,7 @@ function library_state(
     library_key::Symbol, ::Type{HandleType}, idle_handles,
     create_handle::Function, destroy_handle::Function, set_stream::Function,
 ) where HandleType
-    tls = AMDGPU.task_local_state()
+    tls = AMDGPU.task_local_state!()
 
     LibraryState = @NamedTuple{handle::HandleType, stream::HIPStream}
     states = get!(task_local_storage(), library_key) do

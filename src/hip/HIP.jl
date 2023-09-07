@@ -21,12 +21,14 @@ mutable struct HIPContext
     context::hipContext_t
 end
 const CONTEXTS = AMDGPU.LockedObject(Dict{HIPDevice,HIPContext}())
+
 function HIPContext(device::HIPDevice)
     lock(CONTEXTS) do contexts
         get!(contexts, device) do
             context_ref = Ref{hipContext_t}()
             hipCtxCreate(context_ref, Cuint(0), device.device) |> check
             context = HIPContext(context_ref[])
+
             device!(device)
             finalizer(context) do c
                 hipCtxDestroy(c.context) |> check
@@ -35,7 +37,15 @@ function HIPContext(device::HIPDevice)
         end
     end
 end
+
 HIPContext(device_id::Integer) = HIPContext(HIPDevice(device_id))
+
+function HIPContext()
+    context_ref = Ref{hipContext_t}()
+    hipCtxGetCurrent(context_ref) |> check
+    HIPContext(context_ref[])
+end
+
 Base.unsafe_convert(::Type{Ptr{T}}, context::HIPContext) where T =
     reinterpret(Ptr{T}, context.context)
 function Base.show(io::IO, context::HIPContext)
@@ -58,7 +68,6 @@ end
 include("stream.jl")
 include("event.jl")
 include("pool.jl")
-
 include("module.jl")
 
 function device_synchronize()

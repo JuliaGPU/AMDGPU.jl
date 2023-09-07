@@ -83,4 +83,29 @@
         AMDGPU.device!(d1)
         @test sum(x1) == 16
     end
+
+    @testset "Correctly switching HIP context" begin
+        f() = return
+
+        AMDGPU.device_id!(1)
+        @test AMDGPU.device() == AMDGPU.HIP.device()
+
+        # This will create task, but HIP uses thread local storage.
+        # So this will change HIP global state outside of task.
+        wait(Threads.@spawn begin
+            AMDGPU.device_id!(2)
+            @roc f()
+            AMDGPU.synchronize()
+        end)
+
+        @test AMDGPU.device() == AMDGPU.device(1)
+        # We haven't switched back to TLS device yet.
+        @test AMDGPU.HIP.device() == AMDGPU.device(2)
+
+        # Here we test that we correctly switch back to the TLS context.
+        @roc f()
+
+        @test AMDGPU.device() == AMDGPU.device(1)
+        @test AMDGPU.HIP.device() == AMDGPU.device(1)
+    end
 end
