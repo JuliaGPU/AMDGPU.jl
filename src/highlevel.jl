@@ -1,11 +1,3 @@
-# High-level APIs
-
-import AMDGPU: Runtime, Compiler
-import .Runtime: ROCDim, ROCDim3
-import .Compiler: hipfunction
-
-export @roc, rocconvert
-
 """
     device()::HIPDevice
 
@@ -34,10 +26,12 @@ Get list of all devices.
 devices() = Runtime.fetch_devices()
 
 """
+    device_id() -> Int
     device_id(device::HIPDevice) -> Int
 
-Returns the numerical device ID for `device`.
+Returns the numerical device ID for `device` or for the current `AMDGPU.device()`.
 """
+device_id() = device().device_id
 device_id(device::HIPDevice) = device.device_id
 
 """
@@ -189,7 +183,7 @@ register methods for the the `AMDGPU.Adaptor` type.
 """
 rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 
-const MACRO_KWARGS = [:dynamic, :launch]
+const MACRO_KWARGS = [:launch]
 const COMPILER_KWARGS = [:name]
 const LAUNCH_KWARGS = [:gridsize, :groupsize, :shmem, :stream]
 
@@ -213,16 +207,10 @@ macro roc(ex...)
         throw(ArgumentError("Unsupported keyword argument: `$key`."))
     end
 
-    dynamic = false # TODO unsupported for now
     launch = true
     for kwarg in macro_kwargs
         key, val = kwarg.args
-        if key == :dynamic
-            isa(val, Bool) || throw(ArgumentError(
-                "`dynamic` keyword argument to @roc should be a constant Bool"))
-            dynamic = val::Bool
-            @assert false "`dynamic` kernel launch is not yet implemented"
-        elseif key == :launch
+        if key == :launch
             isa(val, Bool) || throw(ArgumentError(
                 "`launch` keyword argument to @roc should be a constant Bool"))
             launch = val::Bool

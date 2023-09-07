@@ -141,16 +141,6 @@ if "core" in TARGET_TESTS
     push!(tests, "Multitasking" => () -> include("tls.jl"))
     push!(tests, "ROCArray - Base" => () -> include("rocarray/base.jl"))
     push!(tests, "ROCArray - Broadcast" => () -> include("rocarray/broadcast.jl"))
-
-    # if AMDGPU.Runtime.LOGGING_STATIC_ENABLED
-    #     push!(tests, "Logging" => () -> include("logging.jl"))
-    # else
-    #     @warn """
-    #     Logging is statically disabled, skipping logging tests.
-    #     This can be fixed by calling `AMDGPU.Runtime.enable_logging!()` and re-running tests.
-    #     """
-    #     @test_skip "Logging"
-    # end
 end
 
 if "hip" in TARGET_TESTS
