@@ -125,31 +125,18 @@ function mv!(
 ) where {TA, T}
 
     # Support transa = 'C' for real matrices
-    transa = T <: Real && transa == 'C' ? 'T' : transa
+    transa = TA <: Real && transa == 'C' ? 'T' : transa
 
-    if isa(A, ROCSparseMatrixCSC) && transa == 'C' && TA <: Complex
-        throw(ArgumentError(
-            "Matrix-vector multiplication with the adjoint of a CSC matrix" *
-            " is not supported. Use a CSR or COO matrix instead."))
-    end
+    descA = ROCSparseMatrixDescriptor(A, index)
+    descX = ROCDenseVectorDescriptor(X)
+    descY = ROCDenseVectorDescriptor(Y)
 
-    if isa(A, ROCSparseMatrixCSC)
-        descA = ROCSparseMatrixDescriptor(A, index, transposed=true)
-        n,m = size(A)
-        transa = transa == 'N' ? 'T' : 'N'
-    else
-        descA = ROCSparseMatrixDescriptor(A, index)
-        m,n = size(A)
-    end
-
+    m,n = size(A)
     if transa == 'N'
         chkmvdims(X,n,Y,m)
     elseif transa == 'T' || transa == 'C'
         chkmvdims(X,m,Y,n)
     end
-
-    descX = ROCDenseVectorDescriptor(X)
-    descY = ROCDenseVectorDescriptor(Y)
 
     # operations with 16-bit numbers always imply mixed-precision computation
     # TODO: we should better model the supported combinations here,

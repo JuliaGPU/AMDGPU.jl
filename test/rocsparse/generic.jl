@@ -40,7 +40,6 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
     @testset "$SparseMatrixType -- mv! algo=$algo" for algo in (rocSPARSE.rocsparse_spmv_alg_default,)
         @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
             for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                 A = sprand(T, 20, 10, 0.1)
                 B = transa == 'N' ? rand(T, 10) : rand(T, 20)
                 C = transa == 'N' ? rand(T, 20) : rand(T, 10)
