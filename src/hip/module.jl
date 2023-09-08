@@ -1,15 +1,13 @@
 mutable struct HIPModule
     handle::hipModule_t
-    dev::HIPDevice
 
     function HIPModule(data)
-        dev = device()
         device_synchronize()
 
         # TODO use alloc_retry?
         mod_ref = Ref{hipModule_t}()
         hipModuleLoadData(mod_ref, data) |> check
-        mod = new(mod_ref[], dev)
+        mod = new(mod_ref[])
 
         finalizer(mod) do mod
             hipModuleUnload(mod) |> check

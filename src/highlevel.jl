@@ -1,24 +1,4 @@
 """
-    device()::HIPDevice
-
-Get currently active device.
-This device is used when launching kernels via `@roc`.
-"""
-device() = task_local_state().device
-
-"""
-    device!(device::HIPDevice)
-
-Switch current device being used.
-This switches only for a task inside which it is called.
-"""
-function device!(device::HIPDevice)
-    task_local_state!(; device)
-    return device
-end
-device!(f::Base.Callable, device::HIPDevice) = task_local_state!(f; device)
-
-"""
     devices()
 
 Get list of all devices.
@@ -44,7 +24,6 @@ device_id!(idx::Integer) = device!(devices()[idx])
 
 # Contexts
 
-context() = task_local_state().context
 function device(context::HIPContext)
     return HIP.context!(context) do
         HIP.device()
@@ -55,59 +34,8 @@ end
 
 default_stream() = HIP.default_stream()
 
-"""
-    stream()
-
-Get the HIP stream that should be used as the default one for the currently executing task.
-"""
-stream() = task_local_state().stream::HIPStream
-
-"""
-    stream!(stream::HIPStream)
-
-Change the default stream to be used **within the same Julia task**.
-"""
-stream!(stream::HIPStream) = task_local_state!(;stream)
-
-"""
-    stream!(f::Base.Callable, stream::HIPStream)
-
-Change the default stream to be used **within the same Julia task**,
-execute `f` and revert to the original stream.
-
-# Returns
-
-Return value of the function `f`.
-"""
-stream!(f::Base.Callable, stream::HIPStream) = task_local_state!(f; stream)
-
 device(stream::HIPStream) = stream.device
-
-priority() = task_local_state().priority
-
-"""
-    priority!(priority::Symbol)
-
-Change the priority of the default stream.
-Accepted values are `:normal` (the default), `:low` and `:high`.
-"""
-function priority!(priority::Symbol)
-    task_local_state!(;priority)
-    return priority
-end
-
-"""
-    priority!(f::Base.Callable, priority::Symbol)
-
-Chnage the priority of default stream, execute `f` and
-revert to the original priority.
-Accepted values are `:normal` (the default), `:low` and `:high`.
-
-# Returns
-
-Return value of the function `f`.
-"""
-priority!(f::Base.Callable, priority::Symbol) = task_local_state!(f; priority)
+device(idx::Integer) = devices()[idx]
 
 # Device ISAs
 
