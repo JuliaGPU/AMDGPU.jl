@@ -53,7 +53,7 @@ function device!(dev::HIPDevice)
         state.context = ctx
     end
     HIP.context!(ctx)
-    return
+    return dev
 end
 
 device!(f::Function, dev::HIPDevice) = context!(f, HIPContext(dev))
@@ -83,7 +83,7 @@ Change the default stream to be used **within the same Julia task**.
 function stream!(s::HIPStream)
     state = task_local_state!()
     state.streams[device_id(state.device)] = s
-    return
+    return s
 end
 
 """
@@ -143,10 +143,10 @@ Accepted values are `:normal` (the default), `:low` and `:high`.
 """
 function priority!(p::Symbol)
     state = task_local_state!()
-    state.stream.priority == p && return
+    state.stream.priority == p && return p
 
     state.streams[device_id(state.device)] = HIPStream(p)
-    return
+    return p
 end
 
 """
