@@ -73,7 +73,7 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     mark_pool!(dev)
     pool = HIP.memory_pool(dev)
 
-    has_limit = HARD_MEMORY_LIMIT != typemax(UInt64)
+    has_limit = hard_memory_limit() != typemax(UInt64)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     alloc_or_retry!() do
@@ -81,7 +81,7 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
             # Try to ensure there is enough memory before even trying to allocate.
             if has_limit
                 used = HIP.used_memory(pool)
-                (used + bytesize) > HARD_MEMORY_LIMIT &&
+                (used + bytesize) > hard_memory_limit() &&
                     throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             end
 
@@ -100,10 +100,10 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
 
     # TODO ROCm 5.5+ has hard pool size limit
     if has_limit
-        if HIP.reserved_memory(pool) > HARD_MEMORY_LIMIT
+        if HIP.reserved_memory(pool) > hard_memory_limit()
             HIP.reclaim() # TODO do not reclaim all memory
         end
-        @assert HIP.reserved_memory(pool) ≤ HARD_MEMORY_LIMIT
+        @assert HIP.reserved_memory(pool) ≤ hard_memory_limit()
     end
 
     HIPBuffer(dev, ptr, bytesize, true)

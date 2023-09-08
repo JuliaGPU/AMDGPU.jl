@@ -69,8 +69,14 @@ Set a hard limit for total GPU memory allocations.
 set_memory_alloc_limit!(limit::String) =
     @set_preferences!("hard_memory_limit" => limit)
 
-const HARD_MEMORY_LIMIT = parse_memory_limit(
-    @load_preference("hard_memory_limit", "none"))
+const HARD_MEMORY_LIMIT = Ref{Union{Nothing, UInt64}}(nothing)
+function hard_memory_limit()
+    l = HARD_MEMORY_LIMIT[]
+    l ≢ nothing && return l
+
+    HARD_MEMORY_LIMIT[] = parse_memory_limit(
+        @load_preference("hard_memory_limit", "none"))
+end
 
 function alloc_or_retry!(f)
     status = f()
@@ -108,7 +114,7 @@ function alloc_or_retry!(f)
         Reporting current memory usage:
         - HIP pool used: $(Base.format_bytes(HIP.used_memory(pool))).
         - HIP pool reserved: $(Base.format_bytes(HIP.reserved_memory(pool))).
-        - Hard memory limit: $(Base.format_bytes(HARD_MEMORY_LIMIT)).
+        - Hard memory limit: $(Base.format_bytes(hard_memory_limit())).
         """
     end
 
