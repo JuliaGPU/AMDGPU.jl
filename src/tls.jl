@@ -26,8 +26,20 @@ task_local_state()::Union{Nothing, TaskLocalState} =
 task_local_state!(args...)::TaskLocalState =
     get!(() -> TaskLocalState(args...), task_local_storage(), :AMDGPU)
 
+"""
+    device()::HIPDevice
+
+Get currently active device.
+This device is used when launching kernels via `@roc`.
+"""
 device() = task_local_state!().device
 
+"""
+    device!(device::HIPDevice)
+
+Switch current device being used.
+This switches only for a task inside which it is called.
+"""
 function device!(dev::HIPDevice)
     # Set the new default device.
     Runtime.DEFAULT_DEVICE[] = dev
@@ -55,17 +67,38 @@ function stream(state::TaskLocalState)::HIPStream
     end
 end
 
+"""
+    stream()::HIPStream
+
+Get the HIP stream that should be used as the default one
+for the currently executing task.
+"""
 stream()::HIPStream = stream(task_local_state!())
 
+"""
+    stream!(s::HIPStream)
+
+Change the default stream to be used **within the same Julia task**.
+"""
 function stream!(s::HIPStream)
     state = task_local_state!()
     state.streams[device_id(state.device)] = s
     return
 end
 
+"""
+    stream!(f::Base.Callable, stream::HIPStream)
+
+Change the default stream to be used **within the same Julia task**,
+execute `f` and revert to the original stream.
+
+# Returns:
+
+Return value of the function `f`.
+"""
 function stream!(f::Function, s::HIPStream)
     old_s = stream()
-    try
+    return try
         f()
     finally
         stream!(old_s)
@@ -93,7 +126,7 @@ end
 
 function context!(f::Function, ctx::HIPContext)
     old_ctx = context!(ctx)
-    try
+    return try
         f()
     finally
         old_ctx ≢ nothing && old_ctx != ctx && context!(old_ctx)
@@ -102,6 +135,12 @@ end
 
 priority() = task_local_state!().stream.priority
 
+"""
+    priority!(p::Symbol)
+
+Change the priority of the default stream.
+Accepted values are `:normal` (the default), `:low` and `:high`.
+"""
 function priority!(p::Symbol)
     state = task_local_state!()
     state.stream.priority == p && return
@@ -110,6 +149,17 @@ function priority!(p::Symbol)
     return
 end
 
+"""
+    priority!(f::Base.Callable, priority::Symbol)
+
+Chnage the priority of default stream, execute `f` and
+revert to the original priority.
+Accepted values are `:normal` (the default), `:low` and `:high`.
+
+# Returns:
+
+Return value of the function `f`.
+"""
 function priority!(f::Function, p::Symbol)
     state = task_local_state!()
     idx = device_id(state.device)
@@ -118,7 +168,7 @@ function priority!(f::Function, p::Symbol)
     swap = p != old_s.priority
     swap && (state.streams[idx] = HIPStream(p);)
 
-    try
+    return try
         f()
     finally
         swap && (state.streams[idx] = old_s;)
