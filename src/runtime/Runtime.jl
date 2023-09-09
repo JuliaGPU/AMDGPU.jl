@@ -5,8 +5,6 @@ using ..GPUCompiler
 
 import ..Adapt
 import Preferences: @load_preference, @set_preferences!
-import TimespanLogging
-import TimespanLogging: timespan_start, timespan_finish
 
 import ..HSA
 import ..HIP
@@ -19,7 +17,6 @@ struct Adaptor end
 const RT_LOCK = Threads.ReentrantLock()
 const RT_EXITING = Ref{Bool}(false)
 
-include("logging.jl")
 include("error.jl")
 include("hsa_device.jl")
 include("device.jl")
