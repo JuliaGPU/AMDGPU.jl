@@ -22,7 +22,7 @@ Base.unsafe_convert(::Type{rocrand_generator}, rng::RNG) = rng.handle
 ## seeding
 function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
     rocrand_set_seed(rng, seed)
-    rocrand_set_offset(rng, seed)
+    rocrand_set_offset(rng, offset)
     rocrand_initialize_generator(rng)
     return
 end
