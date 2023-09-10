@@ -23,6 +23,10 @@ function julia_cmd_projects(jl_str)
     append!(cmd.exec, julia_exeflags(projects))
 
     (;amdgpu_project, current_project, julia_project) = projects
+    amdgpu_project = replace(amdgpu_project, "\\" => "/")
+    if !isnothing(current_project)
+        current_project = replace(current_project, "\\" => "/")
+    end
     if current_project !== nothing
         jl_str = "push!(LOAD_PATH, \"$current_project\");" * jl_str
     end
@@ -79,70 +83,92 @@ function find_roc_paths()
     paths = filter(!isempty, paths)
     paths = map(Base.Filesystem.abspath, paths)
     push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
+    push!(paths, "C:/Program Files/AMD/ROCm/5.5/bin")
     if haskey(ENV, "ROCM_PATH")
         push!(paths, joinpath(ENV["ROCM_PATH"], "lib"))
     end
     return filter(isdir, paths)
 end
 
+function find_roc_bindir()
+    path = find_roc_paths()
+    isempty(path) && return ""
+    return only(path)
+end
+
 function find_ld_lld()
-    paths = split(get(ENV, "PATH", ""), ":")
-    paths = filter(path -> path != "", paths)
-    paths = map(Base.Filesystem.abspath, paths)
-    basedir = get(ENV, "ROCM_PATH", "/opt/rocm")
-    ispath(joinpath(basedir, "llvm/bin/ld.lld")) &&
-        push!(paths, joinpath(basedir, "llvm/bin/"))
-    ispath(joinpath(basedir, "hcc/bin/ld.lld")) &&
-        push!(paths, joinpath(basedir, "/hcc/bin/"))
-    ispath(joinpath(basedir, "opencl/bin/x86_64/ld.lld")) &&
-        push!(paths, joinpath(basedir, "opencl/bin/x86_64/"))
-    for path in paths
-        exp_ld_path = joinpath(path, "ld.lld")
-        if ispath(exp_ld_path)
-            try
-                tmpfile = mktemp()
-                run(pipeline(`$exp_ld_path -v`; stdout=tmpfile[1]))
-                vstr = read(tmpfile[1], String)
-                rm(tmpfile[1])
-                vstr = replace(vstr, "AMD " => "")
-                vstr_splits = split(vstr, ' ')
-                if VersionNumber(vstr_splits[2]) >= v"6.0.0"
-                    return exp_ld_path
+    if Sys.iswindows()
+        path = find_roc_bindir()
+        exe = normpath(joinpath(path, "ld.lld.exe"))
+        return isfile(exe) ? exe : ""
+    else
+        paths = split(get(ENV, "PATH", ""), ":")
+        paths = filter(path -> path != "", paths)
+        paths = map(Base.Filesystem.abspath, paths)
+        basedir = get(ENV, "ROCM_PATH", "/opt/rocm")
+        ispath(joinpath(basedir, "llvm/bin/ld.lld")) &&
+            push!(paths, joinpath(basedir, "llvm/bin/"))
+        ispath(joinpath(basedir, "hcc/bin/ld.lld")) &&
+            push!(paths, joinpath(basedir, "/hcc/bin/"))
+        ispath(joinpath(basedir, "opencl/bin/x86_64/ld.lld")) &&
+            push!(paths, joinpath(basedir, "opencl/bin/x86_64/"))
+        for path in paths
+            exp_ld_path = joinpath(path, "ld.lld")
+            if ispath(exp_ld_path)
+                try
+                    tmpfile = mktemp()
+                    run(pipeline(`$exp_ld_path -v`; stdout=tmpfile[1]))
+                    vstr = read(tmpfile[1], String)
+                    rm(tmpfile[1])
+                    vstr = replace(vstr, "AMD " => "")
+                    vstr_splits = split(vstr, ' ')
+                    if VersionNumber(vstr_splits[2]) >= v"6.0.0"
+                        return exp_ld_path
+                    end
+                catch
+                    @debug "bindeps: Failed running ld.lld in $exp_ld_path"
                 end
-            catch
-                @debug "bindeps: Failed running ld.lld in $exp_ld_path"
             end
         end
+        return ""
     end
-    return ""
 end
 
 function find_device_libs()
-    # Might be set by tools like Spack or the user
-    hip_devlibs_path = get(ENV, "HIP_DEVICE_LIB_PATH", "")
-    hip_devlibs_path !== "" && return hip_devlibs_path
-    devlibs_path = get(ENV, "DEVICE_LIB_PATH", "")
-    devlibs_path !== "" && return devlibs_path
+    if Sys.iswindows()
+        dir = find_roc_bindir()
+        bitcode_path = normpath(joinpath(dir, "..", "amdgcn", "bitcode"))
+        if isfile(joinpath(bitcode_path, "ocml.bc")) ||
+           isfile(joinpath(bitcode_path, "ocml.amdgcn.bc"))
+            return bitcode_path
+        end
+    else
+        # Might be set by tools like Spack or the user
+        hip_devlibs_path = get(ENV, "HIP_DEVICE_LIB_PATH", "")
+        hip_devlibs_path !== "" && return hip_devlibs_path
+        devlibs_path = get(ENV, "DEVICE_LIB_PATH", "")
+        devlibs_path !== "" && return devlibs_path
 
-    # The canonical location
-    if isdir("/opt/rocm/amdgcn/bitcode")
-        return "/opt/rocm/amdgcn/bitcode"
-    end
+        # The canonical location
+        if isdir("/opt/rocm/amdgcn/bitcode")
+            return "/opt/rocm/amdgcn/bitcode"
+        end
 
-    # Search relative to LD_LIBRARY_PATH entries
-    paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
-    paths = filter(path -> path != "", paths)
-    paths = map(Base.Filesystem.abspath, paths)
-    for path in paths
-        bitcode_path = joinpath(path, "../amdgcn/bitcode/")
-        if ispath(bitcode_path)
-            if isfile(joinpath(bitcode_path, "ocml.bc")) ||
-               isfile(joinpath(bitcode_path, "ocml.amdgcn.bc"))
-               return bitcode_path
+        # Search relative to LD_LIBRARY_PATH entries
+        paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
+        paths = filter(path -> path != "", paths)
+        paths = map(Base.Filesystem.abspath, paths)
+        for path in paths
+            bitcode_path = joinpath(path, "../amdgcn/bitcode/")
+            if ispath(bitcode_path)
+                if isfile(joinpath(bitcode_path, "ocml.bc")) ||
+                isfile(joinpath(bitcode_path, "ocml.amdgcn.bc"))
+                return bitcode_path
+                end
             end
         end
+        return nothing
     end
-    return nothing
 end
 
 function populate_globals!(config)

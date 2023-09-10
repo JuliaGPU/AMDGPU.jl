@@ -49,7 +49,8 @@ end
 function find_system_library!(
     config, name::Symbol; lib, dirs = find_roc_paths(), ext = dlext,
 )
-    lib_path = find_rocm_library(lib, dirs, ext)
+    @show lib dirs ext
+    lib_path = replace(find_rocm_library(lib, dirs, ext), "\\" => "/")
     if !isempty(something(lib_path, ""))
         loaded, error_str = safe_exec("using Libdl; dlopen(\"$lib_path\")")
         if loaded
@@ -84,9 +85,10 @@ function find_hsa_runtime!(config)
         end
     else
         roc_dirs = find_roc_paths()
-        libhsaruntime_path = find_rocm_library("libhsa-runtime64", roc_dirs, "so.1")
+        libhsaruntime_path = find_rocm_library(["libhsa-runtime64", "hiprt0200064"], roc_dirs)
         if !isempty(something(libhsaruntime_path, ""))
-            loaded, error_str = safe_exec("using Libdl; dlopen(\"$libhsaruntime_path\")")
+            path = replace(libhsaruntime_path, "\\" => "/")
+            loaded, error_str = safe_exec("using Libdl; dlopen($(repr(path)))")
             if loaded
                 config[:libhsaruntime_path] = libhsaruntime_path
                 config[:hsa_configured] = true
@@ -156,7 +158,7 @@ function find_hip!(config)
     if use_artifacts()
         find_artifact_library!(config, :HIP_jll; name=:hip, lib=:libamdhip64)
     else
-        find_system_library!(config, :hip; lib=["libamdhip64", "libhip_hcc"])
+        find_system_library!(config, :hip; lib=["libamdhip64", "libhip_hcc", "amdhip64"])
     end
 end
 
@@ -167,7 +169,8 @@ function find_hip_based_libs!(config, rocm_ext_libs)
             if use_artifacts()
                 find_artifact_library!(config, pkg; name, lib)
             else
-                find_system_library!(config, name; lib=string(lib))
+                @show name string(lib)
+                find_system_library!(config, name; lib=[string(lib), replace(string(lib), "lib" => "")])
             end
         end
     end
@@ -198,12 +201,12 @@ function bindeps_setup()
         config[Symbol(name, :_build_reason)] = "unknown"
     end
 
-    if !Sys.islinux()
-        @warn "AMDGPU.jl only supports Linux OS."
+    if !Sys.islinux() && !Sys.iswindows()
+        @warn "AMDGPU.jl only supports Linux and Windows."
         config[:build_reason] = "Unsupported OS: $(repr(Sys.KERNEL))"
         return config
     end
-    if !ispath("/dev/kfd")
+    if Sys.islinux()  && ! ispath("/dev/kfd")
         @warn "/dev/kfd is not available. Cannot use ROCm Runtime."
     end
 

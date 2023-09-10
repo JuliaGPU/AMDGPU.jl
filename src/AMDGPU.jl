@@ -52,7 +52,7 @@ struct KernelState
     printf_output_context::Ptr{Cvoid}
 end
 
-const libhsaruntime = "libhsa-runtime64.so.1"
+const libhsaruntime = "amdhip64.dll"
 include(joinpath("hsa", "HSA.jl"))
 
 # Load binary dependencies.
@@ -141,10 +141,10 @@ function __init__()
     end
 
     # Quiet path first, in case this system doesn't have AMD GPUs
-    if !ispath("/dev/kfd")
-        @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
-        return
-    end
+    # if !ispath("/dev/kfd")
+    #     @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
+    #     return
+    # end
 
     has_gpu = false
     has_navi2 = false
