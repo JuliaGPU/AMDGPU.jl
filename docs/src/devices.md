@@ -11,7 +11,7 @@ which affects compilation and kernel launch.
 The device bound to a current Julia task is accessible via [`AMDGPU.device()`](@ref).
 The list of available devices can be queried with [`AMDGPU.devices`](@ref).
 
-If you have a [`HIPDevice`](@ref) object, you can also switch
+If you have a `HIPDevice` object, you can also switch
 the device with [`AMDGPU.device!`](@ref).
 This will switch it **only within the task it is called from**.
 

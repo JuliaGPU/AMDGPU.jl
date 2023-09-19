@@ -74,7 +74,7 @@ If this statement is omitted, Julia will attempt to return the value
 of the last evaluated expression, in this case a `Float64`,
 which will cause a compilation failure as kernels cannot return values.
 
-The easiest way to launch a GPU kernel is with the [`@roc`](@ref) macro,
+The easiest way to launch a GPU kernel is with the `@roc` macro,
 specifying `groupsize` and `gridsize` to cover full array,
 and calling it like a regular function:
 
@@ -116,9 +116,9 @@ As a quick summary, here is a mapping of the most common terms:
 
 | AMDGPU | CUDA |
 |:---:|:---:|
-| [`workitemIdx`](@ref) | [`threadIdx`](@ref) |
-| [`workgroupIdx`](@ref) | [`blockIdx`](@ref) |
-| [`workgroupDim`](@ref) | [`blockDim`](@ref) |
+| [`workitemIdx`](@ref) | `threadIdx` |
+| [`workgroupIdx`](@ref) | `blockIdx` |
+| [`workgroupDim`](@ref) | `blockDim` |
 | [`gridItemDim`](@ref) | No equivalent |
 | [`gridGroupDim`](@ref) | `gridDim` |
 | `groupsize` | `threads` |

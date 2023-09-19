@@ -19,7 +19,6 @@ function main()
             "Host-Call" => "hostcall.md",
             "Intrinsics" => [
                 "Execution Control" => "execution_control.md",
-                "Wavefront Operations" => "wavefront_ops.md",
             ],
             "Printing" => "printing.md",
             "Logging" => "logging.md",
