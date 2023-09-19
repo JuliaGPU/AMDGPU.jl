@@ -26,7 +26,7 @@ stream = AMDGPU.HIPStream()
 x = AMDGPU.stream!(() -> AMDGPU.ones(Float32, 16), stream)
 ```
 
-- Using `stream` argument to [`@roc`](@ref) macro:
+- Using `stream` argument to `@roc` macro:
 
 ```julia
 stream = AMDGPU.HIPStream()
