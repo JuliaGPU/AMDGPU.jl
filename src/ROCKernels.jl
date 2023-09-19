@@ -111,6 +111,10 @@ function mkcontext(kernel::Kernel{ROCBackend}, I, _ndrange, iterspace, ::Dynamic
     metadata = CompilerMetadata{KernelAbstractions.ndrange(kernel), Dynamic}(I, _ndrange, iterspace)
 end
 
+@device_override function KernelAbstractions.isongpu()
+    return true
+end
+
 @device_override @inline function __index_Local_Linear(ctx)
     return AMDGPU.Device.threadIdx().x
 end
