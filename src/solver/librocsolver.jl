@@ -48,6 +48,26 @@ function rocsolver_zunmqr(handle, side, trans, m, n, k, A, lda, ipiv, C, ldc)
     ccall((:rocsolver_zunmqr, librocsolver), rocblas_status, (rocblas_handle, rocblas_side, rocblas_operation, Cint, Cint, Cint, Ptr{ComplexF64}, Cint, Ptr{ComplexF64}, Ptr{ComplexF64}, Cint), handle, side, trans, m, n, k, A, lda, ipiv, C, ldc)
 end
 
+function rocsolver_sorgqr(handle, m, n, k, A, lda, ipiv)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_sorgqr, librocsolver), rocblas_status, (rocblas_handle, Cint, Cint, Cint, Ptr{Float32}, Cint, Ptr{Float32}), handle, m, n, k, A, lda, ipiv)
+end
+
+function rocsolver_dorgqr(handle, m, n, k, A, lda, ipiv)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_dorgqr, librocsolver), rocblas_status, (rocblas_handle, Cint, Cint, Cint, Ptr{Float64}, Cint, Ptr{Float64}), handle, m, n, k, A, lda, ipiv)
+end
+
+function rocsolver_cungqr(handle, m, n, k, A, lda, ipiv)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_cungqr, librocsolver), rocblas_status, (rocblas_handle, Cint, Cint, Cint, Ptr{ComplexF32}, Cint, Ptr{ComplexF32}), handle, m, n, k, A, lda, ipiv)
+end
+
+function rocsolver_zungqr(handle, m, n, k, A, lda, ipiv)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_zungqr, librocsolver), rocblas_status, (rocblas_handle, Cint, Cint, Cint, Ptr{ComplexF64}, Cint, Ptr{ComplexF64}), handle, m, n, k, A, lda, ipiv)
+end
+
 function rocsolver_sgetrf(handle, m, n, A, lda, ipiv, info)
     AMDGPU.prepare_state()
     ccall((:rocsolver_sgetrf, librocsolver), rocblas_status, (rocblas_handle, Cint, Cint, Ptr{Float32}, Cint, Ptr{Cint}, Ptr{Cint}), handle, m, n, A, lda, ipiv, info)

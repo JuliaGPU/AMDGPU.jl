@@ -131,3 +131,13 @@ end
         @test Array(db) ≈ b
     end
 end
+
+@testset "geqrf! -- omgqr!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty, m, n)
+        dA = ROCArray(A)
+        dA, τ = rocSOLVER.geqrf!(dA)
+        rocSOLVER.orgqr!(dA, τ)
+        @test dA' * dA ≈ I
+    end
+end

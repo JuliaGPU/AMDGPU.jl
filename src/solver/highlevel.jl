@@ -59,6 +59,23 @@ for (fname, elty) in (
 end
 
 for (fname, elty) in (
+    (:rocsolver_sorgqr, Float32),
+    (:rocsolver_dorgqr, Float64),
+    (:rocsolver_cungqr, ComplexF32),
+    (:rocsolver_zungqr, ComplexF64),
+)
+    @eval begin
+        function orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty})
+            m, n = size(A)
+            lda = max(1, stride(A, 2))
+            k = length(tau)
+            $fname(rocBLAS.handle(), m, n, k, A, lda, tau) |> check
+            A
+        end
+    end
+end
+
+for (fname, elty) in (
     (:rocsolver_sgetrf, Float32),
     (:rocsolver_dgetrf, Float64),
     (:rocsolver_cgetrf, ComplexF32),
@@ -300,5 +317,6 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
             side::Char, trans::Char, A::ROCMatrix{$elty},
             tau::ROCVector{$elty}, C::ROCVecOrMat{$elty},
         ) = rocSOLVER.ormqr!(side, trans, A, tau, C)
+        LinearAlgebra.LAPACK.orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.orgqr!(A, tau)
     end
 end
