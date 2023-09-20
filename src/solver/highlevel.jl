@@ -7,11 +7,15 @@ for (fname, elty) in (
     @eval begin
         function geqrf!(A::ROCMatrix{$elty})
             m, n = size(A)
-            lda = max(1, stride(A, 2))
+            tau = ROCVector{$elty}(undef, min(m, n))
+            geqrf!(A, tau)
+        end
 
-            ipiv = ROCVector{$elty}(undef, min(m, n))
-            $fname(rocBLAS.handle(), m, n, A, lda, ipiv) |> check
-            A, ipiv
+        function geqrf!(A::ROCMatrix{$elty}, tau::ROCVector{$elty})
+            m, n = size(A)
+            lda = max(1, stride(A, 2))
+            $fname(rocBLAS.handle(), m, n, A, lda, tau) |> check
+            A, tau
         end
     end
 end
@@ -286,6 +290,7 @@ end
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}) = rocSOLVER.geqrf!(A)
+        LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.geqrf!(A, tau)
         LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}) = rocSOLVER.getrf!(A)
         LinearAlgebra.LAPACK.getrs!(
             trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint},
