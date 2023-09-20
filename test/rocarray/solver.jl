@@ -1,3 +1,5 @@
+using AMDGPU.rocSOLVER
+
 m, n = 15, 10
 
 @testset "elty=$elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
