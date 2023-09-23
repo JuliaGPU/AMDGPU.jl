@@ -247,6 +247,12 @@ function __init__()
             """
         end
     end
+
+    # Ensure that operations executed by the REPL backend finish before returning.
+    # Displaying values happens on a different task.
+    if isdefined(Base, :active_repl_backend)
+        push!(Base.active_repl_backend.ast_transforms, synchronize_rocm_tasks)
+    end
 end
 
 end
