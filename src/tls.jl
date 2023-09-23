@@ -189,3 +189,13 @@ end
     state.context != HIP.HIPContext() && HIP.context!(state.context)
     return
 end
+
+function synchronize_rocm_tasks(ex)
+    quote
+        try
+            $(ex)
+        finally
+            $task_local_state() ≢ nothing && $device_synchronize()
+        end
+    end
+end

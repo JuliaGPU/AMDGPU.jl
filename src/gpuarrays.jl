@@ -3,8 +3,7 @@ struct ROCArrayBackend <: AbstractGPUBackend end
 struct ROCKernelContext <: AbstractKernelContext end
 
 @inline function GPUArrays.gpu_call(
-    ::ROCArrayBackend, f, args, threads::Int, blocks::Int;
-    name::Union{String, Nothing},
+    ::ROCArrayBackend, f, args, threads::Int, blocks::Int; name::Maybe{String},
 )
     @roc gridsize=blocks groupsize=threads name=name f(ROCKernelContext(), args...)
 end
