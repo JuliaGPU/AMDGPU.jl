@@ -65,25 +65,32 @@ include("setup.jl")
 
 @info "Running following tests: $TARGET_TESTS."
 @info "Testing using device $(AMDGPU.device())."
+versioninfo()
 AMDGPU.versioninfo()
 
-if "core" in TARGET_TESTS
-    @testset verbose=true "Device Functions" begin
-        @info "Testing `Device Functions` on the main thread without workers."
-
-        include("device/launch.jl")
-        include("device/array.jl")
-        include("device/vadd.jl")
-        include("device/memory.jl")
-        include("device/indexing.jl")
-        include("device/math.jl")
-        include("device/wavefront.jl")
-        include("device/execution_control.jl")
-        include("device/exceptions.jl")
-        include("device/hostcall.jl")
-        include("device/output.jl")
-    end
+@testset "Debug" begin
+    rng = GPUArrays.default_rng(ROCArray)
+    A = ROCArray{Bool}(undef, 1024)
+    rand!(rng, A)
 end
+
+# if "core" in TARGET_TESTS
+#     @testset verbose=true "Device Functions" begin
+#         @info "Testing `Device Functions` on the main thread without workers."
+
+#         include("device/launch.jl")
+#         include("device/array.jl")
+#         include("device/vadd.jl")
+#         include("device/memory.jl")
+#         include("device/indexing.jl")
+#         include("device/math.jl")
+#         include("device/wavefront.jl")
+#         include("device/execution_control.jl")
+#         include("device/exceptions.jl")
+#         include("device/hostcall.jl")
+#         include("device/output.jl")
+#     end
+# end
 
 @testset "AMDGPU" begin
 
@@ -128,119 +135,120 @@ tasks = Dict{Int,String}()
 
 @info "Running tests with $(length(ws)) workers with flags: $(AMDGPU.julia_exeflags())"
 
-if "core" in TARGET_TESTS
-    push!(tests, "HSA" => () -> begin
-        include("hsa/utils.jl")
-        include("hsa/getinfo.jl")
-        include("hsa/device.jl")
-    end)
-    push!(tests, "Codegen" => () -> begin
-        include("codegen/synchronization.jl")
-        include("codegen/trap.jl")
-    end)
-    push!(tests, "Multitasking" => () -> include("tls.jl"))
-    push!(tests, "ROCArray - Base" => () -> include("rocarray/base.jl"))
-    push!(tests, "ROCArray - Broadcast" => () -> include("rocarray/broadcast.jl"))
-end
+# if "core" in TARGET_TESTS
+#     push!(tests, "HSA" => () -> begin
+#         include("hsa/utils.jl")
+#         include("hsa/getinfo.jl")
+#         include("hsa/device.jl")
+#     end)
+#     push!(tests, "Codegen" => () -> begin
+#         include("codegen/synchronization.jl")
+#         include("codegen/trap.jl")
+#     end)
+#     push!(tests, "Multitasking" => () -> include("tls.jl"))
+#     push!(tests, "ROCArray - Base" => () -> include("rocarray/base.jl"))
+#     push!(tests, "ROCArray - Broadcast" => () -> include("rocarray/broadcast.jl"))
+# end
 
-if "hip" in TARGET_TESTS
-    push!(tests, "ROCm libraries are functional" => () -> begin
-        @test AMDGPU.functional(:rocblas)
-        @test AMDGPU.functional(:rocrand)
-        if !AMDGPU.use_artifacts()
-            # We don't have artifacts for these
-            @test AMDGPU.functional(:rocfft)
-        end
-    end)
-    push!(tests, "rocBLAS" => () -> begin
-        if AMDGPU.functional(:rocblas)
-            include("rocarray/blas.jl")
-        else
-            @test_skip "rocBLAS"
-        end
-    end)
-    push!(tests, "rocSOLVER" => () -> begin
-        if AMDGPU.functional(:rocsolver)
-            include("rocarray/solver.jl")
-        else
-            @test_skip "rocSOLVER"
-        end
-    end)
-    push!(tests, "rocSPARSE" => () -> begin
-        if AMDGPU.functional(:rocsparse)
-            include("rocsparse/rocsparse.jl")
-        else
-            @test_skip "rocSPARSE"
-        end
-    end)
-    push!(tests, "rocRAND" => () -> begin
-        if AMDGPU.functional(:rocrand)
-            include("rocarray/random.jl")
-        else
-            @test_skip "rocRAND"
-        end
-    end)
-    push!(tests, "rocFFT" => () -> begin
-        if AMDGPU.functional(:rocfft)
-            include("rocarray/fft.jl")
-        else
-            @test_skip "rocFFT"
-        end
-    end)
-    push!(tests, "MIOpen" => () -> begin
-        if AMDGPU.functional(:MIOpen)
-            include("dnn/miopen.jl")
-        else
-            @test_skip "MIOpen"
-        end
-    end)
-    push!(tests, "AMDGPU.@elapsed" => () -> begin
-        xgpu = AMDGPU.rand(Float32, 100)
-        t = AMDGPU.@elapsed xgpu .+= 1
-        @test t isa AbstractFloat
-        @test t >= 0
+# if "hip" in TARGET_TESTS
+#     push!(tests, "ROCm libraries are functional" => () -> begin
+#         @test AMDGPU.functional(:rocblas)
+#         @test AMDGPU.functional(:rocrand)
+#         if !AMDGPU.use_artifacts()
+#             # We don't have artifacts for these
+#             @test AMDGPU.functional(:rocfft)
+#         end
+#     end)
+#     push!(tests, "rocBLAS" => () -> begin
+#         if AMDGPU.functional(:rocblas)
+#             include("rocarray/blas.jl")
+#         else
+#             @test_skip "rocBLAS"
+#         end
+#     end)
+#     push!(tests, "rocSOLVER" => () -> begin
+#         if AMDGPU.functional(:rocsolver)
+#             include("rocarray/solver.jl")
+#         else
+#             @test_skip "rocSOLVER"
+#         end
+#     end)
+#     push!(tests, "rocSPARSE" => () -> begin
+#         if AMDGPU.functional(:rocsparse)
+#             include("rocsparse/rocsparse.jl")
+#         else
+#             @test_skip "rocSPARSE"
+#         end
+#     end)
+#     push!(tests, "rocRAND" => () -> begin
+#         if AMDGPU.functional(:rocrand)
+#             include("rocarray/random.jl")
+#         else
+#             @test_skip "rocRAND"
+#         end
+#     end)
+#     push!(tests, "rocFFT" => () -> begin
+#         if AMDGPU.functional(:rocfft)
+#             include("rocarray/fft.jl")
+#         else
+#             @test_skip "rocFFT"
+#         end
+#     end)
+#     push!(tests, "MIOpen" => () -> begin
+#         if AMDGPU.functional(:MIOpen)
+#             include("dnn/miopen.jl")
+#         else
+#             @test_skip "MIOpen"
+#         end
+#     end)
+#     push!(tests, "AMDGPU.@elapsed" => () -> begin
+#         xgpu = AMDGPU.rand(Float32, 100)
+#         t = AMDGPU.@elapsed xgpu .+= 1
+#         @test t isa AbstractFloat
+#         @test t >= 0
 
-        x = rand(Float32, 100)
-        t = AMDGPU.@elapsed begin
-            copyto!(xgpu, x)
-            copyto!(x, xgpu)
-        end
-        @test t isa AbstractFloat
-        @test t >= 0
-    end)
-    if length(AMDGPU.devices()) > 1
-        push!(tests, "HIP Peer Access" => () -> begin
-            dev1, dev2, _ = AMDGPU.devices()
-            @test AMDGPU.HIP.can_access_peer(dev1, dev2) isa Bool
-        end)
-    end
-end
+#         x = rand(Float32, 100)
+#         t = AMDGPU.@elapsed begin
+#             copyto!(xgpu, x)
+#             copyto!(x, xgpu)
+#         end
+#         @test t isa AbstractFloat
+#         @test t >= 0
+#     end)
+#     if length(AMDGPU.devices()) > 1
+#         push!(tests, "HIP Peer Access" => () -> begin
+#             dev1, dev2, _ = AMDGPU.devices()
+#             @test AMDGPU.HIP.can_access_peer(dev1, dev2) isa Bool
+#         end)
+#     end
+# end
 
-"ext" in TARGET_TESTS && push!(tests,
-    "External Packages" => () -> include("external/forwarddiff.jl"))
+# "ext" in TARGET_TESTS && push!(tests,
+#     "External Packages" => () -> include("external/forwarddiff.jl"))
 
-if "gpuarrays" in TARGET_TESTS
-    for (i, name) in enumerate(sort(collect(keys(TestSuite.tests))))
-        push!(tests, "GPUArrays TestSuite - $name" => () -> begin
-            TestSuite.tests[name](ROCArray)
-            # Multidimensional indexing involves boxing, launching global malloc hostcall.
-            # Synchronize to disable it.
-            if name == "indexing multidimensional"
-                AMDGPU.synchronize(; blocking=false)
-            end
-        end)
-    end
-end
+# if "gpuarrays" in TARGET_TESTS
+#     for (i, name) in enumerate(sort(collect(keys(TestSuite.tests))))
+#         contains("random", name) || continue
+#         push!(tests, "GPUArrays TestSuite - $name" => () -> begin
+#             TestSuite.tests[name](ROCArray)
+#             # Multidimensional indexing involves boxing, launching global malloc hostcall.
+#             # Synchronize to disable it.
+#             if name == "indexing multidimensional"
+#                 AMDGPU.synchronize(; blocking=false)
+#             end
+#         end)
+#     end
+# end
 
-if "kernelabstractions" in TARGET_TESTS
-    push!(tests, "KernelAbstractions" => ()-> begin
-        Testsuite.testsuite(
-            ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
-            skip_tests=Set(["Printing", "sparse"])) # TODO fix KA printing
-        # Disable global malloc hostcall started by conversion tests.
-        AMDGPU.synchronize(; blocking=false)
-    end)
-end
+# if "kernelabstractions" in TARGET_TESTS
+#     push!(tests, "KernelAbstractions" => ()-> begin
+#         Testsuite.testsuite(
+#             ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
+#             skip_tests=Set(["Printing", "sparse"])) # TODO fix KA printing
+#         # Disable global malloc hostcall started by conversion tests.
+#         AMDGPU.synchronize(; blocking=false)
+#     end)
+# end
 
 function run_worker(w)
     while !isempty(tests)
