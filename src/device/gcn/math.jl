@@ -77,12 +77,12 @@ for jltype in (Float64, Float32, Float16)
 
     @eval @device_override function Base.sincos(x::$jltype)
         ref = Ref{$jltype}()
-        ret = ccall($("extern __ocml_sincos_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ptr{$jltype}), x, ref)
+        ret = ccall($("extern __ocml_sincos_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ref{$jltype}), x, ref)
         return (ret, ref[])
     end
     @eval @device_override function Base.sincospi(x::$jltype)
         ref = Ref{$jltype}()
-        ret = ccall($("extern __ocml_sincospi_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ptr{$jltype}), x, ref)
+        ret = ccall($("extern __ocml_sincospi_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ref{$jltype}), x, ref)
         return (ret, ref[])
     end
 end
