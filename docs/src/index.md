@@ -73,10 +73,11 @@ For example Julia 1.10 uses LLVM 15, but ROCm 5.5+ uses LLVM 16 which are incomp
 However, there is a way to run system ROCm 5.5+ with Julia:
 
 1. Add respective version of artifact device libraries in your project:
-`]add ROCmDeviceLibs_jll@5.5` (for ROCm 5.5).
+    - ROCm 5.5: `]add ROCmDeviceLibs_jll@5.5`;
+    - ROCm 5.6: `]add ROCmDeviceLibs_jll@5.6`.
 2. Call [`AMDGPU.use_devlibs_jll!`](@ref) in your Julia session to switch
-to artifact device libraries (and the rest of the libraries
-will be used from system-wide installation).
+    to artifact device libraries (and the rest of the libraries
+    will be used from system-wide installation).
 
 ```@docs
 AMDGPU.use_devlibs_jll!
