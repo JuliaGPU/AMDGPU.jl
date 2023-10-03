@@ -23,6 +23,18 @@ end
 # TODO need updated ROCm artifacts to enable them again (5.4+).
 use_artifacts()::Bool = @load_preference("use_artifacts", false)
 
+# TODO docs for why
+function use_devlibs_jll!(flag::Bool = true)
+    @set_preferences!("use_devlibs_jll" => flag)
+
+    @info """
+    Switched `use_devlibs_jll` to `$flag`.
+    Restart Julia session for the changes to take effect.
+    """
+end
+
+use_devlibs_jll()::Bool = @load_preference("use_devlibs_jll", false)
+
 if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
     disable_artifacts = parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "true"))
     if !disable_artifacts && Base.libllvm_version >= v"16"
@@ -140,7 +152,7 @@ function find_ld_lld!(config)
 end
 
 function find_device_libs!(config)
-    if use_artifacts()
+    if use_artifacts() || use_devlibs_jll()
         find_artifact_library!(
             config, :ROCmDeviceLibs_jll;
             name=:device_libs, lib=:bitcode_path)
