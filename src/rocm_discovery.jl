@@ -13,15 +13,17 @@ const rocm_ext_libs = [
 Pass `true` to switch from system-wide ROCm installtion to artifacts.
 When using artifacts, system-wide installation is not needed at all.
 """
-function enable_artifacts!(flag::Bool = true)
+function enable_artifacts!(flag::Bool = true; show_message::Bool = true)
     if flag && Base.libllvm_version >= v"16"
         error("No supported artifacts for LLVM 16+. See: https://github.com/JuliaGPU/AMDGPU.jl/issues/440.")
     end
     @set_preferences!("use_artifacts" => flag)
-    @info """
-    Switched `use_artifacts` to `$flag`.
-    Restart Julia session for the changes to take effect.
-    """
+    if show_message
+        @info """
+        Switched `use_artifacts` to `$flag`.
+        Restart Julia session for the changes to take effect.
+        """
+    end
 end
 
 use_artifacts()::Bool = @load_preference("use_artifacts", false)
