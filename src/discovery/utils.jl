@@ -77,9 +77,11 @@ function find_roc_paths()
 end
 
 function find_ld_lld()
+    # TODO this is incorrect for Windows
     paths = split(get(ENV, "PATH", ""), ":")
     paths = filter(path -> path != "", paths)
     paths = map(Base.Filesystem.abspath, paths)
+
     basedir = get(ENV, "ROCM_PATH", "/opt/rocm")
     ispath(joinpath(basedir, "llvm/bin/ld.lld")) &&
         push!(paths, joinpath(basedir, "llvm/bin/"))
@@ -87,9 +89,9 @@ function find_ld_lld()
         push!(paths, joinpath(basedir, "/hcc/bin/"))
     ispath(joinpath(basedir, "opencl/bin/x86_64/ld.lld")) &&
         push!(paths, joinpath(basedir, "opencl/bin/x86_64/"))
+
     for path in paths
         exp_ld_path = joinpath(path, "ld.lld")
-        @show exp_ld_path
         if ispath(exp_ld_path)
             try
                 tmpfile = mktemp()

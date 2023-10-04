@@ -80,7 +80,7 @@ end
 function get_ld_lld(;
     from_artifact::Bool, artifact_library::Symbol, artifact_field::Symbol,
 )
-    if from_artifact
+    if from_artifact || Sys.iswindows()
         get_artifact_library(artifact_library, artifact_field)
     else
         find_ld_lld()
