@@ -89,6 +89,7 @@ function find_ld_lld()
         push!(paths, joinpath(basedir, "opencl/bin/x86_64/"))
     for path in paths
         exp_ld_path = joinpath(path, "ld.lld")
+        @show exp_ld_path
         if ispath(exp_ld_path)
             try
                 tmpfile = mktemp()
