@@ -53,7 +53,7 @@ struct KernelState
 end
 
 # Load binary dependencies.
-include("discovery/rocm_discovery.jl")
+include("discovery/discovery.jl")
 using .ROCmDiscovery
 
 include("utils.jl")

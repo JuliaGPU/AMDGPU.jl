@@ -3,7 +3,7 @@ module ROCmDiscovery
 using Preferences
 using Libdl
 
-include("discovery_utils.jl")
+include("utils.jl")
 
 """
     enable_artifacts!(flag::Bool = true)
@@ -25,6 +25,10 @@ function enable_artifacts!(flag::Bool = true; show_message::Bool = true)
 end
 
 use_artifacts()::Bool = @load_preference("use_artifacts", false)
+
+@static if use_artifacts()
+    import hsa_rocr_jll
+end
 
 """
     use_devlibs_jll!(flag::Bool = true)
@@ -56,8 +60,7 @@ end
 
 function get_artifact_library(pkg::Symbol, libname::Symbol)::String
     succ, res = safe_exec("import $pkg; println($pkg.$libname)")
-    succ || return ""
-    ispath(res) || return ""
+    (succ && ispath(res)) || return ""
     return res
 end
 
@@ -75,9 +78,9 @@ function get_library(
 end
 
 function get_ld_lld(;
-    artifact_library::Symbol, artifact_field::Symbol,
+    from_artifact::Bool, artifact_library::Symbol, artifact_field::Symbol,
 )
-    if use_artifacts()
+    if from_artifact
         get_artifact_library(artifact_library, artifact_field)
     else
         find_ld_lld()
@@ -96,43 +99,53 @@ function get_device_libs(;
 end
 
 export use_artifacts, enable_artifacts!, use_devlibs_jll, use_devlibs_jll!
-export lld_path, libhsaruntime, libdevice_libs, libhip
+export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
 export librocblas, librocsparse, librocsolver, librocalution
 export librocrand, librocfft, libMIOpen_path
+export julia_exeflags
 
 function __init__()
     rocm_paths = use_artifacts() ? String[] : find_roc_paths()
 
-    # TODO try/catch & check for functional
+    try
+        # Core.
+        lld_path = get_ld_lld(; from_artifact=false,
+            artifact_library=:LLD_jll, artifact_field=:lld_path)
+        lld_artifact = false
+        if isempty(lld_path)
+            lld_path = get_ld_lld(; from_artifact=true,
+                artifact_library=:LLD_jll, artifact_field=:lld_path)
+            lld_artifact = true
+        end
+        global lld_path = lld_path
+        global lld_artifact = lld_artifact
 
-    # Core.
-    global lld_path = get_ld_lld(;
-        artifact_library=:LLD_jll, artifact_field=:lld_path)
-    global libhsaruntime = get_library("libhsa-runtime64";
-        rocm_paths, artifact_library=:hsa_rocr_jll,
-        artifact_field=:libhsa_runtime64, ext="so.1")
-    global libdevice_libs = get_device_libs()
+        global libhsaruntime = get_library("libhsa-runtime64";
+            rocm_paths, artifact_library=:hsa_rocr_jll,
+            artifact_field=:libhsa_runtime64, ext="so.1")
+        global libdevice_libs = get_device_libs()
 
-    # HIP.
-    global libhip = get_library("libamdhip64";
-        rocm_paths, artifact_library=:HIP_jll)
-    # HIP-based libraries.
-    global librocblas = get_library("librocblas";
-        rocm_paths, artifact_library=:rocBLAS_jll)
-    global librocsparse = get_library("librocsparse";
-        rocm_paths, artifact_library=:rocSPARSE_jll)
-    global librocsolver = get_library("librocsolver";
-        rocm_paths, artifact_library=:rocSOLVER_jll)
-    global librocalution = get_library("librocalution";
-        rocm_paths, artifact_library=:rocALUTION_jll)
-    global librocrand = get_library("librocrand";
-        rocm_paths, artifact_library=:rocRAND_jll)
-    global librocfft = get_library("librocfft";
-        rocm_paths, artifact_library=:rocFFT_jll)
-    global libMIOpen_path = get_library("libMIOpen";
-        rocm_paths, artifact_library=:MIOpen_jll)
-
-    return
+        # HIP.
+        global libhip = get_library("libamdhip64";
+            rocm_paths, artifact_library=:HIP_jll)
+        # HIP-based libraries.
+        global librocblas = get_library("librocblas";
+            rocm_paths, artifact_library=:rocBLAS_jll)
+        global librocsparse = get_library("librocsparse";
+            rocm_paths, artifact_library=:rocSPARSE_jll)
+        global librocsolver = get_library("librocsolver";
+            rocm_paths, artifact_library=:rocSOLVER_jll)
+        global librocalution = get_library("librocalution";
+            rocm_paths, artifact_library=:rocALUTION_jll)
+        global librocrand = get_library("librocrand";
+            rocm_paths, artifact_library=:rocRAND_jll)
+        global librocfft = get_library("librocfft";
+            rocm_paths, artifact_library=:rocFFT_jll)
+        global libMIOpen_path = get_library("libMIOpen";
+            rocm_paths, artifact_library=:MIOpen_jll)
+    catch err
+        @error "ROCm discovery failed!" exception=(err, catch_backtrace())
+    end
 end
 
 end

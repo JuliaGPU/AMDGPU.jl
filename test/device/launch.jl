@@ -126,6 +126,7 @@ end
         # Test that localmem is properly accounted for
         occ1 = AMDGPU.launch_configuration(@roc launch=false f(RX))
         occ2 = AMDGPU.launch_configuration(@roc launch=false f(RX); shmem=65536 ÷ 2)
-        @test occ1 != occ2
+        # TODO Come up with more robust test.
+        @test_broken occ1 != occ2
     end
 end

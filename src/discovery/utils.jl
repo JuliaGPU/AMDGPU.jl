@@ -1,5 +1,5 @@
 function detect_projects()
-    amdgpu_project = normpath(joinpath(@__DIR__, ".."))
+    amdgpu_project = normpath(joinpath(@__DIR__, "..", ".."))
     current_project = Base.ACTIVE_PROJECT[]
     julia_project = if Base.JLOptions().project != C_NULL
         unsafe_string(Base.JLOptions().project)
