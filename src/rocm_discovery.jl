@@ -7,6 +7,12 @@ const rocm_ext_libs = [
     (:rocfft, nothing),
     (:MIOpen, :MIOpen_jll)]
 
+"""
+    enable_artifacts!(flag::Bool = true)
+
+Pass `true` to switch from system-wide ROCm installtion to artifacts.
+When using artifacts, system-wide installation is not needed at all.
+"""
 function enable_artifacts!(flag::Bool = true; show_message::Bool = true)
     if flag && Base.libllvm_version >= v"16"
         error("No supported artifacts for LLVM 16+. See: https://github.com/JuliaGPU/AMDGPU.jl/issues/440.")
@@ -20,8 +26,27 @@ function enable_artifacts!(flag::Bool = true; show_message::Bool = true)
     end
 end
 
-# TODO need updated ROCm artifacts to enable them again (5.4+).
 use_artifacts()::Bool = @load_preference("use_artifacts", false)
+
+"""
+    use_devlibs_jll!(flag::Bool = true)
+
+Pass `true` to use device libraries from artifacts and
+the rest of the libraries from system-wide ROCm installation (mixed-mode).
+
+This allows using ROCm 5.5+ which internally use LLVM 16+, but
+device libraries from artifacts are built with LLVM 15 which makes them
+compatible with Julia.
+"""
+function use_devlibs_jll!(flag::Bool = true)
+    @set_preferences!("use_devlibs_jll" => flag)
+    @info """
+    Switched `use_devlibs_jll` to `$flag`.
+    Restart Julia session for the changes to take effect.
+    """
+end
+
+use_devlibs_jll()::Bool = @load_preference("use_devlibs_jll", false)
 
 if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
     disable_artifacts = parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "true"))
@@ -140,7 +165,7 @@ function find_ld_lld!(config)
 end
 
 function find_device_libs!(config)
-    if use_artifacts()
+    if use_artifacts() || use_devlibs_jll()
         find_artifact_library!(
             config, :ROCmDeviceLibs_jll;
             name=:device_libs, lib=:bitcode_path)
