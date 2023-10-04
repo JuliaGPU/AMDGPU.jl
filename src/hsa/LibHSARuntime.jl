@@ -68,6 +68,7 @@ const hsa_file_t = Cint
 
 # no prototype is found for this function at hsa.h:359:22, please use with caution
 function hsa_init()
+    @show libhsaruntime
     ccall((:hsa_init, libhsaruntime), hsa_status_t, ())
 end
 

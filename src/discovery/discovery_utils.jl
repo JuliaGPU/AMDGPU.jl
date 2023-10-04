@@ -38,18 +38,9 @@ function safe_exec(str)
         p = run(pipeline(cmd; stdout=path, stderr=path); wait=false)
         wait(p)
         success = p.exitcode == 0
-        String(read(path))
+        strip(String(read(path)))
     end
     return success, error_str
-end
-
-function safe_import(pkg)
-    loaded, error_str = safe_exec("import $pkg")
-    loaded || return loaded, false, error_str
-
-    @eval import $pkg
-    available = @eval(isdefined($pkg, :is_available)) && @eval($pkg.is_available())
-    return loaded, available, error_str
 end
 
 function find_rocm_library(libs::Vector, dirs::Vector{String}, ext::String = dlext)
@@ -142,11 +133,5 @@ function find_device_libs()
             end
         end
     end
-    return nothing
-end
-
-function populate_globals!(config)
-    for (key,val) in config
-        @eval const $key = $val
-    end
+    return ""
 end

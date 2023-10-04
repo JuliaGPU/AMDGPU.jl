@@ -1,7 +1,8 @@
 module rocRAND
 
 import ..AMDGPU
-import .AMDGPU: ROCArray, HandleCache, librocrand, library_state
+import .AMDGPU: ROCArray, HandleCache, library_state
+import AMDGPU: librocrand
 import ..HIP
 import .HIP: HIPContext, HIPStream, hipStream_t
 
