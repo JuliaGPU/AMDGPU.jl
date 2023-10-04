@@ -9,11 +9,11 @@ using SparseArrays
 using SparseArrays: nonzeroinds, dimlub
 
 using ..AMDGPU
-using ..AMDGPU: librocsparse, @allowscalar
+using ..AMDGPU: @allowscalar
 using ..AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
 
+import AMDGPU: librocsparse, HandleCache, HIP, library_state
 import AMDGPU.Device: ROCDeviceVector
-import AMDGPU: HandleCache, HIP, library_state
 import .HIP: HIPContext, HIPStream, hipStream_t
 
 # TODO replace

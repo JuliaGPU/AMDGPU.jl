@@ -1,4 +1,3 @@
-
 function versioninfo(io::IO=stdout)
     _status(st::Bool) = st ? "+" : "-"
     function _lib_title(name::String, sym::Symbol; version_fn::Function)
@@ -10,7 +9,7 @@ function versioninfo(io::IO=stdout)
     println("ROCm provided by: ", use_artifacts() ? "JLLs" : "system")
     println(_lib_title("HSA Runtime", :hsa; version_fn=HSA.version))
     if functional(:hsa)
-        println("    @ $libhsaruntime_path")
+        println("    @ $libhsaruntime")
     end
     println("[$(_status(functional(:lld)))] ld.lld")
     if functional(:lld)
@@ -50,7 +49,7 @@ function versioninfo(io::IO=stdout)
     end
     println(_lib_title("MIOpen", :MIOpen; version_fn=MIOpen.version))
     if functional(:MIOpen)
-        println("    @ $(Libdl.dlpath(libMIOpen))")
+        println("    @ $(Libdl.dlpath(libMIOpen_path))")
     end
 
     if functional(:hsa) && functional(:hip)
@@ -112,27 +111,27 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hsa
-        return hsa_configured && !isempty(Runtime.HSA_DEVICES)
+        return !isempty(libhsaruntime) && !isempty(Runtime.HSA_DEVICES)
     elseif component == :hip
-        return hip_configured
+        return !isempty(libhip)
     elseif component == :lld
-        return lld_configured
+        return !isempty(lld_path)
     elseif component == :device_libs
-        return device_libs_configured
+        return !isempty(libdevice_libs)
     elseif component == :rocblas
-        return librocblas !== nothing
+        return !isempty(librocblas)
     elseif component == :rocsolver
-        return librocsolver !== nothing
+        return !isempty(librocsolver)
     elseif component == :rocalution
-        return librocalution !== nothing
+        return !isempty(librocalution)
     elseif component == :rocsparse
-        return librocsparse !== nothing
+        return !isempty(librocsparse)
     elseif component == :rocrand
-        return librocrand !== nothing
+        return !isempty(librocrand)
     elseif component == :rocfft
-        return librocfft !== nothing
+        return !isempty(librocfft)
     elseif component == :MIOpen
-        return libMIOpen !== nothing
+        return !isempty(libMIOpen_path)
     elseif component == :all
         for component in (
             :hsa, :hip, :lld, :device_libs, :rocblas, :rocsolver,

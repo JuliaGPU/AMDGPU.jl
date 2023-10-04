@@ -12,7 +12,8 @@ import AbstractFFTs: fft, bfft, ifft, rfft, Plan, ScaledPlan
 using LinearAlgebra
 
 import ..AMDGPU
-import .AMDGPU: ROCArray, ROCVector, HandleCache, HIP, unsafe_free!, librocfft, check
+import .AMDGPU: ROCArray, ROCVector, HandleCache, HIP, unsafe_free!, check
+import AMDGPU: librocfft
 import .HIP: hipStream_t, HIPContext, HIPStream
 
 using CEnum
@@ -25,16 +26,13 @@ include("fft.jl")
 version() = VersionNumber(
     rocfft_version_major, rocfft_version_minor, rocfft_version_patch)
 
-if AMDGPU.functional(:rocfft)
-    const INITIALIZED = Threads.Atomic{Int64}(0)
-    @eval function rocfft_setup_once()
-        if Threads.atomic_cas!(INITIALIZED, 0, 1) == 0
-            rocfft_setup()
-            atexit(rocfft_cleanup)
-        end
+const INITIALIZED = Threads.Atomic{Int64}(0)
+
+function rocfft_setup_once()
+    if Threads.atomic_cas!(INITIALIZED, 0, 1) == 0
+        rocfft_setup()
+        atexit(rocfft_cleanup)
     end
-else
-    @eval rocfft_setup_once() = error("rocFFT is not available")
 end
 
 end

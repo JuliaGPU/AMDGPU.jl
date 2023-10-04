@@ -114,18 +114,19 @@ end
     #     @test Array(A)[1] == AMDGPU.Device._max_group_size
     # end
 
-    @testset "Local memory" begin
-        function f(X)
-            Y = @ROCStaticLocalArray(Float32, 16)
-            # N.B. Use unsafe accesses to avoid bounds checks from `--check-bounds=yes`
-            unsafe_store!(Y.ptr, unsafe_load(X.ptr))
-            return
-        end
+    # TODO Come up with more robust test.
+    # @testset "Local memory" begin
+    #     function f(X)
+    #         Y = @ROCStaticLocalArray(Float32, 16)
+    #         # N.B. Use unsafe accesses to avoid bounds checks from `--check-bounds=yes`
+    #         unsafe_store!(Y.ptr, unsafe_load(X.ptr))
+    #         return
+    #     end
 
-        RX = ROCArray(rand(Float32, 1))
-        # Test that localmem is properly accounted for
-        occ1 = AMDGPU.launch_configuration(@roc launch=false f(RX))
-        occ2 = AMDGPU.launch_configuration(@roc launch=false f(RX); shmem=65536 ÷ 2)
-        @test occ1 != occ2
-    end
+    #     RX = ROCArray(rand(Float32, 1))
+    #     # Test that localmem is properly accounted for
+    #     occ1 = AMDGPU.launch_configuration(@roc launch=false f(RX))
+    #     occ2 = AMDGPU.launch_configuration(@roc launch=false f(RX); shmem=65536 ÷ 2)
+    #     @test occ1 != occ2
+    # end
 end

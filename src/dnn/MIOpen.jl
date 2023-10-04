@@ -4,15 +4,9 @@ using CEnum
 
 using ..AMDGPU
 import AMDGPU: ROCArray, LockedObject, HandleCache, HIP, library_state
+import AMDGPU: libMIOpen_path
 import AMDGPU.Runtime.Mem # TODO remove?
 import .HIP: hipStream_t
-
-if AMDGPU.use_artifacts() && AMDGPU.functional(:MIOpen)
-    using MIOpen_jll
-    const libMIOpen_path = MIOpen_jll.libMIOpen_path
-else
-    const libMIOpen_path = AMDGPU.libMIOpen
-end
 
 include("low_level.jl")
 

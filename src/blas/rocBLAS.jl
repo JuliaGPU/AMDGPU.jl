@@ -52,10 +52,4 @@ end
 handle() = lib_state().handle
 stream() = lib_state().stream
 
-if AMDGPU.functional(:rocblas)
-    @eval rocblas_check_functional() = nothing
-else
-    @eval rocblas_check_functional() = error("rocBLAS is not functional")
-end
-
 end

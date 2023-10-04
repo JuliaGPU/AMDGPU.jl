@@ -52,16 +52,13 @@ struct KernelState
     printf_output_context::Ptr{Cvoid}
 end
 
-const libhsaruntime = "libhsa-runtime64.so.1"
-include(joinpath("hsa", "HSA.jl"))
-
 # Load binary dependencies.
-include("discovery_utils.jl")
-include("rocm_discovery.jl")
-populate_globals!(bindeps_setup())
+include("discovery/discovery.jl")
+using .ROCmDiscovery
 
 include("utils.jl")
 
+include(joinpath("hsa", "HSA.jl"))
 include(joinpath("hip", "HIP.jl"))
 import .HIP: HIPContext, HIPDevice, HIPStream
 export HIPContext, HIPDevice, HIPStream
@@ -167,11 +164,7 @@ function __init__()
     end
 
     # Verbose path, something is misconfigured
-    if hsa_configured
-        # Make sure we load the right library
-        push!(Libdl.DL_LOAD_PATH, dirname(libhsaruntime_path))
-        # TODO: Do the same (if possible) for the debug library
-
+    if !isempty(libhsaruntime)
         # Initialize the HSA runtime.
         status = HSA.init()
         if status == HSA.STATUS_SUCCESS
@@ -187,7 +180,6 @@ function __init__()
     else
         @warn """
         HSA runtime is unavailable, compilation and runtime functionality will be disabled.
-        Reason: $hsa_build_reason
         """
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
@@ -199,7 +191,6 @@ function __init__()
     if !functional(:lld)
         @warn """
         LLD is unavailable, compilation functionality will be disabled.
-        Reason: $lld_build_reason
         """
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
@@ -211,7 +202,6 @@ function __init__()
     if !functional(:device_libs)
         @warn """
         Device libraries are unavailable, device intrinsics will be disabled.
-        Reason: $device_libs_build_reason
         """
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
@@ -225,7 +215,6 @@ function __init__()
     else
         @warn """
         HIP library is unavailable, HIP integration will be disabled.
-        Reason: $hip_build_reason
         """
         if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
             print_build_diagnostics()
@@ -233,18 +222,14 @@ function __init__()
         end
     end
 
-    # Check whether external libraries are available
-    descriptions = (
-        "dense BLAS", "sparse BLAS", "linear solver",
-        "fancy linear solver", "RNG", "FFT", "DNN/convolution")
-    for ((name, pkg), purpose) in zip(rocm_ext_libs, descriptions)
-        if use_artifacts() && pkg !== nothing && !functional(name)
-            # These are numerous and thus noisy
-            build_reason = getfield(AMDGPU, Symbol(name, :_build_reason))
-            @debug """
-            $pkg is unavailable, $purpose functionality will be disabled.
-            Reason: $build_reason.
-            """
+    # Check whether external libraries are available.
+    hiplibs = (
+        ("rocBLAS", :rocblas), ("rocSPARSE", :rocsparse),
+        ("rocSOLVER", :rocsolver), ("rocALUTION", :rocalution),
+        ("rocRAND", :rocrand), ("rocFFT", :rocfft), ("MIOpen", :MIOpen))
+    for (name, symbol) in hiplibs
+        if !functional(symbol)
+            @warn "$name is unavailable, functionality will be disabled."
         end
     end
 

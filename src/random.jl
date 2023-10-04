@@ -16,7 +16,7 @@ function GPUArrays.default_rng(::Type{<:ROCArray})
 end
 
 gpuarrays_rng() = GPUArrays.default_rng(ROCArray)
-const rocrand_rng = librocrand !== nothing ? rocRAND.handle : gpuarrays_rng
+rocrand_rng() = rocRAND.handle()
 
 # the interface is split in two levels:
 # - functions that extend the Random standard library, and take an RNG as first argument,
@@ -71,11 +71,6 @@ randn(dim1::Integer, dims::Integer...; kwargs...) =
     #Random.randn(rocrand_rng(), Dims((dim1, dims...)); kwargs...)
     Random.randn!(ROCArray{Float32}(undef, dim1, dims...))
 
-# rand_logn, rand_poisson
-const rand_logn = librocrand !== nothing ?
-    rocRAND.rand_logn :
-    (x...;kwargs...) -> error("Not supported without rocRAND.")
-
-const rand_poisson = librocrand !== nothing ?
-    rocRAND.rand_poisson :
-    (x...;kwargs...) -> error("Not supported without rocRAND.")
+# TODO revise
+rand_logn(args...; kwargs...) = rocRAND.rand_logn(args...; kwargs...)
+rand_poisson(args...; kwargs...) = rocRAND.rand_poisson(args...; kwargs...)

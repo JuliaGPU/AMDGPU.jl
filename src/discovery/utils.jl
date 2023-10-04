@@ -1,5 +1,5 @@
 function detect_projects()
-    amdgpu_project = normpath(joinpath(@__DIR__, ".."))
+    amdgpu_project = normpath(joinpath(@__DIR__, "..", ".."))
     current_project = Base.ACTIVE_PROJECT[]
     julia_project = if Base.JLOptions().project != C_NULL
         unsafe_string(Base.JLOptions().project)
@@ -38,18 +38,9 @@ function safe_exec(str)
         p = run(pipeline(cmd; stdout=path, stderr=path); wait=false)
         wait(p)
         success = p.exitcode == 0
-        String(read(path))
+        strip(String(read(path)))
     end
     return success, error_str
-end
-
-function safe_import(pkg)
-    loaded, error_str = safe_exec("import $pkg")
-    loaded || return loaded, false, error_str
-
-    @eval import $pkg
-    available = @eval(isdefined($pkg, :is_available)) && @eval($pkg.is_available())
-    return loaded, available, error_str
 end
 
 function find_rocm_library(libs::Vector, dirs::Vector{String}, ext::String = dlext)
@@ -86,9 +77,11 @@ function find_roc_paths()
 end
 
 function find_ld_lld()
+    # TODO this is incorrect for Windows
     paths = split(get(ENV, "PATH", ""), ":")
     paths = filter(path -> path != "", paths)
     paths = map(Base.Filesystem.abspath, paths)
+
     basedir = get(ENV, "ROCM_PATH", "/opt/rocm")
     ispath(joinpath(basedir, "llvm/bin/ld.lld")) &&
         push!(paths, joinpath(basedir, "llvm/bin/"))
@@ -96,6 +89,7 @@ function find_ld_lld()
         push!(paths, joinpath(basedir, "/hcc/bin/"))
     ispath(joinpath(basedir, "opencl/bin/x86_64/ld.lld")) &&
         push!(paths, joinpath(basedir, "opencl/bin/x86_64/"))
+
     for path in paths
         exp_ld_path = joinpath(path, "ld.lld")
         if ispath(exp_ld_path)
@@ -142,11 +136,5 @@ function find_device_libs()
             end
         end
     end
-    return nothing
-end
-
-function populate_globals!(config)
-    for (key,val) in config
-        @eval const $key = $val
-    end
+    return ""
 end
