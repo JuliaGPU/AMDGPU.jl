@@ -1,3 +1,5 @@
+@testset "rocSOLVER" begin
+
 using AMDGPU.rocSOLVER
 
 m, n = 15, 10
@@ -142,4 +144,6 @@ end
         rocSOLVER.orgqr!(dA, τ)
         @test dA' * dA ≈ I
     end
+end
+
 end

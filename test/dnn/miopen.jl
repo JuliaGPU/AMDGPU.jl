@@ -1,3 +1,6 @@
+@testset "MIOpen" begin
+
+using NNlib
 using AMDGPU.MIOpen
 
 @testset "Tensor descriptors" begin
@@ -35,4 +38,6 @@ end
 
 @testset "Batch Normalization" begin
     include("batchnorm.jl")
+end
+
 end
