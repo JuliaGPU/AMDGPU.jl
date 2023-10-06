@@ -1,9 +1,9 @@
 @testitem "core" setup=[TSCore] begin
 
 using AMDGPU: HIP, Runtime, Device, Mem
-import AMDGPU: allowscalar, @allowscalar
+import AMDGPU: @allowscalar
 
-allowscalar(false)
+AMDGPU.allowscalar(false)
 
 macro grab_output(ex, io=stdout)
     quote

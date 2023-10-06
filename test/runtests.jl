@@ -1,5 +1,32 @@
 using AMDGPU
+using AMDGPU: Device, Runtime, @allowscalar
+import AMDGPU.Device: HostCallHolder, hostcall!
+
+using LinearAlgebra
 using ReTestItems
+using Test
+
+macro grab_output(ex, io=stdout)
+    quote
+        mktemp() do fname, fout
+            ret = nothing
+            open(fname, "w") do fout
+                if $io == stdout
+                    redirect_stdout(fout) do
+                        ret = $(esc(ex))
+                    end
+                elseif $io == stderr
+                    redirect_stderr(fout) do
+                        ret = $(esc(ex))
+                    end
+                end
+            end
+            ret, read(fname, String)
+        end
+    end
+end
+
+AMDGPU.allowscalar(false)
 
 const TEST_NAMES = ["core", "hip", "ext", "gpuarrays", "kernelabstractions"]
 
