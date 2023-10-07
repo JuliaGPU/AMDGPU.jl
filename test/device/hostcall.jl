@@ -17,7 +17,7 @@
     end
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 1f0
     @test dref[] == true
 end
@@ -41,7 +41,7 @@ end
         end
 
         @roc kernel(RA, RB, hc)
-        @test_throws ErrorException AMDGPU.synchronize(; blocking=false)
+        @test_throws ErrorException AMDGPU.synchronize(; stop_hostcalls=true)
         AMDGPU.reset_exception_holder!(AMDGPU.device())
 
         @test Array(RB)[1] == 0f0
@@ -65,7 +65,7 @@ end
     end
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 2f0
 end
 
@@ -83,7 +83,7 @@ end
     end
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 44f0
 end
 
@@ -101,7 +101,7 @@ end
     end
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 47f0
 end
 
@@ -119,7 +119,7 @@ end
     end
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 47f0
 end
 
@@ -137,7 +137,7 @@ end
     end
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 48f0
 end
 
@@ -155,7 +155,7 @@ end
     end
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 48f0
 end
 
@@ -177,7 +177,7 @@ end
     end
 
     @roc kernel(RA, RB, hc1, hc2)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 11f0
 end
 
@@ -195,10 +195,10 @@ end
     end
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
 
     @roc kernel(RA, RB, hc)
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
 
     # Next time HC will be called from the kernel is its last time.
     # So that it shutdowns correctly and does not stick to the end.

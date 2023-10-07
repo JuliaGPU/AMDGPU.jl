@@ -23,7 +23,7 @@ end
 end
 @testitem "gpuarrays - indexing multidimensional" setup=[TSGPUArrays] begin
     gpuarrays_test("indexing multidimensional")
-    AMDGPU.synchronize(; blocking=false)
+    AMDGPU.synchronize(; stop_hostcalls=true)
 end
 @testitem "gpuarrays - indexing scalar" setup=[TSGPUArrays] begin
     gpuarrays_test("indexing scalar")

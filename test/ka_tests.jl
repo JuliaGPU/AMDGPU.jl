@@ -10,6 +10,6 @@ Testsuite.testsuite(
     skip_tests=Set(["Printing", "sparse"])) # TODO fix KA printing
 
 # Disable global malloc hostcall started by conversion tests.
-AMDGPU.synchronize(; blocking=false)
+AMDGPU.synchronize(; stop_hostcalls=true)
 
 end

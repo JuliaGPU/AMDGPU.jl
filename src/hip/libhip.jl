@@ -306,3 +306,8 @@ function hipDeviceCanAccessPeer(can_access_peer_ref, deviceid, peer_deviceid)
     AMDGPU.prepare_state()
     ccall((:hipDeviceCanAccessPeer, libhip), hipError_t, (Ptr{Cint}, Cint, Cint), can_access_peer_ref, deviceid, peer_deviceid)
 end
+
+function hipLaunchHostFunc(stream, fn, userData)
+    AMDGPU.prepare_state()
+    ccall((:hipLaunchHostFunc, libhip), hipError_t, (hipStream_t, hipHostFn, Ptr{Cvoid}), stream, fn, userData)
+end

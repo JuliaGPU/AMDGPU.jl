@@ -252,6 +252,8 @@ hipModule_t = Ptr{Cvoid}
 
 hipFunction_t = Ptr{Cvoid}
 
+hipHostFn = Ptr{Cvoid}
+
 hiprtcLinkState = Ptr{Cvoid}
 
 struct hipMemLocation

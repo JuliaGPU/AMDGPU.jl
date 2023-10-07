@@ -12,11 +12,11 @@ Hostcalls require careful usage, since they each spawn their own Tasks.
 There should be no blocking operations during this time.
 
 For example, using non-blocking synchronization instead of blocking with
-`AMDGPU.synchronize(; blocking=false)`.
+`AMDGPU.synchronize(; blocking=false)` (which is also the default).
 
-Non-blocking synchronization is also responsible for stopping global hostcalls,
-otherwise the performance might degarde because of constant pooling
-of HSA signals in a loop.
+To stop hostcalls after synchronization, provide `stop_hostcalls=true`
+keyword argument, otherwise the performance might degarde
+because of constant pooling of HSA signals in a loop.
 
 ## Example
 
@@ -32,7 +32,7 @@ end
 
 y = ROCArray(Float32[0f0])
 @roc kernel!(y, hc)
-AMDGPU.synchronize(; blocking=false) # Non-blocking sync to prevent hanging.
+AMDGPU.synchronize(; stop_hostcalls=true) # Stop hostcall.
 
 @assert Array(y)[1] ≈ 42f0
 ```
