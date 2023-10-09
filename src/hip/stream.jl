@@ -114,11 +114,24 @@ function nonblocking_synchronize(stream::HIPStream)
     return
 end
 
+function non_blocking_synchronize_old(stream::HIPStream)
+    while true
+        yield()
+        isdone(stream) && return
+    end
+end
+
 wait(stream::HIPStream) = hipStreamSynchronize(stream) |> check
 
 function synchronize(stream::HIPStream; blocking::Bool = false)
     if use_nonblocking_synchronize && !blocking
-        _low_latency_synchronize(stream) || nonblocking_synchronize(stream)
+        if !_low_latency_synchronize(stream)
+            if old_nonblock_sync
+                nonblocking_synchronize_old(stream)
+            else
+                nonblocking_synchronize(stream)
+            end
+        end
     end
     # Perform an actual API call even after non-blocking synchronization.
     wait(stream)
