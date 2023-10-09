@@ -114,7 +114,7 @@ function nonblocking_synchronize(stream::HIPStream)
     return
 end
 
-function non_blocking_synchronize_old(stream::HIPStream)
+function nonblocking_synchronize_old(stream::HIPStream)
     while true
         yield()
         isdone(stream) && return
