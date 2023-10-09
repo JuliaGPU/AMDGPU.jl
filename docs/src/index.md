@@ -135,3 +135,28 @@ Once all of this is setup properly, you should be able to do `using AMDGPU`
 successfully.
 
 See the [Quick Start](@ref) documentation for an introduction to using AMDGPU.jl.
+
+## Preferences
+
+AMDGPU.jl supports setting
+[preferences](https://github.com/JuliaPackaging/Preferences.jl).
+Template of `LocalPreferences.toml` with all options:
+
+```toml
+[AMDGPU]
+# If `true` then use ROCm libraries provided by artifacts.
+# However, not all ROCm libraries are available as artifacts.
+use_artifacts = false
+# Use mixed-mode ROCm. This will use device libraries from artifacts,
+# but the rest of the ROCm libraries from system-wide installation.
+# See `LLVM compatibility & mixed ROCm mode` section in the documentation.
+use_devlibs_jll = false
+# Use non-blocking synchronization for all `AMDGPU.synchronize()` calls.
+nonblocking_synchronization = true
+# Memory limit specifies maximum amount of memory in percentages
+# a current Julia process can use.
+# Default is "none", which does not apply any limitation.
+hard_memory_limit = "none"
+# Notice a space between the value and percentage sign.
+# hard_memory_limit = "80 %"
+```
