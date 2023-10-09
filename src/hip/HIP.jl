@@ -1,6 +1,7 @@
 module HIP
 
 using CEnum
+import Preferences
 
 import ..AMDGPU
 import ..AMDGPU.libhip

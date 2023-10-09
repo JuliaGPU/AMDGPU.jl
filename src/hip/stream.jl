@@ -1,3 +1,6 @@
+const use_nonblocking_synchronize = Preferences.@load_preference(
+    "nonblocking_synchronization", true)
+
 mutable struct HIPStream
     stream::hipStream_t
     priority::Symbol
@@ -114,10 +117,10 @@ end
 wait(stream::HIPStream) = hipStreamSynchronize(stream) |> check
 
 function synchronize(stream::HIPStream; blocking::Bool = false)
-    if !_low_latency_synchronize(stream) && !blocking
-        nonblocking_synchronize(stream)
+    if use_nonblocking_synchronize && !blocking
+        _low_latency_synchronize(stream) || nonblocking_synchronize(stream)
     end
-    # Perform an actual API call after non-blocking synchronization.
+    # Perform an actual API call even after non-blocking synchronization.
     wait(stream)
     return
 end

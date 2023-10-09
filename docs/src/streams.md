@@ -53,3 +53,33 @@ AMDGPU.stream!
 AMDGPU.priority!
 AMDGPU.HIPStream
 ```
+
+## Synchronization
+
+AMDGPU.jl by default uses non-blocking stream synchronization with
+[`AMDGPU.synchronize`](@ref) to work correctly with TLS and [Hostcall](@ref).
+
+Users, however, can switch to a blocking synchronization globally
+with `nonblocking_synchronization`
+[preference](https://github.com/JuliaPackaging/Preferences.jl)
+or with fine-grained `AMDGPU.synchronize(; blocking=true)`.
+Blocking synchronization might offer slightly lower latency.
+
+You can also perform synchroization of the expression with
+[`AMDGPU.@sync`](@ref) macro, which will execute given expression and
+synchronize afterwards (using [`AMDGPU.synchronize`](@ref) under the hood).
+
+```julia
+AMDGPU.@sync begin
+    @roc ...
+end
+```
+
+Finally, you can perform full device synchronization with
+[`AMDGPU.device_synchronize`](@ref).
+
+```@docs
+AMDGPU.synchronize
+AMDGPU.@sync
+AMDGPU.device_synchronize
+```
