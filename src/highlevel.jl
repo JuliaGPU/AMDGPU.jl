@@ -42,21 +42,20 @@ device(idx::Integer) = devices()[idx]
 default_isa(device::HIPDevice) = Runtime.default_isa(Runtime.hsa_device(device))
 
 """
-    synchronize(stream::HIPStream = stream(); blocking::Bool = true)
+    synchronize(stream::HIPStream = stream(); blocking::Bool = false)
 
-Blocks until all kernels currently executing on `stream` have completed.
+Wait until all kernels executing on `stream` have completed.
 
-If there are running HostCalls, then it non-blocking synchronization is required
-which can be done with `blocking=false` keyword.
-Additionally, it stops any running global hostcall afterwards.
-Note, that non-blocking synchronization is slower than blocking.
+If there are running HostCalls, then `blocking` **must** be `false`.
+Additionally, if you want to stop host calls afterwards,
+then provide `stop_hostcalls=true` keyword argument.
 """
-function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
-    throw_if_exception(stm.device)
+function synchronize(stm::HIPStream = stream();
+    blocking::Bool = false, stop_hostcalls::Bool = false,
+)
     HIP.synchronize(stm; blocking)
     throw_if_exception(stm.device)
-
-    blocking && return
+    stop_hostcalls || return
 
     # Stop any running global hostcall.
     global_hostcall_names = (
@@ -74,8 +73,9 @@ function synchronize(stm::HIPStream = stream(); blocking::Bool = true)
     return
 end
 # TODO
-#   allow non blocking sync of several HIPStreams
-#   and only then disable global hostcall
+# hostcalls are per-device right now, not per stream
+# allow non blocking sync of several HIPStreams
+# and only then disable global hostcall
 
 """
     @sync ex

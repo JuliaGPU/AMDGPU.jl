@@ -1,6 +1,7 @@
 module HIP
 
 using CEnum
+import Preferences
 
 import ..AMDGPU
 import ..AMDGPU.libhip
@@ -11,10 +12,13 @@ include("libhip.jl")
 include("device.jl")
 
 function runtime_version()
-    rt_ref = Ref{Cint}()
-    hipRuntimeGetVersion(rt_ref) |> check
-    rt = rt_ref[]
-    VersionNumber(rt ÷ Int(1e7), rt ÷ Int(1e5), rt % Int(1e5))
+    v_ref = Ref{Cint}()
+    hipRuntimeGetVersion(v_ref) |> check
+    v = v_ref[]
+    major = v ÷ 10_000_000
+    minor = (v ÷ 100_000) % 100
+    patch = v % 100000
+    VersionNumber(major, minor, patch)
 end
 
 mutable struct HIPContext
@@ -83,6 +87,14 @@ function memcpy(dst, src, sz, kind, stream::HIPStream)
     sz == 0 && return
     HIP.hipMemcpyWithStream(dst, src, sz, kind, stream) |> HIP.check
     return
+end
+
+function __init__()
+    global old_nonblock_sync = if AMDGPU.functional(:hip)
+        runtime_version() < v"5.4"
+    else
+        false
+    end
 end
 
 end

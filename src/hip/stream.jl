@@ -1,3 +1,6 @@
+const use_nonblocking_synchronize = Preferences.@load_preference(
+    "nonblocking_synchronization", true)
+
 mutable struct HIPStream
     stream::hipStream_t
     priority::Symbol
@@ -66,22 +69,72 @@ function _low_latency_synchronize(stream::HIPStream)
     return false
 end
 
-function non_blocking_synchronize(stream::HIPStream)
+function launch(f::Base.Callable; stream::HIPStream)
+    # Condition object is embedded in a task, Julia scheduler keeps it alive.
+    cond = Base.AsyncCondition() do async_cond
+        f()
+        close(async_cond)
+    end
+    callback = cglobal(:uv_async_send)
+    hipLaunchHostFunc(stream, callback, cond) |> check
+end
+
+function nonblocking_synchronize(stream::HIPStream)
+    # Wait for an event signalled by HIP.
+    event = Base.Event()
+    launch(() -> notify(event); stream)
+
+    # If an error occurs, the callback may never fire.
+    # Create a timer to detect such cases.
+    dev = device()
+    timer = Timer(0; interval=1)
+
+    Base.@sync begin
+        # Launch timer.
+        Threads.@spawn try
+            device!(dev)
+            while true
+                try
+                    Base.wait(timer)
+                catch err
+                    err isa EOFError && break
+                    rethrow()
+                end
+                hipStreamQuery(stream) != hipErrorNotReady && break
+            end
+        finally
+            notify(event)
+        end
+        # Wait for `event`.
+        Threads.@spawn begin
+            Base.wait(event)
+            close(timer)
+        end
+    end
+    return
+end
+
+function nonblocking_synchronize_old(stream::HIPStream)
     while true
         yield()
-        isdone(stream) && return true
+        isdone(stream) && return
     end
-    return false
 end
 
 wait(stream::HIPStream) = hipStreamSynchronize(stream) |> check
 
-function synchronize(stream::HIPStream; blocking::Bool = true)
-    if blocking
-        _low_latency_synchronize(stream) || wait(stream)
-    else
-        non_blocking_synchronize(stream)
+function synchronize(stream::HIPStream; blocking::Bool = false)
+    if use_nonblocking_synchronize && !blocking
+        if !_low_latency_synchronize(stream)
+            if old_nonblock_sync
+                nonblocking_synchronize_old(stream)
+            else
+                nonblocking_synchronize(stream)
+            end
+        end
     end
+    # Perform an actual API call even after non-blocking synchronization.
+    wait(stream)
     return
 end
 

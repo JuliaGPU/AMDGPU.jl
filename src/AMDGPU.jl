@@ -32,6 +32,7 @@ function Base.lock(f, x::LockedObject)
     end
 end
 
+# TODO simplify
 struct KernelState
     # Exception reporting buffers.
     exception_flag::Ptr{Int32}

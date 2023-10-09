@@ -1,13 +1,5 @@
 # AMDGPU API Reference
 
-## Synchronization
-
-```@docs
-AMDGPU.synchronize
-AMDGPU.@sync
-AMDGPU.device_synchronize
-```
-
 ## Device code API
 
 ### Thread indexing

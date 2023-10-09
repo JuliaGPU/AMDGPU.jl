@@ -4,7 +4,7 @@
 
         _, msg = @grab_output begin
             @roc kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == "Hello World!"
     end
@@ -14,7 +14,7 @@
 
         _, msg = @grab_output begin
             @roc kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == "Hello World!\n"
     end
@@ -27,7 +27,7 @@
 
         _, msg = @grab_output begin
             @roc kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == "Hello World!Goodbye World!\n"
     end
@@ -55,7 +55,7 @@ end
 
         _, msg = @grab_output begin
             @roc kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == "Hello World!\n"
     end
@@ -65,7 +65,7 @@ end
 
         _, msg = @grab_output begin
             @roc kernel(42)
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == "Value: 42\n"
     end
@@ -78,7 +78,7 @@ end
 
         _, msg = @grab_output begin
             @roc kernel(42)
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == "Value: 42 | 0.1234\n"
     end
@@ -90,7 +90,7 @@ end
         exp = reduce(*, ["[$i] " for i in 1:8])
         _, msg = @grab_output begin
             @roc groupsize=8 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -98,7 +98,7 @@ end
         exp = reduce(*, ["[$i] " for i in 1:128])
         _, msg = @grab_output begin
             @roc groupsize=128 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -106,7 +106,7 @@ end
         exp = reduce(*, ["[$i] " for i in vcat(1:64, 1:64, 1:64, 1:64)])
         _, msg = @grab_output begin
             @roc groupsize=64 gridsize=4 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -114,7 +114,7 @@ end
         exp = reduce(*, ["[$i] " for i in vcat(1:128, 1:128)])
         _, msg = @grab_output begin
             @roc groupsize=128 gridsize=2 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
     end
@@ -128,7 +128,7 @@ end
         exp = "[1] "
         _, msg = @grab_output begin
             @roc groupsize=1 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -137,7 +137,7 @@ end
         exp = reduce(*, ["[$i] " for i in collect(1:wsize:groupsize)])
         _, msg = @grab_output begin
             @roc groupsize=groupsize kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -146,7 +146,7 @@ end
         exp = repeat("[1] ", 256 ÷ wsize)
         _, msg = @grab_output begin
             @roc groupsize=wsize gridsize=gridsize kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -158,7 +158,7 @@ end
             n_groups)
         _, msg = @grab_output begin
             @roc groupsize=128 gridsize=2 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
     end
@@ -170,7 +170,7 @@ end
         exp = "[1] "
         _, msg = @grab_output begin
             @roc groupsize=8 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -178,7 +178,7 @@ end
         exp = "[1] "
         _, msg = @grab_output begin
             @roc groupsize=128 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -186,7 +186,7 @@ end
         exp = reduce(*, ["[$i] " for i in [1, 1, 1, 1]])
         _, msg = @grab_output begin
             @roc groupsize=64 gridsize=4 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -194,7 +194,7 @@ end
         exp = reduce(*, ["[$i] " for i in [1, 1]])
         _, msg = @grab_output begin
             @roc groupsize=128 gridsize=2 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
     end
@@ -206,7 +206,7 @@ end
         exp = "[1] "
         _, msg = @grab_output begin
             @roc groupsize=8 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -214,7 +214,7 @@ end
         exp = "[1] "
         _, msg = @grab_output begin
             @roc groupsize=128 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -222,7 +222,7 @@ end
         exp = "[1] "
         _, msg = @grab_output begin
             @roc groupsize=64 gridsize=4 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
 
@@ -230,7 +230,7 @@ end
         exp = "[1] "
         _, msg = @grab_output begin
             @roc groupsize=128 gridsize=2 kernel()
-            AMDGPU.synchronize(; blocking=false)
+            AMDGPU.synchronize(; stop_hostcalls=true)
         end
         @test msg == exp
     end
