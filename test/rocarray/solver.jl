@@ -3,6 +3,7 @@
 using AMDGPU.rocSOLVER
 
 m, n = 15, 10
+p = 5
 
 @testset "elty=$elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
     @testset "qr" begin
@@ -146,4 +147,33 @@ end
     end
 end
 
+@testset "potrf! -- potrs!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A    = rand(elty,n,n)
+        A    = A*A' + I
+        B    = rand(elty,n,p)
+        d_A  = ROCArray(A)
+        d_B  = ROCArray(B)
+
+        LAPACK.potrf!('L',d_A)
+        LAPACK.potrs!('U',d_A,d_B)
+        LAPACK.potrf!('L',A)
+        LAPACK.potrs!('U',A,B)
+        @test B ≈ collect(d_B)
+    end
+end
+
+@testset "sytrf!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty,n,n)
+        A = A + A'
+        d_A = ROCArray(A)
+        d_A,d_ipiv,info = rocSOLVER.sytrf!('U',d_A)
+        LinearAlgebra.checknonsingular(info)
+        h_A = collect(d_A)
+        h_ipiv = collect(d_ipiv)
+        A, ipiv = LAPACK.sytrf!('U',A)
+        @test ipiv == h_ipiv
+        @test A ≈ h_A
+    end
 end
