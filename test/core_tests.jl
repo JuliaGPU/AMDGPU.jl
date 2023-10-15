@@ -32,7 +32,9 @@ include("hsa/device.jl")
 include("codegen/synchronization.jl")
 include("codegen/trap.jl")
 
-include("tls.jl")
+# TODO hangs
+# include("tls.jl")
+
 include("rocarray/base.jl")
 include("rocarray/broadcast.jl")
 

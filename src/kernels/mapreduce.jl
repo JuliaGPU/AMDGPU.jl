@@ -19,7 +19,7 @@
         sync_workgroup()
         index::UInt32 = UInt32(2) * d * (item - UInt32(1)) + UInt32(1)
         @inbounds if index ≤ items
-            other_val = ifelse(index + d ≤ items, shared[index + d], neutral)
+            other_val = (index + d) ≤ items ? shared[index + d] : neutral
             shared[index] = op(shared[index], other_val)
         end
         d *= UInt32(2)
@@ -58,7 +58,7 @@ function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
 
         # load the neutral value
         Iout = CartesianIndex(Tuple(Iother)..., groupIdx_reduce)
-        neutral = ifelse(neutral ≡ nothing, R[Iout], neutral)
+        neutral = neutral ≡ nothing ? R[Iout] : neutral
 
         val = op(neutral, neutral)
 

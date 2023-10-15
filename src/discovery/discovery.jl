@@ -36,16 +36,26 @@ end
 Pass `true` to use device libraries from artifacts and
 the rest of the libraries from system-wide ROCm installation (mixed-mode).
 
-This allows using ROCm 5.5+ which internally use LLVM 16+, but
+This allows using ROCm 5.5+ which internally uses LLVM 16+, but
 device libraries from artifacts are built with LLVM 15 which makes them
 compatible with Julia.
 """
-function use_devlibs_jll!(flag::Bool = true)
+function use_devlibs_jll!(flag::Bool = true; show_message::Bool = true)
     @set_preferences!("use_devlibs_jll" => flag)
-    @info """
-    Switched `use_devlibs_jll` to `$flag`.
-    Restart Julia session for the changes to take effect.
-    """
+    if show_message
+        @info """
+        Switched `use_devlibs_jll` to `$flag`.
+        Restart Julia session for the changes to take effect.
+        """
+    end
+end
+
+if haskey(ENV, "JULIA_AMDGPU_USE_DEVLIBS_JLL")
+    use_devlibs = parse(Bool, get(ENV, "JULIA_AMDGPU_USE_DEVLIBS_JLL", "false"))
+    if use_devlibs && Base.libllvm_version >= v"16"
+        error("No supported artifacts for LLVM 16+. See: https://github.com/JuliaGPU/AMDGPU.jl/issues/440.")
+    end
+    use_devlibs_jll!(use_devlibs; show_message=false)
 end
 
 use_devlibs_jll()::Bool = @load_preference("use_devlibs_jll", false)
@@ -80,7 +90,7 @@ end
 function get_ld_lld(;
     from_artifact::Bool, artifact_library::Symbol, artifact_field::Symbol,
 )
-    if from_artifact || Sys.iswindows() # TODO temprorary fix for Windows
+    if from_artifact || Sys.iswindows() # TODO temporary fix for Windows
         get_artifact_library(artifact_library, artifact_field)
     else
         find_ld_lld()
