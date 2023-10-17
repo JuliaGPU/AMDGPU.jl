@@ -211,6 +211,56 @@ for (fname, elty) in (
     end
 end
 
+# create a batch of pointers in device memory from a batch of device arrays
+@inline function unsafe_batch(batch::Vector{<:ROCArray{T}}) where {T}
+    ptrs = pointer.(batch)
+    return ROCArray(ptrs)
+end
+
+for (fname, elty) in
+        ((:rocsolver_dgetrf_batched,:Float64),
+         (:rocsolver_sgetrf_batched,:Float32),
+         (:rocsolver_zgetrf_batched,:ComplexF64),
+         (:rocsolver_cgetrf_batched,:ComplexF32))
+    @eval begin
+        function getrf_batched!(A::Vector{<:ROCMatrix{$elty}}, ipiv::ROCVector{Cint})
+            m,n = size(A[1])
+            lda = max(1, stride(A[1], 2))
+            strideP = min(m,n)
+            batch_count = length(A)
+            info = ROCVector{Cint}(undef, batch_count)
+            Aptrs = unsafe_batch(A)
+            $fname(rocBLAS.handle(), m, n, Aptrs, lda, ipiv, strideP, info, batch_count) |> check
+
+            flags = AMDGPU.@allowscalar collect(info)
+            AMDGPU.unsafe_free!(info)
+            return A, flags
+        end
+    end
+end
+
+for (fname, elty) in
+    ((:rocsolver_dgetri_batched, :Float64),
+     (:rocsolver_sgetri_batched, :Float32),
+     (:rocsolver_zgetri_batched, :ComplexF64),
+     (:rocsolver_cgetri_batched, :ComplexF32))
+    @eval begin
+        function getri_batched!(A::Vector{<:ROCMatrix{$elty}}, ipiv::ROCVector{Cint})
+            n = checksquare(A[1])
+            lda = max(1, stride(A[1], 2))
+            strideP = n
+            batch_count = length(A)
+            info = ROCVector{Cint}(undef, batch_count)
+            Aptrs = unsafe_batch(A)
+            $fname(rocBLAS.handle(), n, Aptrs, lda, ipiv, strideP, info, batch_count) |> check
+
+            flags = AMDGPU.@allowscalar collect(info)
+            AMDGPU.unsafe_free!(info)
+            return A, flags
+        end
+    end
+end
+
 # Conversions.
 
 AMDGPU.ROCArray(Q::AbstractQ) = ROCMatrix(Q)
