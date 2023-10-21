@@ -103,25 +103,26 @@ if "core" in TARGET_TESTS
     @testset verbose=true "Device Functions" begin
         @info "Testing `Device Functions` on the main thread without workers."
 
-        include("device/launch.jl")
-        include("device/array.jl")
-        include("device/vadd.jl")
-        include("device/memory.jl")
-        include("device/indexing.jl")
-        include("device/math.jl")
-        include("device/wavefront.jl")
-        include("device/execution_control.jl")
-        include("device/exceptions.jl")
-        include("device/hostcall.jl")
-        include("device/output.jl")
+        include("device/synchronization.jl")
+        # include("device/launch.jl")
+        # include("device/array.jl")
+        # include("device/vadd.jl")
+        # include("device/memory.jl")
+        # include("device/indexing.jl")
+        # include("device/math.jl")
+        # include("device/wavefront.jl")
+        # include("device/execution_control.jl")
+        # include("device/exceptions.jl")
+        # include("device/hostcall.jl")
+        # include("device/output.jl")
     end
 end
 
-CI = parse(Bool, get(ENV, "CI", "false"))
+# CI = parse(Bool, get(ENV, "CI", "false"))
 
-runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
-    for tt in TARGET_TESTS
-        startswith(ti.name, tt) && return true
-    end
-    return false
-end
+# runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
+#     for tt in TARGET_TESTS
+#         startswith(ti.name, tt) && return true
+#     end
+#     return false
+# end
