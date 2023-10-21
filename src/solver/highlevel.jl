@@ -11,7 +11,7 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
 
             devinfo = ROCVector{Cint}(undef, 1)
-            $fname(rocBLAS.handle(), uplo, n, A, lda, info) |> check
+            $fname(rocBLAS.handle(), uplo, n, A, lda, devinfo) |> check
 
             info = AMDGPU.@allowscalar devinfo[1]
             AMDGPU.unsafe_free!(devinfo)
@@ -62,7 +62,7 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
 
             devinfo = ROCVector{Cint}(undef, 1)
-            $fname(rocBLAS.handle(), uplo, n, A, lda, ipiv, info) |> check
+            $fname(rocBLAS.handle(), uplo, n, A, lda, ipiv, devinfo) |> check
 
             info = AMDGPU.@allowscalar devinfo[1]
             AMDGPU.unsafe_free!(devinfo)
