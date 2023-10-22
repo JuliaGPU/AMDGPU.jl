@@ -3,14 +3,14 @@ module rocSOLVER
 using LinearAlgebra
 using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ
 using LinearAlgebra: BlasInt, checksquare
-using LinearAlgebra.LAPACK: chkargsok, chklapackerror, chktrans, chkside, chkdiag
+using LinearAlgebra.LAPACK: chkargsok, chklapackerror, chktrans, chkside, chkdiag, chkuplo
 
 using ..AMDGPU
 import AMDGPU: librocsolver
 import AMDGPU: HIP, rocBLAS
 import AMDGPU: HandleCache, library_state, check
 import .HIP: HIPContext, HIPStream, hipContext_t, hipStream_t, hipEvent_t
-import .rocBLAS: rocblas_status, rocblas_handle, rocblas_side, rocblas_operation
+import .rocBLAS: device_batch, rocblas_status, rocblas_handle, rocblas_side, rocblas_operation, rocblas_fill, rocblas_stride
 
 include("librocsolver.jl")
 include("highlevel.jl")

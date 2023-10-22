@@ -1,4 +1,79 @@
 for (fname, elty) in (
+    (:rocsolver_spotrf, :Float32),
+    (:rocsolver_dpotrf, :Float64),
+    (:rocsolver_cpotrf, :ComplexF32),
+    (:rocsolver_zpotrf, :ComplexF64),
+)
+    @eval begin
+        function potrf!(uplo::Char, A::ROCMatrix{$elty})
+            chkuplo(uplo)
+            n = checksquare(A)
+            lda = max(1, stride(A, 2))
+
+            devinfo = ROCVector{Cint}(undef, 1)
+            $fname(rocBLAS.handle(), uplo, n, A, lda, devinfo) |> check
+
+            info = AMDGPU.@allowscalar devinfo[1]
+            AMDGPU.unsafe_free!(devinfo)
+            chkargsok(BlasInt(info))
+
+            A, info
+        end
+    end
+end
+
+for (fname, elty) in (
+    (:rocsolver_spotrs, :Float32),
+    (:rocsolver_dpotrs, :Float64),
+    (:rocsolver_cpotrs, :ComplexF32),
+    (:rocsolver_zpotrs, :ComplexF64),
+)
+    @eval begin
+        function potrs!(uplo::Char, A::ROCMatrix{$elty}, B::ROCVecOrMat{$elty})
+            chkuplo(uplo)
+            n = checksquare(A)
+            m, nrhs = size(B)
+            (m == n) || throw(DimensionMismatch("first dimension of B, $m, must match second dimension of A, $n"))
+            lda  = max(1, stride(A, 2))
+            ldb  = max(1, stride(B, 2))
+            $fname(rocBLAS.handle(), uplo, n, nrhs, A, lda, B, ldb) |> check
+
+            B
+        end
+    end
+end
+
+for (fname, elty) in (
+    (:rocsolver_ssytrf, :Float32),
+    (:rocsolver_dsytrf, :Float64),
+    (:rocsolver_csytrf, :ComplexF32),
+    (:rocsolver_zsytrf, :ComplexF64),
+)
+    @eval begin
+        function sytrf!(uplo::Char, A::ROCMatrix{$elty})
+            m, n = size(A)
+            ipiv = ROCVector{Cint}(undef, n)
+            sytrf!(uplo, A, ipiv)
+        end
+
+        function sytrf!(uplo::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint})
+            chkuplo(uplo)
+            n = checksquare(A)
+            lda = max(1, stride(A, 2))
+
+            devinfo = ROCVector{Cint}(undef, 1)
+            $fname(rocBLAS.handle(), uplo, n, A, lda, ipiv, devinfo) |> check
+
+            info = AMDGPU.@allowscalar devinfo[1]
+            AMDGPU.unsafe_free!(devinfo)
+            chkargsok(BlasInt(info))
+
+            A, ipiv, info
+        end
+    end
+end
+
+for (fname, elty) in (
     (:rocsolver_sgeqrf, :Float32),
     (:rocsolver_dgeqrf, :Float64),
     (:rocsolver_cgeqrf, :ComplexF32),
@@ -50,9 +125,7 @@ for (fname, elty) in (
 
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
-            $fname(
-                rocBLAS.handle(), rocBLAS.rocblasside(side), rocBLAS.rocblasop(trans),
-                m, n, k, A, lda, τ, C, ldc) |> check
+            $fname(rocBLAS.handle(), side, trans, m, n, k, A, lda, τ, C, ldc) |> check
             C
         end
     end
@@ -128,10 +201,59 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
             ldb = max(1, stride(B, 2))
 
-            $fname(
-                rocBLAS.handle(), rocBLAS.rocblasop(trans),
-                n, nrhs, A, lda, ipiv, B, ldb) |> check
+            $fname(rocBLAS.handle(), trans, n, nrhs, A, lda, ipiv, B, ldb) |> check
             B
+        end
+    end
+end
+
+for (fname, elty) in
+        ((:rocsolver_dgetrf_batched,:Float64),
+         (:rocsolver_sgetrf_batched,:Float32),
+         (:rocsolver_zgetrf_batched,:ComplexF64),
+         (:rocsolver_cgetrf_batched,:ComplexF32))
+    @eval begin
+        function getrf_batched!(A::Vector{<:ROCMatrix{$elty}})
+            nb = length(A)
+            m,n = size(A[1])
+            ipiv = ROCVector{Cint}(undef, nb*n)
+            getrf_batched!(A, ipiv)
+        end
+
+        function getrf_batched!(A::Vector{<:ROCMatrix{$elty}}, ipiv::ROCVector{Cint})
+            m,n = size(A[1])
+            lda = max(1, stride(A[1], 2))
+            strideP = min(m,n)
+            batch_count = length(A)
+            info = ROCVector{Cint}(undef, batch_count)
+            Aptrs = device_batch(A)
+            $fname(rocBLAS.handle(), m, n, Aptrs, lda, ipiv, strideP, info, batch_count) |> check
+
+            flags = AMDGPU.@allowscalar collect(info)
+            AMDGPU.unsafe_free!(info)
+            return ipiv, flags, A
+        end
+    end
+end
+
+for (fname, elty) in
+    ((:rocsolver_dgetri_batched, :Float64),
+     (:rocsolver_sgetri_batched, :Float32),
+     (:rocsolver_zgetri_batched, :ComplexF64),
+     (:rocsolver_cgetri_batched, :ComplexF32))
+    @eval begin
+        function getri_batched!(A::Vector{<:ROCMatrix{$elty}}, ipiv::ROCVector{Cint})
+            n = checksquare(A[1])
+            lda = max(1, stride(A[1], 2))
+            strideP = n
+            batch_count = length(A)
+            info = ROCVector{Cint}(undef, batch_count)
+            Aptrs = device_batch(A)
+            $fname(rocBLAS.handle(), n, Aptrs, lda, ipiv, strideP, info, batch_count) |> check
+
+            flags = AMDGPU.@allowscalar collect(info)
+            AMDGPU.unsafe_free!(info)
+            return ipiv, flags, A
         end
     end
 end
@@ -311,18 +433,16 @@ end
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
+        LinearAlgebra.LAPACK.potrf!(uplo::Char, A::ROCMatrix{$elty}) = rocSOLVER.potrf!(uplo, A)
+        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::ROCMatrix{$elty}, B::ROCVecOrMat{$elty}) = rocSOLVER.potrs!(uplo, A, B)
+        LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}) = rocSOLVER.sytrf!(uplo, A)
+        LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.sytrf!(uplo, A, ipiv)
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}) = rocSOLVER.geqrf!(A)
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.geqrf!(A, tau)
         LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}) = rocSOLVER.getrf!(A)
         LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.getrf!(A, ipiv)
-        LinearAlgebra.LAPACK.getrs!(
-            trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint},
-            B::ROCVecOrMat{$elty},
-        ) = rocSOLVER.getrs!(trans, A, ipiv, B)
-        LinearAlgebra.LAPACK.ormqr!(
-            side::Char, trans::Char, A::ROCMatrix{$elty},
-            tau::ROCVector{$elty}, C::ROCVecOrMat{$elty},
-        ) = rocSOLVER.ormqr!(side, trans, A, tau, C)
+        LinearAlgebra.LAPACK.getrs!(trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}, B::ROCVecOrMat{$elty}) = rocSOLVER.getrs!(trans, A, ipiv, B)
+        LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::ROCMatrix{$elty}, tau::ROCVector{$elty}, C::ROCVecOrMat{$elty}) = rocSOLVER.ormqr!(side, trans, A, tau, C)
         LinearAlgebra.LAPACK.orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.orgqr!(A, tau)
     end
 end

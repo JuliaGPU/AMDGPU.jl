@@ -3,6 +3,7 @@
 using AMDGPU.rocSOLVER
 
 m, n = 15, 10
+p = 5
 
 @testset "elty=$elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
     @testset "qr" begin
@@ -143,6 +144,64 @@ end
         dA, τ = rocSOLVER.geqrf!(dA)
         rocSOLVER.orgqr!(dA, τ)
         @test dA' * dA ≈ I
+    end
+end
+
+@testset "potrf! -- potrs!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A    = rand(elty,n,n)
+        A    = A*A' + I
+        B    = rand(elty,n,p)
+        d_A  = ROCArray(A)
+        d_B  = ROCArray(B)
+
+        LAPACK.potrf!('L',d_A)
+        LAPACK.potrs!('U',d_A,d_B)
+        LAPACK.potrf!('L',A)
+        LAPACK.potrs!('U',A,B)
+        @test B ≈ collect(d_B)
+    end
+end
+
+@testset "sytrf!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty,n,n)
+        A = A + A'
+        d_A = ROCArray(A)
+        d_A,d_ipiv,info = rocSOLVER.sytrf!('U',d_A)
+        LinearAlgebra.checknonsingular(info)
+        h_A = collect(d_A)
+        h_ipiv = collect(d_ipiv)
+        A, ipiv = LAPACK.sytrf!('U',A)
+        @test ipiv == h_ipiv
+        @test A ≈ h_A
+    end
+end
+
+@testset "getrf_batched! -- getri_batched!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        bA = [rand(elty, m, m) for i in 1:n]
+        d_bA = ROCMatrix{elty}[]
+        for i in 1:n
+            push!(d_bA, ROCMatrix(bA[i]))
+        end
+
+        d_ipiv, flags, d_bA = rocSOLVER.getrf_batched!(d_bA)
+        h_bA = [collect(d_bA[i]) for i in 1:n]
+
+        ipiv = Vector{Int64}[]
+        for i = 1:n
+            _, ipiv_i, info = LinearAlgebra.LAPACK.getrf!(bA[i])
+            push!(ipiv, ipiv_i)
+            @test bA[i] ≈ h_bA[i]
+        end
+
+        d_ipiv, flags, d_bA = rocSOLVER.getri_batched!(d_bA, d_ipiv)
+        h_bA = [collect(d_bA[i]) for i in 1:n]
+        for i = 1:n
+            LinearAlgebra.LAPACK.getri!(bA[i], ipiv[i])
+            @test bA[i] ≈ h_bA[i]
+        end
     end
 end
 
