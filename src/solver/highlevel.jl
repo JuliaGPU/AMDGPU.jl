@@ -213,6 +213,13 @@ for (fname, elty) in
          (:rocsolver_zgetrf_batched,:ComplexF64),
          (:rocsolver_cgetrf_batched,:ComplexF32))
     @eval begin
+        function getrf_batched!(A::Vector{<:ROCMatrix{$elty}})
+            nb = length(A)
+            m,n = size(A[1])
+            ipiv = ROCVector{Cint}(undef, nb*n)
+            getrf_batched!(A, ipiv)
+        end
+
         function getrf_batched!(A::Vector{<:ROCMatrix{$elty}}, ipiv::ROCVector{Cint})
             m,n = size(A[1])
             lda = max(1, stride(A[1], 2))
@@ -224,7 +231,7 @@ for (fname, elty) in
 
             flags = AMDGPU.@allowscalar collect(info)
             AMDGPU.unsafe_free!(info)
-            return A, flags
+            return ipiv, flags, A
         end
     end
 end
@@ -246,7 +253,7 @@ for (fname, elty) in
 
             flags = AMDGPU.@allowscalar collect(info)
             AMDGPU.unsafe_free!(info)
-            return A, flags
+            return ipiv, flags, A
         end
     end
 end

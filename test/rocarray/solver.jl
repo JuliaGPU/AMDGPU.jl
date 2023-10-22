@@ -178,4 +178,31 @@ end
     end
 end
 
+@testset "getrf_batched! -- getri_batched!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        bA = [rand(elty, m, m) for i in 1:n]
+        d_bA = ROCMatrix{elty}[]
+        for i in 1:n
+            push!(d_bA, ROCMatrix(bA[i]))
+        end
+
+        d_ipiv, flags, d_bA = getrf_batched!(d_bA)
+        h_bA = [collect(d_bA[i]) for i in 1:n]
+
+        ipiv = Vector{Int64}[]
+        for i = 1:n
+            _, ipiv_i, info = LinearAlgebra.LAPACK.getrf!(bA[i])
+            push!(ipiv, ipiv_i)
+            @test bA[i] ≈ h_bA[i]
+        end
+
+        d_ipiv, flags, d_bA = getri_batched!(d_bA, d_ipiv)
+        h_bA = [collect(d_bA[i]) for i in 1:n]
+        for i = 1:n
+            LinearAlgebra.LAPACK.getri!(bA[i], ipiv[i])
+            @test bA[i] ≈ h_bA[i]
+        end
+    end
+end
+
 end
