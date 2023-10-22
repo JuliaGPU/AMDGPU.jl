@@ -1,10 +1,6 @@
 # AMDGPU API Reference
 
-## Device code API
-
-### Thread indexing
-
-#### HSA nomenclature
+## Indexing
 
 ```@docs
 AMDGPU.workitemIdx
@@ -14,8 +10,6 @@ AMDGPU.gridItemDim
 AMDGPU.gridGroupDim
 ```
 
-#### CUDA nomenclature
-
 Use these functions for compatibility with CUDA.jl.
 
 ```@docs
@@ -24,8 +18,11 @@ AMDGPU.Device.blockIdx
 AMDGPU.Device.blockDim
 ```
 
-### Synchronization
+## Synchronization
 
 ```@docs
 AMDGPU.sync_workgroup
+AMDGPU.sync_workgroup_count
+AMDGPU.sync_workgroup_and
+AMDGPU.sync_workgroup_or
 ```

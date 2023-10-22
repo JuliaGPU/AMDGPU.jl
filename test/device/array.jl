@@ -18,5 +18,5 @@
     # Custom show methods are defined
     @test occursin("4×4 device array at", sprint(io->show(io, RD)))
     @test occursin("2×2 device array view", sprint(io->show(io, RD_view)))
-    @test occursin("4×4 device array wrapper Adjoint", sprint(io->show(io, RD_adj)))
+    @test occursin("4×4 device array wrapper LinearAlgebra.Adjoint", sprint(io->show(io, RD_adj)))
 end

@@ -100,19 +100,8 @@ np = clamp(np, 1, 4)
 AMDGPU.versioninfo()
 
 if "core" in TARGET_TESTS
-    @testset verbose=true "Device Functions" begin
-        @info "Testing `Device Functions` on the main thread without workers."
-
-        include("device/synchronization.jl")
-        include("device/launch.jl")
-        include("device/array.jl")
-        include("device/vadd.jl")
-        include("device/memory.jl")
-        include("device/indexing.jl")
-        include("device/math.jl")
-        include("device/wavefront.jl")
-        include("device/execution_control.jl")
-        include("device/exceptions.jl")
+    @info "Testing `Hostcalls` on the main thread."
+    @testset "Hostcalls" begin
         include("device/hostcall.jl")
         include("device/output.jl")
     end

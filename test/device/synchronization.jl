@@ -12,7 +12,8 @@ function test_sync_workgroup_count!(
 
     # First block index starts with 0.
     # Second block index starts with `block_size`.
-    i = workgroupIdx().x == 1 ? workitemIdx().x : (block_size + workitemIdx().x)
+    i = ifelse(workgroupIdx().x == 1,
+        workitemIdx().x, (block_size + workitemIdx().x))
 
     sm = @ROCStaticLocalArray(Int32, 2, false)
     if workitemIdx().x == 1
@@ -28,7 +29,7 @@ function test_sync_workgroup_count!(
     # All workitems pass 1, result should be `block_size`.
     all_workitems_one[i] = Device.sync_workgroup_count(Cint(1))
     # Odd workitems pass 1, result should be `block_size ÷ 2`.
-    odd_workitems_one[i] = Device.sync_workgroup_count(Cint(workitemIdx().x % 2))
+    odd_workitems_one[i] = Device.sync_workgroup_count(Cint((workitemIdx().x - 1) % 2))
     # All workitems pass -1, result should be `block_size`.
     all_workitems_minus_one[i] = Device.sync_workgroup_count(Cint(-1))
     # All workitems pass its id (starting from 0), result should be `block_size - 1`.

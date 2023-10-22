@@ -9,7 +9,7 @@ Waits until all wavefronts in a workgroup have reached this call.
 """
     sync_workgroup_count(predicate::Cint)::Cint
 
-Identical to [sync_workgroup](@ref), with the additional feature
+Identical to `sync_workgroup`, with the additional feature
 that it evaluates the predicate for all workitems in the workgroup
 and returns the number of workitems for which predicate evaluates to non-zero.
 """
@@ -22,7 +22,7 @@ end
 """
     sync_workgroup_and(predicate::Cint)::Cint
 
-Identical to [sync_workgroup](@ref), with the additional feature
+Identical to `sync_workgroup`, with the additional feature
 that it evaluates the predicate for all workitems in the workgroup
 and returns non-zero if and only if predicate evaluates to non-zero for all of them.
 """
@@ -35,7 +35,7 @@ end
 """
     sync_workgroup_or(predicate::Cint)::Cint
 
-Identical to [sync_workgroup](@ref), with the additional feature
+Identical to `sync_workgroup`, with the additional feature
 that it evaluates the predicate for all workitems in the workgroup
 and returns non-zero if and only if predicate evaluates to non-zero for any of them.
 """

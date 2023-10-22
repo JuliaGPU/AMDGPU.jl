@@ -1,12 +1,16 @@
 struct HIPDevice
     device::hipDevice_t
     device_id::Cint
+    props::hipDeviceProp_t
 end
 
+ # TODO `device_id` is confusing, it starts from 1,
+ # but then we change it to 0.
 function HIPDevice(device_id::Integer)
     device_ref = Ref{hipDevice_t}()
     hipDeviceGet(device_ref, device_id - 1) |> check
-    return HIPDevice(device_ref[], device_id)
+    props = properties(device_id - 1)
+    HIPDevice(device_ref[], device_id, props)
 end
 
 device_id(d::HIPDevice) = d.device_id - 1
@@ -47,7 +51,9 @@ function name(dev::HIPDevice)
     AMDGPU.Runtime.hsa_device(dev).name
 end
 
-function properties(dev::HIPDevice)
+properties(dev::HIPDevice) = dev.props
+
+function properties(dev_id::Int)
     init_arch_ref = Ref(hipDeviceArch_t())
     arch_field_id = findfirst(i -> i == :arch, fieldnames(hipDeviceProp_t))
     arch_offset = fieldoffset(hipDeviceProp_t, arch_field_id)
@@ -61,9 +67,11 @@ function properties(dev::HIPDevice)
         Base.unsafe_convert(Ptr{Cvoid}, props_ref) + arch_offset,
         init_arch_ref, sizeof(hipDeviceArch_t))
 
-    hipGetDeviceProperties(props_ref, device_id(dev)) |> check
+    hipGetDeviceProperties(props_ref, dev_id) |> check
     props_ref[]
 end
+
+wavefront_size(d::HIPDevice) = d.props.warpSize
 
 function Base.show(io::IO, device::HIPDevice)
     print(io, "HIPDevice(name=\"$(name(device))\", id=$(device.device_id))")
