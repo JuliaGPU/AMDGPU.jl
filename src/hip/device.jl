@@ -1,7 +1,9 @@
 struct HIPDevice
     device::hipDevice_t
     device_id::Cint
+
     props::hipDeviceProp_t
+    gcn_arch::String
 end
 
  # TODO `device_id` is confusing, it starts from 1,
@@ -9,8 +11,10 @@ end
 function HIPDevice(device_id::Integer)
     device_ref = Ref{hipDevice_t}()
     hipDeviceGet(device_ref, device_id - 1) |> check
+
     props = properties(device_id - 1)
-    HIPDevice(device_ref[], device_id, props)
+    gcn_arch = unsafe_string(pointer([props.gcnArchName...]))
+    HIPDevice(device_ref[], device_id, props, gcn_arch)
 end
 
 device_id(d::HIPDevice) = d.device_id - 1
@@ -24,8 +28,6 @@ end
 function stack_size!(value::Integer)
     hipDeviceSetLimit(hipLimitStackSize, value) |> check
 end
-
-# TODO heap_size tweaking available since 5.5
 
 function heap_size()
     value = Ref{Csize_t}()
@@ -45,36 +47,23 @@ Base.unsafe_convert(::Type{Ptr{T}}, device::HIPDevice) where T =
 function name(dev::HIPDevice)
     name_vec = zeros(Cuchar, 64)
     hipDeviceGetName(pointer(name_vec), Cint(64), dev.device) |> check
-    name_vec[1] == Cuchar(0) || return strip(String(name_vec), '\0')
-
-    # Fallback to HSA device name if HIP failed to report.
-    AMDGPU.Runtime.hsa_device(dev).name
+    return strip(String(name_vec), '\0')
 end
 
 properties(dev::HIPDevice) = dev.props
 
 function properties(dev_id::Int)
-    init_arch_ref = Ref(hipDeviceArch_t())
-    arch_field_id = findfirst(i -> i == :arch, fieldnames(hipDeviceProp_t))
-    arch_offset = fieldoffset(hipDeviceProp_t, arch_field_id)
-
     props_ref = Ref{hipDeviceProp_t}()
-    ccall(:memset,
-        Cvoid, (Ptr{Cvoid}, Cint, Csize_t),
-        props_ref, 0, sizeof(hipDeviceProp_t))
-    ccall(:memcpy,
-        Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-        Base.unsafe_convert(Ptr{Cvoid}, props_ref) + arch_offset,
-        init_arch_ref, sizeof(hipDeviceArch_t))
-
     hipGetDeviceProperties(props_ref, dev_id) |> check
     props_ref[]
 end
 
 wavefront_size(d::HIPDevice) = d.props.warpSize
 
-function Base.show(io::IO, device::HIPDevice)
-    print(io, "HIPDevice(name=\"$(name(device))\", id=$(device.device_id))")
+gcn_arch(d::HIPDevice) = d.gcn_arch
+
+function Base.show(io::IO, dev::HIPDevice)
+    print(io, "HIPDevice(name=\"$(name(dev))\", id=$(dev.device_id), gcn_arch=$(dev.gcn_arch))")
 end
 
 function ndevices()

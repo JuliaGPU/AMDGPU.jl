@@ -146,7 +146,6 @@ function __init__()
     end
 
     has_gpu = false
-    has_navi2 = false
     if isdir("/sys/class/kfd/kfd/topology/nodes/")
         for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
             node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
@@ -154,15 +153,12 @@ function __init__()
             isempty(node_name) && continue
 
             has_gpu = true
-            has_navi2 = has_navi2 ? has_navi2 : (node_name == "navy_flounder")
+            break
         end
     end
     if !has_gpu
         @warn "No GPUs found, skipping initialization."
         return
-    end
-    if has_navi2
-        ENV["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
     end
 
     # Verbose path, something is misconfigured
@@ -172,10 +168,6 @@ function __init__()
         if status == HSA.STATUS_SUCCESS
             # Register shutdown hook.
             atexit(() -> HSA.shut_down())
-            # Fetch HSA devices.
-            Runtime.fetch_hsa_devices()
-            # Setup HSA fault handler.
-            Runtime.setup_fault_handler()
         else
             @warn "HSA initialization failed with code $status"
         end

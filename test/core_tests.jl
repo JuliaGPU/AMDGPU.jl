@@ -25,17 +25,27 @@ macro grab_output(ex, io=stdout)
     end
 end
 
-include("hsa/utils.jl")
-include("hsa/getinfo.jl")
-include("hsa/device.jl")
+@testset "HIPDevice" begin
+    @testset "Device props" begin
+        devices = AMDGPU.devices()
+        for (idx, device) in enumerate(devices)
+            @test AMDGPU.device_id(device) == idx
+
+            device_name = HIP.name(device)
+            @test length(device_name) > 0
+
+            @test occursin("gfx", HIP.gcn_arch(device))
+            @test HIP.wavefront_size(device) in (32, 64)
+        end
+    end
+end
 
 include("codegen/synchronization.jl")
 include("codegen/trap.jl")
 
-# TODO hangs
-# include("tls.jl")
-
 include("rocarray/base.jl")
 include("rocarray/broadcast.jl")
+
+include("tls.jl")
 
 end

@@ -111,7 +111,7 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hsa
-        return !isempty(libhsaruntime) && !isempty(Runtime.HSA_DEVICES)
+        return !isempty(libhsaruntime)
     elseif component == :hip
         return !isempty(libhip)
     elseif component == :lld

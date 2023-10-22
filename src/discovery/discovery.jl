@@ -115,6 +115,19 @@ export librocrand, librocfft, libMIOpen_path
 export julia_exeflags
 
 function __init__()
+    if isdir("/sys/class/kfd/kfd/topology/nodes/")
+        for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
+            node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
+            # CPU nodes don't have names.
+            isempty(node_name) && continue
+
+            if node_name == "navy_flounder"
+                ENV["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
+                break
+            end
+        end
+    end
+
     rocm_paths = use_artifacts() ? String[] : find_roc_paths()
 
     try
