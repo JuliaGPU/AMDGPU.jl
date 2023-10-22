@@ -125,9 +125,7 @@ for (fname, elty) in (
 
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
-            $fname(
-                rocBLAS.handle(), rocBLAS.rocblasside(side), rocBLAS.rocblasop(trans),
-                m, n, k, A, lda, τ, C, ldc) |> check
+            $fname(rocBLAS.handle(), side, trans, m, n, k, A, lda, τ, C, ldc) |> check
             C
         end
     end
@@ -203,18 +201,10 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
             ldb = max(1, stride(B, 2))
 
-            $fname(
-                rocBLAS.handle(), rocBLAS.rocblasop(trans),
-                n, nrhs, A, lda, ipiv, B, ldb) |> check
+            $fname(rocBLAS.handle(), trans, n, nrhs, A, lda, ipiv, B, ldb) |> check
             B
         end
     end
-end
-
-# create a batch of pointers in device memory from a batch of device arrays
-@inline function unsafe_batch(batch::Vector{<:ROCArray{T}}) where {T}
-    ptrs = pointer.(batch)
-    return ROCArray(ptrs)
 end
 
 for (fname, elty) in
@@ -229,7 +219,7 @@ for (fname, elty) in
             strideP = min(m,n)
             batch_count = length(A)
             info = ROCVector{Cint}(undef, batch_count)
-            Aptrs = unsafe_batch(A)
+            Aptrs = device_batch(A)
             $fname(rocBLAS.handle(), m, n, Aptrs, lda, ipiv, strideP, info, batch_count) |> check
 
             flags = AMDGPU.@allowscalar collect(info)
@@ -251,7 +241,7 @@ for (fname, elty) in
             strideP = n
             batch_count = length(A)
             info = ROCVector{Cint}(undef, batch_count)
-            Aptrs = unsafe_batch(A)
+            Aptrs = device_batch(A)
             $fname(rocBLAS.handle(), n, Aptrs, lda, ipiv, strideP, info, batch_count) |> check
 
             flags = AMDGPU.@allowscalar collect(info)

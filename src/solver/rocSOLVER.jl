@@ -10,7 +10,7 @@ import AMDGPU: librocsolver
 import AMDGPU: HIP, rocBLAS
 import AMDGPU: HandleCache, library_state, check
 import .HIP: HIPContext, HIPStream, hipContext_t, hipStream_t, hipEvent_t
-import .rocBLAS: rocblas_status, rocblas_handle, rocblas_side, rocblas_operation, rocblas_fill, rocblas_stride
+import .rocBLAS: device_batch, rocblas_status, rocblas_handle, rocblas_side, rocblas_operation, rocblas_fill, rocblas_stride
 
 include("librocsolver.jl")
 include("highlevel.jl")

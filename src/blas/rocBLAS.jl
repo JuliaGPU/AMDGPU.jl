@@ -14,6 +14,7 @@ using CEnum
 
 include("librocblas.jl")
 include("error.jl")
+include("util.jl")
 include("wrappers.jl")
 include("highlevel.jl")
 
