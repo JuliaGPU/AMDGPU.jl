@@ -81,13 +81,14 @@ import .Device: report_exception_frame, report_exception_name
 import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
-import .Device: threadIdx, blockIdx, blockDim, sync_workgroup
+import .Device: threadIdx, blockIdx, blockDim
+import .Device: sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
 import .Device: @rocprint, @rocprintln, @rocprintf
 
 export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
 export @rocprint, @rocprintln, @rocprintf
 export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
-export sync_workgroup
+export sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
 
 include("compiler/Compiler.jl")
 import .Compiler

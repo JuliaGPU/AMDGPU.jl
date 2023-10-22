@@ -25,7 +25,8 @@ end
 const DEVICE_LIBS::Dict{String, DevLib} = Dict{String, DevLib}()
 
 function link_device_libs!(
-    target::GCNCompilerTarget, mod::LLVM.Module, undefined_fns::Vector{String},
+    target::GCNCompilerTarget, mod::LLVM.Module, undefined_fns::Vector{String};
+    wavefrontsize64::Bool,
 )
     isnothing(libdevice_libs) && return
     isempty(undefined_fns) && return
@@ -58,7 +59,7 @@ function link_device_libs!(
         (:unsafe_math, false),
         (:correctly_rounded_sqrt, true),
         (:daz_opt, false),
-        (:wavefrontsize64, true))
+        (:wavefrontsize64, wavefrontsize64))
 
     for (option, value) in options
         toggle = value ? "on" : "off"

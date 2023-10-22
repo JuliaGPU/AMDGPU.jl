@@ -1,4 +1,7 @@
-struct HIPCompilerParams <: AbstractCompilerParams end
+struct HIPCompilerParams <: AbstractCompilerParams
+    # Whether to compile kernel for the wavefront of size 64.
+    wavefrontsize64::Bool
+end
 
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
 const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
@@ -27,16 +30,20 @@ function GPUCompiler.link_libraries!(
     invoke(GPUCompiler.link_libraries!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
-    link_device_libs!(job.config.target, mod, undefined_fns)
+    link_device_libs!(
+        job.config.target, mod, undefined_fns;
+        wavefrontsize64=job.config.params.wavefrontsize64)
 end
 
-# FIXME
+# FIXME this shouldn't be needed
 function GPUCompiler.finish_ir!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
     undefined_fns = GPUCompiler.decls(mod)
     isempty(undefined_fns) && return entry
-    link_device_libs!(job.config.target, mod, LLVM.name.(undefined_fns))
+    link_device_libs!(
+        job.config.target, mod, LLVM.name.(undefined_fns);
+        wavefrontsize64=job.config.params.wavefrontsize64)
     return entry
 end
 
@@ -75,7 +82,7 @@ function compiler_config(
     dev_isa, features = hsa_isa.arch_features
 
     target = GCNCompilerTarget(; dev_isa, features)
-    params = HIPCompilerParams()
+    params = HIPCompilerParams(HIP.wavefront_size(dev) == 64)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
