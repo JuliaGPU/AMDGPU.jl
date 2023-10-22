@@ -1,4 +1,0 @@
-[general]
-library_name = "libhip"
-output_file_path = "./libhip.jl"
-export_symbol_prefixes = []
