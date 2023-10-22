@@ -186,7 +186,7 @@ end
             push!(d_bA, ROCMatrix(bA[i]))
         end
 
-        d_ipiv, flags, d_bA = getrf_batched!(d_bA)
+        d_ipiv, flags, d_bA = rocSOLVER.getrf_batched!(d_bA)
         h_bA = [collect(d_bA[i]) for i in 1:n]
 
         ipiv = Vector{Int64}[]
@@ -196,7 +196,7 @@ end
             @test bA[i] ≈ h_bA[i]
         end
 
-        d_ipiv, flags, d_bA = getri_batched!(d_bA, d_ipiv)
+        d_ipiv, flags, d_bA = rocSOLVER.getri_batched!(d_bA, d_ipiv)
         h_bA = [collect(d_bA[i]) for i in 1:n]
         for i = 1:n
             LinearAlgebra.LAPACK.getri!(bA[i], ipiv[i])
