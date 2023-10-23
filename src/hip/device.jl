@@ -83,9 +83,19 @@ end
 function devices()
     isempty(ALL_DEVICES) || return copy(ALL_DEVICES)
 
-    devs = [HIPDevice(i) for i in 1:ndevices()]
-    append!(ALL_DEVICES, devs)
-    return devs
+    for i in 1:ndevices()
+        d = HIPDevice(i)
+
+        arch = gcn_arch(d)
+        if occursin("gfx11", arch) && VERSION < v"1.10-"
+            @error """
+            Navi 3 ($arch) requires Julia 1.10+ and ROCm 5.5+ mixed mode:
+            https://amdgpu.juliagpu.org/dev/#LLVM-compatibility-and-mixed-ROCm-mode.
+            """
+        end
+        push!(ALL_DEVICES, d)
+    end
+    return copy(ALL_DEVICES)
 end
 
 function device()
