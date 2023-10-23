@@ -39,8 +39,20 @@ end
 function GPUCompiler.finish_ir!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
+    entry = invoke(GPUCompiler.finish_ir!,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+        job, mod, entry)
+
     undefined_fns = GPUCompiler.decls(mod)
-    isempty(undefined_fns) && return entry
+    need_devlibs = false
+    for fn in undefined_fns
+        if occursin("__ockl", LLVM.name(fn))
+            need_devlibs = true
+            break
+        end
+    end
+    need_devlibs || return entry
+
     link_device_libs!(
         job.config.target, mod, LLVM.name.(undefined_fns);
         wavefrontsize64=job.config.params.wavefrontsize64)

@@ -83,7 +83,8 @@ end
 function devices()
     isempty(ALL_DEVICES) || return copy(ALL_DEVICES)
 
-    for i in 1:ndevices()
+    devs = Vector{HIPDevice}(undef, ndevices())
+    for i in 1:length(devs)
         d = HIPDevice(i)
 
         arch = gcn_arch(d)
@@ -93,9 +94,10 @@ function devices()
             https://amdgpu.juliagpu.org/dev/#LLVM-compatibility-and-mixed-ROCm-mode.
             """
         end
-        push!(ALL_DEVICES, d)
+        devs[i] = d
     end
-    return copy(ALL_DEVICES)
+    append!(ALL_DEVICES, devs)
+    return devs
 end
 
 function device()
