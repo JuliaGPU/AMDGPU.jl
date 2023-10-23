@@ -205,7 +205,7 @@ function __init__()
 
     # Check whether HIP is available
     if functional(:hip)
-        Runtime.fetch_devices()
+        HIP.devices()
     else
         @warn """
         HIP library is unavailable, HIP integration will be disabled.

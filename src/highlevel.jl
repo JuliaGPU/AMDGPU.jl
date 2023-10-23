@@ -3,7 +3,7 @@
 
 Get list of all devices.
 """
-devices() = Runtime.fetch_devices()
+devices() = HIP.devices()
 
 """
     device_id() -> Int

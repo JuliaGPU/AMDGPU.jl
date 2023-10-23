@@ -18,7 +18,6 @@ const RT_LOCK = Threads.ReentrantLock()
 const RT_EXITING = Ref{Bool}(false)
 
 include("error.jl")
-include("device.jl")
 include("dims.jl")
 
 module Mem
