@@ -20,8 +20,8 @@
 
 ## Requirements
 
-The AMDGPU.jl package requires **Julia 1.9 or higher**.\
-AMDGPU.jl currently requires **ROCm 5.3-5.4**, which means only GPUs that are supported by these versions will work.\
+The AMDGPU.jl package requires **Julia 1.9+**, **ROCm 5.3-5.6**, which means only GPUs that are supported by these versions will work.\
+However, ROCm **5.5+** works only in [mixed mode](https://amdgpu.juliagpu.org/dev/#LLVM-compatibility-and-mixed-ROCm-mode) for now.
 Only **64-bit Linux** is supported and working at this time.
 
 This package is under active development and is reasonably complete, however
