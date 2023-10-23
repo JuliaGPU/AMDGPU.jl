@@ -18,8 +18,6 @@ const RT_LOCK = Threads.ReentrantLock()
 const RT_EXITING = Ref{Bool}(false)
 
 include("error.jl")
-include("hsa_device.jl")
-include("device.jl")
 include("dims.jl")
 
 module Mem
@@ -28,7 +26,7 @@ module Mem
     import AMDGPU
     import AMDGPU: HIP, HSA, Runtime
     import .HIP: HIPDevice
-    import .Runtime: ROCDim, ROCDim3, check
+    import .Runtime: ROCDim, ROCDim3
 
     abstract type AbstractAMDBuffer end
 
@@ -38,6 +36,5 @@ end
 
 include("execution.jl")
 include("hip-execution.jl")
-include("fault.jl")
 
 end

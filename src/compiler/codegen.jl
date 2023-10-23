@@ -78,10 +78,8 @@ function compiler_config(
     dev::HIP.HIPDevice; kernel::Bool = true,
     name::Union{String, Nothing} = nothing, always_inline::Bool = true,
 )
-    hsa_isa = AMDGPU.default_isa(dev)
-    dev_isa, features = hsa_isa.arch_features
-
-    target = GCNCompilerTarget(; dev_isa, features)
+    # TODO features with HIP?
+    target = GCNCompilerTarget(; dev_isa=HIP.gcn_arch(dev), features="")
     params = HIPCompilerParams(HIP.wavefront_size(dev) == 64)
     CompilerConfig(target, params; kernel, name, always_inline)
 end

@@ -5,7 +5,7 @@ mutable struct TaskLocalState
 end
 
 function TaskLocalState(
-    dev::HIPDevice = something(Runtime.DEFAULT_DEVICE[], HIPDevice(1)),
+    dev::HIPDevice = something(HIP.DEFAULT_DEVICE[], HIPDevice(1)),
     ctx::HIPContext = HIPContext(dev),
 )
     streams = Union{Nothing, HIPStream}[nothing for _ in 1:HIP.ndevices()]
@@ -42,7 +42,7 @@ This switches only for a task inside which it is called.
 """
 function device!(dev::HIPDevice)
     # Set the new default device.
-    Runtime.DEFAULT_DEVICE[] = dev
+    HIP.DEFAULT_DEVICE[] = dev
 
     ctx = HIPContext(dev)
     state = task_local_state()

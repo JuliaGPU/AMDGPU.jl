@@ -54,8 +54,8 @@ function versioninfo(io::IO=stdout)
 
     if functional(:hsa) && functional(:hip)
         println()
-        println("HIP Devices [$(length(Runtime.devices()))]")
-        for (i, device) in enumerate(Runtime.devices())
+        println("HIP Devices [$(length(HIP.devices()))]")
+        for (i, device) in enumerate(HIP.devices())
             println("    $i. ", repr(device))
         end
     end
@@ -111,7 +111,7 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hsa
-        return !isempty(libhsaruntime) && !isempty(Runtime.HSA_DEVICES)
+        return !isempty(libhsaruntime)
     elseif component == :hip
         return !isempty(libhip)
     elseif component == :lld

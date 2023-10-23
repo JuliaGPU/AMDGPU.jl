@@ -3,7 +3,7 @@
 
 Get list of all devices.
 """
-devices() = Runtime.fetch_devices()
+devices() = HIP.devices()
 
 """
     device_id() -> Int
@@ -36,10 +36,6 @@ default_stream() = HIP.default_stream()
 
 device(stream::HIPStream) = stream.device
 device(idx::Integer) = devices()[idx]
-
-# Device ISAs
-
-default_isa(device::HIPDevice) = Runtime.default_isa(Runtime.hsa_device(device))
 
 """
     synchronize(stream::HIPStream = stream(); blocking::Bool = false)

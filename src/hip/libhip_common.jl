@@ -269,67 +269,12 @@ struct hipMemPoolProps
     reserved::NTuple{64,Cuchar}
 end
 
-Base.@kwdef struct hipDeviceArch_t
-    hasGlobalInt32Atomics::Cuint = 1
-    hasGlobalFloatAtomicExch::Cuint = 1
-    hasSharedInt32Atomics::Cuint = 1
-    hasSharedFloatAtomicExch::Cuint = 1
-    hasFloatAtomicAdd::Cuint = 1
-
-    hasGlobalInt64Atomics::Cuint = 1
-    hasSharedInt64Atomics::Cuint = 1
-
-    # Doubles
-    hasDoubles::Cuint = 1
-
-    # Warp cross-lane operations
-    hasWarpVote::Cuint = 1
-    hasWarpBallot::Cuint = 1
-    hasWarpShuffle::Cuint = 1
-    hasFunnelShift::Cuint = 1
-
-    # Sync
-    hasThreadFenceSystem::Cuint = 1
-    hasSyncThreadsExt::Cuint = 1
-
-    # Misc
-    hasSurfaceFuncs::Cuint = 1
-    has3dGrid::Cuint = 1
-    hasDynamicParallelism::Cuint = 1
-end
-
-function Base.show(io::IO, arch::hipDeviceArch_t)
-    print(io,
-    """
-    struct hipDeviceArch_t
-        hasGlobalInt32Atomics = $(arch.hasGlobalInt32Atomics)
-        hasGlobalFloatAtomicExch = $(arch.hasGlobalFloatAtomicExch)
-        hasSharedInt32Atomics = $(arch.hasSharedInt32Atomics)
-        hasSharedFloatAtomicExch = $(arch.hasSharedFloatAtomicExch)
-        hasFloatAtomicAdd = $(arch.hasFloatAtomicAdd)
-
-        hasGlobalInt64Atomics = $(arch.hasGlobalInt64Atomics)
-        hasSharedInt64Atomics = $(arch.hasSharedInt64Atomics)
-
-        # Doubles
-        hasDoubles = $(arch.hasDoubles)
-
-        # Warp cross-lane operations
-        hasWarpVote = $(arch.hasWarpVote)
-        hasWarpBallot = $(arch.hasWarpBallot)
-        hasWarpShuffle = $(arch.hasWarpShuffle)
-        hasFunnelShift = $(arch.hasFunnelShift)
-
-        # Sync
-        hasThreadFenceSystem = $(arch.hasThreadFenceSystem)
-        hasSyncThreadsExt = $(arch.hasSyncThreadsExt)
-
-        # Misc
-        hasSurfaceFuncs = $(arch.hasSurfaceFuncs)
-        has3dGrid = $(arch.has3dGrid)
-        hasDynamicParallelism = $(arch.hasDynamicParallelism)
-    end
-    """)
+# NOTE:
+# for some unspeakable reason, when defined correctly,
+# it causes `hipGetDeviceProperties` to give incorrect results.
+# It needs to be 4 bytes instead.
+struct hipDeviceArch_t
+    x::Cuint
 end
 
 struct hipDeviceProp_t
@@ -415,20 +360,18 @@ function Base.show(io::IO, props::hipDeviceProp_t)
         maxThreadsPerMultiProcessor = $(props.maxThreadsPerMultiProcessor)
         computeMode = $(props.computeMode)
         clockInstructionRate = $(props.clockInstructionRate)
-        arch = [printed separately below]
         concurrentKernels = $(props.concurrentKernels)
         pciBusID = $(props.pciBusID)
         pciDeviceID = $(props.pciDeviceID)
         maxSharedMemoryPerMultiProcessor = $(Base.format_bytes(props.maxSharedMemoryPerMultiProcessor))
         isMultiGpuBoard = $(props.isMultiGpuBoard)
         canMapHostMemory = $(props.canMapHostMemory)
-        gcnArch = $(props.gcnArch)
-        gcnArchName = $(unsafe_string(gcn_name))
-        ...
+        gcnArch = '$(props.gcnArch)'
+        gcnArchName = '$(unsafe_string(gcn_name))'
+        [...]
     end
     """)
     println(io)
-    show(io, props.arch)
 end
 
 @cenum hipDeviceAttribute_t begin

@@ -1,6 +1,5 @@
 @testset "Wavefront Operations" begin
-    hsa_dev = AMDGPU.Runtime.hsa_device(AMDGPU.device())
-    wavefrontsize = AMDGPU.Runtime.device_wavefront_size(hsa_dev)
+    wavefrontsize = AMDGPU.HIP.wavefront_size(AMDGPU.device())
 
     function reduce_kernel(op,X,Y)
         idx = workitemIdx().x
@@ -62,8 +61,7 @@
 end
 
 @testset "Wavefront Information" begin
-    hsa_dev = AMDGPU.Runtime.hsa_device(AMDGPU.device())
-    wavefrontsize = AMDGPU.Runtime.device_wavefront_size(hsa_dev)
+    wavefrontsize = AMDGPU.HIP.wavefront_size(AMDGPU.device())
     @test wavefrontsize == 32 || wavefrontsize == 64
 
     function kernel(X)
