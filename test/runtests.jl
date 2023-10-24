@@ -2,6 +2,7 @@ using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
 import AMDGPU.Device: HostCallHolder, hostcall!
 
+import InteractiveUtils
 using LinearAlgebra
 using ReTestItems
 using Test
@@ -97,7 +98,7 @@ np = clamp(np, 1, 4)
 
 @info "Running tests with $np workers."
 @info "Testing using device $(AMDGPU.device())."
-versioninfo()
+InteractiveUtils.versioninfo()
 AMDGPU.versioninfo()
 
 if "core" in TARGET_TESTS
