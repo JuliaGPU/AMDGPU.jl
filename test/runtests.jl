@@ -97,6 +97,7 @@ np = clamp(np, 1, 4)
 
 @info "Running tests with $np workers."
 @info "Testing using device $(AMDGPU.device())."
+versioninfo()
 AMDGPU.versioninfo()
 
 if "core" in TARGET_TESTS
