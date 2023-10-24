@@ -27,7 +27,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}()
+                out = Ref{Csize_t}()
                 $bname(handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal, info_ref[], out)
                 return out[]
             end
@@ -69,7 +69,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
                     rowvals(A), info_ref[], out)
@@ -121,7 +121,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}()
+                out = Ref{Csize_t}()
                 $bname(
                     handle(), m, nnz(A), desc,
                     nonzeros(A), A.rowPtr, A.colVal, info_ref[], out)
@@ -167,7 +167,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}()
+                out = Ref{Csize_t}()
                 $bname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
                     rowvals(A), info_ref[], out)
@@ -213,7 +213,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
                     A.rowPtr, A.colVal, A.blockDim, info_ref[], out)
@@ -261,7 +261,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
                     A.rowPtr, A.colVal, A.blockDim, info_ref[], out)
