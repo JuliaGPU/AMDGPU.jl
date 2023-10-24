@@ -74,12 +74,23 @@ function GPUCompiler.finish_module!(
     return entry
 end
 
+function parse_llvm_features(arch::String)
+    splits = split(arch, ":")
+    length(splits) == 1 && return (; dev_isa=splits[1], features="")
+
+    dev_isa, features = splits[1], splits[2:end]
+    features = join(map(x -> x[1:end - 1], filter(x -> x[end] == '+', features)), ",+")
+    isempty(features) || (features = "+" * features)
+    (; dev_isa, features)
+end
+
+
 function compiler_config(
     dev::HIP.HIPDevice; kernel::Bool = true,
     name::Union{String, Nothing} = nothing, always_inline::Bool = true,
 )
-    # TODO features with HIP?
-    target = GCNCompilerTarget(; dev_isa=HIP.gcn_arch(dev), features="")
+    dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
+    target = GCNCompilerTarget(; dev_isa, features)
     params = HIPCompilerParams(HIP.wavefront_size(dev) == 64)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
