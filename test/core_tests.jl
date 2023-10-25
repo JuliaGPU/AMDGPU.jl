@@ -40,6 +40,24 @@ end
     end
 end
 
+@testset "ISA parsing" begin
+    dev_isa, features = AMDGPU.Compiler.parse_llvm_features("gfx1030")
+    @test dev_isa == "gfx1030"
+    @test isempty(features)
+    dev_isa, features = AMDGPU.Compiler.parse_llvm_features("gfx90a:sramecc+:xnack-")
+    @test dev_isa == "gfx90a"
+    @test features == "+sramecc"
+    dev_isa, features = AMDGPU.Compiler.parse_llvm_features("gfx90a:sramecc+:xnack+")
+    @test dev_isa == "gfx90a"
+    @test features == "+sramecc,+xnack"
+    dev_isa, features = AMDGPU.Compiler.parse_llvm_features("gfx90a:xnack-")
+    @test dev_isa == "gfx90a"
+    @test isempty(features)
+    dev_isa, features = AMDGPU.Compiler.parse_llvm_features("gfx90a:xnack+")
+    @test dev_isa == "gfx90a"
+    @test features == "+xnack"
+end
+
 include("codegen/synchronization.jl")
 include("codegen/trap.jl")
 
