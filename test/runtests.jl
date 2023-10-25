@@ -101,20 +101,19 @@ np = clamp(np, 1, 4)
 InteractiveUtils.versioninfo()
 AMDGPU.versioninfo()
 
-# if "core" in TARGET_TESTS
-#     @info "Testing `Hostcalls` on the main thread."
-#     @testset "Hostcalls" begin
-#         include("device/hostcall.jl")
-#         include("device/output.jl")
-#     end
-# end
+if "core" in TARGET_TESTS
+    @info "Testing `Hostcalls` on the main thread."
+    @testset "Hostcalls" begin
+        include("device/hostcall.jl")
+        include("device/output.jl")
+    end
+end
 
 CI = parse(Bool, get(ENV, "CI", "false"))
 
-runtests(AMDGPU; nworkers=0, nworker_threads=1, testitem_timeout=60 * 30) do ti
-    startswith(ti.name, "core: device")
-    # for tt in TARGET_TESTS
-    #     startswith(ti.name, tt) && return true
-    # end
-    # return false
+runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
+    for tt in TARGET_TESTS
+        startswith(ti.name, tt) && return true
+    end
+    return false
 end
