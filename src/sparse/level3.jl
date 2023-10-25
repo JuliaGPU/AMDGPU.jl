@@ -198,6 +198,7 @@ for (bname,aname,sname,elty) in (
                     handle(), A.dir, transa, transxy, mb,
                     nX, A.nnzb, alpha, desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[], X, ldx, X, ldx,
+                    rocsparse_analysis_policy_force,
                     rocsparse_solve_policy_auto, buffer)
             end
             rocsparse_destroy_mat_info(info_ref[])
@@ -250,7 +251,7 @@ for (bname,aname,sname,elty) in (
                     handle(), 0, transa, transxy,
                     m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info[],
-                    rocsparse_solve_policy_auto, buffer)
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_csrsm_zero_pivot(handle(), info[1], posit)
                 if posit[] >= 0
@@ -321,6 +322,7 @@ for (bname,aname,sname,elty) in (
                     handle(), 0, ctransa, transxy,
                     m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
+                    rocsparse_analysis_policy_force,
                     rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_xcsrsm_zero_pivot(handle(), info_ref[], posit)

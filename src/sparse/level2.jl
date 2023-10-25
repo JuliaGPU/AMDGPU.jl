@@ -96,7 +96,7 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), A.dir, transa, mb, A.nnzb,
                     desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
-                    info_ref[], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    info_ref[], rocsparse_analysis_policy_force, CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_bsrsv_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -151,7 +151,7 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), transa, m, nnz(A),
                     desc, nonzeros(A), A.rowPtr, A.colVal, info_ref[],
-                    rocsparse_solve_policy_auto, buffer)
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_csrsv_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -215,7 +215,7 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), ctransa, m, nnz(A),
                     desc, nonzeros(A), A.colPtr, rowvals(A), info_ref[],
-                    rocsparse_solve_policy_auto, buffer)
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_csrsv_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
