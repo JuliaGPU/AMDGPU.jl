@@ -27,7 +27,7 @@ end
         @testset "y = T \ x -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             @testset "trans = $trans" for (trans, op) in (('N', identity), ('T', transpose), ('C', adjoint))
                 (SparseMatrixType == ROCSparseMatrixCSC) && (trans == 'C') && (elty <: Complex) && continue
-                @testset "trans = $uplo" for uplo in ('L', 'U')
+                @testset "uplo = $uplo" for uplo in ('L', 'U')
                     @testset "diag = $diag" for diag in ('N', 'U')
                         T = rand(elty,n,n)
                         T = uplo == 'L' ? tril(T) : triu(T)
@@ -46,7 +46,7 @@ end
         @testset "Y = T \ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             @testset "trans = $trans" for (trans, op) in (('N', identity), ('T', transpose), ('C', adjoint))
                 (SparseMatrixType == ROCSparseMatrixCSC) && (trans == 'C') && (elty <: Complex) && continue
-                @testset "trans = $uplo" for uplo in ('L', 'U')
+                @testset "uplo = $uplo" for uplo in ('L', 'U')
                     @testset "diag = $diag" for diag in ('N', 'U')
                         T = rand(elty,n,n)
                         T = uplo == 'L' ? tril(T) : triu(T)
