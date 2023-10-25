@@ -154,7 +154,7 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_scsrilu0_buffer_size, :rocsparse_scsrilu0_analysis, :rocsparse_scsrilu0, :Float32),
     (:rocsparse_dcsrilu0_buffer_size, :rocsparse_dcsrilu0_analysis, :rocsparse_dcsrilu0, :Float64),
     (:rocsparse_ccsrilu0_buffer_size, :rocsparse_ccsrilu0_analysis, :rocsparse_ccsrilu0, :ComplexF32),
-    (:rocsparse_zcsrilu0_buffer_Size, :rocsparse_zcsrilu0_analysis, :rocsparse_zcsrilu0, :ComplexF64),
+    (:rocsparse_zcsrilu0_buffer_size, :rocsparse_zcsrilu0_analysis, :rocsparse_zcsrilu0, :ComplexF64),
 )
     @eval begin
         function ilu0!(A::ROCSparseMatrixCSC{$elty}, index::SparseChar)

@@ -15,6 +15,7 @@ blockdim = 4
         @testset "IC(0) -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             A = rand(elty,n,n)
             A = A * A'
+            A = sparse(A)
             d_A = SparseMatrixType == ROCSparseMatrixBSR ? SparseMatrixType(ROCSparseMatrixCSR(A), blockdim) : SparseMatrixType(A)
             d_P = rocSPARSE.ic0(d_A, 'O')
             @test mapreduce(isfinite, &, collect(nonzeros(d_P)))
@@ -32,6 +33,7 @@ end
                         T = rand(elty,n,n)
                         T = uplo == 'L' ? tril(T) : triu(T)
                         T = diag == 'N' ? T : T - Diagonal(T) + I
+                        T = sparse(T)
                         d_T = SparseMatrixType == ROCSparseMatrixBSR ? SparseMatrixType(ROCSparseMatrixCSR(T), blockdim) : SparseMatrixType(T)
                         x = rand(elty,n)
                         d_x = ROCVector{elty}(x)
@@ -51,6 +53,7 @@ end
                         T = rand(elty,n,n)
                         T = uplo == 'L' ? tril(T) : triu(T)
                         T = diag == 'N' ? T : T - Diagonal(T) + I
+                        T = sparse(T)
                         d_T = SparseMatrixType == ROCSparseMatrixBSR ? SparseMatrixType(ROCSparseMatrixCSR(T), blockdim) : SparseMatrixType(T)
                         X = rand(elty,n,p)
                         d_X = ROCMatrix{elty}(X)
