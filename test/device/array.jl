@@ -13,6 +13,8 @@
     @test_throws Exception RD_view[1,1]
     RD_adj = RD'
     @show typeof(RD_adj)
+    @show typeof(RD_adj) <: AMDGPU.Device.AnyROCDeviceVector
+    @show typeof(RD_adj) <: AMDGPU.Device.AnyROCDeviceArray
     @test RD_adj isa LinearAlgebra.Adjoint
     @test_throws Exception RD_adj[1]
     @test_throws Exception RD_adj[1,1]
