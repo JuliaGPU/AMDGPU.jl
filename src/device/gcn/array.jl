@@ -111,7 +111,7 @@ Base.show(io::IO, a::SubArray{T,D,P,I,F}) where {T,D,P<:ROCDeviceArray,I,F} =
     print(io, "$(join(map(length, a.indices), '×')) device array view(::$P at $(pointer(parent(a))), $(join(a.indices, ", "))) with eltype $T")
 
 Base.show(io::IO, a::S) where S<:AnyROCDeviceVector =
-    print(io, "$(length(a))-element device wrapper $S at $(pointer(parent(a)))")
+    print(io, "$(length(a))-element device array wrapper $S at $(pointer(parent(a)))")
 Base.show(io::IO, a::S) where S<:AnyROCDeviceArray =
     print(io, "$(join(parent(a).shape, '×')) device array wrapper $S at $(pointer(parent(a)))")
 
