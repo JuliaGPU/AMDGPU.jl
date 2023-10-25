@@ -4,6 +4,8 @@ using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
 using LinearAlgebra
 
+CI = parse(Bool, get(ENV, "CI", "false"))
+
 # include("device/launch.jl")
 include("device/array.jl")
 # include("device/vadd.jl")
