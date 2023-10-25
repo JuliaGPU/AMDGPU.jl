@@ -53,10 +53,10 @@ end
 
 # cscic02
 for (bname,aname,sname,elty) in (
-    (:rocsparse_scsric0_buffer_size, :rocsparseScsric02_analysis, :rocsparseScsric02, :Float32),
-    (:rocsparse_dcsric0_buffer_size, :rocsparseDcsric02_analysis, :rocsparseDcsric02, :Float64),
-    (:rocsparse_ccsric0_buffer_size, :rocsparseCcsric02_analysis, :rocsparseCcsric02, :ComplexF32),
-    (:rocsparse_zcsric0_buffer_size, :rocsparseZcsric02_analysis, :rocsparseZcsric02, :ComplexF64),
+    (:rocsparse_scsric0_buffer_size, :rocsparse_scsric0_analysis, :rocsparse_scsric0, :Float32),
+    (:rocsparse_dcsric0_buffer_size, :rocsparse_dcsric0_analysis, :rocsparse_dcsric0, :Float64),
+    (:rocsparse_ccsric0_buffer_size, :rocsparse_ccsric0_analysis, :rocsparse_ccsric0, :ComplexF32),
+    (:rocsparse_zcsric0_buffer_size, :rocsparse_zcsric0_analysis, :rocsparse_zcsric0, :ComplexF64),
 )
     @eval begin
         function ic0!(A::ROCSparseMatrixCSC{$elty}, index::SparseChar)
