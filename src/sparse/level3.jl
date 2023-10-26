@@ -174,7 +174,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, transa, transxy,
                     mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
@@ -238,7 +238,7 @@ for (bname,aname,sname,elty) in (
             # use non block algo (0) for now...
 
             function bufferSize()
-                out = Ref{UInt64}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), 0, transa, transxy,
                     m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
@@ -309,7 +309,7 @@ for (bname,aname,sname,elty) in (
             # use non block algo (0) for now...
 
             function bufferSize()
-                out = Ref{UInt64}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), 0, ctransa, transxy,
                     m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
