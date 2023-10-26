@@ -25,7 +25,7 @@ end
 
 @testset "Triangular solves" begin
     @testset "$SparseMatrixType" for SparseMatrixType in (ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixBSR)
-        @testset "y = T \ x -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+        @testset "y = T \\ x -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             @testset "trans = $trans" for (trans, op) in (('N', identity), ('T', transpose), ('C', adjoint))
                 (SparseMatrixType == ROCSparseMatrixCSC) && (trans == 'C') && (elty <: Complex) && continue
                 @testset "uplo = $uplo" for uplo in ('L', 'U')
@@ -45,7 +45,7 @@ end
             end
         end
 
-        @testset "Y = T \ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+        @testset "Y = T \\ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             @testset "trans = $trans" for (trans, op) in (('N', identity), ('T', transpose), ('C', adjoint))
                 (SparseMatrixType == ROCSparseMatrixCSC) && (trans == 'C') && (elty <: Complex) && continue
                 @testset "uplo = $uplo" for uplo in ('L', 'U')
