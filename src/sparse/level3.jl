@@ -199,7 +199,6 @@ for (bname,aname,sname,elty) in (
                     handle(), A.dir, transa, transxy, mb,
                     nX, A.nnzb, alpha, desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[], X, ldx, X, ldx,
-                    rocsparse_analysis_policy_force,
                     rocsparse_solve_policy_auto, buffer)
             end
             rocsparse_destroy_mat_info(info_ref[])
