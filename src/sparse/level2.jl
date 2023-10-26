@@ -37,7 +37,7 @@ for (fname,elty) in ((:rocsparse_sbsrmv, :Float32),
             end
             $fname(
                 handle(), A.dir, transa, mb, nb,
-                nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                 A.colVal, A.blockDim, X, beta, Y)
             Y
         end
@@ -105,7 +105,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), A.dir, transa, mb, A.nnzb,
-                    alpha, desc, nonzeros(A), A.rowPtr, A.colVal,
+                    Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr, A.colVal,
                     A.blockDim, info_ref[], X, X,
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -160,7 +160,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), transa, m,
-                    nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                    nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, info_ref[], X, X,
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -224,7 +224,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), ctransa, m,
-                    nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                    nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), info[1], X, X,
                     rocsparse_solve_policy_auto, buffer)
             end

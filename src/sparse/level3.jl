@@ -48,7 +48,7 @@ for (fname,elty) in ((:rocsparse_sbsrmm, :Float32),
 
             $fname(
                 handle(), A.dir, transa, transb, mb, n, kb, A.nnzb,
-                alpha, desc, nonzeros(A),A.rowPtr, A.colVal,
+                Ref{$elty}(alpha), desc, nonzeros(A),A.rowPtr, A.colVal,
                 A.blockDim, B, ldb, beta, C, ldc)
             C
         end
@@ -86,7 +86,7 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
             ldc = max(1,stride(C,2))
 
             $fname(
-                handle(), transa, transb, m, n, k, nnz(A), alpha, desc,
+                handle(), transa, transb, m, n, k, nnz(A), Ref{$elty}(alpha), desc,
                 nonzeros(A), A.rowPtr, A.colVal, B, ldb, beta, C, ldc)
             C
         end
@@ -120,7 +120,7 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
             ldc = max(1,stride(C,2))
 
             $fname(
-                handle(), ctransa, transb, m, n, k, nnz(A), alpha, desc,
+                handle(), ctransa, transb, m, n, k, nnz(A), Ref{$elty}(alpha), desc,
                 nonzeros(A), A.colPtr, rowvals(A), B, ldb, beta, C, ldc)
             C
         end
@@ -197,7 +197,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), A.dir, transa, transxy, mb,
-                    nX, A.nnzb, alpha, desc, nonzeros(A), A.rowPtr,
+                    nX, A.nnzb, Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[], X, ldx, X, ldx,
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -241,7 +241,7 @@ for (bname,aname,sname,elty) in (
                 out = Ref{Csize_t}(1)
                 $bname(
                     handle(), 0, transa, transxy,
-                    m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                    m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[], rocsparse_solve_policy_auto, out)
                 return out[]
             end
@@ -249,7 +249,7 @@ for (bname,aname,sname,elty) in (
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), 0, transa, transxy,
-                    m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                    m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info[],
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
@@ -260,7 +260,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), 0, transa, transxy, m,
-                    nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                    nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[],
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -312,7 +312,7 @@ for (bname,aname,sname,elty) in (
                 out = Ref{Csize_t}(1)
                 $bname(
                     handle(), 0, ctransa, transxy,
-                    m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                    m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[], rocsparse_solve_policy_auto, out)
                 return out[]
             end
@@ -320,7 +320,7 @@ for (bname,aname,sname,elty) in (
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), 0, ctransa, transxy,
-                    m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                    m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
                     rocsparse_analysis_policy_force,
                     rocsparse_solve_policy_auto, buffer)
@@ -332,7 +332,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), 0, ctransa, transxy, m,
-                    nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                    nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
                     rocsparse_solve_policy_auto, buffer)
             end
