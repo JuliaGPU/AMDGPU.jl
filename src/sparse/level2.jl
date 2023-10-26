@@ -96,7 +96,7 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), A.dir, transa, mb, A.nnzb,
                     desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
-                    info_ref[], rocsparse_analysis_policy_force, CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    info_ref[], rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_bsrsv_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0

@@ -187,7 +187,7 @@ for (bname,aname,sname,elty) in (
                     handle(), A.dir, transa, transxy,
                     mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[],
-                    CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_bsrsm_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
