@@ -27,7 +27,7 @@ end
     @testset "$SparseMatrixType" for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrixBSR)
         @testset "y = T \\ x -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             for (trans, op) in (('N', identity), ('T', transpose), ('C', adjoint))
-                (SparseMatrixType == ROCSparseMatrixCSC) && (trans == 'C') && (elty <: Complex) && continue
+                (trans == 'C') && continue
                 for uplo in ('L', 'U')
                     for diag in ('N', 'U')
                         @testset "trans = $trans | uplo = $uplo | diag = $diag" begin
@@ -50,7 +50,7 @@ end
         @testset "Y = T \\ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             for (transT, opT) in (('N', identity), ('T', transpose), ('C', adjoint))
                 for (transX, opX) in (('N', identity), ('T', transpose), ('C', adjoint))
-                    (SparseMatrixType == ROCSparseMatrixCSC) && (transX == 'C') && (elty <: Complex) && continue
+                    ((transX == 'C') || (transT =='C')) && continue
                     for uplo in ('L', 'U')
                         for diag in ('N', 'U')
                             @testset "transT = $transT | transX = $transX | uplo = $uplo | diag = $diag" begin
@@ -63,7 +63,7 @@ end
                                 d_X = ROCMatrix{elty}(X)
                                 d_Y = rocSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')
                                 Y = opT(T) \ opX(X)
-                                @test collect(d_Y) ≈ Y
+                                @test collect(d_Y) ≈ (transX == 'N' ? Y : transpose(Y))
                             end
                         end
                     end
