@@ -349,20 +349,23 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
             diag::SparseChar, alpha::Number, A::ROCSparseMatrix{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar,
         )
-            sm2!(transa,transxy,uplo,diag,alpha,A,copy(X),index)
+            X_copy = transxy == 'N' ? copy(X) : (transxy == 'T' ? copy(transpose(X)) : copy(X'))
+            sm2!(transa,transxy,uplo,diag,alpha,A,X_copy,index)
         end
         function sm2(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, A::ROCSparseMatrix{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar,
         )
-            sm2!(transa,transxy,uplo,diag,one($elty),A,copy(X),index)
+            X_copy = transxy == 'N' ? copy(X) : (transxy == 'T' ? copy(transpose(X)) : copy(X'))
+            sm2!(transa,transxy,uplo,diag,one($elty),A,X_copy,index)
         end
         function sm2(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             A::ROCSparseMatrix{$elty}, X::StridedROCMatrix{$elty}, index::SparseChar,
         )
-            sm2!(transa,transxy,uplo,'N',one($elty),A,copy(X),index)
+            X_copy = transxy == 'N' ? copy(X) : (transxy == 'T' ? copy(transpose(X)) : copy(X'))
+            sm2!(transa,transxy,uplo,'N',one($elty),A,X_copy,index)
         end
     end
 end
