@@ -163,6 +163,7 @@ for (bname,aname,sname,elty) in (
             end
             mb = cld(m, A.blockDim)
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -177,7 +178,7 @@ for (bname,aname,sname,elty) in (
                 out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, transa, transxy,
-                    mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
+                    mb, nrhs, A.nnzb, desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[], out)
                 return out[]
             end
@@ -185,7 +186,7 @@ for (bname,aname,sname,elty) in (
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), A.dir, transa, transxy,
-                    mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
+                    mb, nrhs, A.nnzb, desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[],
                     rocsparse_analysis_policy_force,
                     rocsparse_solve_policy_auto, buffer)
@@ -226,6 +227,7 @@ for (bname,aname,sname,elty) in (
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -241,7 +243,7 @@ for (bname,aname,sname,elty) in (
                 out = Ref{Csize_t}(1)
                 $bname(
                     handle(), transa, transxy,
-                    m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
+                    m, nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[], rocsparse_solve_policy_auto, out)
                 return out[]
             end
@@ -249,7 +251,7 @@ for (bname,aname,sname,elty) in (
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), transa, transxy,
-                    m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
+                    m, nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[],
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
@@ -260,7 +262,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), transa, transxy, m,
-                    nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
+                    nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[],
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -297,6 +299,7 @@ for (bname,aname,sname,elty) in (
                 throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
             end
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -312,7 +315,7 @@ for (bname,aname,sname,elty) in (
                 out = Ref{Csize_t}(1)
                 $bname(
                     handle(), ctransa, transxy,
-                    m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
+                    m, nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[], rocsparse_solve_policy_auto, out)
                 return out[]
             end
@@ -332,7 +335,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), ctransa, transxy, m,
-                    nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
+                    nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -349,23 +352,20 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
             diag::SparseChar, alpha::Number, A::ROCSparseMatrix{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar,
         )
-            X_copy = transxy == 'N' ? copy(X) : (transxy == 'T' ? copy(transpose(X)) : copy(X'))
-            sm2!(transa,transxy,uplo,diag,alpha,A,X_copy,index)
+            sm2!(transa,transxy,uplo,diag,alpha,A,copy(X),index)
         end
         function sm2(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, A::ROCSparseMatrix{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar,
         )
-            X_copy = transxy == 'N' ? copy(X) : (transxy == 'T' ? copy(transpose(X)) : copy(X'))
-            sm2!(transa,transxy,uplo,diag,one($elty),A,X_copy,index)
+            sm2!(transa,transxy,uplo,diag,one($elty),A,copy(X),index)
         end
         function sm2(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             A::ROCSparseMatrix{$elty}, X::StridedROCMatrix{$elty}, index::SparseChar,
         )
-            X_copy = transxy == 'N' ? copy(X) : (transxy == 'T' ? copy(transpose(X)) : copy(X'))
-            sm2!(transa,transxy,uplo,'N',one($elty),A,X_copy,index)
+            sm2!(transa,transxy,uplo,'N',one($elty),A,copy(X),index)
         end
     end
 end
