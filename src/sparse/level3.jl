@@ -198,7 +198,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), A.dir, transa, transxy, mb,
-                    nX, A.nnzb, Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
+                    nrhs, A.nnzb, Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[], X, ldx, X, ldx,
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -323,7 +323,7 @@ for (bname,aname,sname,elty) in (
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), ctransa, transxy,
-                    m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
+                    m, nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
                     rocsparse_analysis_policy_force,
                     rocsparse_solve_policy_auto, buffer)
