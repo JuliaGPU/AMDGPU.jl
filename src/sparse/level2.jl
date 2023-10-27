@@ -153,7 +153,7 @@ for (bname,aname,sname,elty) in (
                     desc, nonzeros(A), A.rowPtr, A.colVal, info_ref[],
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csrsv_zero_pivot(handle(), info_ref[], posit)
+                rocsparse_csrsv_zero_pivot(handle(), desc, info_ref[], posit)
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
@@ -217,7 +217,7 @@ for (bname,aname,sname,elty) in (
                     desc, nonzeros(A), A.colPtr, rowvals(A), info_ref[],
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csrsv_zero_pivot(handle(), info_ref[], posit)
+                rocsparse_csrsv_zero_pivot(handle(), desc, info_ref[], posit)
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
@@ -225,7 +225,7 @@ for (bname,aname,sname,elty) in (
                 $sname(
                     handle(), ctransa, m,
                     nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
-                    rowvals(A), info[1], X, X,
+                    rowvals(A), info_ref[], X, X,
                     rocsparse_solve_policy_auto, buffer)
             end
             rocsparse_destroy_mat_info(info_ref[])
