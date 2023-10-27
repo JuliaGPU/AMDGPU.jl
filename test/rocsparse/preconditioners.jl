@@ -24,7 +24,7 @@ blockdim = 4
 end
 
 @testset "Triangular solves" begin
-    @testset "$SparseMatrixType" for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC) #, ROCSparseMatrixBSR)
+    @testset "$SparseMatrixType" for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrixBSR)
         @testset "y = T \\ x -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             for (trans, op) in (('N', identity), ('T', transpose), ('C', adjoint))
                 (SparseMatrixType == ROCSparseMatrixCSC) && (trans == 'C') && (elty <: Complex) && continue
