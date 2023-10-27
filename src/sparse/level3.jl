@@ -325,7 +325,7 @@ for (bname,aname,sname,elty) in (
                     rocsparse_analysis_policy_force,
                     rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_xcsrsm_zero_pivot(handle(), info_ref[], posit)
+                rocsparse_csrsm_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
