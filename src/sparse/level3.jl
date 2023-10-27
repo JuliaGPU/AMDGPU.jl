@@ -154,8 +154,12 @@ for (bname,aname,sname,elty) in (
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
-            X::StridedROCMatrix{$elty}, index::SparseChar,
-        )
+            X::StridedROCMatrix{$elty}, index::SparseChar)
+
+            # Support transa = 'C' and `transb = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transb = $elty <: Real && transb == 'C' ? 'T' : transb
+
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -219,8 +223,12 @@ for (bname,aname,sname,elty) in (
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{$elty},
-            X::StridedROCMatrix{$elty}, index::SparseChar,
-        )
+            X::StridedROCMatrix{$elty}, index::SparseChar)
+
+            # Support transa = 'C' and transxy = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
+
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -283,12 +291,18 @@ for (bname,aname,sname,elty) in (
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{$elty},
-            X::StridedROCMatrix{$elty}, index::SparseChar,
-        )
+            X::StridedROCMatrix{$elty}, index::SparseChar)
+
+            # Support transa = 'C' and transxy = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
+
             ctransa = 'N'
             cuplo = 'U'
             if transa == 'N'
                 ctransa = 'T'
+            elseif transa == 'C' && $elty <: Complex
+                throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
                 cuplo = 'L'

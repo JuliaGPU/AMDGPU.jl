@@ -23,8 +23,11 @@ for (fname,elty) in ((:rocsparse_sbsrmv, :Float32),
     @eval begin
         function mv!(
             transa::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
-            X::ROCVector{$elty}, beta::Number, Y::ROCVector{$elty}, index::SparseChar,
-        )
+            X::ROCVector{$elty}, beta::Number, Y::ROCVector{$elty}, index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             mb = div(m,A.blockDim)
@@ -68,8 +71,11 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixBSR{$elty}, X::ROCVector{$elty}, index::SparseChar,
-        )
+            A::ROCSparseMatrixBSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -125,8 +131,11 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixCSR{$elty}, X::ROCVector{$elty}, index::SparseChar,
-        )
+            A::ROCSparseMatrixCSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -180,12 +189,17 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixCSC{$elty}, X::ROCVector{$elty}, index::SparseChar,
-        )
+            A::ROCSparseMatrixCSC{$elty}, X::ROCVector{$elty}, index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             ctransa = 'N'
             cuplo = 'U'
             if transa == 'N'
                 ctransa = 'T'
+            elseif transa == 'C' && $elty <: Complex
+                throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
                 cuplo = 'L'

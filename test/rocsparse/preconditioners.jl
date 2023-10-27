@@ -49,8 +49,8 @@ end
 
         @testset "Y = T \\ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
             for (transT, opT) in (('N', identity), ('T', transpose), ('C', adjoint))
-                for (transX, opX) in (('N', identity), ('T', transpose), ('C', adjoint))
-                    ((transX == 'C') || (transT =='C')) && continue
+                (transT == 'C') && continue
+                for (transX, opX) in (('N', identity), ('T', transpose))
                     for uplo in ('L', 'U')
                         for diag in ('N', 'U')
                             @testset "transT = $transT | transX = $transX | uplo = $uplo | diag = $diag" begin
