@@ -47,28 +47,28 @@ end
             end
         end
 
-        # @testset "Y = T \\ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
-        #     for (transT, opT) in (('N', identity), ('T', transpose), ('C', adjoint))
-        #         for (transX, opX) in (('N', identity), ('T', transpose), ('C', adjoint))
-        #             (SparseMatrixType == ROCSparseMatrixCSC) && (transX == 'C') && (elty <: Complex) && continue
-        #             for "uplo = $uplo" for uplo in ('L', 'U')
-        #                 for "diag = $diag" for diag in ('N', 'U')
-        #                     @testset "transT = $transT | transX = $transX | uplo = $uplo | diag = $diag" begin
-        #                         T = rand(elty,n,n)
-        #                         T = uplo == 'L' ? tril(T) : triu(T)
-        #                         T = diag == 'N' ? T : T - Diagonal(T) + I
-        #                         T = sparse(T)
-        #                         d_T = SparseMatrixType == ROCSparseMatrixBSR ? SparseMatrixType(ROCSparseMatrixCSR(T), blockdim) : SparseMatrixType(T)
-        #                         X = transX == 'N' ? rand(elty,n,p) : rand(elty,p,n)
-        #                         d_X = ROCMatrix{elty}(X)
-        #                         d_Y = rocSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')
-        #                         Y = opT(T) \ opX(X)
-        #                         @test collect(d_Y) ≈ Y
-        #                     end
-        #                 end
-        #             end
-        #         end
-        #     end
-        # end
+        @testset "Y = T \\ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+            for (transT, opT) in (('N', identity), ('T', transpose), ('C', adjoint))
+                for (transX, opX) in (('N', identity), ('T', transpose), ('C', adjoint))
+                    (SparseMatrixType == ROCSparseMatrixCSC) && (transX == 'C') && (elty <: Complex) && continue
+                    for uplo in ('L', 'U')
+                        for diag in ('N', 'U')
+                            @testset "transT = $transT | transX = $transX | uplo = $uplo | diag = $diag" begin
+                                T = rand(elty,n,n)
+                                T = uplo == 'L' ? tril(T) : triu(T)
+                                T = diag == 'N' ? T : T - Diagonal(T) + I
+                                T = sparse(T)
+                                d_T = SparseMatrixType == ROCSparseMatrixBSR ? SparseMatrixType(ROCSparseMatrixCSR(T), blockdim) : SparseMatrixType(T)
+                                X = transX == 'N' ? rand(elty,n,p) : rand(elty,p,n)
+                                d_X = ROCMatrix{elty}(X)
+                                d_Y = rocSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')
+                                Y = opT(T) \ opX(X)
+                                @test collect(d_Y) ≈ Y
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
 end

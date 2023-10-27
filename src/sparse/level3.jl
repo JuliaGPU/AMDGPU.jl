@@ -212,7 +212,7 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_scsrsm_buffer_size, :rocsparse_scsrsm_analysis, :rocsparse_scsrsm_solve, :Float32),
     (:rocsparse_dcsrsm_buffer_size, :rocsparse_dcsrsm_analysis, :rocsparse_dcsrsm_solve, :Float64),
     (:rocsparse_ccsrsm_buffer_size, :rocsparse_ccsrsm_analysis, :rocsparse_ccsrsm_solve, :ComplexF32),
-    (:rocsparse_zcsrsm_buffer_Size, :rocsparse_zcsrsm_analysis, :rocsparse_zcsrsm_solve, :ComplexF64),
+    (:rocsparse_zcsrsm_buffer_size, :rocsparse_zcsrsm_analysis, :rocsparse_zcsrsm_solve, :ComplexF64),
 )
     @eval begin
         function sm2!(
@@ -240,7 +240,7 @@ for (bname,aname,sname,elty) in (
             function bufferSize()
                 out = Ref{Csize_t}(1)
                 $bname(
-                    handle(), 0, transa, transxy,
+                    handle(), transa, transxy,
                     m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[], rocsparse_solve_policy_auto, out)
                 return out[]
@@ -248,18 +248,18 @@ for (bname,aname,sname,elty) in (
 
             with_workspace(bufferSize) do buffer
                 $aname(
-                    handle(), 0, transa, transxy,
+                    handle(), transa, transxy,
                     m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
-                    A.colVal, X, ldx, info[],
+                    A.colVal, X, ldx, info_ref[],
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csrsm_zero_pivot(handle(), info[1], posit)
+                rocsparse_csrsm_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
-                    handle(), 0, transa, transxy, m,
+                    handle(), transa, transxy, m,
                     nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[],
                     rocsparse_solve_policy_auto, buffer)
@@ -311,7 +311,7 @@ for (bname,aname,sname,elty) in (
             function bufferSize()
                 out = Ref{Csize_t}(1)
                 $bname(
-                    handle(), 0, ctransa, transxy,
+                    handle(), ctransa, transxy,
                     m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[], rocsparse_solve_policy_auto, out)
                 return out[]
@@ -319,7 +319,7 @@ for (bname,aname,sname,elty) in (
 
             with_workspace(bufferSize) do buffer
                 $aname(
-                    handle(), 0, ctransa, transxy,
+                    handle(), ctransa, transxy,
                     m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
                     rocsparse_analysis_policy_force,
@@ -331,7 +331,7 @@ for (bname,aname,sname,elty) in (
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
-                    handle(), 0, ctransa, transxy, m,
+                    handle(), ctransa, transxy, m,
                     nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
                     rocsparse_solve_policy_auto, buffer)
