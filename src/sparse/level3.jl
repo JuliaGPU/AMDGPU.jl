@@ -156,9 +156,9 @@ for (bname,aname,sname,elty) in (
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar)
 
-            # Support transa = 'C' and `transb = 'C' for real matrices
+            # Support transa = 'C' and transxy = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
-            transb = $elty <: Real && transb == 'C' ? 'T' : transb
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
 
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
