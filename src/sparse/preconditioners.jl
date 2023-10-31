@@ -27,14 +27,14 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}()
+                out = Ref{Csize_t}()
                 $bname(handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal, info_ref[], out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal,
-                    info_ref[], rocsparse_solve_policy_auto, buffer)
+                    info_ref[], rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_csric0_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -53,10 +53,10 @@ end
 
 # cscic02
 for (bname,aname,sname,elty) in (
-    (:rocsparse_scsric0_buffer_size, :rocsparseScsric02_analysis, :rocsparseScsric02, :Float32),
-    (:rocsparse_dcsric0_buffer_size, :rocsparseDcsric02_analysis, :rocsparseDcsric02, :Float64),
-    (:rocsparse_ccsric0_buffer_size, :rocsparseCcsric02_analysis, :rocsparseCcsric02, :ComplexF32),
-    (:rocsparse_zcsric0_buffer_size, :rocsparseZcsric02_analysis, :rocsparseZcsric02, :ComplexF64),
+    (:rocsparse_scsric0_buffer_size, :rocsparse_scsric0_analysis, :rocsparse_scsric0, :Float32),
+    (:rocsparse_dcsric0_buffer_size, :rocsparse_dcsric0_analysis, :rocsparse_dcsric0, :Float64),
+    (:rocsparse_ccsric0_buffer_size, :rocsparse_ccsric0_analysis, :rocsparse_ccsric0, :ComplexF32),
+    (:rocsparse_zcsric0_buffer_size, :rocsparse_zcsric0_analysis, :rocsparse_zcsric0, :ComplexF64),
 )
     @eval begin
         function ic0!(A::ROCSparseMatrixCSC{$elty}, index::SparseChar)
@@ -69,7 +69,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
                     rowvals(A), info_ref[], out)
@@ -79,7 +79,7 @@ for (bname,aname,sname,elty) in (
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr, rowvals(A),
-                    info_ref[], rocsparse_solve_policy_auto, buffer)
+                    info_ref[], rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_csric0_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -121,7 +121,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}()
+                out = Ref{Csize_t}()
                 $bname(
                     handle(), m, nnz(A), desc,
                     nonzeros(A), A.rowPtr, A.colVal, info_ref[], out)
@@ -131,7 +131,7 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), m, nnz(A), desc,
                     nonzeros(A), A.rowPtr, A.colVal, info_ref[],
-                    rocsparse_solve_policy_auto, buffer)
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_csrilu0_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -154,7 +154,7 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_scsrilu0_buffer_size, :rocsparse_scsrilu0_analysis, :rocsparse_scsrilu0, :Float32),
     (:rocsparse_dcsrilu0_buffer_size, :rocsparse_dcsrilu0_analysis, :rocsparse_dcsrilu0, :Float64),
     (:rocsparse_ccsrilu0_buffer_size, :rocsparse_ccsrilu0_analysis, :rocsparse_ccsrilu0, :ComplexF32),
-    (:rocsparse_zcsrilu0_buffer_Size, :rocsparse_zcsrilu0_analysis, :rocsparse_zcsrilu0, :ComplexF64),
+    (:rocsparse_zcsrilu0_buffer_size, :rocsparse_zcsrilu0_analysis, :rocsparse_zcsrilu0, :ComplexF64),
 )
     @eval begin
         function ilu0!(A::ROCSparseMatrixCSC{$elty}, index::SparseChar)
@@ -167,7 +167,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}()
+                out = Ref{Csize_t}()
                 $bname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
                     rowvals(A), info_ref[], out)
@@ -177,7 +177,7 @@ for (bname,aname,sname,elty) in (
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
-                    rowvals(A), info_ref[], rocsparse_solve_policy_auto, buffer)
+                    rowvals(A), info_ref[], rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_csrilu0_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -213,7 +213,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
                     A.rowPtr, A.colVal, A.blockDim, info_ref[], out)
@@ -224,7 +224,7 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), A.dir, mb, nnz(A), desc,
                     nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info_ref[],
-                    rocsparse_solve_policy_auto, buffer)
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_bsric0_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -261,7 +261,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
                     A.rowPtr, A.colVal, A.blockDim, info_ref[], out)
@@ -272,7 +272,7 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
                     A.rowPtr, A.colVal, A.blockDim, info_ref[],
-                    rocsparse_solve_policy_auto, buffer)
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_bsrilu0_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0

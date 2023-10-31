@@ -48,7 +48,7 @@ for (fname,elty) in ((:rocsparse_sbsrmm, :Float32),
 
             $fname(
                 handle(), A.dir, transa, transb, mb, n, kb, A.nnzb,
-                alpha, desc, nonzeros(A),A.rowPtr, A.colVal,
+                Ref{$elty}(alpha), desc, nonzeros(A),A.rowPtr, A.colVal,
                 A.blockDim, B, ldb, beta, C, ldc)
             C
         end
@@ -86,7 +86,7 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
             ldc = max(1,stride(C,2))
 
             $fname(
-                handle(), transa, transb, m, n, k, nnz(A), alpha, desc,
+                handle(), transa, transb, m, n, k, nnz(A), Ref{$elty}(alpha), desc,
                 nonzeros(A), A.rowPtr, A.colVal, B, ldb, beta, C, ldc)
             C
         end
@@ -120,7 +120,7 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
             ldc = max(1,stride(C,2))
 
             $fname(
-                handle(), ctransa, transb, m, n, k, nnz(A), alpha, desc,
+                handle(), ctransa, transb, m, n, k, nnz(A), Ref{$elty}(alpha), desc,
                 nonzeros(A), A.colPtr, rowvals(A), B, ldb, beta, C, ldc)
             C
         end
@@ -154,8 +154,12 @@ for (bname,aname,sname,elty) in (
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
-            X::StridedROCMatrix{$elty}, index::SparseChar,
-        )
+            X::StridedROCMatrix{$elty}, index::SparseChar)
+
+            # Support transa = 'C' and transxy = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
+
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -163,6 +167,7 @@ for (bname,aname,sname,elty) in (
             end
             mb = cld(m, A.blockDim)
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -174,10 +179,10 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, transa, transxy,
-                    mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
+                    mb, nrhs, A.nnzb, desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[], out)
                 return out[]
             end
@@ -185,9 +190,10 @@ for (bname,aname,sname,elty) in (
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), A.dir, transa, transxy,
-                    mb, nX, A.nnzb, desc, nonzeros(A), A.rowPtr,
+                    mb, nrhs, A.nnzb, desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[],
-                    CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    rocsparse_analysis_policy_force,
+                    rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_bsrsm_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -196,7 +202,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), A.dir, transa, transxy, mb,
-                    nX, A.nnzb, alpha, desc, nonzeros(A), A.rowPtr,
+                    nrhs, A.nnzb, Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, A.blockDim, info_ref[], X, ldx, X, ldx,
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -211,20 +217,25 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_scsrsm_buffer_size, :rocsparse_scsrsm_analysis, :rocsparse_scsrsm_solve, :Float32),
     (:rocsparse_dcsrsm_buffer_size, :rocsparse_dcsrsm_analysis, :rocsparse_dcsrsm_solve, :Float64),
     (:rocsparse_ccsrsm_buffer_size, :rocsparse_ccsrsm_analysis, :rocsparse_ccsrsm_solve, :ComplexF32),
-    (:rocsparse_zcsrsm_buffer_Size, :rocsparse_zcsrsm_analysis, :rocsparse_zcsrsm_solve, :ComplexF64),
+    (:rocsparse_zcsrsm_buffer_size, :rocsparse_zcsrsm_analysis, :rocsparse_zcsrsm_solve, :ComplexF64),
 )
     @eval begin
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{$elty},
-            X::StridedROCMatrix{$elty}, index::SparseChar,
-        )
+            X::StridedROCMatrix{$elty}, index::SparseChar)
+
+            # Support transa = 'C' and transxy = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
+
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -237,29 +248,29 @@ for (bname,aname,sname,elty) in (
             # use non block algo (0) for now...
 
             function bufferSize()
-                out = Ref{UInt64}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
-                    handle(), 0, transa, transxy,
-                    m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                    handle(), transa, transxy,
+                    m, nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[], rocsparse_solve_policy_auto, out)
                 return out[]
             end
 
             with_workspace(bufferSize) do buffer
                 $aname(
-                    handle(), 0, transa, transxy,
-                    m, nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
-                    A.colVal, X, ldx, info[],
-                    rocsparse_solve_policy_auto, buffer)
+                    handle(), transa, transxy,
+                    m, nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
+                    A.colVal, X, ldx, info_ref[],
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csrsm_zero_pivot(handle(), info[1], posit)
+                rocsparse_csrsm_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
-                    handle(), 0, transa, transxy, m,
-                    nX, nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                    handle(), transa, transxy, m,
+                    nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, X, ldx, info_ref[],
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -280,12 +291,18 @@ for (bname,aname,sname,elty) in (
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{$elty},
-            X::StridedROCMatrix{$elty}, index::SparseChar,
-        )
+            X::StridedROCMatrix{$elty}, index::SparseChar)
+
+            # Support transa = 'C' and transxy = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+            transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
+
             ctransa = 'N'
             cuplo = 'U'
             if transa == 'N'
                 ctransa = 'T'
+            elseif transa == 'C' && $elty <: Complex
+                throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
                 cuplo = 'L'
@@ -296,6 +313,7 @@ for (bname,aname,sname,elty) in (
                 throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
             end
             mX,nX = size(X)
+            nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
@@ -308,29 +326,30 @@ for (bname,aname,sname,elty) in (
             # use non block algo (0) for now...
 
             function bufferSize()
-                out = Ref{UInt64}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
-                    handle(), 0, ctransa, transxy,
-                    m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                    handle(), ctransa, transxy,
+                    m, nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[], rocsparse_solve_policy_auto, out)
                 return out[]
             end
 
             with_workspace(bufferSize) do buffer
                 $aname(
-                    handle(), 0, ctransa, transxy,
-                    m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                    handle(), ctransa, transxy,
+                    m, nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
+                    rocsparse_analysis_policy_force,
                     rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_xcsrsm_zero_pivot(handle(), info_ref[], posit)
+                rocsparse_csrsm_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
-                    handle(), 0, ctransa, transxy, m,
-                    nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                    handle(), ctransa, transxy, m,
+                    nrhs, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), X, ldx, info_ref[],
                     rocsparse_solve_policy_auto, buffer)
             end

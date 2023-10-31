@@ -23,8 +23,11 @@ for (fname,elty) in ((:rocsparse_sbsrmv, :Float32),
     @eval begin
         function mv!(
             transa::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
-            X::ROCVector{$elty}, beta::Number, Y::ROCVector{$elty}, index::SparseChar,
-        )
+            X::ROCVector{$elty}, beta::Number, Y::ROCVector{$elty}, index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             mb = div(m,A.blockDim)
@@ -37,7 +40,7 @@ for (fname,elty) in ((:rocsparse_sbsrmv, :Float32),
             end
             $fname(
                 handle(), A.dir, transa, mb, nb,
-                nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                 A.colVal, A.blockDim, X, beta, Y)
             Y
         end
@@ -68,8 +71,11 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixBSR{$elty}, X::ROCVector{$elty}, index::SparseChar,
-        )
+            A::ROCSparseMatrixBSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -84,7 +90,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}()
+                out = Ref{Csize_t}()
                 $bname(
                     handle(), A.dir, transa, mb, A.nnzb,
                     desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
@@ -96,7 +102,7 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), A.dir, transa, mb, A.nnzb,
                     desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
-                    info_ref[], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    info_ref[], rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
                 rocsparse_bsrsv_zero_pivot(handle(), info_ref[], posit)
                 if posit[] >= 0
@@ -105,7 +111,7 @@ for (bname,aname,sname,elty) in (
                 end
                 $sname(
                     handle(), A.dir, transa, mb, A.nnzb,
-                    alpha, desc, nonzeros(A), A.rowPtr, A.colVal,
+                    Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr, A.colVal,
                     A.blockDim, info_ref[], X, X,
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -125,8 +131,11 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixCSR{$elty}, X::ROCVector{$elty}, index::SparseChar,
-        )
+            A::ROCSparseMatrixCSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             desc = ROCMatrixDescriptor('G', uplo, diag, index)
             m,n = size(A)
             if m != n
@@ -140,7 +149,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), transa, m, nnz(A), desc, nonzeros(A),
                     A.rowPtr, A.colVal, info_ref[], out)
@@ -151,16 +160,16 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), transa, m, nnz(A),
                     desc, nonzeros(A), A.rowPtr, A.colVal, info_ref[],
-                    rocsparse_solve_policy_auto, buffer)
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csrsv_zero_pivot(handle(), info_ref[], posit)
+                rocsparse_csrsv_zero_pivot(handle(), desc, info_ref[], posit)
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
                     handle(), transa, m,
-                    nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                    nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                     A.colVal, info_ref[], X, X,
                     rocsparse_solve_policy_auto, buffer)
             end
@@ -180,12 +189,17 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixCSC{$elty}, X::ROCVector{$elty}, index::SparseChar,
-        )
+            A::ROCSparseMatrixCSC{$elty}, X::ROCVector{$elty}, index::SparseChar)
+
+            # Support transa = 'C' for real matrices
+            transa = $elty <: Real && transa == 'C' ? 'T' : transa
+
             ctransa = 'N'
             cuplo = 'U'
             if transa == 'N'
                 ctransa = 'T'
+            elseif transa == 'C' && $elty <: Complex
+                throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
             if uplo == 'U'
                 cuplo = 'L'
@@ -204,7 +218,7 @@ for (bname,aname,sname,elty) in (
             rocsparse_create_mat_info(info_ref)
 
             function bufferSize()
-                out = Ref{Cint}(1)
+                out = Ref{Csize_t}(1)
                 $bname(
                     handle(), ctransa, m, nnz(A), desc,
                     nonzeros(A), A.colPtr, rowvals(A), info_ref[], out)
@@ -215,17 +229,17 @@ for (bname,aname,sname,elty) in (
                 $aname(
                     handle(), ctransa, m, nnz(A),
                     desc, nonzeros(A), A.colPtr, rowvals(A), info_ref[],
-                    rocsparse_solve_policy_auto, buffer)
+                    rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csrsv_zero_pivot(handle(), info_ref[], posit)
+                rocsparse_csrsv_zero_pivot(handle(), desc, info_ref[], posit)
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
                     handle(), ctransa, m,
-                    nnz(A), alpha, desc, nonzeros(A), A.colPtr,
-                    rowvals(A), info[1], X, X,
+                    nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
+                    rowvals(A), info_ref[], X, X,
                     rocsparse_solve_policy_auto, buffer)
             end
             rocsparse_destroy_mat_info(info_ref[])

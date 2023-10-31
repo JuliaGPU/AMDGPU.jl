@@ -14,4 +14,5 @@
     include("generic.jl")
     include("interfaces.jl")
     include("linalg.jl")
+    include("preconditioners.jl")
 end
