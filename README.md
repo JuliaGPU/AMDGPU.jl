@@ -2,9 +2,10 @@
 
 *AMD GPU (ROCm) programming in Julia*
 
-| **Documentation**                                                       | **Build Status**                                              |
-|:---------------------------------------:|:-------------------------------------------------------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] |
+[![][doi-img]][doi-url] [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url]
+
+[doi-img]: https://zenodo.org/badge/DOI/10.5281/zenodo.10040461.svg
+[doi-url]: https://doi.org/10.5281/zenodo.10040461
 
 [buildkite-img]: https://badge.buildkite.com/b1b3b0e3d13add4aa5a64c866937fde364ad777813725ef887.svg?branch=master
 [buildkite-url]: https://buildkite.com/julialang/amdgpu-dot-jl
