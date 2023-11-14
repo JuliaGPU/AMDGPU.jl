@@ -131,7 +131,7 @@ function HostCallHolder(
 
                 try
                     if ret_buf[].ptr != C_NULL && ret_len < sizeof(ret)
-                        Mem.free(ret_buf[])
+                        # Mem.free(ret_buf[])
                         ret_len = sizeof(ret)
                         ret_buf[] = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocMapped)
                     elseif ret_buf[].ptr == C_NULL
@@ -179,7 +179,7 @@ function HostCallHolder(
                     prev == HOST_ERR_SENTINEL ||
                     prev == DEVICE_ERR_SENTINEL
                 if not_used
-                    Mem.free(ret_buf[]) # `free` checks for C_NULL.
+                    # Mem.free(ret_buf[]) # `free` checks for C_NULL.
                     buf_ptr = reinterpret(Ptr{Cvoid}, hc.buf_ptr)
                     HIP.hipHostFree(buf_ptr) |> HIP.check
                     break
