@@ -51,16 +51,17 @@ function HostCall(
             buf_len += sizeof(T)
         end
     end
-
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.HostBuffer(buf_len, AMDGPU.HIP.hipHostAllocMapped)
+
     buf_ptr = LLVMPtr{UInt8, AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
     host_signal_store!(HSA.Signal(signal_handle), READY_SENTINEL)
     HostCall{RT, AT}(signal_handle, buf_ptr, buf_len)
 end
 
-struct HostCallHolder
+mutable struct HostCallHolder
     hc::HostCall
+    ret_bufs::Vector{Mem.HostBuffer}
     task::Task
     finish::Ref{Bool}
     continuous::Ref{Bool}
@@ -90,12 +91,13 @@ function HostCallHolder(
     signal = signal_ref[]
 
     hc = HostCall(rettype, argtypes, signal.handle; buf_len)
+    ret_bufs = Mem.HostBuffer[]
+
     finish_ref = Ref{Bool}(false)
     continuous_ref = Ref{Bool}(continuous)
-
     tsk = Threads.@spawn begin
-        ret_buf = Ref{Mem.HostBuffer}(Mem.HostBuffer())
         ret_len = 0
+        push!(ret_bufs, Mem.HostBuffer())
 
         try
             while true
@@ -130,18 +132,19 @@ function HostCallHolder(
                     "Host function result not isbits: $(typeof(ret))"))
 
                 try
-                    if ret_buf[].ptr != C_NULL && ret_len < sizeof(ret)
-                        Mem.free(ret_buf[])
+                    ret_buf = last(ret_bufs)
+                    do_realloc =
+                        (ret_buf.ptr != C_NULL && ret_len < sizeof(ret)) ||
+                        (ret_buf.ptr == C_NULL)
+                    if do_realloc
                         ret_len = sizeof(ret)
-                        ret_buf[] = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocMapped)
-                    elseif ret_buf[].ptr == C_NULL
-                        ret_len = sizeof(ret)
-                        ret_buf[] = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocMapped)
+                        ret_buf = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocMapped)
+                        push!(ret_bufs, ret_buf)
                     end
 
                     ret_ref = Ref{rettype}(ret)
                     GC.@preserve ret_ref begin
-                        ret_ptr = Base.unsafe_convert(Ptr{Cvoid}, ret_buf[])
+                        ret_ptr = Base.unsafe_convert(Ptr{Cvoid}, ret_buf)
                         if sizeof(ret) > 0
                             src_ptr = reinterpret(Ptr{Cvoid},
                                 Base.unsafe_convert(Ptr{rettype}, ret_ref))
@@ -169,28 +172,30 @@ function HostCallHolder(
                 rethrow(err)
             end
         finally
-            # We need to free the memory buffers, but first we need
-            # to ensure that the device has read from these buffers.
-            # Therefore we wait either for READY_SENTINEL or else an error signal.
+            # We need to destroy HSA signal, but first we need to ensure
+            # that the device is no longer using it.
             while !Runtime.RT_EXITING[]
                 prev = host_signal_load(signal)
                 not_used =
                     prev == READY_SENTINEL ||
                     prev == HOST_ERR_SENTINEL ||
                     prev == DEVICE_ERR_SENTINEL
-                if not_used
-                    Mem.free(ret_buf[]) # `free` checks for C_NULL.
-                    buf_ptr = reinterpret(Ptr{Cvoid}, hc.buf_ptr)
-                    HIP.hipHostFree(buf_ptr) |> HIP.check
-                    break
-                end
+                not_used && break
             end
-            # Destroy HSA signal.
             HSA.signal_destroy(signal) |> Runtime.check
         end
         return
     end
-    HostCallHolder(hc, tsk, finish_ref, continuous_ref)
+
+    holder = HostCallHolder(hc, ret_bufs, tsk, finish_ref, continuous_ref)
+    finalizer(holder) do holder
+        if !Runtime.RT_EXITING[]
+            buf_ptr = reinterpret(Ptr{Cvoid}, holder.hc.buf_ptr)
+            HIP.hipHostFree(buf_ptr) |> HIP.check
+            Mem.free.(holder.ret_bufs)
+        end
+    end
+    return holder
 end
 
 Adapt.adapt(to::Runtime.Adaptor, hc::HostCallHolder) = hc.hc
