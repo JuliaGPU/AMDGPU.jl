@@ -65,6 +65,8 @@ function synchronize(stm::HIPStream = stream();
         AMDGPU.Device.finish!(hc[1])
         # Remove it from global hostcalls, so that new one is created.
         AMDGPU.Device.remove_perdevice_hostcall!(stm.device, gbl)
+        # Free buffers.
+        AMDGPU.Device.free!(hc[1])
     end
     return
 end

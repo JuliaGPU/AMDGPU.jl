@@ -59,7 +59,7 @@ function HostCall(
     HostCall{RT, AT}(signal_handle, buf_ptr, buf_len)
 end
 
-mutable struct HostCallHolder
+struct HostCallHolder
     hc::HostCall
     ret_bufs::Vector{Mem.HostBuffer}
     task::Task
@@ -186,16 +186,15 @@ function HostCallHolder(
         end
         return
     end
+    HostCallHolder(hc, ret_bufs, tsk, finish_ref, continuous_ref)
+end
 
-    holder = HostCallHolder(hc, ret_bufs, tsk, finish_ref, continuous_ref)
-    finalizer(holder) do holder
-        if !Runtime.RT_EXITING[]
-            buf_ptr = reinterpret(Ptr{Cvoid}, holder.hc.buf_ptr)
-            HIP.hipHostFree(buf_ptr) |> HIP.check
-            Mem.free.(holder.ret_bufs)
-        end
+function free!(holder::HostCallHolder)
+    if !Runtime.RT_EXITING[]
+        buf_ptr = reinterpret(Ptr{Cvoid}, holder.hc.buf_ptr)
+        HIP.hipHostFree(buf_ptr) |> HIP.check
+        Mem.free.(holder.ret_bufs)
     end
-    return holder
 end
 
 Adapt.adapt(to::Runtime.Adaptor, hc::HostCallHolder) = hc.hc
