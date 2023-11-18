@@ -189,7 +189,7 @@ function HostCallHolder(
     HostCallHolder(hc, ret_bufs, tsk, finish_ref, continuous_ref)
 end
 
-function AMDGPU.unsafe_free!(holder::HostCallHolder)
+function free!(holder::HostCallHolder)
     if !Runtime.RT_EXITING[]
         buf_ptr = reinterpret(Ptr{Cvoid}, holder.hc.buf_ptr)
         HIP.hipHostFree(buf_ptr) |> HIP.check
