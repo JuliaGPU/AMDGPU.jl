@@ -20,6 +20,7 @@
     AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 1f0
     @test dref[] == true
+    AMDGPU.Device.free!(hc)
 end
 
 @testset "Call: Error" begin
@@ -48,6 +49,8 @@ end
         @test dref[] == false
         sleep(1) # Give time for the task to shut down.
         @test Base.istaskfailed(hc.task)
+
+        AMDGPU.Device.free!(hc)
     end
 end
 
@@ -67,6 +70,7 @@ end
     @roc kernel(RA, RB, hc)
     AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 2f0
+    AMDGPU.Device.free!(hc)
 end
 
 @testset "Call: (1 arg)" begin
@@ -85,6 +89,7 @@ end
     @roc kernel(RA, RB, hc)
     AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 44f0
+    AMDGPU.Device.free!(hc)
 end
 
 @testset "Call: (2 homogeneous args)" begin
@@ -103,6 +108,7 @@ end
     @roc kernel(RA, RB, hc)
     AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 47f0
+    AMDGPU.Device.free!(hc)
 end
 
 @testset "Call: (2 heterogeneous args)" begin
@@ -121,6 +127,7 @@ end
     @roc kernel(RA, RB, hc)
     AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 47f0
+    AMDGPU.Device.free!(hc)
 end
 
 @testset "Call: (2 heterogeneous args, return homogeneous tuple)" begin
@@ -139,6 +146,7 @@ end
     @roc kernel(RA, RB, hc)
     AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 48f0
+    AMDGPU.Device.free!(hc)
 end
 
 @testset "Call: (2 heterogeneous args, return heterogeneous tuple)" begin
@@ -157,6 +165,7 @@ end
     @roc kernel(RA, RB, hc)
     AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 48f0
+    AMDGPU.Device.free!(hc)
 end
 
 @testset "Call: (2 hostcalls, 1 kernel)" begin
@@ -179,6 +188,8 @@ end
     @roc kernel(RA, RB, hc1, hc2)
     AMDGPU.synchronize(; stop_hostcalls=true)
     @test Array(RB)[1] == 11f0
+    AMDGPU.Device.free!(hc1)
+    AMDGPU.Device.free!(hc2)
 end
 
 @testset "Call: (1 hostcall, 2 kernels)" begin
@@ -209,6 +220,7 @@ end
     # Give HostCall task time to exit.
     sleep(2)
     @test istaskdone(hc)
+    AMDGPU.Device.free!(hc)
 end
 
 end

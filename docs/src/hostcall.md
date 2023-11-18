@@ -33,6 +33,7 @@ end
 y = ROCArray(Float32[0f0])
 @roc kernel!(y, hc)
 AMDGPU.synchronize(; stop_hostcalls=true) # Stop hostcall.
+AMDGPU.Device.free!(hc) # Free hostcall buffers.
 
 @assert Array(y)[1] ≈ 42f0
 ```
@@ -68,3 +69,8 @@ hostcall one more time before exiting, while `finish!` will exit immediately.
 
 `finish!` can be used on any `HostCallHolder` to force-exit the running
 hostcall task.
+
+## Free hostcall buffers
+
+For custom hostcalls it is important to call `AMDGPU.Device.free!`
+once kernel has finished to free buffers that hostcall used in the process.
