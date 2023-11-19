@@ -53,13 +53,13 @@ Currently, AMDGPU.jl utilizes following libraries:
 ### ROCm artifacts
 
 There is limited support for ROCm 5.4+ artifacts which can be enabled with
-[`AMDGPU.enable_artifacts!`](@ref).
+[`AMDGPU.use_artifacts!`](@ref).
 
 Limited means not all libraries are available and some of the functionality
 may be disabled.
 
 ```@docs
-AMDGPU.enable_artifacts!
+AMDGPU.use_artifacts!
 ```
 
 ### Extra Setup Details
