@@ -131,13 +131,17 @@ function __init__()
             artifact_field=:libhsa_runtime64, ext="so.1")
 
         # HIP.
-        global libhip = get_library("libamdhip64";
-            rocm_paths, artifact_library=:HIP_jll)
-        # Detect HIP version, which will influence what device libraries to use.
-        hip_version = Base.thisminor(_hip_runtime_version())
+        global libhip = get_library("libamdhip64"; rocm_paths, artifact_library=:HIP_jll)
+
+        from_artifact = if isempty(libhip)
+            use_artifacts()
+        else
+            # Detect HIP version, which will influence what device libraries to use.
+            hip_version = Base.thisminor(_hip_runtime_version())
+            hip_version > v"5.4" ? true : use_artifacts()
+        end
         # If ROCm 5.5+ - use artifact device libraries.
-        global libdevice_libs = get_device_libs(
-            hip_version > v"5.4" ? true : use_artifacts())
+        global libdevice_libs = get_device_libs(from_artifact)
 
         # HIP-based libraries.
         global librocblas = get_library("librocblas";
