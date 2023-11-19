@@ -25,6 +25,10 @@ function julia_cmd_projects(jl_str)
     (;amdgpu_project, current_project, julia_project) = projects
     if current_project !== nothing
         jl_str = "push!(LOAD_PATH, \"$current_project\");" * jl_str
+    else
+        # If Julia is using global project, instantiate `julia_project`.
+        # Otherwise, we'll fail to discover artifacts.
+        jl_str = "import Pkg; Pkg.instantiate(;io=devnull); " * jl_str
     end
     jl_str = "push!(LOAD_PATH, \"$amdgpu_project\");" * jl_str
     append!(cmd.exec, ("-e", jl_str))

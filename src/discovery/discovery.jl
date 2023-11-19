@@ -1,5 +1,6 @@
 module ROCmDiscovery
 
+using ROCmDeviceLibs_jll
 using Preferences
 using Libdl
 
@@ -67,13 +68,9 @@ function get_ld_lld(;
     end
 end
 
-function get_device_libs(
-    from_artifact::Bool;
-    artifact_library::Symbol = :ROCmDeviceLibs_jll,
-    artifact_field::Symbol = :bitcode_path,
-)
+function get_device_libs(from_artifact::Bool)
     if from_artifact
-        get_artifact_library(artifact_library, artifact_field)
+        ROCmDeviceLibs_jll.bitcode_path
     else
         find_device_libs()
     end
