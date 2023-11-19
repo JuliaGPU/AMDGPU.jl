@@ -34,9 +34,6 @@ Pkg.test("AMDGPU")
 Julia **1.9 or higher**.
 
 Minimal supported ROCm version is **5.3**.
-However, if you have ROCm 5.5+ installed, refer to
-[LLVM compatibility & mixed ROCm mode](@ref) section for additional instructions.
-
 For optimal experience, you should have full ROCm stack installed.
 Refer to official ROCm stack installation instructions: <https://rocm.docs.amd.com/en/latest/deploy/linux/index.html>
 
@@ -63,24 +60,6 @@ may be disabled.
 
 ```@docs
 AMDGPU.enable_artifacts!
-```
-
-### LLVM compatibility & mixed ROCm mode
-
-As a rule of thumb, Julia LLVM version should match ROCm LLVM version.
-For example Julia 1.10 uses LLVM 15, but ROCm 5.5+ uses LLVM 16 which are incompatible.
-
-However, there is a way to run system ROCm 5.5+ with Julia:
-
-1. Add respective version of artifact device libraries in your project:
-    - ROCm 5.5: `]add ROCmDeviceLibs_jll@5.5`;
-    - ROCm 5.6: `]add ROCmDeviceLibs_jll@5.6`.
-2. Call [`AMDGPU.use_devlibs_jll!`](@ref) in your Julia session to switch
-    to artifact device libraries (and the rest of the libraries
-    will be used from system-wide installation).
-
-```@docs
-AMDGPU.use_devlibs_jll!
 ```
 
 ### Extra Setup Details
@@ -147,10 +126,6 @@ Template of `LocalPreferences.toml` with all options:
 # If `true` then use ROCm libraries provided by artifacts.
 # However, not all ROCm libraries are available as artifacts.
 use_artifacts = false
-# Use mixed-mode ROCm. This will use device libraries from artifacts,
-# but the rest of the ROCm libraries from system-wide installation.
-# See `LLVM compatibility & mixed ROCm mode` section in the documentation.
-use_devlibs_jll = false
 # Use non-blocking synchronization for all `AMDGPU.synchronize()` calls.
 nonblocking_synchronization = true
 # Memory limit specifies maximum amount of memory in percentages
