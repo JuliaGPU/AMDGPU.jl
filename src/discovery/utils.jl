@@ -78,11 +78,14 @@ function find_roc_paths()
     paths = map(Base.Filesystem.abspath, paths)
     if Sys.islinux()
         push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
-    else
-	disk_dir = dirname(dirname(homedir()))
-	rocm_dir = joinpath(disk_dir, "Program Files", "AMD", "ROCm")
-	versioned_dir = only(readdir(rocm_dir; join=true)) # TODO what if we have multiple ROCm versions installed?
-	push!(paths, versioned_dir)
+    elseif Sys.iswindows()
+        disk_dir = dirname(dirname(homedir())) # Disk C root directory.
+        rocm_dir = joinpath(disk_dir, "Program Files", "AMD", "ROCm")
+        # TODO what if we have multiple ROCm versions installed?
+        if isdir(rocm_dir)
+            versioned_dir = only(readdir(rocm_dir; join=true))
+            push!(paths, versioned_dir)
+        end
     end
     if haskey(ENV, "ROCM_PATH")
         push!(paths, joinpath(ENV["ROCM_PATH"], "lib"))
