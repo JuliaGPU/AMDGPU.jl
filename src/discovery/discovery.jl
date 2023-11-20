@@ -123,19 +123,20 @@ function __init__()
         global lld_path = lld_path
         global lld_artifact = lld_artifact
 
-	global libhsaruntime = if Sys.islinux()
-	    get_library("libhsa-runtime64";
-                rocm_paths, artifact_library=:hsa_rocr_jll,
-                artifact_field=:libhsa_runtime64, ext="so.1")
-	else
-	    nothing
-	end
+        global libhsaruntime = if Sys.islinux()
+            get_library("libhsa-runtime64";
+                    rocm_paths, artifact_library=:hsa_rocr_jll,
+                    artifact_field=:libhsa_runtime64, ext="so.1")
+        else
+            nothing
+        end
 
-	lib_prefix = Sys.islinux() ? "lib" : ""
-	rocm_path = first(rocm_paths) # TODO if more than 1 path - force user to specify
-	if Sys.iswindows()
-	    push!(rocm_paths, joinpath(first(rocm_paths), "bin"))
-	end
+        lib_prefix = Sys.islinux() ? "lib" : ""
+        # TODO if more than 1 path - force user to specify
+        rocm_path = isempty(rocm_paths) ? "" : first(rocm_paths)
+        if Sys.iswindows() && !isempty(rocm_paths)
+            push!(rocm_paths, joinpath(first(rocm_paths), "bin"))
+        end
 
         # HIP.
         global libhip = get_library(
@@ -150,7 +151,7 @@ function __init__()
             hip_version > v"5.4" ? true : use_artifacts()
         end
         # If ROCm 5.5+ - use artifact device libraries.
-	global libdevice_libs = get_device_libs(from_artifact; rocm_path)
+        global libdevice_libs = get_device_libs(from_artifact; rocm_path)
 
         # HIP-based libraries.
         global librocblas = get_library(lib_prefix * "rocblas";
