@@ -68,11 +68,11 @@ function get_ld_lld(;
     end
 end
 
-function get_device_libs(from_artifact::Bool)
-    if from_artifact
+function get_device_libs(from_artifact::Bool; rocm_path::String)
+    if from_artifact && ROCmDeviceLibs_jll.is_available()
         ROCmDeviceLibs_jll.bitcode_path
     else
-        find_device_libs()
+        find_device_libs(rocm_path)
     end
 end
 
@@ -95,7 +95,7 @@ function _hip_runtime_version()
 end
 
 function __init__()
-    if isdir("/sys/class/kfd/kfd/topology/nodes/")
+    if Sys.islinux() && isdir("/sys/class/kfd/kfd/topology/nodes/")
         for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
             node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
             # CPU nodes don't have names.
@@ -123,12 +123,26 @@ function __init__()
         global lld_path = lld_path
         global lld_artifact = lld_artifact
 
-        global libhsaruntime = get_library("libhsa-runtime64";
-            rocm_paths, artifact_library=:hsa_rocr_jll,
-            artifact_field=:libhsa_runtime64, ext="so.1")
+        global libhsaruntime = if Sys.islinux()
+            get_library("libhsa-runtime64";
+                    rocm_paths, artifact_library=:hsa_rocr_jll,
+                    artifact_field=:libhsa_runtime64, ext="so.1")
+        else
+            nothing
+        end
+
+        lib_prefix = Sys.islinux() ? "lib" : ""
+        # TODO if more than 1 path - force user to specify
+        @show rocm_paths
+        rocm_path = isempty(rocm_paths) ? "" : first(rocm_paths)
+        if Sys.iswindows() && !isempty(rocm_paths)
+            push!(rocm_paths, joinpath(first(rocm_paths), "bin"))
+        end
 
         # HIP.
-        global libhip = get_library("libamdhip64"; rocm_paths, artifact_library=:HIP_jll)
+        global libhip = get_library(
+            Sys.islinux() ? "libamdhip64" : "amdhip64.dll";
+            rocm_paths, artifact_library=:HIP_jll)
 
         from_artifact = if isempty(libhip)
             use_artifacts()
@@ -138,22 +152,22 @@ function __init__()
             hip_version > v"5.4" ? true : use_artifacts()
         end
         # If ROCm 5.5+ - use artifact device libraries.
-        global libdevice_libs = get_device_libs(from_artifact)
+        global libdevice_libs = get_device_libs(from_artifact; rocm_path)
 
         # HIP-based libraries.
-        global librocblas = get_library("librocblas";
+        global librocblas = get_library(lib_prefix * "rocblas";
             rocm_paths, artifact_library=:rocBLAS_jll)
-        global librocsparse = get_library("librocsparse";
+        global librocsparse = get_library(lib_prefix * "rocsparse";
             rocm_paths, artifact_library=:rocSPARSE_jll)
-        global librocsolver = get_library("librocsolver";
+        global librocsolver = get_library(lib_prefix * "rocsolver";
             rocm_paths, artifact_library=:rocSOLVER_jll)
-        global librocalution = get_library("librocalution";
+        global librocalution = get_library(lib_prefix * "rocalution";
             rocm_paths, artifact_library=:rocALUTION_jll)
-        global librocrand = get_library("librocrand";
+        global librocrand = get_library(lib_prefix * "rocrand";
             rocm_paths, artifact_library=:rocRAND_jll)
-        global librocfft = get_library("librocfft";
+        global librocfft = get_library(lib_prefix * "rocfft";
             rocm_paths, artifact_library=:rocFFT_jll)
-        global libMIOpen_path = get_library("libMIOpen";
+        global libMIOpen_path = get_library(lib_prefix * "MIOpen";
             rocm_paths, artifact_library=:MIOpen_jll)
     catch err
         @error "ROCm discovery failed!" exception=(err, catch_backtrace())

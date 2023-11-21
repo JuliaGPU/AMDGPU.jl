@@ -7,10 +7,6 @@ function versioninfo(io::IO=stdout)
     end
 
     println("ROCm provided by: ", use_artifacts() ? "JLLs" : "system")
-    println(_lib_title("HSA Runtime", :hsa; version_fn=HSA.version))
-    if functional(:hsa)
-        println("    @ $libhsaruntime")
-    end
     println("[$(_status(functional(:lld)))] ld.lld")
     if functional(:lld)
         println("    @ $lld_path")
@@ -52,7 +48,7 @@ function versioninfo(io::IO=stdout)
         println("    @ $(Libdl.dlpath(libMIOpen_path))")
     end
 
-    if functional(:hsa) && functional(:hip)
+    if functional(:hip)
         println()
         println("HIP Devices [$(length(HIP.devices()))]")
         for (i, device) in enumerate(HIP.devices())
@@ -82,19 +78,14 @@ sub-queries of multiple components; a failing sub-query will propagate to a
 
 This query should never throw.
 """
-function functional()
-    return functional(:hsa) &&
-           functional(:hip) &&
-           functional(:lld) &&
-           functional(:device_libs)
-end
+functional() = functional(:hip) && functional(:lld) && functional(:device_libs)
+
 """
     functional(component::Symbol) -> Bool
 
 Returns `true` if the ROCm component `component` is configured and expected to
 function correctly. Available `component` values are:
 
-- `:hsa`         - Queries ROCR library availability, initialization status, and GPU device availability
 - `:hip`         - Queries HIP library availability
 - `:lld`         - Queries `ld.lld` tool availability
 - `:device_libs` - Queries ROCm device libraries availability
@@ -110,9 +101,7 @@ function correctly. Available `component` values are:
 This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
-    if component == :hsa
-        return !isempty(libhsaruntime)
-    elseif component == :hip
+    if component == :hip
         return !isempty(libhip)
     elseif component == :lld
         return !isempty(lld_path)

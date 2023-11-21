@@ -140,45 +140,31 @@ function __init__()
     end
 
     # Quiet path first, in case this system doesn't have AMD GPUs
-    if !ispath("/dev/kfd")
+    if Sys.islinux() && !ispath("/dev/kfd")
         @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
         return
     end
 
-    has_gpu = false
-    if isdir("/sys/class/kfd/kfd/topology/nodes/")
-        for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
-            node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
-            # CPU nodes don't have names.
-            isempty(node_name) && continue
-
-            has_gpu = true
-            break
-        end
-    end
-    if !has_gpu
-        @warn "No GPUs found, skipping initialization."
-        return
-    end
-
     # Verbose path, something is misconfigured
-    if !isempty(libhsaruntime)
-        # Initialize the HSA runtime.
-        status = HSA.init()
-        if status == HSA.STATUS_SUCCESS
-            # Register shutdown hook.
-            atexit(() -> HSA.shut_down())
+    if Sys.islinux()
+        if !isnothing(libhsaruntime) && !isempty(libhsaruntime)
+            # Initialize the HSA runtime.
+            status = HSA.init()
+            if status == HSA.STATUS_SUCCESS
+                # Register shutdown hook.
+                atexit(() -> HSA.shut_down())
+            else
+                @warn "HSA initialization failed with code $status"
+            end
         else
-            @warn "HSA initialization failed with code $status"
-        end
-    else
-        @warn """
-        HSA runtime is unavailable, compilation and runtime functionality will be disabled.
-        """
-        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
-            print_build_diagnostics()
-            error("Failed to load HSA runtime, but HSA must load, bailing out")
-        end
+            @warn """
+            HSA runtime is unavailable, compilation and runtime functionality will be disabled.
+            """
+            if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+                print_build_diagnostics()
+                error("Failed to load HSA runtime, but HSA must load, bailing out")
+            end
+	end
     end
 
     # Check whether ld.lld was found
