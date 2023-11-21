@@ -145,23 +145,6 @@ function __init__()
         return
     end
 
-    # TODO this is probably not needed
-    #= has_gpu = false
-    if isdir("/sys/class/kfd/kfd/topology/nodes/")
-        for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
-            node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
-            # CPU nodes don't have names.
-            isempty(node_name) && continue
-
-            has_gpu = true
-            break
-        end
-    end
-    if !has_gpu
-        @warn "No GPUs found, skipping initialization."
-        return
-    end=#
-
     # Verbose path, something is misconfigured
     if Sys.islinux()
         if !isnothing(libhsaruntime) && !isempty(libhsaruntime)
