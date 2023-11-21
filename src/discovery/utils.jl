@@ -136,6 +136,7 @@ function find_device_libs(rocm_path::String)
     devlibs_path !== "" && return devlibs_path
 
     # Try the canonical location.
+    @show rocm_path
     canonical_dir = joinpath(rocm_path, "amdgcn", "bitcode")
     isdir(canonical_dir) && return canonical_dir
 
