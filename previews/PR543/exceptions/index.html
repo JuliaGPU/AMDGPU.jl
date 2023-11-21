@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Exceptions · AMDGPU.jl</title><meta name="title" content="Exceptions · AMDGPU.jl"/><meta property="og:title" content="Exceptions · AMDGPU.jl"/><meta property="twitter:title" content="Exceptions · AMDGPU.jl"/><meta name="description" content="Documentation for AMDGPU.jl."/><meta property="og:description" content="Documentation for AMDGPU.jl."/><meta property="twitter:description" content="Documentation for AMDGPU.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../"><img src="../assets/logo.png" alt="AMDGPU.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../">AMDGPU.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../quickstart/">Quick Start</a></li><li><a class="tocitem" href="../devices/">Devices</a></li><li><a class="tocitem" href="../streams/">Streams</a></li><li><a class="tocitem" href="../kernel_launch/">Kernel Launch</a></li><li class="is-active"><a class="tocitem" href>Exceptions</a></li><li><a class="tocitem" href="../profiling/">Profiling</a></li><li><a class="tocitem" href="../memory/">Memory</a></li><li><a class="tocitem" href="../hostcall/">Host-Call</a></li><li><span class="tocitem">Intrinsics</span><ul><li><a class="tocitem" href="../execution_control/">Execution Control</a></li></ul></li><li><a class="tocitem" href="../printing/">Printing</a></li><li><a class="tocitem" href="../logging/">Logging</a></li><li><a class="tocitem" href="../api/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Exceptions</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Exceptions</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaGPU/AMDGPU.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/master/docs/src/exceptions.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Kernel-Exceptions"><a class="docs-heading-anchor" href="#Kernel-Exceptions">Kernel Exceptions</a><a id="Kernel-Exceptions-1"></a><a class="docs-heading-anchor-permalink" href="#Kernel-Exceptions" title="Permalink"></a></h1><p>Just like regular CPU-executed Julia functions, GPU kernels can throw exceptions!</p><p>For example, the following kernel will throw an out-of-bounds exception:</p><pre><code class="language-julia hljs">julia&gt; using AMDGPU
+
+julia&gt; function kerr(x)
+           x[0] = 1
+           return
+       end
+kerr (generic function with 1 method)
+
+julia&gt; x = ROCArray([1]);
+
+julia&gt; @roc kerr(x);
+
+julia&gt; AMDGPU.synchronize()
+ERROR: GPU Kernel Exception
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:35
+ [2] throw_if_exception(dev::HIPDevice)
+   @ AMDGPU ~/.julia/dev/AMDGPU/src/exception_handler.jl:115
+ [3] synchronize(stm::HIPStream)
+   @ AMDGPU ~/.julia/dev/AMDGPU/src/highlevel.jl:154
+ [4] synchronize()
+   @ AMDGPU ~/.julia/dev/AMDGPU/src/highlevel.jl:154
+ [5] top-level scope
+   @ REPL[5]:1
+
+julia&gt; @roc kerr(x) # Next kernel launch also throws.
+ERROR: GPU Kernel Exception
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:35
+ [2] throw_if_exception(dev::HIPDevice)
+   @ AMDGPU ~/.julia/dev/AMDGPU/src/exception_handler.jl:115
+ [3] #_#30
+   @ ~/.julia/dev/AMDGPU/src/runtime/hip-execution.jl:44 [inlined]
+ [4] (::AMDGPU.Runtime.HIPKernel{typeof(kerr), Tuple{AMDGPU.Device.ROCDeviceVector{Int64, 1}}})(args::ROCVector{Int64})
+   @ AMDGPU.Runtime ~/.julia/dev/AMDGPU/src/runtime/hip-execution.jl:41
+ [5] top-level scope
+   @ ~/.julia/dev/AMDGPU/src/highlevel.jl:228</code></pre><p>Kernel-thrown exceptions are thrown during the host synchronization <code>AMDGPU.synchronize</code> or on the next kernel launch.</p><p>Kernels that hit an exception will write its information into a pre-allocated host buffer. Once complete, the wavefront throwing the exception will lock the buffer to prevent other wavefronts from overwriting the exception and stop itself, but other wavefronts will continue executing.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../kernel_launch/">« Kernel Launch</a><a class="docs-footer-nextpage" href="../profiling/">Profiling »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.1.2 on <span class="colophon-date" title="Tuesday 21 November 2023 14:44">Tuesday 21 November 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
