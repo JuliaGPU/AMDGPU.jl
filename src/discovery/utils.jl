@@ -23,13 +23,16 @@ function julia_cmd_projects(jl_str)
     append!(cmd.exec, julia_exeflags(projects))
 
     (;amdgpu_project, current_project, julia_project) = projects
+
     if current_project !== nothing
+	current_project = replace(current_project, "\\" => "/")
         jl_str = "push!(LOAD_PATH, \"$current_project\");" * jl_str
     else
         # If Julia is using global project, instantiate `julia_project`.
         # Otherwise, we'll fail to discover artifacts.
         jl_str = "import Pkg; Pkg.instantiate(;io=devnull); " * jl_str
     end
+    amdgpu_project = replace(amdgpu_project, "\\" => "/")
     jl_str = "push!(LOAD_PATH, \"$amdgpu_project\");" * jl_str
     append!(cmd.exec, ("-e", jl_str))
     return cmd
@@ -73,11 +76,18 @@ function find_roc_paths()
     paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
     paths = filter(!isempty, paths)
     paths = map(Base.Filesystem.abspath, paths)
-    push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
+    if Sys.islinux()
+        push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
+    else
+	disk_dir = dirname(dirname(homedir()))
+	rocm_dir = joinpath(disk_dir, "Program Files", "AMD", "ROCm")
+	versioned_dir = only(readdir(rocm_dir; join=true)) # TODO what if we have multiple ROCm versions installed?
+	push!(paths, versioned_dir)
+    end
     if haskey(ENV, "ROCM_PATH")
         push!(paths, joinpath(ENV["ROCM_PATH"], "lib"))
     end
-    return filter(isdir, paths)
+    return filter(isdir, paths) # TODO require only 1 dir or specify explicitly?
 end
 
 function find_ld_lld()
@@ -115,24 +125,23 @@ function find_ld_lld()
     return ""
 end
 
-function find_device_libs()
+function find_device_libs(rocm_path::String)
     # Might be set by tools like Spack or the user
     hip_devlibs_path = get(ENV, "HIP_DEVICE_LIB_PATH", "")
     hip_devlibs_path !== "" && return hip_devlibs_path
     devlibs_path = get(ENV, "DEVICE_LIB_PATH", "")
     devlibs_path !== "" && return devlibs_path
 
-    # The canonical location
-    if isdir("/opt/rocm/amdgcn/bitcode")
-        return "/opt/rocm/amdgcn/bitcode"
-    end
+    # Try the canonical location.
+    canonical_dir = joinpath(rocm_path, "amdgcn", "bitcode")
+    isdir(canonical_dir) && return canonical_dir
 
     # Search relative to LD_LIBRARY_PATH entries
     paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
     paths = filter(path -> path != "", paths)
     paths = map(Base.Filesystem.abspath, paths)
     for path in paths
-        bitcode_path = joinpath(path, "../amdgcn/bitcode/")
+        bitcode_path = normpath(joinpath(path, "../amdgcn/bitcode/"))
         if ispath(bitcode_path)
             if isfile(joinpath(bitcode_path, "ocml.bc")) ||
                isfile(joinpath(bitcode_path, "ocml.amdgcn.bc"))

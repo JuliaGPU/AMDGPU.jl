@@ -1,7 +1,7 @@
 include(joinpath("gcn", "helpers.jl"))
 include(joinpath("gcn", "array.jl"))
 include(joinpath("gcn", "math.jl"))
-include(joinpath("gcn", "wavefront.jl"))
+#include(joinpath("gcn", "wavefront.jl"))
 include(joinpath("gcn", "indexing.jl"))
 include(joinpath("gcn", "assertion.jl"))
 include(joinpath("gcn", "synchronization.jl"))
