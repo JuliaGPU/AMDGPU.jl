@@ -68,8 +68,8 @@ function get_ld_lld(;
     end
 end
 
-function get_device_libs(from_artifact::Bool)
-    if from_artifact
+function get_device_libs(from_artifact::Bool; rocm_path::String)
+    if from_artifact && ROCmDeviceLibs_jll.is_available()
         ROCmDeviceLibs_jll.bitcode_path
     else
         find_device_libs(rocm_path)
@@ -107,7 +107,6 @@ function __init__()
             end
         end
     end
-    ENV["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
 
     rocm_paths = use_artifacts() ? String[] : find_roc_paths()
 
@@ -133,12 +132,15 @@ function __init__()
 	end
 
 	lib_prefix = Sys.islinux() ? "lib" : ""
+	rocm_path = first(rocm_paths) # TODO if more than 1 path - force user to specify
 	if Sys.iswindows()
 	    push!(rocm_paths, joinpath(first(rocm_paths), "bin"))
 	end
 
         # HIP.
-        global libhip = get_library("libamdhip64"; rocm_paths, artifact_library=:HIP_jll)
+        global libhip = get_library(
+            Sys.islinux() ? "libamdhip64" : "amdhip64.dll";
+            rocm_paths, artifact_library=:HIP_jll)
 
         from_artifact = if isempty(libhip)
             use_artifacts()
@@ -148,7 +150,7 @@ function __init__()
             hip_version > v"5.4" ? true : use_artifacts()
         end
         # If ROCm 5.5+ - use artifact device libraries.
-        global libdevice_libs = get_device_libs(from_artifact)
+	global libdevice_libs = get_device_libs(from_artifact; rocm_path)
 
         # HIP-based libraries.
         global librocblas = get_library(lib_prefix * "rocblas";
