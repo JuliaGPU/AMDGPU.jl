@@ -123,14 +123,16 @@ function create_executable(obj)
         `$(AMDGPU.lld_path)`
     end
 
-    path_exe = mktemp() do path_o, io_o
-        write(io_o, obj)
-        flush(io_o)
-        path_exe = path_o * ".exe"
-        run(`$lld -shared -o $path_exe $path_o`)
-        path_exe
-    end
-    return read(path_exe)
+    path_o = tempname(;cleanup=false) * ".obj"
+    path_exe = tempname(;cleanup=false) * ".exe"
+
+    write(path_o, obj)
+    run(`$lld -shared -o $path_exe $path_o`)
+    bin = read(path_exe)
+
+    rm(path_o)
+    rm(path_exe)
+    return bin
 end
 
 function hipcompile(@nospecialize(job::CompilerJob))
