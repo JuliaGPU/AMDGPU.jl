@@ -25,7 +25,7 @@ function julia_cmd_projects(jl_str)
     (;amdgpu_project, current_project, julia_project) = projects
 
     if current_project !== nothing
-	current_project = replace(current_project, "\\" => "/")
+    current_project = replace(current_project, "\\" => "/")
         jl_str = "push!(LOAD_PATH, \"$current_project\");" * jl_str
     else
         # If Julia is using global project, instantiate `julia_project`.
@@ -77,7 +77,7 @@ function find_roc_paths()
     paths = filter(!isempty, paths)
     paths = map(Base.Filesystem.abspath, paths)
     if Sys.islinux()
-        push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
+        push!(paths, "/opt/rocm") # shim for Ubuntu rocm packages...
     elseif Sys.iswindows()
         disk_dir = dirname(dirname(homedir())) # Disk C root directory.
         rocm_dir = joinpath(disk_dir, "Program Files", "AMD", "ROCm")
@@ -88,7 +88,7 @@ function find_roc_paths()
         end
     end
     if haskey(ENV, "ROCM_PATH")
-        push!(paths, joinpath(ENV["ROCM_PATH"], "lib"))
+        push!(paths, ENV["ROCM_PATH"])
     end
     return filter(isdir, paths) # TODO require only 1 dir or specify explicitly?
 end
