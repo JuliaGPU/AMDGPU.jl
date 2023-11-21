@@ -133,6 +133,7 @@ function __init__()
 
         lib_prefix = Sys.islinux() ? "lib" : ""
         # TODO if more than 1 path - force user to specify
+        @show rocm_paths
         rocm_path = isempty(rocm_paths) ? "" : first(rocm_paths)
         if Sys.iswindows() && !isempty(rocm_paths)
             push!(rocm_paths, joinpath(first(rocm_paths), "bin"))
