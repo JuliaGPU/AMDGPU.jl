@@ -93,28 +93,16 @@ function find_roc_paths()
     return filter(isdir, paths) # TODO require only 1 dir or specify explicitly?
 end
 
-function find_ld_lld()
-    # TODO this is incorrect for Windows
-    paths = split(get(ENV, "PATH", ""), ":")
-    paths = filter(path -> path != "", paths)
-    paths = map(Base.Filesystem.abspath, paths)
-
-    basedir = get(ENV, "ROCM_PATH", "/opt/rocm")
-    ispath(joinpath(basedir, "llvm/bin/ld.lld")) &&
-        push!(paths, joinpath(basedir, "llvm/bin/"))
-    ispath(joinpath(basedir, "hcc/bin/ld.lld")) &&
-        push!(paths, joinpath(basedir, "/hcc/bin/"))
-    ispath(joinpath(basedir, "opencl/bin/x86_64/ld.lld")) &&
-        push!(paths, joinpath(basedir, "opencl/bin/x86_64/"))
-
-    for path in paths
-        exp_ld_path = joinpath(path, "ld.lld")
+function find_ld_lld(rocm_paths::Vector{String})
+    lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
+    for path in rocm_paths
+        exp_ld_path = joinpath(path, lld_name)
         if ispath(exp_ld_path)
             try
-                tmpfile = mktemp()
-                run(pipeline(`$exp_ld_path -v`; stdout=tmpfile[1]))
-                vstr = read(tmpfile[1], String)
-                rm(tmpfile[1])
+                tmpfile = tempname(;cleanup=false)
+                run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
+                vstr = read(tmpfile, String)
+                rm(tmpfile)
                 vstr = replace(vstr, "AMD " => "")
                 vstr_splits = split(vstr, ' ')
                 if VersionNumber(vstr_splits[2]) >= v"6.0.0"
@@ -136,7 +124,6 @@ function find_device_libs(rocm_path::String)
     devlibs_path !== "" && return devlibs_path
 
     # Try the canonical location.
-    @show rocm_path
     canonical_dir = joinpath(rocm_path, "amdgcn", "bitcode")
     isdir(canonical_dir) && return canonical_dir
 

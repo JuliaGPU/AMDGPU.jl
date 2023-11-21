@@ -1,9 +1,12 @@
 export wavefrontsize
 
+_Clong = Sys.islinux() ? Clong : Clonglong
+_Culong = Sys.islinux() ? Culong : Culonglong
+
 for (name,op) in ((:add,typeof(+)), (:max,typeof(max)), (:min,typeof(min)))
     wfred_name = Symbol("wfred_$name")
     wfscan_name = Symbol("wfscan_$name")
-    for jltype in (Cint, Clong, Cuint, Culong, Float16, Float32, Float64)
+    for jltype in (Cint, _Clong, Cuint, _Culong, Float16, Float32, Float64)
         type_suffix = fntypes[jltype]
 
         @eval @device_function $(wfred_name)(x::$jltype) = ccall(
@@ -21,7 +24,7 @@ end
 for (name,op) in ((:and,typeof(&)), (:or,typeof(|)), (:xor,typeof(⊻)))
     wfred_name = Symbol("wfred_$name")
     wfscan_name = Symbol("wfscan_$name")
-    for jltype in (Cint, Clong, Cuint, Culong)
+    for jltype in (Cint, _Clong, Cuint, _Culong)
         type_suffix = fntypes[jltype]
 
         @eval @device_function $(wfred_name)(x::$jltype) = ccall(
@@ -36,7 +39,7 @@ for (name,op) in ((:and,typeof(&)), (:or,typeof(|)), (:xor,typeof(⊻)))
     @eval @inline wfscan(::$op, x, inclusive::Bool) = $(wfscan_name)(x, inclusive)
 end
 
-for jltype in (Cuint, Culong)
+for jltype in (Cuint, _Culong)
     type_suffix = fntypes[jltype]
     @eval @device_function wfbcast(x::$jltype, i::Cuint) = ccall(
         $("extern __ockl_wfbcast_$(type_suffix)"), llvmcall,

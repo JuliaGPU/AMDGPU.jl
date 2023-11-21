@@ -58,13 +58,13 @@ function get_library(
     end
 end
 
-function get_ld_lld(;
+function get_ld_lld(rocm_paths::Vector{String};
     from_artifact::Bool, artifact_library::Symbol, artifact_field::Symbol,
 )
-    if from_artifact || Sys.iswindows() # TODO temporary fix for Windows
+    if from_artifact
         get_artifact_library(artifact_library, artifact_field)
     else
-        find_ld_lld()
+        find_ld_lld(rocm_paths)
     end
 end
 
@@ -111,18 +111,6 @@ function __init__()
     rocm_paths = use_artifacts() ? String[] : find_roc_paths()
 
     try
-        # Core.
-        lld_path = get_ld_lld(; from_artifact=false,
-            artifact_library=:LLD_jll, artifact_field=:lld_path)
-        lld_artifact = false
-        if isempty(lld_path)
-            lld_path = get_ld_lld(; from_artifact=true,
-                artifact_library=:LLD_jll, artifact_field=:lld_path)
-            lld_artifact = true
-        end
-        global lld_path = lld_path
-        global lld_artifact = lld_artifact
-
         global libhsaruntime = if Sys.islinux()
             get_library("libhsa-runtime64";
                     rocm_paths, artifact_library=:hsa_rocr_jll,
@@ -133,11 +121,22 @@ function __init__()
 
         lib_prefix = Sys.islinux() ? "lib" : ""
         # TODO if more than 1 path - force user to specify
-        @show rocm_paths
         rocm_path = isempty(rocm_paths) ? "" : first(rocm_paths)
         if Sys.iswindows() && !isempty(rocm_paths)
             push!(rocm_paths, joinpath(first(rocm_paths), "bin"))
         end
+
+        # Linker.
+        lld_path = get_ld_lld(rocm_paths; from_artifact=false,
+            artifact_library=:LLD_jll, artifact_field=:lld_path)
+        lld_artifact = false
+        if isempty(lld_path)
+            lld_path = get_ld_lld(rocm_paths; from_artifact=true,
+                artifact_library=:LLD_jll, artifact_field=:lld_path)
+            lld_artifact = true
+        end
+        global lld_path = lld_path
+        global lld_artifact = lld_artifact
 
         # HIP.
         global libhip = get_library(
