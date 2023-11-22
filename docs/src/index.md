@@ -1,7 +1,5 @@
 # Programming AMD GPUs with Julia
 
-## The Julia AMDGPU stack
-
 Julia support for programming AMD GPUs is currently provided by the
 [AMDGPU.jl](https://github.com/JuliaGPU/AMDGPU.jl) package.
 This package contains everything necessary to program for AMD GPUs in Julia, including:
@@ -31,24 +29,33 @@ Pkg.test("AMDGPU")
 
 ## Requirements
 
-Julia **1.9 or higher**.
+- Julia **1.9 or higher** (Navi 3 requires Julia 1.10+).
+- **64-bit** Linux or Windows.
+- Minimal supported ROCm version is **5.3**.
+- Required software:
 
-Minimal supported ROCm version is **5.3**.
-For optimal experience, you should have full ROCm stack installed.
-Refer to official ROCm stack installation instructions: <https://rocm.docs.amd.com/en/latest/deploy/linux/index.html>
+|Linux|Windows|
+|:---:|:---:|
+|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html)|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)|
+|-|[AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software)|
 
-Currently, AMDGPU.jl utilizes following libraries:
+On Windows AMD Software: Adrenalin Edition contains HIP library itself,
+while ROCm provides support for other functionality.
 
-[ROCT](https://github.com/RadeonOpenCompute/ROCT-Thunk-Interface),
-[ROCR](https://github.com/RadeonOpenCompute/ROCR-Runtime),
-[ROCm-Device-Libs](https://github.com/RadeonOpenCompute/ROCm-Device-Libs),
-[HIP](https://github.com/ROCm-Developer-Tools/HIP),
-[rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS),
-[rocFFT](https://github.com/ROCmSoftwarePlatform/rocFFT),
-[rocSOLVER](https://github.com/ROCmSoftwarePlatform/rocSOLVER),
-[rocSPARSE](https://github.com/ROCmSoftwarePlatform/rocSPARSE),
-[rocRAND](https://github.com/ROCmSoftwarePlatform/rocRAND),
-[MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen).
+### Windows OS missing functionality
+
+Windows **does not** yet support [Hostcall](@ref), which means that
+some of the functionality does not work, like:
+
+- device printing;
+- dynamic memory allocation (from kernels).
+
+These hostcalls are sometimes launched when AMDGPU detects that a
+kernel might throw an exception, specifically during conversions, like:
+`Int32(1f0)`.
+
+To avoid this, use 'unsafe' conversion option:
+`unsafe_trunc(Int32, 1f0)`.
 
 ### ROCm artifacts
 
@@ -103,12 +110,6 @@ List of additional steps that may be needed to take to ensure everything is work
     using Libdl
     Libdl.dlopen("/opt/rocm/hsa/lib/libhsa-runtime64.so.1")
     ```
-
-- `ld.lld` should be in your `PATH`.
-
-- For better experience use whatever Linux kernel
-    is officially supported by ROCm stack.
-
 
 Once all of this is setup properly, you should be able to do `using AMDGPU`
 successfully.
