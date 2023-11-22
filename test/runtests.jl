@@ -101,7 +101,7 @@ np = clamp(np, 1, 4)
 InteractiveUtils.versioninfo()
 AMDGPU.versioninfo()
 
-if "core" in TARGET_TESTS
+if "core" in TARGET_TESTS && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")

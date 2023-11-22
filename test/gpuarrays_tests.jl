@@ -22,8 +22,10 @@ end
     gpuarrays_test("indexing find")
 end
 @testitem "gpuarrays - indexing multidimensional" setup=[TSGPUArrays] begin
-    gpuarrays_test("indexing multidimensional")
-    AMDGPU.synchronize(; stop_hostcalls=true)
+    if Sys.islinux() # TODO Windows does not support hostcalls.
+        gpuarrays_test("indexing multidimensional")
+        AMDGPU.synchronize(; stop_hostcalls=true)
+    end
 end
 @testitem "gpuarrays - indexing scalar" setup=[TSGPUArrays] begin
     gpuarrays_test("indexing scalar")

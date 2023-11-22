@@ -184,6 +184,11 @@ function hipMemcpyDtoHAsync(dst, src, sz, stream)
     ccall((:hipMemcpyDtoHAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
 end
 
+function hipMemcpyDtoH(dst, src, sz)
+    AMDGPU.prepare_state()
+    ccall((:hipMemcpyDtoH, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), dst, src, sz)
+end
+
 function hipMemcpyDtoDAsync(dst, src, sz, stream)
     AMDGPU.prepare_state()
     ccall((:hipMemcpyDtoDAsync, libhip), hipError_t, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, hipStream_t), dst, src, sz, stream)
