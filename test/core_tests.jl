@@ -64,6 +64,7 @@ include("codegen/trap.jl")
 include("rocarray/base.jl")
 include("rocarray/broadcast.jl")
 
-include("tls.jl")
+# TODO rework, causes hangs on Navi 3
+# include("tls.jl")
 
 end
