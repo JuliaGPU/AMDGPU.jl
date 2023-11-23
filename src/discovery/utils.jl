@@ -63,6 +63,7 @@ function find_rocm_library(lib::String, dirs::Vector{String}, ext::String = dlex
     isempty(path) || return Libdl.dlpath(path)
 
     for dir in dirs
+        dir = joinpath(dir, "lib")
         files = readdir(dir)
         for file in files
             matched = startswith(basename(file), lib * ".$ext")
@@ -77,7 +78,7 @@ function find_roc_paths()
     paths = filter(!isempty, paths)
     paths = map(Base.Filesystem.abspath, paths)
     if Sys.islinux()
-        push!(paths, "/opt/rocm/lib") # shim for Ubuntu rocm packages...
+        push!(paths, "/opt/rocm") # shim for Ubuntu rocm packages...
     elseif Sys.iswindows()
         disk_dir = dirname(dirname(homedir())) # Disk C root directory.
         rocm_dir = joinpath(disk_dir, "Program Files", "AMD", "ROCm")
@@ -96,20 +97,22 @@ end
 function find_ld_lld(rocm_paths::Vector{String})
     lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
     for path in rocm_paths
-        exp_ld_path = joinpath(path, lld_name)
-        if ispath(exp_ld_path)
-            try
-                tmpfile = tempname(;cleanup=false)
-                run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
-                vstr = read(tmpfile, String)
-                rm(tmpfile)
-                vstr = replace(vstr, "AMD " => "")
-                vstr_splits = split(vstr, ' ')
-                if VersionNumber(vstr_splits[2]) >= v"6.0.0"
-                    return exp_ld_path
+        for subdir in (joinpath("llvm", "bin"), "bin")
+            exp_ld_path = joinpath(path, subdir, lld_name)
+            if ispath(exp_ld_path)
+                try
+                    tmpfile = tempname(;cleanup=false)
+                    run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
+                    vstr = read(tmpfile, String)
+                    rm(tmpfile)
+                    vstr = replace(vstr, "AMD " => "")
+                    vstr_splits = split(vstr, ' ')
+                    if VersionNumber(vstr_splits[2]) >= v"6.0.0"
+                        return exp_ld_path
+                    end
+                catch
+                    @debug "bindeps: Failed running ld.lld in $exp_ld_path"
                 end
-            catch
-                @debug "bindeps: Failed running ld.lld in $exp_ld_path"
             end
         end
     end
