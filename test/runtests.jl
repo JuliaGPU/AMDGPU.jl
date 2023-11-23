@@ -101,7 +101,7 @@ np = clamp(np, 1, 4)
 InteractiveUtils.versioninfo()
 AMDGPU.versioninfo()
 
-if "core" in TARGET_TESTS
+if "core" in TARGET_TESTS && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")
@@ -111,7 +111,7 @@ end
 
 CI = parse(Bool, get(ENV, "CI", "false"))
 
-runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
+runtests(AMDGPU; nworkers=np, nworker_threads=4, testitem_timeout=60 * 30) do ti
     for tt in TARGET_TESTS
         startswith(ti.name, tt) && return true
     end

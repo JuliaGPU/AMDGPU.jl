@@ -22,6 +22,8 @@
     @test occursin("2×2 device array view", sprint(io->show(io, RD_view)))
     # TODO weirdly in CI it dispatches onto ROCDeviceVector show method...
     if !CI
-        @test occursin("4×4 device array wrapper LinearAlgebra.Adjoint", sprint(io->show(io, RD_adj)))
+        @test occursin(
+            "4×4 device array wrapper LinearAlgebra.Adjoint",
+            sprint(io->show(io, RD_adj)))
     end
 end

@@ -164,7 +164,7 @@ function __init__()
                 print_build_diagnostics()
                 error("Failed to load HSA runtime, but HSA must load, bailing out")
             end
-	end
+        end
     end
 
     # Check whether ld.lld was found

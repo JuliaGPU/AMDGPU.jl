@@ -141,8 +141,7 @@ function Base.copyto!(
     Mem.download!(
         pointer(dest, d_offset),
         Mem.view(source.buf[], (source.offset + s_offset - 1) * sizeof(T)),
-        amount * sizeof(T); stream=strm)
-    async || AMDGPU.synchronize(strm)
+        amount * sizeof(T); stream=strm, async)
     dest
 end
 

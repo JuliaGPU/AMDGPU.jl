@@ -134,9 +134,13 @@ function upload!(dst::HIPBuffer, src::Ptr, bytesize::Int; stream::HIP.HIPStream)
     return
 end
 
-function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
+function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream, async::Bool)
     bytesize == 0 && return
-    HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream) |> HIP.check
+    if async
+        HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream) |> HIP.check
+    else
+        HIP.hipMemcpyDtoH(dst, src, bytesize) |> HIP.check
+    end
     return
 end
 
@@ -186,10 +190,10 @@ upload!(dst::HostBuffer, src::Ptr, sz::Int; stream::HIP.HIPStream) =
 upload!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
 
-download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream, async::Bool) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
 
-download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream, async::Bool) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
 
 transfer!(dst::HostBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =

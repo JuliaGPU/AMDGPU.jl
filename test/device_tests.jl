@@ -2,7 +2,7 @@
 
 using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
-using LinearAlgebra
+import LinearAlgebra
 
 CI = parse(Bool, get(ENV, "CI", "false"))
 

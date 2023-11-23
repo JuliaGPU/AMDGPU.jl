@@ -10,12 +10,25 @@ import AMDGPU: @allowscalar
 Random.seed!(1)
 AMDGPU.allowscalar(false)
 
-include("rocarray/blas.jl")
-include("rocarray/solver.jl")
-include("rocsparse/rocsparse.jl")
-include("rocarray/random.jl")
-include("rocarray/fft.jl")
-include("dnn/miopen.jl")
+if AMDGPU.functional(:rocblas)
+    include("rocarray/blas.jl")
+end
+if AMDGPU.functional(:MIOpen)
+    include("dnn/miopen.jl")
+end
+if AMDGPU.functional(:rocsolver)
+    include("rocarray/solver.jl")
+end
+if AMDGPU.functional(:rocsparse)
+    include("rocsparse/rocsparse.jl")
+end
+if AMDGPU.functional(:rocrand)
+    include("rocarray/random.jl")
+end
+# TODO rocFFT tests crash Windows due to access violation
+if Sys.islinux() && AMDGPU.functional(:rocfft)
+    include("rocarray/fft.jl")
+end
 
 @testset "AMDGPU.@elapsed" begin
     xgpu = AMDGPU.rand(Float32, 100)
@@ -38,5 +51,6 @@ if length(AMDGPU.devices()) > 1
         @test AMDGPU.HIP.can_access_peer(dev1, dev2) isa Bool
     end
 end
+
 
 end
