@@ -21,11 +21,8 @@
 
 ## Requirements
 
-The AMDGPU.jl package requires **Julia 1.9+**, **ROCm 5.3-5.6**, which means only GPUs that are supported by these versions will work.\
-Only **64-bit Linux** is supported and working at this time.
-
-This package is under active development and is reasonably complete, however
-not all features are up to par with CUDA.jl.
+The AMDGPU.jl package requires **Julia 1.9+**, **ROCm 5.3-5.7**, which means only GPUs that are supported by these versions will work.\
+**64-bit Linux and Windows** are supported, see [requirements](https://amdgpu.juliagpu.org/dev/#Installation).
 
 ## Quick start
 
