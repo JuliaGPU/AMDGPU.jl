@@ -147,7 +147,7 @@ function __init__()
 
     # Verbose path, something is misconfigured
     if Sys.islinux()
-        if !isnothing(libhsaruntime) && !isempty(libhsaruntime)
+        if !isempty(libhsaruntime)
             # Initialize the HSA runtime.
             status = HSA.init()
             if status == HSA.STATUS_SUCCESS

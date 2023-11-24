@@ -50,76 +50,39 @@ function safe_exec(str)
     return success, error_str
 end
 
-function find_rocm_library(libs::Vector, dirs::Vector{String}, ext::String = dlext)
-    for lib in libs
-        path = find_rocm_library(lib, dirs, ext)
-        isempty(path) || return path
-    end
-    return ""
-end
+"""
+Find root ROCm directory.
+"""
+function find_roc_path()::String
+    env_dir = get(ENV, "ROCM_PATH", "")
+    isdir(env_dir) && return env_dir
 
-function find_rocm_library(lib::String, dirs::Vector{String}, ext::String = dlext)
-    path = Libdl.find_library(lib)
-    isempty(path) || return Libdl.dlpath(path)
-
-    for dir in dirs
-        dir = joinpath(dir, Sys.islinux() ? "lib" : "bin")
-        files = readdir(dir)
-        for file in files
-            matched = startswith(basename(file), lib * ".$ext")
-            matched && return joinpath(dir, file)
-        end
-    end
-    return ""
-end
-
-function find_roc_paths()
-    paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
-    paths = filter(!isempty, paths)
-    paths = map(Base.Filesystem.abspath, paths)
     if Sys.islinux()
-        push!(paths, "/opt/rocm") # shim for Ubuntu rocm packages...
+        isdir("/opt/rocm") && return "/opt/rocm" # shim for Ubuntu rocm packages.
     elseif Sys.iswindows()
         disk_dir = dirname(dirname(homedir())) # Disk C root directory.
         rocm_dir = joinpath(disk_dir, "Program Files", "AMD", "ROCm")
-        # TODO what if we have multiple ROCm versions installed?
         if isdir(rocm_dir)
-            versioned_dir = only(readdir(rocm_dir; join=true))
-            push!(paths, versioned_dir)
-        end
-    end
-    if haskey(ENV, "ROCM_PATH")
-        push!(paths, ENV["ROCM_PATH"])
-    end
-    return filter(isdir, paths) # TODO require only 1 dir or specify explicitly?
-end
-
-function find_ld_lld(rocm_paths::Vector{String})
-    lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
-    for path in rocm_paths
-        for subdir in (joinpath("llvm", "bin"), "bin")
-            exp_ld_path = joinpath(path, subdir, lld_name)
-            if ispath(exp_ld_path)
-                try
-                    tmpfile = tempname(;cleanup=false)
-                    run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
-                    vstr = read(tmpfile, String)
-                    rm(tmpfile)
-                    vstr = replace(vstr, "AMD " => "")
-                    vstr_splits = split(vstr, ' ')
-                    if VersionNumber(vstr_splits[2]) >= v"6.0.0"
-                        return exp_ld_path
-                    end
-                catch
-                    @debug "bindeps: Failed running ld.lld in $exp_ld_path"
-                end
+            version_dirs = readdir(rocm_dir; join=true)
+            if length(version_dirs) > 1
+                @warn """
+                Multiple ROCm versions detected, selecting first.
+                Use `ROCM_PATH` env variable to specify exact ROCm directory.
+                """
             end
+            return first(version_dirs)
         end
     end
     return ""
 end
 
 function find_device_libs(rocm_path::String)
+    env_dir = get(ENV, "ROCM_PATH", "")
+    if isdir(env_dir)
+        path = joinpath(env_dir, "amdgcn", "bitcode")
+        isdir(path) && return path
+    end
+
     # Might be set by tools like Spack or the user
     hip_devlibs_path = get(ENV, "HIP_DEVICE_LIB_PATH", "")
     hip_devlibs_path !== "" && return hip_devlibs_path
@@ -129,17 +92,49 @@ function find_device_libs(rocm_path::String)
     # Try the canonical location.
     canonical_dir = joinpath(rocm_path, "amdgcn", "bitcode")
     isdir(canonical_dir) && return canonical_dir
+    return ""
+end
 
-    # Search relative to LD_LIBRARY_PATH entries
-    paths = split(get(ENV, "LD_LIBRARY_PATH", ""), ":")
-    paths = filter(path -> path != "", paths)
-    paths = map(Base.Filesystem.abspath, paths)
-    for path in paths
-        bitcode_path = normpath(joinpath(path, "../amdgcn/bitcode/"))
-        if ispath(bitcode_path)
-            if isfile(joinpath(bitcode_path, "ocml.bc")) ||
-               isfile(joinpath(bitcode_path, "ocml.amdgcn.bc"))
-               return bitcode_path
+function find_rocm_library(libs::Vector, rocm_path::String, ext::String = dlext)
+    for lib in libs
+        path = find_rocm_library(lib, rocm_path, ext)
+        isempty(path) || return path
+    end
+    return ""
+end
+
+function find_rocm_library(lib::String, rocm_path::String, ext::String = dlext)
+    path = Libdl.find_library(lib)
+    isempty(path) || return Libdl.dlpath(path)
+
+    libdir = joinpath(rocm_path, Sys.islinux() ? "lib" : "bin")
+    if isdir(libdir)
+        files = readdir(libdir)
+        for file in files
+            matched = startswith(basename(file), lib * ".$ext")
+            matched && return joinpath(libdir, file)
+        end
+    end
+    return ""
+end
+
+function find_ld_lld(rocm_path::String)
+    lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
+    for subdir in (joinpath("llvm", "bin"), "bin")
+        exp_ld_path = joinpath(rocm_path, subdir, lld_name)
+        if ispath(exp_ld_path)
+            try
+                tmpfile = tempname(;cleanup=false)
+                run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
+                vstr = read(tmpfile, String)
+                rm(tmpfile)
+                vstr = replace(vstr, "AMD " => "")
+                vstr_splits = split(vstr, ' ')
+                if VersionNumber(vstr_splits[2]) >= v"6.0.0"
+                    return exp_ld_path
+                end
+            catch
+                @debug "bindeps: Failed running ld.lld in $exp_ld_path"
             end
         end
     end
