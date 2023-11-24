@@ -63,7 +63,7 @@ function find_rocm_library(lib::String, dirs::Vector{String}, ext::String = dlex
     isempty(path) || return Libdl.dlpath(path)
 
     for dir in dirs
-        dir = joinpath(dir, "lib")
+        dir = joinpath(dir, Sys.islinux() ? "lib" : "bin")
         files = readdir(dir)
         for file in files
             matched = startswith(basename(file), lib * ".$ext")
