@@ -42,7 +42,7 @@ Pkg.test("AMDGPU")
 On Windows AMD Software: Adrenalin Edition contains HIP library itself,
 while ROCm provides support for other functionality.
 
-### Windows OS missing functionality
+## Windows OS missing functionality
 
 Windows **does not** yet support [Hostcall](@ref), which means that
 some of the functionality does not work, like:
@@ -57,7 +57,19 @@ kernel might throw an exception, specifically during conversions, like:
 To avoid this, use 'unsafe' conversion option:
 `unsafe_trunc(Int32, 1f0)`.
 
-### ROCm artifacts
+## ROCm system libraries
+
+AMDGPU.jl looks into standard directories
+and uses `Libdl.find_library` to find ROCm libraries.
+
+Standard path:
+- Linux: `/opt/rocm`
+- Windows: `C:/Program Files/AMD/ROCm/<rocm-version>`
+
+If you have non-standard path for ROCm, set `ROCM_PATH=<path>`
+environment variable before launching Julia.
+
+## ROCm artifacts
 
 There is limited support for ROCm 5.4+ artifacts which can be enabled with
 [`AMDGPU.use_artifacts!`](@ref).
@@ -69,7 +81,7 @@ may be disabled.
 AMDGPU.use_artifacts!
 ```
 
-### Extra Setup Details
+## Extra Setup Details
 
 List of additional steps that may be needed to take to ensure everything is working:
 

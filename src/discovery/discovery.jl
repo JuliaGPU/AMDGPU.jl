@@ -46,7 +46,7 @@ function get_artifact_library(pkg::Symbol, libname::Symbol)::String
 end
 
 function get_library(
-    libname::String; rocm_paths::Vector{String},
+    libname::String; rocm_path::String,
     artifact_library::Symbol, artifact_field::Union{Nothing, Symbol} = nothing,
     ext::String = dlext,
 )
@@ -54,17 +54,17 @@ function get_library(
         artifact_field = artifact_field ≡ nothing ? Symbol(libname) : artifact_field
         get_artifact_library(artifact_library, artifact_field)
     else
-        find_rocm_library(libname, rocm_paths, ext)
+        find_rocm_library(libname, rocm_path, ext)
     end
 end
 
-function get_ld_lld(rocm_paths::Vector{String};
+function get_ld_lld(rocm_path::String;
     from_artifact::Bool, artifact_library::Symbol, artifact_field::Symbol,
 )
     if from_artifact
         get_artifact_library(artifact_library, artifact_field)
     else
-        find_ld_lld(rocm_paths)
+        find_ld_lld(rocm_path)
     end
 end
 
@@ -108,30 +108,24 @@ function __init__()
         end
     end
 
-    rocm_paths = use_artifacts() ? String[] : find_roc_paths()
+    rocm_path = use_artifacts() ? "" : find_roc_path()
+    lib_prefix = Sys.islinux() ? "lib" : ""
 
     try
         global libhsaruntime = if Sys.islinux()
             get_library("libhsa-runtime64";
-                    rocm_paths, artifact_library=:hsa_rocr_jll,
+                    rocm_path, artifact_library=:hsa_rocr_jll,
                     artifact_field=:libhsa_runtime64, ext="so.1")
         else
-            nothing
-        end
-
-        lib_prefix = Sys.islinux() ? "lib" : ""
-        # TODO if more than 1 path - force user to specify
-        rocm_path = isempty(rocm_paths) ? "" : first(rocm_paths)
-        if Sys.iswindows() && !isempty(rocm_paths)
-            push!(rocm_paths, joinpath(first(rocm_paths), "bin"))
+            ""
         end
 
         # Linker.
-        lld_path = get_ld_lld(rocm_paths; from_artifact=false,
+        lld_path = get_ld_lld(rocm_path; from_artifact=false,
             artifact_library=:LLD_jll, artifact_field=:lld_path)
         lld_artifact = false
         if isempty(lld_path)
-            lld_path = get_ld_lld(rocm_paths; from_artifact=true,
+            lld_path = get_ld_lld(rocm_path; from_artifact=true,
                 artifact_library=:LLD_jll, artifact_field=:lld_path)
             lld_artifact = true
         end
@@ -140,8 +134,8 @@ function __init__()
 
         # HIP.
         global libhip = get_library(
-            Sys.islinux() ? "libamdhip64" : "amdhip64.dll";
-            rocm_paths, artifact_library=:HIP_jll)
+            Sys.islinux() ? "libamdhip64" : "amdhip64";
+            rocm_path, artifact_library=:HIP_jll)
 
         from_artifact = if isempty(libhip)
             use_artifacts()
@@ -155,21 +149,25 @@ function __init__()
 
         # HIP-based libraries.
         global librocblas = get_library(lib_prefix * "rocblas";
-            rocm_paths, artifact_library=:rocBLAS_jll)
+            rocm_path, artifact_library=:rocBLAS_jll)
         global librocsparse = get_library(lib_prefix * "rocsparse";
-            rocm_paths, artifact_library=:rocSPARSE_jll)
+            rocm_path, artifact_library=:rocSPARSE_jll)
         global librocsolver = get_library(lib_prefix * "rocsolver";
-            rocm_paths, artifact_library=:rocSOLVER_jll)
+            rocm_path, artifact_library=:rocSOLVER_jll)
         global librocalution = get_library(lib_prefix * "rocalution";
-            rocm_paths, artifact_library=:rocALUTION_jll)
+            rocm_path, artifact_library=:rocALUTION_jll)
         global librocrand = get_library(lib_prefix * "rocrand";
-            rocm_paths, artifact_library=:rocRAND_jll)
+            rocm_path, artifact_library=:rocRAND_jll)
         global librocfft = get_library(lib_prefix * "rocfft";
-            rocm_paths, artifact_library=:rocFFT_jll)
+            rocm_path, artifact_library=:rocFFT_jll)
         global libMIOpen_path = get_library(lib_prefix * "MIOpen";
-            rocm_paths, artifact_library=:MIOpen_jll)
+            rocm_path, artifact_library=:MIOpen_jll)
     catch err
-        @error "ROCm discovery failed!" exception=(err, catch_backtrace())
+        @error """ROCm discovery failed!
+        Discovered ROCm path: $rocm_path.
+        Use `ROCM_PATH` env variable to specify ROCm directory.
+
+        """ exception=(err, catch_backtrace())
     end
 end
 
