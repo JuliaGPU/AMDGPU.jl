@@ -208,6 +208,7 @@ function unsafe_execute!(
     plan::cROCFFTPlan{T,K,false,N}, X::ROCArray{T,N}, Y::ROCArray{T},
 ) where {T,N,K}
     X = copy(X) # since input array can also be modified
+    # TODO on 1.11 we need to manually cast `pointer(X)` to `Ptr{Cvoid}`.
     rocfft_execute(plan, [pointer(X),], [pointer(Y),], plan.execution_info)
 end
 
