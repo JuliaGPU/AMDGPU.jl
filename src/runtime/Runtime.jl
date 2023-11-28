@@ -25,7 +25,7 @@ module Mem
 
     import AMDGPU
     import AMDGPU: HIP, HSA, Runtime
-    import .HIP: HIPDevice
+    import .HIP: HIPDevice, HIPContext
     import .Runtime: ROCDim, ROCDim3
 
     abstract type AbstractAMDBuffer end

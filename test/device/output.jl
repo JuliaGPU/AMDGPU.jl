@@ -32,21 +32,20 @@
         @test msg == "Hello World!Goodbye World!\n"
     end
 
-    #= TODO
-    @testset "Interpolated string" begin
-        inner_str = "to the"
-        function kernel(oc)
-            @rocprintln oc "Hello $inner_str World!"
-            nothing
-        end
+    # TODO
+    # @testset "Interpolated string" begin
+    #     inner_str = "to the"
+    #     function kernel(oc)
+    #         @rocprintln oc "Hello $inner_str World!"
+    #         nothing
+    #     end
 
-        iob = IOBuffer()
-        oc = OutputContext(iob)
-        @roc kernel(oc)
-        sleep(1)
-        @test String(take!(iob)) == "Hello to the World!\n"
-    end
-    =#
+    #     iob = IOBuffer()
+    #     oc = OutputContext(iob)
+    #     @roc kernel(oc)
+    #     sleep(1)
+    #     @test String(take!(iob)) == "Hello to the World!\n"
+    # end
 end
 
 @testset "@rocprintf" begin

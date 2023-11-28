@@ -21,31 +21,31 @@ function versioninfo(io::IO=stdout)
     end
     println(_lib_title("rocBLAS", :rocblas; version_fn=rocBLAS.version))
     if functional(:rocblas)
-        println("    @ $(Libdl.dlpath(librocblas))")
+        println("    @ $librocblas")
     end
     println(_lib_title("rocSOLVER", :rocsolver; version_fn=rocSOLVER.version))
     if functional(:rocsolver)
-        println("    @ $(Libdl.dlpath(librocsolver))")
+        println("    @ $librocsolver")
     end
     println("[$(_status(functional(:rocalution)))] rocALUTION")
     if functional(:rocalution)
-        println("    @ $(Libdl.dlpath(librocalution))")
+        println("    @ $librocalution")
     end
     println("[$(_status(functional(:rocsparse)))] rocSPARSE")
     if functional(:rocsparse)
-        println("    @ $(Libdl.dlpath(librocsparse))")
+        println("    @ $librocsparse")
     end
     println(_lib_title("rocRAND", :rocrand; version_fn=rocRAND.version))
     if functional(:rocrand)
-        println("    @ $(Libdl.dlpath(librocrand))")
+        println("    @ $librocrand")
     end
     println(_lib_title("rocFFT", :rocfft; version_fn=rocFFT.version))
     if functional(:rocfft)
-        println("    @ $(Libdl.dlpath(librocfft))")
+        println("    @ $librocfft")
     end
     println(_lib_title("MIOpen", :MIOpen; version_fn=MIOpen.version))
     if functional(:MIOpen)
-        println("    @ $(Libdl.dlpath(libMIOpen_path))")
+        println("    @ $libMIOpen_path")
     end
 
     if functional(:hip)

@@ -114,9 +114,9 @@ function context!(ctx::HIPContext)
         HIP.context!(ctx)
         task_local_state!(HIP.device(), ctx)
     else
-        old_ctx = state.ctx
+        old_ctx = state.context
         if old_ctx != ctx
-            HIP.context!(state.ctx)
+            HIP.context!(state.context)
             state.device = HIP.device()
             state.context = ctx
         end
@@ -125,11 +125,15 @@ function context!(ctx::HIPContext)
 end
 
 function context!(f::Function, ctx::HIPContext)
-    old_ctx = context!(ctx)
-    return try
-        f()
-    finally
-        old_ctx ≢ nothing && old_ctx != ctx && context!(old_ctx)
+    if ctx.valid
+        old_ctx = context!(ctx)
+        return try
+            f()
+        finally
+            old_ctx ≢ nothing && old_ctx != ctx && context!(old_ctx)
+        end
+    else
+        @warn "CTX not valid"
     end
 end
 

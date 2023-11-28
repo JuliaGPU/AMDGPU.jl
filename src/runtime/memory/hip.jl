@@ -60,7 +60,8 @@ function mark_pool!(dev::HIP.HIPDevice)
 end
 
 struct HIPBuffer <: AbstractAMDBuffer
-    device::HIPDevice
+    device::HIPDevice # TODO not used?
+    ctx::HIPContext
     ptr::Ptr{Cvoid}
     bytesize::Int
     own::Bool
@@ -68,9 +69,10 @@ end
 
 function HIPBuffer(bytesize; stream::HIP.HIPStream)
     dev = stream.device
-    bytesize == 0 && return HIPBuffer(dev, C_NULL, 0, true)
+    ctx = stream.ctx
+    bytesize == 0 && return HIPBuffer(dev, ctx, C_NULL, 0, true)
 
-    mark_pool!(dev)
+    # mark_pool!(dev)
     pool = HIP.memory_pool(dev)
 
     has_limit = hard_memory_limit() != typemax(UInt64)
@@ -106,18 +108,20 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
         @assert HIP.reserved_memory(pool) ≤ hard_memory_limit()
     end
 
-    HIPBuffer(dev, ptr, bytesize, true)
+    HIPBuffer(dev, ctx, ptr, bytesize, true)
 end
 
-HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int) =
-    HIPBuffer(AMDGPU.device(), ptr, bytesize, false)
+function HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int)
+    s = AMDGPU.stream()
+    HIPBuffer(s.device, s.ctx, ptr, bytesize, false)
+end
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::HIPBuffer) where T =
     convert(Ptr{T}, buf.ptr)
 
 function view(buf::HIPBuffer, bytesize::Int)
     bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
-    HIPBuffer(buf.device, buf.ptr + bytesize, buf.bytesize - bytesize, buf.own)
+    HIPBuffer(buf.device, buf.ctx, buf.ptr + bytesize, buf.bytesize - bytesize, buf.own)
 end
 
 function free(buf::HIPBuffer; stream::HIP.HIPStream)
@@ -152,13 +156,17 @@ end
 
 struct HostBuffer <: AbstractAMDBuffer
     device::HIPDevice
+    ctx::HIPContext
     ptr::Ptr{Cvoid}
     dev_ptr::Ptr{Cvoid}
     bytesize::Int
     own::Bool
 end
 
-HostBuffer() = HostBuffer(AMDGPU.device(), C_NULL, C_NULL, 0, true)
+function HostBuffer()
+    s = AMDGPU.stream()
+    HostBuffer(s.device, s.ctx, C_NULL, C_NULL, 0, true)
+end
 
 function HostBuffer(bytesize::Integer, flags = 0)
     bytesize == 0 && return HostBuffer()
@@ -167,19 +175,21 @@ function HostBuffer(bytesize::Integer, flags = 0)
     HIP.hipHostMalloc(ptr_ref, bytesize, flags) |> HIP.check
     ptr = ptr_ref[]
     dev_ptr = get_device_ptr(ptr)
-    HostBuffer(AMDGPU.device(), ptr, dev_ptr, bytesize, true)
+    s = AMDGPU.stream()
+    HostBuffer(s.device, s.ctx, ptr, dev_ptr, bytesize, true)
 end
 
 function HostBuffer(ptr::Ptr{Cvoid}, sz::Integer)
     HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
     dev_ptr = get_device_ptr(ptr)
-    HostBuffer(AMDGPU.device(), ptr, dev_ptr, sz, false)
+    s = AMDGPU.stream()
+    HostBuffer(s.device, s.ctx, ptr, dev_ptr, sz, false)
 end
 
 function view(buf::HostBuffer, bytesize::Int)
     bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
     HostBuffer(
-        buf.device,
+        buf.device, buf.ctx,
         buf.ptr + bytesize, buf.dev_ptr + bytesize,
         buf.bytesize - bytesize, buf.own)
 end

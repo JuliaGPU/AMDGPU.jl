@@ -1,4 +1,4 @@
-@testitem "hip" begin
+@testitem "hip - core" begin
 
 using Test
 using LinearAlgebra
@@ -9,26 +9,6 @@ import AMDGPU: @allowscalar
 
 Random.seed!(1)
 AMDGPU.allowscalar(false)
-
-if AMDGPU.functional(:rocblas)
-    include("rocarray/blas.jl")
-end
-if AMDGPU.functional(:MIOpen)
-    include("dnn/miopen.jl")
-end
-if AMDGPU.functional(:rocsolver)
-    include("rocarray/solver.jl")
-end
-if AMDGPU.functional(:rocsparse)
-    include("rocsparse/rocsparse.jl")
-end
-if AMDGPU.functional(:rocrand)
-    include("rocarray/random.jl")
-end
-# TODO rocFFT tests crash Windows due to access violation
-if Sys.islinux() && AMDGPU.functional(:rocfft)
-    include("rocarray/fft.jl")
-end
 
 @testset "AMDGPU.@elapsed" begin
     xgpu = AMDGPU.rand(Float32, 100)
@@ -52,5 +32,14 @@ if length(AMDGPU.devices()) > 1
     end
 end
 
+if AMDGPU.functional(:rocblas)
+    include("rocarray/blas.jl")
+end
+if AMDGPU.functional(:MIOpen)
+    include("dnn/miopen.jl")
+end
+if AMDGPU.functional(:rocrand)
+    include("rocarray/random.jl")
+end
 
 end
