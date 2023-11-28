@@ -23,6 +23,7 @@ end
 
 mutable struct HIPContext
     context::hipContext_t
+    valid::Bool
 end
 const CONTEXTS = AMDGPU.LockedObject(Dict{HIPDevice,HIPContext}())
 
@@ -31,10 +32,11 @@ function HIPContext(device::HIPDevice)
         get!(contexts, device) do
             context_ref = Ref{hipContext_t}()
             hipCtxCreate(context_ref, Cuint(0), device.device) |> check
-            context = HIPContext(context_ref[])
+            context = HIPContext(context_ref[], true)
 
             device!(device)
             finalizer(context) do c
+                c.valid = false
                 hipCtxDestroy(c.context) |> check
             end
             return context
@@ -44,11 +46,7 @@ end
 
 HIPContext(device_id::Integer) = HIPContext(HIPDevice(device_id))
 
-function HIPContext()
-    context_ref = Ref{hipContext_t}()
-    hipCtxGetCurrent(context_ref) |> check
-    HIPContext(context_ref[])
-end
+HIPContext() = HIPContext(device())
 
 Base.unsafe_convert(::Type{Ptr{T}}, context::HIPContext) where T =
     reinterpret(Ptr{T}, context.context)

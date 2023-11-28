@@ -25,8 +25,10 @@ end
 
 # Passed to `DataRef` to handle freeing.
 function _free_buf(buf, stream_ordered::Bool)
-    s = stream_ordered ? AMDGPU.stream() : AMDGPU.default_stream()
-    Mem.free(buf; stream=s)
+    context!(buf.ctx) do
+        s = stream_ordered ? AMDGPU.stream() : AMDGPU.default_stream()
+        Mem.free(buf; stream=s)
+    end
 end
 
 unsafe_free!(x::ROCArray) = GPUArrays.unsafe_free!(x.buf, true)
