@@ -149,3 +149,13 @@ function Base.convert(::Type{rocsparse_direction}, dir::SparseChar)
         throw(ArgumentError("Unknown direction $dir"))
     end
 end
+
+function Base.convert(::Type{rocsparse_order}, order::SparseChar)
+    if order == 'R'
+        rocsparse_order_row
+    elseif order == 'C'
+        rocsparse_order_column
+    else
+        throw(ArgumentError("Unknown order $order"))
+    end
+end
