@@ -1,4 +1,4 @@
-# Kernel Launch
+# Kernel Programming
 
 ## Launch Configuration
 
@@ -35,4 +35,29 @@ This value can then be used to select the groupsize for the kernel:
 
 ```julia
 @roc groupsize=occupancy.groupsize mykernel(args...)
+```
+
+## Atomics
+
+AMDGPU.jl relies on [Atomix.jl](https://github.com/JuliaConcurrent/Atomix.jl)
+for atomics.
+
+Example of a kernel that computes atomic max:
+
+```julia
+using AMDGPU
+
+function ker_atomic_max!(target, source, indices)
+    i = workitemIdx().x + (workgroupIdx().x - 0x1) * workgroupDim().x
+    idx = indices[i]
+    v = source[i]
+    AMDGPU.@atomic max(target[idx], v)
+    return
+end
+
+n, bins = 1024, 32
+source = ROCArray(rand(UInt32, n))
+indices = ROCArray(rand(1:bins, n))
+target = ROCArray(zeros(UInt32, bins))
+@roc groupsize=256 gridsize=4 ker_atomic_max!(target, source, indices)
 ```
