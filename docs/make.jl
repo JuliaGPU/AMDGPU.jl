@@ -12,7 +12,7 @@ function main()
             "Quick Start" => "quickstart.md",
             "Devices" => "devices.md",
             "Streams" => "streams.md",
-            "Kernel Launch" => "kernel_launch.md",
+            "Kernel Programming" => "kernel_programming.md",
             "Exceptions" => "exceptions.md",
             "Profiling" => "profiling.md",
             "Memory" => "memory.md",

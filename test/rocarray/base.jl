@@ -189,14 +189,14 @@ end
     n, bins = 1024, 32
     source = rand(UInt32, n)
     indices = rand(1:bins, n)
-    target = zeros(UInt32, 32)
+    target = zeros(UInt32, bins)
     for i in 1:n
         idx = indices[i]
         target[idx] = max(target[idx], source[i])
     end
 
     dsource, dindices, dtarget = ROCArray.((source, indices, target))
-    @roc groupsize=256 gridsize=1024 ker_atomic_max!(dtarget, dsource, dindices)
+    @roc groupsize=256 gridsize=4 ker_atomic_max!(dtarget, dsource, dindices)
     @test Array(dtarget) == target
 end
 
