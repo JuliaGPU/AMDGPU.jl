@@ -22,5 +22,6 @@ include("exceptions.jl")
 include("gcn.jl")
 include("runtime.jl")
 include("quirks.jl")
+include("random.jl")
 
 end

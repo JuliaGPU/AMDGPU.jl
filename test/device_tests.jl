@@ -15,6 +15,7 @@ include("device/wavefront.jl")
 include("device/synchronization.jl")
 include("device/execution_control.jl")
 include("device/exceptions.jl")
+include("device/random.jl")
 
 # TODO https://github.com/JuliaGPU/AMDGPU.jl/issues/546
 include("device/math.jl")
