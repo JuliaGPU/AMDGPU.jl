@@ -119,6 +119,7 @@ function throw_if_exception(dev::HIPDevice)
 
     exception_str = get_exception_string(dev)
     exception_str = isempty(exception_str) ? "" : "\n$exception_str"
+    reset_exception_holder!(dev)
     error("GPU Kernel Exception$exception_str")
 end
 
