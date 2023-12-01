@@ -223,7 +223,7 @@ end
     r = Random.rand(rng, Random.UInt52Raw())
     @inbounds begin
         r &= 0x000fffffffffffff
-        rabs = Int64(r>>1) # One bit for the sign
+        rabs = Int64(r >> 1) # One bit for the sign
         idx = rabs & 0xFF
         x = ifelse(r % Bool, -rabs, rabs)*gpu_wi()[idx+1]
         rabs < gpu_ki()[idx+1] && return x # 99.3% of the time we return here 1st try
