@@ -38,7 +38,7 @@ mutable struct ROCDenseVectorDescriptor
 
     function ROCDenseVectorDescriptor(T::DataType, n::Integer)
         desc_ref = Ref{rocsparse_dnvec_descr}()
-        rocsparse_create_dnvec_descr(desc_ref, n, C_NULL, T)
+        rocsparse_create_dnvec_descr(desc_ref, n, T[], T)
         obj = new(desc_ref[])
         finalizer(rocsparse_destroy_dnvec_descr, obj)
         obj
@@ -81,9 +81,9 @@ mutable struct ROCDenseMatrixDescriptor
     function ROCDenseMatrixDescriptor(T::DataType, m::Integer, n::Integer; transposed::Bool=false)
         desc_ref = Ref{rocsparse_dnmat_descr}()
         if transposed
-            rocsparse_create_dnmat_descr(desc_ref, n, m, m, C_NULL, T, 'R')
+            rocsparse_create_dnmat_descr(desc_ref, n, m, m, T[], T, 'R')
         else
-            rocsparse_create_dnmat_descr(desc_ref, m, n, m, C_NULL, T, 'C')
+            rocsparse_create_dnmat_descr(desc_ref, m, n, m, T[], T, 'C')
         end
         obj = new(desc_ref[])
         finalizer(rocsparse_destroy_dnmat_descr, obj)
