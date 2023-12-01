@@ -9,6 +9,7 @@ using LLVM, LLVM.Interop
 using Preferences
 using Printf
 
+import Atomix: @atomic, @atomicswap, @atomicreplace
 import LinearAlgebra
 import Core: LLVMPtr
 

@@ -257,6 +257,8 @@ function attributes(ptr::Ptr{Cvoid})
     st, data[]
 end
 
+# TODO unsafe_copy3d! is broken in HIP:
+# https://github.com/ROCm-Developer-Tools/HIP/issues/3289#issuecomment-1651195870
 """
 Asynchronous 3D array copy.
 
