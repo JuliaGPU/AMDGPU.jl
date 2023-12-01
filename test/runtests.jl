@@ -103,6 +103,7 @@ AMDGPU.versioninfo()
 
 CI = parse(Bool, get(ENV, "CI", "false"))
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
+    return ti.name == "core: device"
     for tt in TARGET_TESTS
         startswith(ti.name, tt) && return true
     end

@@ -100,36 +100,36 @@ function err_device_string_to_host(str::Ptr{Cchar})
 end
 
 function report_oom(sz::Csize_t)
-    # @errprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+    @errprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
     return
 end
 
 function report_exception(ex::Ptr{Cchar})
-    # ex_str = err_device_string_to_host(ex)
-    # @errprintf("""
-    #     ERROR: a %s was thrown during kernel execution.
-    #            Run Julia on debug level 2 for device stack traces.
-    #     """, ex_str)
+    ex_str = err_device_string_to_host(ex)
+    @errprintf("""
+        ERROR: a %s was thrown during kernel execution.
+               Run Julia on debug level 2 for device stack traces.
+        """, ex_str)
     return
 end
 
 function report_exception_name(ex::Ptr{Cchar})
-    # ex_str = err_device_string_to_host(ex)
-    # @errprintf("""
-    #     ERROR: a %s was thrown during kernel execution.
-    #     Stacktrace:
-    #     """, ex_str)
+    ex_str = err_device_string_to_host(ex)
+    @errprintf("""
+        ERROR: a %s was thrown during kernel execution.
+        Stacktrace:
+        """, ex_str)
     return
 end
 
 function report_exception_frame(
     idx::Cint, func::Ptr{Cchar}, file::Ptr{Cchar}, line::Cint,
 )
-    # func_str = err_device_string_to_host(func)
-    # file_str = err_device_string_to_host(file)
-    # @errprintf("""
-    #  [%i] %s
-    #    @ %s:%i
-    # """, idx, func_str, file_str, line)
+    func_str = err_device_string_to_host(func)
+    file_str = err_device_string_to_host(file)
+    @errprintf("""
+     [%i] %s
+       @ %s:%i
+    """, idx, func_str, file_str, line)
     return
 end
