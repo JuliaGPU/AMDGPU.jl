@@ -23,29 +23,26 @@ for (bname,aname,sname,elty) in (
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info_ref)
+            info = MatInfo()
 
             function bufferSize()
                 out = Ref{Csize_t}()
-                $bname(handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal, info_ref[], out)
+                $bname(handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal, info, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal,
-                    info_ref[], rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
+                    info, rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csric0_zero_pivot(handle(), info_ref[], posit)
-                if posit[] >= 0
-                    rocsparse_destroy_mat_info(info_ref[])
+                rocsparse_csric0_zero_pivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal,
-                    info_ref[], rocsparse_solve_policy_auto, buffer)
+                    info, rocsparse_solve_policy_auto, buffer)
             end
-            rocsparse_destroy_mat_info(info_ref[])
             A
         end
     end
@@ -65,32 +62,29 @@ for (bname,aname,sname,elty) in (
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info_ref)
+            info = MatInfo()
 
             function bufferSize()
                 out = Ref{Csize_t}(1)
                 $bname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
-                    rowvals(A), info_ref[], out)
+                    rowvals(A), info, out)
                 return out[]
             end
 
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr, rowvals(A),
-                    info_ref[], rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
+                    info, rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csric0_zero_pivot(handle(), info_ref[], posit)
-                if posit[] >= 0
-                    rocsparse_destroy_mat_info(info_ref[])
+                rocsparse_csric0_zero_pivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr, rowvals(A),
-                    info_ref[], rocsparse_solve_policy_auto, buffer)
+                    info, rocsparse_solve_policy_auto, buffer)
             end
-            rocsparse_destroy_mat_info(info_ref[])
             A
         end
     end
@@ -117,33 +111,30 @@ for (bname,aname,sname,elty) in (
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info_ref)
+            info = MatInfo()
 
             function bufferSize()
                 out = Ref{Csize_t}()
                 $bname(
                     handle(), m, nnz(A), desc,
-                    nonzeros(A), A.rowPtr, A.colVal, info_ref[], out)
+                    nonzeros(A), A.rowPtr, A.colVal, info, out)
                 return out[]
             end
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), m, nnz(A), desc,
-                    nonzeros(A), A.rowPtr, A.colVal, info_ref[],
+                    nonzeros(A), A.rowPtr, A.colVal, info,
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csrilu0_zero_pivot(handle(), info_ref[], posit)
-                if posit[] >= 0
-                    rocsparse_destroy_mat_info(info_ref[])
+                rocsparse_csrilu0_zero_pivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
                     handle(), m, nnz(A),
-                    desc, nonzeros(A), A.rowPtr, A.colVal, info_ref[],
+                    desc, nonzeros(A), A.rowPtr, A.colVal, info,
                     rocsparse_solve_policy_auto, buffer)
             end
-            rocsparse_destroy_mat_info(info_ref[])
             A
         end
     end
@@ -163,32 +154,29 @@ for (bname,aname,sname,elty) in (
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
-            info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info_ref)
+            info = MatInfo()
 
             function bufferSize()
                 out = Ref{Csize_t}()
                 $bname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
-                    rowvals(A), info_ref[], out)
+                    rowvals(A), info, out)
                 return out[]
             end
 
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
-                    rowvals(A), info_ref[], rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
+                    rowvals(A), info, rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_csrilu0_zero_pivot(handle(), info_ref[], posit)
-                if posit[] >= 0
-                    rocsparse_destroy_mat_info(info_ref[])
+                rocsparse_csrilu0_zero_pivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
-                    rowvals(A), info_ref[], rocsparse_solve_policy_auto, buffer)
+                    rowvals(A), info, rocsparse_solve_policy_auto, buffer)
             end
-            rocsparse_destroy_mat_info(info_ref[])
             A
         end
     end
@@ -209,34 +197,31 @@ for (bname,aname,sname,elty) in (
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mb = div(m,A.blockDim)
-            info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info_ref)
+            info = MatInfo()
 
             function bufferSize()
                 out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
-                    A.rowPtr, A.colVal, A.blockDim, info_ref[], out)
+                    A.rowPtr, A.colVal, A.blockDim, info, out)
                 return out[]
             end
 
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), A.dir, mb, nnz(A), desc,
-                    nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info_ref[],
+                    nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_bsric0_zero_pivot(handle(), info_ref[], posit)
-                if posit[] >= 0
-                    rocsparse_destroy_mat_info(info_ref[])
+                rocsparse_bsric0_zero_pivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
                     handle(), A.dir, mb, nnz(A), desc,
-                    nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info_ref[],
+                    nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
                     rocsparse_solve_policy_auto, buffer)
             end
-            rocsparse_destroy_mat_info(info_ref[])
             A
         end
     end
@@ -257,34 +242,31 @@ for (bname,aname,sname,elty) in (
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mb = div(m,A.blockDim)
-            info_ref = Ref{rocsparse_mat_info}()
-            rocsparse_create_mat_info(info_ref)
+            info = MatInfo()
 
             function bufferSize()
                 out = Ref{Csize_t}(1)
                 $bname(
                     handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
-                    A.rowPtr, A.colVal, A.blockDim, info_ref[], out)
+                    A.rowPtr, A.colVal, A.blockDim, info, out)
                 return out[]
             end
 
             with_workspace(bufferSize) do buffer
                 $aname(
                     handle(), A.dir, mb, nnz(A), desc, nonzeros(A),
-                    A.rowPtr, A.colVal, A.blockDim, info_ref[],
+                    A.rowPtr, A.colVal, A.blockDim, info,
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
                 posit = Ref{Cint}(1)
-                rocsparse_bsrilu0_zero_pivot(handle(), info_ref[], posit)
-                if posit[] >= 0
-                    rocsparse_destroy_mat_info(info_ref[])
+                rocsparse_bsrilu0_zero_pivot(handle(), info, posit)
+                if posit[] ≥ 0
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                 end
                 $sname(
                     handle(), A.dir, mb, nnz(A), desc,
-                    nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info_ref[],
+                    nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
                     rocsparse_solve_policy_auto, buffer)
             end
-            rocsparse_destroy_mat_info(info_ref[])
             A
         end
     end
