@@ -1,9 +1,7 @@
 # Ported from CUDA.jl.
 # Originally developed by @xaellison (Alex Ellison).
 
-Base.sort!(x::AnyROCVector; kwargs...) = bitonic_sort!(x; dims=1, kwargs...)
-
-Base.sort!(x::AnyROCArray; dims, kwargs...) = bitonic_sort!(x; dims, kwargs...)
+Base.sort!(x::AnyROCArray; kwargs...) = bitonic_sort!(x; kwargs...)
 
 function Base.sortperm!(
     ix::AnyROCArray, x::AnyROCArray;
@@ -18,18 +16,12 @@ function Base.sortperm!(
     return ix
 end
 
-function Base.sortperm(x::AnyROCVector; kwargs...)
-    sortperm!(ROCArray(1:length(x)), x; initialized=true, dims=1, kwargs...)
-end
-
-function Base.sortperm(x::AnyROCArray; dims, kwargs...)
-    sortperm!(ROCArray(1:length(x)), x; initialized=true, dims, kwargs...)
+function Base.sortperm(x::AnyROCArray; kwargs...)
+    sortperm!(ROCArray(1:length(x)), x; initialized=true, kwargs...)
 end
 
 # TODO dims
-function bitonic_sort!(
-    X; lt = isless, by = identity, rev::Bool = false, dims::Int,
-)
+function bitonic_sort!(X; lt = isless, by = identity, rev::Bool = false)
     _shmem(x::Tuple, groupsize) = prod(groupsize) * sum(sizeof.(eltype.(x)))
     _shmem(x::AbstractArray, groupsize) = prod(groupsize) * sizeof(eltype(x))
 
