@@ -136,20 +136,20 @@ function report_oom(sz::Csize_t)
 end
 
 function report_exception(ex::Ptr{Cchar})
-    ex_str = err_device_string_to_host(ex)
-    @errprintf("""
-        ERROR: a %s was thrown during kernel execution.
-               Run Julia on debug level 2 for device stack traces.
-        """, ex_str)
+    # ex_str = err_device_string_to_host(ex)
+    # @errprintf("""
+    #     ERROR: a %s was thrown during kernel execution.
+    #            Run Julia on debug level 2 for device stack traces.
+    #     """, ex_str)
     return
 end
 
 function report_exception_name(ex::Ptr{Cchar})
-    ex_str = err_device_string_to_host(ex)
-    @errprintf("""
-        ERROR: a %s was thrown during kernel execution.
-        Stacktrace:
-        """, ex_str)
+    # ex_str = err_device_string_to_host(ex)
+    # @errprintf("""
+    #     ERROR: a %s was thrown during kernel execution.
+    #     Stacktrace:
+    #     """, ex_str)
     return
 end
 
