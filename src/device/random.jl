@@ -84,7 +84,8 @@ end
 @inline function Base.getproperty(rng::Philox2x32, field::Symbol)
     threadId = workitemIdx().x + (workitemIdx().y - Int32(1)) * workgroupDim().x +
                                  (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
-    warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
+    warpId = (threadId - Int32(1)) % Int32(32) + Int32(1)
+    # warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
 
     if field === :seed
         @inbounds global_random_seed()[1]
@@ -103,7 +104,8 @@ end
 @inline function Base.setproperty!(rng::Philox2x32, field::Symbol, x)
     threadId = workitemIdx().x + (workitemIdx().y - Int32(1)) * workgroupDim().x +
                                  (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
-    warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
+    warpId = (threadId - Int32(1)) % Int32(32) + Int32(1)
+    # warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
 
     if field === :key
         @inbounds global_random_keys()[warpId] = x
