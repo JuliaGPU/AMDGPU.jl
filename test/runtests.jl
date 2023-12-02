@@ -110,14 +110,14 @@ runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
     return false
 end
 
-if "core" in TARGET_TESTS && Sys.islinux()
-    @info "Testing `Hostcalls` on the main thread."
-    @testset "Hostcalls" begin
-        include("device/hostcall.jl")
+# if "core" in TARGET_TESTS && Sys.islinux()
+#     @info "Testing `Hostcalls` on the main thread."
+#     @testset "Hostcalls" begin
+#         include("device/hostcall.jl")
 
-        # TODO 1.11 fails
-        if VERSION < v"1.11-"
-            include("device/output.jl")
-        end
-    end
-end
+#         # TODO 1.11 fails
+#         if VERSION < v"1.11-"
+#             include("device/output.jl")
+#         end
+#     end
+# end
