@@ -168,3 +168,19 @@ mutable struct ROCSparseMatrixDescriptor
 end
 
 Base.unsafe_convert(::Type{rocsparse_spmat_descr}, desc::ROCSparseMatrixDescriptor) = desc.handle
+
+## Stucture for IC(0) and ILU(0) preconditioners
+
+mutable struct MatInfo
+    info::rocsparse_mat_info
+
+    function MatInfo()
+        info_ref = Ref{rocsparse_mat_info}()
+        rocsparse_create_mat_info(info_ref)
+        obj = new(info_ref[])
+        finalizer(rocsparse_destroy_mat_info, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{rocsparse_mat_info}, info::MatInfo) = info.info
