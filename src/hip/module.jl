@@ -17,6 +17,8 @@ mutable struct HIPModule
 end
 
 Base.unsafe_convert(::Type{hipModule_t}, mod::HIPModule) = mod.handle
+Base.:(==)(a::HIPModule, b::HIPModule) = a.handle == b.handle
+Base.hash(m::HIPModule, h::UInt) = hash(m.handle, h)
 
 struct HIPFunction
     handle::hipFunction_t

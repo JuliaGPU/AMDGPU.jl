@@ -58,6 +58,22 @@ end
     @test features == "+xnack"
 end
 
+@testset "Exception holder" begin
+    d = AMDGPU.device()
+    @inferred AMDGPU.exception_holder(d)
+end
+
+@testset "Comparison" begin
+    s = AMDGPU.stream()
+    @test s == deepcopy(s)
+
+    c = AMDGPU.context()
+    @test c == deepcopy(c)
+
+    d = AMDGPU.device()
+    @test d == deepcopy(d)
+end
+
 include("codegen/synchronization.jl")
 include("codegen/trap.jl")
 

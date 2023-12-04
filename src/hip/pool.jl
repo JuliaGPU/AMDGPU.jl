@@ -34,9 +34,7 @@ mutable struct HIPMemoryPool
 end
 
 Base.unsafe_convert(::Type{hipMemPool_t}, pool::HIPMemoryPool) = pool.handle
-
 Base.:(==)(a::HIPMemoryPool, b::HIPMemoryPool) = a.handle == b.handle
-
 Base.hash(pool::HIPMemoryPool, h::UInt) = hash(pool.handle, h)
 
 function attribute(X::Type, pool::HIPMemoryPool, attr::hipMemPoolAttr)

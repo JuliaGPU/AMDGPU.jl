@@ -41,10 +41,9 @@ function heap_size!(value::Integer)
     hipDeviceSetLimit(hipLimitMallocHeapSize, value) |> check
 end
 
+Base.unsafe_convert(::Type{hipDevice_t}, device::HIPDevice) = device.device
+Base.:(==)(a::HIPDevice, b::HIPDevice) = a.device == b.device
 Base.hash(dev::HIPDevice, h::UInt) = hash(dev.device, h)
-
-Base.unsafe_convert(::Type{Ptr{T}}, device::HIPDevice) where T =
-    reinterpret(Ptr{T}, device.device)
 
 function name(dev::HIPDevice)
     name_vec = zeros(Cuchar, 64)

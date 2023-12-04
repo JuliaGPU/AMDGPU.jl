@@ -238,23 +238,23 @@ struct hipPointerAttribute_t
     allocationFlags::Cuint
 end
 
-hipContext_t = Ptr{Cvoid}
+const hipContext_t = Ptr{Cvoid}
 
-hipDevice_t = Ptr{Cvoid}
+const hipDevice_t = Ptr{Cvoid}
 
-hipStream_t = Ptr{Cvoid}
+const hipStream_t = Ptr{Cvoid}
 
-hipEvent_t = Ptr{Cvoid}
+const hipEvent_t = Ptr{Cvoid}
 
-hipMemPool_t = Ptr{Cvoid}
+const hipMemPool_t = Ptr{Cvoid}
 
-hipModule_t = Ptr{Cvoid}
+const hipModule_t = Ptr{Cvoid}
 
-hipFunction_t = Ptr{Cvoid}
+const hipFunction_t = Ptr{Cvoid}
 
-hipHostFn = Ptr{Cvoid}
+const hipHostFn = Ptr{Cvoid}
 
-hiprtcLinkState = Ptr{Cvoid}
+const hiprtcLinkState = Ptr{Cvoid}
 
 struct hipMemLocation
     type::hipMemLocationType

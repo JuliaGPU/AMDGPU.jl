@@ -23,15 +23,15 @@ ExceptionHolder
 """
 struct ExceptionHolder
     exception_flag::Mem.HostBuffer # Main buffer where printf context is written.
-    gate::ROCArray{UInt64}
-    buffers_counter::ROCArray{Int32}
-    str_buffers_counter::ROCArray{Int32}
+    gate::ROCVector{UInt64, Mem.HIPBuffer}
+    buffers_counter::ROCVector{Int32, Mem.HIPBuffer}
+    str_buffers_counter::ROCVector{Int32, Mem.HIPBuffer}
 
     errprintf_buffers::Vector{Mem.HostBuffer} # Buffers used by `@errprintf`.
     string_buffers::Vector{Mem.HostBuffer} # Buffers used for storing device strings on the host.
 
-    errprintf_buffers_dev::ROCArray{Ptr{Cvoid}} # Pointers of `errprintf_buffers` on the device.
-    string_buffers_dev::ROCArray{Ptr{Cvoid}} # Pointers of `string_buffers` on the device.
+    errprintf_buffers_dev::ROCVector{Ptr{Cvoid}, Mem.HIPBuffer} # Pointers of `errprintf_buffers` on the device.
+    string_buffers_dev::ROCVector{Ptr{Cvoid}, Mem.HIPBuffer} # Pointers of `string_buffers` on the device.
 
     function ExceptionHolder()
         buf_len = 2^11 # 2 KiB
