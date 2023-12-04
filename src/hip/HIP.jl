@@ -26,8 +26,6 @@ mutable struct HIPContext
     valid::Bool
 end
 
-Base.:(==)(a::HIPContext, b::HIPContext) = a.context == b.context
-
 const CONTEXTS = AMDGPU.LockedObject(Dict{HIPDevice,HIPContext}())
 
 function HIPContext(device::HIPDevice)
@@ -48,11 +46,12 @@ function HIPContext(device::HIPDevice)
 end
 
 HIPContext(device_id::Integer) = HIPContext(HIPDevice(device_id))
-
 HIPContext() = HIPContext(device())
 
-Base.unsafe_convert(::Type{Ptr{T}}, context::HIPContext) where T =
-    reinterpret(Ptr{T}, context.context)
+Base.unsafe_convert(::Type{hipContext_t}, context::HIPContext) = context.context
+Base.:(==)(a::HIPContext, b::HIPContext) = a.context == b.context
+Base.hash(c::HIPContext, h::UInt) = hash(c.context, h)
+
 function Base.show(io::IO, context::HIPContext)
     print(io, "HIPContext(ptr=$(repr(UInt64(context.context))))")
 end

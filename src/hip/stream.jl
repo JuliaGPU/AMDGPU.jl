@@ -145,8 +145,9 @@ function synchronize(stream::HIPStream; blocking::Bool = false)
     return
 end
 
-Base.unsafe_convert(::Type{Ptr{T}}, stream::HIPStream) where T =
-    reinterpret(Ptr{T}, stream.stream)
+Base.unsafe_convert(::Type{hipStream_t}, stream::HIPStream) = stream.stream
+Base.:(==)(a::HIPStream, b::HIPStream) = a.stream == b.stream
+Base.hash(s::HIPStream, h::UInt) = hash(s.stream, h)
 
 function Base.show(io::IO, stream::HIPStream)
     print(io, "HIPStream(device=$(stream.device), ptr=$(repr(UInt64(stream.stream))), priority=$(stream.priority))")

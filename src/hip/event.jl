@@ -4,9 +4,7 @@ mutable struct HIPEvent
 end
 
 Base.:(==)(a::HIPEvent, b::HIPEvent) = a.handle == b.handle
-
-Base.unsafe_convert(::Type{Ptr{T}}, event::HIPEvent) where T =
-    reinterpret(Ptr{T}, event.handle)
+Base.unsafe_convert(::Type{hipEvent_t}, event::HIPEvent) = event.handle
 
 function record(event::HIPEvent)
     hipEventRecord(event.handle, event.stream) |> check
