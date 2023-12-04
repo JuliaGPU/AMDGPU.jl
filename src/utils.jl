@@ -123,7 +123,7 @@ function functional(component::Symbol)
         return !isempty(libMIOpen_path)
     elseif component == :all
         for component in (
-            :hsa, :hip, :lld, :device_libs, :rocblas, :rocsolver,
+            :hip, :lld, :device_libs, :rocblas, :rocsolver,
             :rocalution, :rocsparse, :rocrand, :rocfft, :MIOpen,
         )
             functional(component) || return false
@@ -134,10 +134,7 @@ function functional(component::Symbol)
     end
 end
 
-function has_rocm_gpu()
-    (functional(:hsa) && functional(:hip)) || return false
-    return length(devices()) > 0
-end
+has_rocm_gpu() = functional(:hip) && length(devices()) > 0
 
 function print_build_diagnostics()
     println("Diagnostics:")

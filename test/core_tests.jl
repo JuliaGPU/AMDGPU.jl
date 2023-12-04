@@ -25,6 +25,11 @@ macro grab_output(ex, io=stdout)
     end
 end
 
+@testset "Functional" begin
+    @test AMDGPU.has_rocm_gpu() isa Bool
+    @test AMDGPU.functional() isa Bool
+end
+
 @testset "HIPDevice" begin
     @testset "Device props" begin
         devices = AMDGPU.devices()
