@@ -74,11 +74,9 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
 
     # mark_pool!(dev)
     pool = HIP.memory_pool(dev)
-
     has_limit = hard_memory_limit() != typemax(UInt64)
 
-    ptr_ref = Ref{Ptr{Cvoid}}()
-    alloc_or_retry!() do
+    ptr = alloc_or_retry!(isnothing; stream) do
         try
             # Try to ensure there is enough memory before even trying to allocate.
             if has_limit
@@ -88,19 +86,19 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
             end
 
             # Try to allocate.
+            ptr_ref = Ref{Ptr{Cvoid}}()
             HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
-            ptr_ref[] == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
-            return HSA.STATUS_SUCCESS
+            ptr = ptr_ref[]
+            ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
+            return ptr
         catch err
             # TODO rethrow if not out of memory error
             @debug "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize))." exception=(err, catch_backtrace())
-            return HSA.STATUS_ERROR_OUT_OF_RESOURCES
+            return nothing
         end
     end
-    ptr = ptr_ref[]
     @assert ptr != C_NULL "hipMallocAsync resulted in C_NULL for $(Base.format_bytes(bytesize))"
 
-    # TODO ROCm 5.5+ has hard pool size limit
     if has_limit
         if HIP.reserved_memory(pool) > hard_memory_limit()
             HIP.reclaim() # TODO do not reclaim all memory

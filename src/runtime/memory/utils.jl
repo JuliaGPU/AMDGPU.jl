@@ -78,11 +78,9 @@ function hard_memory_limit()
         @load_preference("hard_memory_limit", "none"))
 end
 
-function alloc_or_retry!(f)
-    status = f()
-    status == HSA.STATUS_SUCCESS && return
-
-    stream = AMDGPU.stream()
+function alloc_or_retry!(f, isfailed; stream::HIP.HIPStream)
+    res = f()
+    isfailed(res) || return res
 
     phase = 1
     while true
@@ -103,11 +101,11 @@ function alloc_or_retry!(f)
         end
         phase += 1
 
-        status = f()
-        status == HSA.STATUS_SUCCESS && break
+        res = f()
+        isfailed(res) || break
     end
 
-    if status != HSA.STATUS_SUCCESS
+    if isfailed(res)
         pool = HIP.memory_pool(stream.device)
         error("""
         Failed to successfully execute function and free resources for it.
@@ -117,5 +115,5 @@ function alloc_or_retry!(f)
         - Hard memory limit: $(Base.format_bytes(hard_memory_limit())).
         """)
     end
-    return
+    return res
 end
