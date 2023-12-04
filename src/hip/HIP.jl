@@ -25,6 +25,9 @@ mutable struct HIPContext
     context::hipContext_t
     valid::Bool
 end
+
+Base.:(==)(a::HIPContext, b::HIPContext) = a.context == b.context
+
 const CONTEXTS = AMDGPU.LockedObject(Dict{HIPDevice,HIPContext}())
 
 function HIPContext(device::HIPDevice)

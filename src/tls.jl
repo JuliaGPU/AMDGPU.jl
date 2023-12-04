@@ -190,7 +190,10 @@ function Base.show(io::IO, state::TaskLocalState)
 end
 
 @inline function prepare_state(state = task_local_state!())
-    state.context != HIP.HIPContext() && HIP.context!(state.context)
+    if state.context != HIP.HIPContext()
+        @info "CTXX!!!"
+        HIP.context!(state.context)
+    end
     return
 end
 
