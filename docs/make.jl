@@ -1,12 +1,21 @@
 using AMDGPU
 using Documenter
 
+const dst = "https://amdgpu.juliagpu.org/stable/"
+
 function main()
     ci = get(ENV, "CI", "") == "true"
 
     @info "Generating Documenter site"
     makedocs(
         sitename="AMDGPU.jl",
+        format = Documenter.HTML(
+            # Use clean URLs on CI
+            prettyurls = ci,
+            canonical = dst,
+            assets = ["assets/favicon.ico"],
+            analytics = "UA-154489943-2",
+        ),
         pages = [
             "Home" => "index.md",
             "Quick Start" => "quickstart.md",
