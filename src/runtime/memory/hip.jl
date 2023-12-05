@@ -76,6 +76,7 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     pool = HIP.memory_pool(dev)
     has_limit = hard_memory_limit() != typemax(UInt64)
 
+    ptr_ref = Ref{Ptr{Cvoid}}()
     ptr = alloc_or_retry!(isnothing; stream) do
         try
             # Try to ensure there is enough memory before even trying to allocate.
@@ -86,8 +87,10 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
             end
 
             # Try to allocate.
-            ptr_ref = Ref{Ptr{Cvoid}}()
-            HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
+
+            # Async is ~300x slower: https://discourse.julialang.org/t/lux-tutorial-amdgpu-20x-slower-than-cpu/107053/11
+            # HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
+            HIP.hipMalloc(ptr_ref, bytesize) |> HIP.check
             ptr = ptr_ref[]
             ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             return ptr
@@ -103,9 +106,7 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
         if HIP.reserved_memory(pool) > hard_memory_limit()
             HIP.reclaim() # TODO do not reclaim all memory
         end
-        @assert HIP.reserved_memory(pool) ≤ hard_memory_limit()
     end
-
     HIPBuffer(dev, ctx, ptr, bytesize, true)
 end
 
@@ -126,7 +127,8 @@ function free(buf::HIPBuffer; stream::HIP.HIPStream)
     buf.own || return
 
     buf.ptr == C_NULL && return
-    HIP.hipFreeAsync(buf, stream) |> HIP.check
+    # HIP.hipFreeAsync(buf, stream) |> HIP.check
+    HIP.hipFree(buf) |> HIP.check
     return
 end
 

@@ -119,12 +119,12 @@ function hipDeviceSynchronize()
     ccall((:hipDeviceSynchronize, libhip), hipError_t, ())
 end
 
-function hipMalloc(ptr::Ref, sz::Csize_t)
+function hipMalloc(ptr, sz)
     AMDGPU.prepare_state()
     ccall((:hipMalloc, libhip), hipError_t, (Ptr{Ptr{Cvoid}}, Csize_t), ptr, sz)
 end
 
-function hipFree(ptr::Ptr{Cvoid})
+function hipFree(ptr)
     AMDGPU.prepare_state()
     ccall((:hipFree, libhip), hipError_t, (Ptr{Cvoid},), ptr)
 end
