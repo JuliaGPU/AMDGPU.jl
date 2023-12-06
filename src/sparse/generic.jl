@@ -204,7 +204,7 @@ end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{ROCSparseMatrixCSC{T},ROCSparseMatrixCSR{T},ROCSparseMatrixCOO{T}}, X::DenseROCVector{T},
-             Y::DenseROCMatrix{T}, index::SparseChar, algo::rocsparse_spsv_alg=rocsparse_spsv_alg_default) where T
+             Y::DenseROCVector{T}, index::SparseChar, algo::rocsparse_spsv_alg=rocsparse_spsv_alg_default) where T
 
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
