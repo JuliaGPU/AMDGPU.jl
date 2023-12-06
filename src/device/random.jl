@@ -82,10 +82,10 @@ end
 @inline Philox2x32() = Philox2x32{7}()
 
 @inline function Base.getproperty(rng::Philox2x32, field::Symbol)
-    threadId = workitemIdx().x + (workitemIdx().y - Int32(1)) * workgroupDim().x +
-                                 (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
-    warpId = (threadId - Int32(1)) % Int32(32) + Int32(1)
-    # warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
+    threadId = workitemIdx().x +
+        (workitemIdx().y - Int32(1)) * workgroupDim().x +
+        (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
+    warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
 
     if field === :seed
         @inbounds global_random_seed()[1]
@@ -94,18 +94,20 @@ end
     elseif field === :ctr1
         @inbounds global_random_counters()[warpId]
     elseif field === :ctr2
-        blockId = workgroupIdx().x + (workgroupIdx().y - Int32(1)) * gridGroupDim().x +
-                                 (workgroupIdx().z - Int32(1)) * gridGroupDim().x * gridGroupDim().y
-        globalId = threadId + (blockId - Int32(1)) * (workgroupDim().x * workgroupDim().y * workgroupDim().z)
-        globalId%UInt32
+        blockId = workgroupIdx().x +
+            (workgroupIdx().y - Int32(1)) * gridGroupDim().x +
+            (workgroupIdx().z - Int32(1)) * gridGroupDim().x * gridGroupDim().y
+        globalId = threadId + (blockId - Int32(1)) *
+            (workgroupDim().x * workgroupDim().y * workgroupDim().z)
+        globalId % UInt32
     end::UInt32
 end
 
 @inline function Base.setproperty!(rng::Philox2x32, field::Symbol, x)
-    threadId = workitemIdx().x + (workitemIdx().y - Int32(1)) * workgroupDim().x +
-                                 (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
-    warpId = (threadId - Int32(1)) % Int32(32) + Int32(1)
-    # warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
+    threadId = workitemIdx().x +
+        (workitemIdx().y - Int32(1)) * workgroupDim().x +
+        (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
+    warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
 
     if field === :key
         @inbounds global_random_keys()[warpId] = x

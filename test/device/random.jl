@@ -1,6 +1,6 @@
 using Random
 
-n = 256
+const n = 256
 
 function apply_seed(seed)
     if seed === missing
@@ -18,9 +18,9 @@ function apply_seed(seed)
     end
 end
 
-@testset "rand($T), seed $seed" for T in (Int32, UInt32, Int64, UInt64, Int128, UInt128,
-                                          Float16, Float32, Float64),
-                                    seed in (nothing, #=missing,=# 1234)
+@testset "rand($T), seed $seed" for T in (
+    Int32, UInt32, Int64, UInt64, Int128, UInt128, Float16, Float32, Float64,
+), seed in (nothing, #=missing,=# 1234)
     # different kernel invocations should get different numbers
     @testset "across launches" begin
         function kernel(A::AbstractArray{T}, seed) where {T}
@@ -85,8 +85,9 @@ end
     end
 end
 
-@testset "basic randn($T), seed $seed" for T in (Float16, Float32, Float64),
-                                           seed in (nothing, #=missing,=# 1234)
+@testset "basic randn($T), seed $seed" for T in (
+    Float16, Float32, Float64,
+), seed in (nothing, #=missing,=# 1234)
     function kernel(A::AbstractArray{T}, seed) where {T}
         apply_seed(seed)
         tid = workitemIdx().x
@@ -107,8 +108,9 @@ end
     end
 end
 
-@testset "basic randexp($T), seed $seed" for T in (Float16, Float32, Float64),
-                                           seed in (nothing, #=missing,=# 1234)
+@testset "basic randexp($T), seed $seed" for T in (
+    Float16, Float32, Float64,
+), seed in (nothing, #=missing,=# 1234)
     function kernel(A::AbstractArray{T}, seed) where {T}
         apply_seed(seed)
         tid = workitemIdx().x
