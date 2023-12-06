@@ -39,7 +39,7 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
 
     @testset "$SparseMatrixType -- mv! algo=$algo" for algo in (rocSPARSE.rocsparse_spmv_alg_default,)
         @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-            for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                 A = sprand(T, 20, 10, 0.1)
                 B = transa == 'N' ? rand(T, 10) : rand(T, 20)
                 C = transa == 'N' ? rand(T, 20) : rand(T, 10)
@@ -57,8 +57,8 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
 
     @testset "$SparseMatrixType -- mm! algo=$algo" for algo in (rocSPARSE.rocsparse_spmm_alg_default,)
         @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-            for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                     SparseMatrixType == ROCSparseMatrixCOO && transa != 'N' && continue
                     A = sprand(T, 10, 10, 0.1)
@@ -77,10 +77,10 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
 
     @testset "$SparseMatrixType -- sv! algo=$algo" for algo in (rocSPARSE.rocsparse_spsv_alg_default,)
         @testset "sv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-            for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                 SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
-                for uplo in ('L', 'U')
-                    for diag in ('U', 'N')
+                @testset "uplo = $uplo" for uplo in ('L', 'U')
+                    @testset "diag = $diag" for diag in ('U', 'N')
                         A = rand(T, 10, 10)
                         A = uplo == 'L' ? tril(A) : triu(A)
                         A = diag == 'U' ? A - Diagonal(A) + I : A
@@ -101,11 +101,11 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
 
     @testset "$SparseMatrixType -- sm! algo=$algo" for algo in (rocSPARSE.rocsparse_spsm_alg_default,)
         @testset "sm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-            for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                 SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
-                for (transb, opb) in [('N', identity), ('T', transpose)]
-                    for uplo in ('L', 'U')
-                        for diag in ('U', 'N')
+                @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose)]
+                    @testset "uplo = $uplo" for uplo in ('L', 'U')
+                        @testset "diag = $diag" for diag in ('U', 'N')
                             A = rand(T, 10, 10)
                             A = uplo == 'L' ? tril(A) : triu(A)
                             A = diag == 'U' ? A - Diagonal(A) + I : A
