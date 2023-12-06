@@ -15,7 +15,11 @@ include("device/wavefront.jl")
 include("device/synchronization.jl")
 include("device/execution_control.jl")
 include("device/exceptions.jl")
-include("device/random.jl")
+
+# TODO 1.9 fails with out-of-bounds error for some reason...
+if VERSION ≥ v"1.10-"
+    include("device/random.jl")
+end
 
 # TODO https://github.com/JuliaGPU/AMDGPU.jl/issues/546
 include("device/math.jl")
