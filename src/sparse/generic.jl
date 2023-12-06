@@ -229,8 +229,8 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
         descA = ROCSparseMatrixDescriptor(A, index)
     end
 
-    rocsparse_uplo = Ref{rocsparse_diag_type}(uplo)
-    rocsparse_diag = Ref{rocsparse_matrix_type}(diag)
+    rocsparse_uplo = Ref{rocsparse_fill_mode}(uplo)
+    rocsparse_diag = Ref{rocsparse_diag_type}(diag)
 
     rocsparse_spmat_set_attribute(descA, 'F', rocsparse_uplo, Csize_t(sizeof(rocsparse_uplo)))
     rocsparse_spmat_set_attribute(descA, 'D', rocsparse_diag, Csize_t(sizeof(rocsparse_diag)))
@@ -289,8 +289,8 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
         descA = ROCSparseMatrixDescriptor(A, index)
     end
 
-    rocsparse_uplo = Ref{rocsparse_diag_type}(uplo)
-    rocsparse_diag = Ref{rocsparse_matrix_type}(diag)
+    rocsparse_uplo = Ref{rocsparse_fill_mode}(uplo)
+    rocsparse_diag = Ref{rocsparse_diag_type}(diag)
 
     rocsparse_spmat_set_attribute(descA, 'F', rocsparse_uplo, Csize_t(sizeof(rocsparse_uplo)))
     rocsparse_spmat_set_attribute(descA, 'D', rocsparse_diag, Csize_t(sizeof(rocsparse_diag)))
