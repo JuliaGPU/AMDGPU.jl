@@ -301,7 +301,7 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     function bufferSize()
         out = Ref{Csize_t}()
         rocsparse_spsm(
-            handle(), transa, Ref{T}(alpha), descA, descB, descC, T,
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
             algo, rocsparse_spsm_stage_buffer_size, out, C_NULL)
         return out[]
     end
@@ -309,10 +309,10 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     with_workspace(bufferSize) do buffer
         buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spsm(
-            handle(), transa, Ref{T}(alpha), descA, descB, descC, T,
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
             algo, rocsparse_spsm_stage_preprocess, buffer_len_ref, buffer)
         rocsparse_spsm(
-            handle(), transa, Ref{T}(alpha), descA, descB, descC, T,
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
             algo, rocsparse_spsm_stage_compute, buffer_len_ref, buffer)
     end
     return C
