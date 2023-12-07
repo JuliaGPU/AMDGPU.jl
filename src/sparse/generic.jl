@@ -204,7 +204,7 @@ end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{ROCSparseMatrixCSC{T},ROCSparseMatrixCSR{T},ROCSparseMatrixCOO{T}}, X::DenseROCVector{T},
-             Y::DenseROCMatrix{T}, index::SparseChar, algo::rocsparse_spsv_alg=rocsparse_spsv_alg_default) where T
+             Y::DenseROCVector{T}, index::SparseChar, algo::rocsparse_spsv_alg=rocsparse_spsv_alg_default) where T
 
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
@@ -228,6 +228,12 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     else
         descA = ROCSparseMatrixDescriptor(A, index)
     end
+
+    rocsparse_uplo = Ref{rocsparse_fill_mode}(uplo)
+    rocsparse_diag = Ref{rocsparse_diag_type}(diag)
+
+    rocsparse_spmat_set_attribute(descA, 'F', rocsparse_uplo, Csize_t(sizeof(rocsparse_uplo)))
+    rocsparse_spmat_set_attribute(descA, 'D', rocsparse_diag, Csize_t(sizeof(rocsparse_diag)))
 
     descX = ROCDenseVectorDescriptor(X)
     descY = ROCDenseVectorDescriptor(Y)
@@ -283,13 +289,19 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
         descA = ROCSparseMatrixDescriptor(A, index)
     end
 
+    rocsparse_uplo = Ref{rocsparse_fill_mode}(uplo)
+    rocsparse_diag = Ref{rocsparse_diag_type}(diag)
+
+    rocsparse_spmat_set_attribute(descA, 'F', rocsparse_uplo, Csize_t(sizeof(rocsparse_uplo)))
+    rocsparse_spmat_set_attribute(descA, 'D', rocsparse_diag, Csize_t(sizeof(rocsparse_diag)))
+
     descB = ROCDenseMatrixDescriptor(B)
     descC = ROCDenseMatrixDescriptor(C)
 
     function bufferSize()
         out = Ref{Csize_t}()
         rocsparse_spsm(
-            handle(), transa, Ref{T}(alpha), descA, descB, descC, T,
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
             algo, rocsparse_spsm_stage_buffer_size, out, C_NULL)
         return out[]
     end
@@ -297,10 +309,10 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     with_workspace(bufferSize) do buffer
         buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spsm(
-            handle(), transa, Ref{T}(alpha), descA, descB, descC, T,
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
             algo, rocsparse_spsm_stage_preprocess, buffer_len_ref, buffer)
         rocsparse_spsm(
-            handle(), transa, Ref{T}(alpha), descA, descB, descC, T,
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
             algo, rocsparse_spsm_stage_compute, buffer_len_ref, buffer)
     end
     return C

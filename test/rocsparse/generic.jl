@@ -39,7 +39,7 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
 
     @testset "$SparseMatrixType -- mv! algo=$algo" for algo in (rocSPARSE.rocsparse_spmv_alg_default,)
         @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-            for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                 A = sprand(T, 20, 10, 0.1)
                 B = transa == 'N' ? rand(T, 10) : rand(T, 20)
                 C = transa == 'N' ? rand(T, 20) : rand(T, 10)
@@ -57,8 +57,8 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
 
     @testset "$SparseMatrixType -- mm! algo=$algo" for algo in (rocSPARSE.rocsparse_spmm_alg_default,)
         @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-            for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                     SparseMatrixType == ROCSparseMatrixCOO && transa != 'N' && continue
                     A = sprand(T, 10, 10, 0.1)
@@ -70,6 +70,60 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
                     alpha, beta = rand(T), rand(T)
                     mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
                     @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
+                end
+            end
+        end
+    end
+
+    @testset "$SparseMatrixType -- sv! algo=$algo" for algo in (rocSPARSE.rocsparse_spsv_alg_default,)
+        @testset "sv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                @testset "uplo = $uplo" for uplo in ('L', 'U')
+                    @testset "diag = $diag" for diag in ('U', 'N')
+                        A = rand(T, 10, 10)
+                        A = uplo == 'L' ? tril(A) : triu(A)
+                        A = diag == 'U' ? A - Diagonal(A) + I : A
+                        A = sparse(A)
+                        dA = SparseMatrixType(A)
+                        B = rand(T, 10)
+                        C = rand(T, 10)
+                        dB = ROCArray(B)
+                        dC = ROCArray(C)
+                        alpha = rand(T)
+                        rocSPARSE.sv!(transa, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                        @test opa(A) \ (alpha * B) ≈ collect(dC)
+                    end
+                end
+            end
+        end
+    end
+
+    @testset "$SparseMatrixType -- sm! algo=$algo" for algo in (rocSPARSE.rocsparse_spsm_alg_default,)
+        @testset "sm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                SparseMatrixType == ROCSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose)]
+                    @testset "uplo = $uplo" for uplo in ('L', 'U')
+                        @testset "diag = $diag" for diag in ('U', 'N')
+                            A = rand(T, 10, 10)
+                            A = uplo == 'L' ? tril(A) : triu(A)
+                            A = diag == 'U' ? A - Diagonal(A) + I : A
+                            A = sparse(A)
+                            dA = SparseMatrixType(A)
+                            B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
+                            C = rand(T, 10, 2)
+                            dB = ROCArray(B)
+                            dC = ROCArray(C)
+                            alpha = rand(T)
+                            rocSPARSE.sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                            if transb == 'T'
+                                @test_broken opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                            else
+                                @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                            end
+                        end
+                    end
                 end
             end
         end

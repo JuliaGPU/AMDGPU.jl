@@ -110,6 +110,20 @@ function Base.convert(::Type{rocsparse_matrix_type}, mattype::SparseChar)
     end
 end
 
+function Base.convert(::Type{rocsparse_spmat_attribute}, attribute::SparseChar)
+    if attribute == 'F'
+        rocsparse_spmat_fill_mode
+    elseif attribute == 'D'
+        rocsparse_spmat_diag_type
+    elseif attribute == 'M'
+        rocsparse_spmat_matrix_type
+    elseif attribute == 'S'
+        rocsparse_spmat_storage_mode
+    else
+        throw(ArgumentError("Unknown attribute $attribute"))
+    end
+end
+
 function Base.convert(::Type{rocsparse_fill_mode}, uplo::SparseChar)
     if uplo == 'U'
         rocsparse_fill_mode_upper
