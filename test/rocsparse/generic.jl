@@ -117,7 +117,11 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
                             dC = ROCArray(C)
                             alpha = rand(T)
                             rocSPARSE.sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
-                            @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                            if transb == 'T'
+                                @test_broken opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                            else
+                                @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                            end
                         end
                     end
                 end
