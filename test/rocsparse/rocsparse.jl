@@ -8,11 +8,11 @@
     using .rocSPARSE: ROCSparseDeviceMatrixCSR, ROCSparseDeviceMatrixBSR
     using .rocSPARSE: ROCSparseDeviceMatrixCOO
 
-    # include("broadcast.jl")
-    # include("conversions.jl")
-    # include("device.jl")
+    include("broadcast.jl")
+    include("conversions.jl")
+    include("device.jl")
     include("generic.jl")
-    # include("interfaces.jl")
-    # include("linalg.jl")
-    # include("preconditioners.jl")
+    include("interfaces.jl")
+    include("linalg.jl")
+    include("preconditioners.jl")
 end
