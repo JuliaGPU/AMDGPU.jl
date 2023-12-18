@@ -18,6 +18,16 @@ end
     hipMemoryTypeManaged
 end
 
+# TODO use this once we support ROCm 6+ only.
+@cenum hipMemoryTypeV2 begin
+    hipMemoryTypeUnregisteredV2 = 0
+    hipMemoryTypeHostV2 = 1
+    hipMemoryTypeDeviceV2 = 2
+    hipMemoryTypeManagedV2 = 3
+    hipMemoryTypeArrayV2 = 10
+    hipMemoryTypeUnifiedV2 = 11
+end
+
 @cenum hiprtcResult::UInt32 begin
     HIPRTC_SUCCESS = 0
     HIPRTC_ERROR_OUT_OF_MEMORY = 1

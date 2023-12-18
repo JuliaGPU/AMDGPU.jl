@@ -54,6 +54,7 @@ end
     return ROCDeviceArray{UInt32,1,AS.Local}((32,), ptr)
 end
 
+# TODO no memtime instructions on RDNA 3
 @device_override Random.make_seed() = Base.unsafe_trunc(UInt32, memrealtime())
 
 

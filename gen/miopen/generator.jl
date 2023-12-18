@@ -1,7 +1,6 @@
 using Clang.Generators
-using MIOpen_jll
 
-include_dir = normpath(MIOpen_jll.artifact_dir, "include")
+include_dir = normpath("/opt/rocm/include")
 miopen_dir = joinpath(include_dir, "miopen")
 options = load_options("miopen/miopen-generator.toml")
 

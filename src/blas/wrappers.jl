@@ -972,26 +972,27 @@ for (mmname, smname, elty) in
     @eval begin
         function trmm!(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
-            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+            A::ROCMatrix{$elty}, B::ROCMatrix{$elty}, C::ROCMatrix{$elty},
         )
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages
             if mA != nA throw(DimensionMismatch("A must be square")) end
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trmm!")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+            ldc = max(1, stride(C, 2))
             (; handle, stream) = lib_state()
             $(mmname)(
                 handle, side, uplo, transa, diag, m, n, Ref(alpha),
-                A, lda, B, ldb) |> check
+                A, lda, B, ldb, C, ldc) |> check
             B
         end
         function trmm(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
             A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
         )
-            trmm!(side, uplo, transa, diag, alpha, A, copy(B))
+            trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
         end
         function trsm!(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),

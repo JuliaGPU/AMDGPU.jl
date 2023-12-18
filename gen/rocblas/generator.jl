@@ -1,7 +1,6 @@
 using Clang.Generators
-using rocBLAS_jll
 
-include_dir = normpath(rocBLAS_jll.artifact_dir, "include")
+include_dir = normpath("/opt/rocm/include")
 rocblas_dir = joinpath(include_dir, "rocblas")
 options = load_options("rocblas/rocblas-generator.toml")
 
