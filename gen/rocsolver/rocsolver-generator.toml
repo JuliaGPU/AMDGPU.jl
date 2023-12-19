@@ -1,0 +1,4 @@
+[general]
+library_name = "librocsolver"
+output_file_path = "./librocsolver.jl"
+export_symbol_prefixes = []
