@@ -203,8 +203,11 @@ end
             b = rand(T, 20)
             dA, dB, db = ROCArray(A), ROCArray(B), ROCArray(b)
 
-            for t in (identity, transpose, adjoint),
-                TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
+            for t in (
+                identity, transpose, adjoint,
+            ), TR in (
+                UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular,
+            )
 
                 # Left division.
                 dC = copy(dB)

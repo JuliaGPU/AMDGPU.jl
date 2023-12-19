@@ -23,6 +23,7 @@
 
 The AMDGPU.jl package requires **Julia 1.9+**, **ROCm 5.3-5.7**, which means only GPUs that are supported by these versions will work.\
 **64-bit Linux and Windows** are supported, see [requirements](https://amdgpu.juliagpu.org/dev/#Installation).
+**Navi 3** GPUs require Julia 1.10 or higher.
 
 ## Quick start
 

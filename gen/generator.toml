@@ -1,7 +1,0 @@
-[general]
-library_name = "libhsaruntime"
-output_file_path = "../src/hsa/LibHSARuntime.jl"
-module_name = "LibHSARuntime"
-jll_pkg_name = "hsa_rocr_jll"
-export_symbol_prefixes = ["HSA", "hsa_"]
-prologue_file_path = "prologue.jl"

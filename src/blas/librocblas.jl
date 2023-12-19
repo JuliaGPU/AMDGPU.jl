@@ -2614,24 +2614,24 @@ function rocblas_zsyrkx_strided_batched(handle, uplo, trans, n, k, alpha, A, lda
     ccall((:rocblas_zsyrkx_strided_batched, librocblas), rocblas_status, (rocblas_handle, rocblas_fill, rocblas_operation, rocblas_int, rocblas_int, Ptr{rocblas_double_complex}, Ptr{rocblas_double_complex}, rocblas_int, rocblas_stride, Ptr{rocblas_double_complex}, rocblas_int, rocblas_stride, Ptr{rocblas_double_complex}, Ptr{rocblas_double_complex}, rocblas_int, rocblas_stride, rocblas_int), handle, uplo, trans, n, k, alpha, A, lda, stride_A, B, ldb, stride_B, beta, C, ldc, stride_C, batch_count)
 end
 
-function rocblas_strmm(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb)
+function rocblas_strmm(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
     AMDGPU.prepare_state()
-    ccall((:rocblas_strmm, librocblas), rocblas_status, (rocblas_handle, rocblas_side, rocblas_fill, rocblas_operation, rocblas_diagonal, rocblas_int, rocblas_int, Ptr{Cfloat}, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}, rocblas_int), handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb)
+    ccall((:rocblas_strmm, librocblas), rocblas_status, (rocblas_handle, rocblas_side, rocblas_fill, rocblas_operation, rocblas_diagonal, rocblas_int, rocblas_int, Ptr{Cfloat}, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}, rocblas_int, Ptr{Cfloat}, rocblas_int), handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
 
-function rocblas_dtrmm(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb)
+function rocblas_dtrmm(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
     AMDGPU.prepare_state()
-    ccall((:rocblas_dtrmm, librocblas), rocblas_status, (rocblas_handle, rocblas_side, rocblas_fill, rocblas_operation, rocblas_diagonal, rocblas_int, rocblas_int, Ptr{Cdouble}, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}, rocblas_int), handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb)
+    ccall((:rocblas_dtrmm, librocblas), rocblas_status, (rocblas_handle, rocblas_side, rocblas_fill, rocblas_operation, rocblas_diagonal, rocblas_int, rocblas_int, Ptr{Cdouble}, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}, rocblas_int, Ptr{Cdouble}, rocblas_int), handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
 
-function rocblas_ctrmm(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb)
+function rocblas_ctrmm(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
     AMDGPU.prepare_state()
-    ccall((:rocblas_ctrmm, librocblas), rocblas_status, (rocblas_handle, rocblas_side, rocblas_fill, rocblas_operation, rocblas_diagonal, rocblas_int, rocblas_int, Ptr{rocblas_float_complex}, Ptr{rocblas_float_complex}, rocblas_int, Ptr{rocblas_float_complex}, rocblas_int), handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb)
+    ccall((:rocblas_ctrmm, librocblas), rocblas_status, (rocblas_handle, rocblas_side, rocblas_fill, rocblas_operation, rocblas_diagonal, rocblas_int, rocblas_int, Ptr{rocblas_float_complex}, Ptr{rocblas_float_complex}, rocblas_int, Ptr{rocblas_float_complex}, rocblas_int, Ptr{rocblas_float_complex}, rocblas_int), handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
 
-function rocblas_ztrmm(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb)
+function rocblas_ztrmm(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
     AMDGPU.prepare_state()
-    ccall((:rocblas_ztrmm, librocblas), rocblas_status, (rocblas_handle, rocblas_side, rocblas_fill, rocblas_operation, rocblas_diagonal, rocblas_int, rocblas_int, Ptr{rocblas_double_complex}, Ptr{rocblas_double_complex}, rocblas_int, Ptr{rocblas_double_complex}, rocblas_int), handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb)
+    ccall((:rocblas_ztrmm, librocblas), rocblas_status, (rocblas_handle, rocblas_side, rocblas_fill, rocblas_operation, rocblas_diagonal, rocblas_int, rocblas_int, Ptr{rocblas_double_complex}, Ptr{rocblas_double_complex}, rocblas_int, Ptr{rocblas_double_complex}, rocblas_int, Ptr{rocblas_double_complex}, rocblas_int), handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
 
 function rocblas_strmm_batched(handle, side, uplo, transA, diag, m, n, alpha, A, lda, B, ldb, batch_count)

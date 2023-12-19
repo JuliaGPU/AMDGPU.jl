@@ -16,7 +16,6 @@ import AMDGPU: librocsparse, HandleCache, HIP, library_state
 import AMDGPU.Device: ROCDeviceVector
 import .HIP: HIPContext, HIPStream, hipStream_t
 
-# TODO replace
 const SparseChar = Char
 
 # core library

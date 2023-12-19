@@ -87,10 +87,13 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
             end
 
             # Try to allocate.
-
-            # Async is ~300x slower: https://discourse.julialang.org/t/lux-tutorial-amdgpu-20x-slower-than-cpu/107053/11
-            # HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
-            HIP.hipMalloc(ptr_ref, bytesize) |> HIP.check
+            # NOTE Async is ~300x slower for small (≤ 16 bytes) allocations:
+            # https://github.com/ROCm/HIP/issues/3370#issuecomment-1842938966
+            if bytesize > 16
+                HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
+            else
+                HIP.hipMalloc(ptr_ref, bytesize) |> HIP.check
+            end
             ptr = ptr_ref[]
             ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             return ptr
@@ -127,8 +130,11 @@ function free(buf::HIPBuffer; stream::HIP.HIPStream)
     buf.own || return
 
     buf.ptr == C_NULL && return
-    # HIP.hipFreeAsync(buf, stream) |> HIP.check
-    HIP.hipFree(buf) |> HIP.check
+    if buf.bytesize > 16
+        HIP.hipFreeAsync(buf, stream) |> HIP.check
+    else
+        HIP.hipFree(buf) |> HIP.check
+    end
     return
 end
 
@@ -239,19 +245,24 @@ function get_device_ptr(ptr::Ptr{Cvoid})
     ptr_ref[]
 end
 
-function is_pinned(ptr::Ptr{Cvoid})
+function is_pinned(ptr)
     ptr == C_NULL && return false
 
     st, data = attributes(ptr)
     if st == HIP.hipErrorInvalidValue
         return false
     elseif st == HIP.hipSuccess
-        return data.memoryType == HIP.hipMemoryTypeHost
+        # TODO one we support only ROCm 6+ drop if/else.
+        if HIP.runtime_version() > v"6-"
+            return data.memoryType == HIP.hipMemoryTypeHostV2
+        else
+            return data.memoryType == HIP.hipMemoryTypeHost
+        end
     end
     st |> HIP.check
 end
 
-function attributes(ptr::Ptr{Cvoid})
+function attributes(ptr)
     data = Ref{HIP.hipPointerAttribute_t}()
     st = HIP.hipPointerGetAttributes(data, ptr)
     st, data[]
