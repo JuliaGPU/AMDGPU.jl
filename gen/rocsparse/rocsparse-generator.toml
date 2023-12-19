@@ -1,0 +1,4 @@
+[general]
+library_name = "librocsparse"
+output_file_path = "./librocsparse.jl"
+export_symbol_prefixes = []

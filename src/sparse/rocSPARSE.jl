@@ -22,6 +22,7 @@ const SparseChar = Char
 include("librocsparse_common.jl")
 include("error.jl")
 include("librocsparse.jl")
+include("librocsparse_deprecated.jl")
 
 function create_handle()
     AMDGPU.functional(:rocsparse) || error("rocSPARSE is not available")
