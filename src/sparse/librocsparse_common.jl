@@ -220,6 +220,14 @@ end
 
 const rocsparse_spmv_alg = rocsparse_spmv_alg_
 
+@cenum rocsparse_spmv_stage_::UInt32 begin
+    rocsparse_spmv_stage_buffer_size = 1
+    rocsparse_spmv_stage_preprocess = 2
+    rocsparse_spmv_stage_compute = 3
+end
+
+const rocsparse_spmv_stage = rocsparse_spmv_stage_
+
 @cenum rocsparse_spsv_alg_::UInt32 begin
     rocsparse_spsv_alg_default = 0
 end

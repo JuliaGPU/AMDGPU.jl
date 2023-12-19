@@ -31,18 +31,32 @@ function mv!(
 
     function bufferSize()
         out = Ref{Csize_t}()
-        rocsparse_spmv(
-            handle(), transa, Ref{T}(alpha), descA, descX,
-            Ref{T}(beta), descY, T, algo, out, C_NULL)
+        if HIP.runtime_version() ≥ v"6-"
+            rocsparse_spmv(
+                handle(), transa, Ref{T}(alpha), descA, descX,
+                Ref{T}(beta), descY, T, algo,
+                rocsparse_spmv_stage_buffer_size, out, C_NULL)
+        else
+            rocsparse_spmv(
+                handle(), transa, Ref{T}(alpha), descA, descX,
+                Ref{T}(beta), descY, T, algo, out, C_NULL)
+        end
         return out[]
     end
 
     size_ref = Ref{Csize_t}()
     with_workspace(bufferSize) do buffer
         size_ref[] = sizeof(buffer)
-        rocsparse_spmv(
-            handle(), transa, Ref{T}(alpha), descA, descX,
-            Ref{T}(beta), descY, T, algo, size_ref, buffer)
+        if HIP.runtime_version() ≥ v"6-"
+            rocsparse_spmv(
+                handle(), transa, Ref{T}(alpha), descA, descX,
+                Ref{T}(beta), descY, T, algo,
+                rocsparse_spmv_stage_compute, size_ref, buffer)
+        else
+            rocsparse_spmv(
+                handle(), transa, Ref{T}(alpha), descA, descX,
+                Ref{T}(beta), descY, T, algo, size_ref, buffer)
+        end
     end
     Y
 end
