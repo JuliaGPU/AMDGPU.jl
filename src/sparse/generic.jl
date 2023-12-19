@@ -31,7 +31,7 @@ function mv!(
 
     function bufferSize()
         out = Ref{Csize_t}()
-        if HIP.HIP_VERSION ≥ v"6-"
+        if HIP.runtime_version() ≥ v"6-"
             rocsparse_spmv(
                 handle(), transa, Ref{T}(alpha), descA, descX,
                 Ref{T}(beta), descY, T, algo,
@@ -47,7 +47,7 @@ function mv!(
     size_ref = Ref{Csize_t}()
     with_workspace(bufferSize) do buffer
         size_ref[] = sizeof(buffer)
-        if HIP.HIP_VERSION ≥ v"6-"
+        if HIP.runtime_version() ≥ v"6-"
             rocsparse_spmv(
                 handle(), transa, Ref{T}(alpha), descA, descX,
                 Ref{T}(beta), descY, T, algo,
