@@ -51,6 +51,10 @@ function mv!(
             rocsparse_spmv(
                 handle(), transa, Ref{T}(alpha), descA, descX,
                 Ref{T}(beta), descY, T, algo,
+                rocsparse_spmv_stage_preprocess, size_ref, buffer)
+            rocsparse_spmv(
+                handle(), transa, Ref{T}(alpha), descA, descX,
+                Ref{T}(beta), descY, T, algo,
                 rocsparse_spmv_stage_compute, size_ref, buffer)
         else
             rocsparse_spmv(
