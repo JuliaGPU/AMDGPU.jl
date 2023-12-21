@@ -54,8 +54,15 @@ end
     return ROCDeviceArray{UInt32,1,AS.Local}((32,), ptr)
 end
 
-# TODO no memtime instructions on RDNA 3
-@device_override Random.make_seed() = Base.unsafe_trunc(UInt32, memrealtime())
+if VERSION >= v"1.11-"
+    # `Random.seed!(::AbstractRNG)` now passes a `nothing` seed value
+    Random.seed!(rng::Philox2x32, seed::Nothing) =
+        Random.seed!(rng, Base.unsafe_trunc(UInt32, readcyclecounter()))
+else
+    # ... where it used to call `Random_make_seed()`
+    @device_override Random.make_seed() = Base.unsafe_trunc(UInt32, readcyclecounter())
+end
+
 
 
 # generators
@@ -130,9 +137,14 @@ function Random.seed!(rng::Philox2x32, seed::Integer, counter::Integer=0)
     rng.ctr1 = counter
     return
 end
-
-@device_override Random.seed!(::Random._GLOBAL_RNG, seed) =
-    Random.seed!(Random.default_rng(), seed)
+# seeding the implicit default RNG
+if VERSION >= v"1.11-"
+    @device_override Random.seed!(seed) =
+        Random.seed!(Random.default_rng(), seed)
+else
+    @device_override Random.seed!(::Random._GLOBAL_RNG, seed) =
+        Random.seed!(Random.default_rng(), seed)
+end
 
 """
     Random.rand(rng::Philox2x32, UInt32)
