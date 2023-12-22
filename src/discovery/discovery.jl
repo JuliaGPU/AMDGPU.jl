@@ -95,6 +95,8 @@ function _hip_runtime_version()
 end
 
 function __init__()
+    ENV["AMD_LOG_LEVEL"] = 4
+
     if Sys.islinux() && isdir("/sys/class/kfd/kfd/topology/nodes/")
         for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
             node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))

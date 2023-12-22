@@ -125,6 +125,8 @@ import .ROCKernels: ROCBackend
 export ROCBackend
 
 function __init__()
+    ENV["AMD_LOG_LEVEL"] = 4
+
     atexit() do
         Runtime.RT_EXITING[] = true
     end
