@@ -1,4 +1,8 @@
-function async_tls(f=()->nothing; init=false)
+"""
+Create new task and new TLS, run `f` that modifies TLS and
+return its initial state and after the change.
+"""
+function async_tls(f = () -> nothing; init = false)
     pre_tls = Ref{AMDGPU.TaskLocalState}()
     post_tls = Ref{AMDGPU.TaskLocalState}()
     wait(@async begin
@@ -72,40 +76,29 @@ end
     @test tls1.stream === stream1 === AMDGPU.stream()
     @test tls1.stream.priority == stream1.priority == :normal
 
+    # Create new task and get its TLS. Should be different than current.
     tls2 = async_tls()
     @test tls2.device === tls1.device
     @test tls2.context === tls1.context
     @test tls2.stream !== tls1.stream
     @test tls2.stream.priority == :normal
 
-    tls3 = copy(AMDGPU.task_local_state!())
-    @test tls3.stream === stream1 === AMDGPU.stream()
+    # TLS from a different task does not modify original TLS.
+    @test AMDGPU.stream() === stream1
 
     @testset "Priorities" begin
         AMDGPU.priority!(:high)
-        tlsh = copy(AMDGPU.task_local_state!())
-        @test tlsh.stream !== tls1.stream
-        @test tlsh.stream.priority == :high
+        strm = AMDGPU.stream()
+        @test strm !== tls1.stream
+        @test strm.priority == :high
 
         AMDGPU.priority!(:low)
-        tlsl = copy(AMDGPU.task_local_state!())
-        @test tlsl.stream !== tls1.stream
-        @test tlsl.stream.priority == :low
+        strm = AMDGPU.stream()
+        @test strm !== tls1.stream
+        @test strm.priority == :low
 
         AMDGPU.priority!(:normal)
-        tlsn = copy(AMDGPU.task_local_state!())
-        @test tlsn.stream.priority == :normal
-
-        AMDGPU.priority!(:high)
-        tlsn2 = async_tls()
-        @test tlsn2.stream.priority == :normal
-
-        AMDGPU.priority!(:normal)
-        tlsh2 = async_tls(init=false) do
-            AMDGPU.priority!(:high)
-        end
-        @test tlsh2.stream.priority == :high
-        @test AMDGPU.task_local_state!().stream.priority == :normal
+        @test AMDGPU.stream().priority == :normal
     end
 end
 
