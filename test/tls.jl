@@ -71,38 +71,34 @@ else
 end
 
 @testset "Streams" begin
-    tls1 = copy(AMDGPU.task_local_state())
-    stream1 = AMDGPU.stream()
-    @test tls1.stream === stream1 === AMDGPU.stream()
-    @test tls1.stream.priority == stream1.priority == :normal
+    strm = AMDGPU.stream()
+    @test strm.priority == :normal
 
     # Create new task and get its TLS. Should be different than current.
     tls2 = async_tls()
-    @test tls2.device === tls1.device
-    @test tls2.context === tls1.context
-    @test tls2.stream !== tls1.stream
+    @test tls2.device === AMDGPU.device()
+    @test tls2.context === AMDGPU.context()
+    @test tls2.stream !== strm
     @test tls2.stream.priority == :normal
 
     # TLS from a different task does not modify original TLS.
-    @test AMDGPU.stream() === stream1
+    @test AMDGPU.stream() === strm
 
-    @testset "Priorities" begin
-        AMDGPU.priority!(:high)
-        strm = AMDGPU.stream()
-        @test strm !== tls1.stream
-        @test strm.priority == :high
+    AMDGPU.priority!(:high)
+    strm2 = AMDGPU.stream()
+    @test strm2 !== strm
+    @test strm2.priority == :high
 
-        AMDGPU.priority!(:low)
-        strm = AMDGPU.stream()
-        @test strm !== tls1.stream
-        @test strm.priority == :low
+    AMDGPU.priority!(:low)
+    strm2 = AMDGPU.stream()
+    @test strm2 !== strm
+    @test strm2.priority == :low
 
-        AMDGPU.priority!(:normal)
-        @test AMDGPU.stream().priority == :normal
-    end
+    AMDGPU.priority!(:normal)
+    @test AMDGPU.stream().priority == :normal
 end
 
-function async_tls_lib(f=()->nothing; lib::Symbol)
+function async_tls_lib(f = () -> nothing; lib::Symbol)
     tls = Ref{Any}()
     wait(@async begin
         f()

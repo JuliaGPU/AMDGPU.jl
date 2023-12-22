@@ -18,12 +18,13 @@
     @test_throws Exception RD_adj[1,1]
 
     # Custom show methods are defined
-    @test occursin("4×4 device array at", sprint(io->show(io, RD)))
-    @test occursin("2×2 device array view", sprint(io->show(io, RD_view)))
-    # TODO weirdly in CI it dispatches onto ROCDeviceVector show method...
-    if !CI
-        @test occursin(
-            "4×4 device array wrapper LinearAlgebra.Adjoint",
-            sprint(io->show(io, RD_adj)))
-    end
+    @test occursin("4×4 device array at", sprint(io -> show(io, RD)))
+    @test occursin("2×2 device array view", sprint(io -> show(io, RD_view)))
+
+    adj_repr = sprint(io -> show(io, RD_adj))
+    o1 = occursin("4×4 device array wrapper LinearAlgebra.Adjoint", adj_repr)
+    # If we are running with `0` workers, LinearAlgebra
+    # is imported in the global scope already.
+    o2 = occursin("4×4 device array wrapper Adjoint", adj_repr)
+    @test o1 || o2
 end
