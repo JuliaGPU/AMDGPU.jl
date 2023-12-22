@@ -1,3 +1,5 @@
+ENV["AMD_LOG_LEVEL"] = 4
+
 using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
 import AMDGPU.Device: HostCallHolder, hostcall!
