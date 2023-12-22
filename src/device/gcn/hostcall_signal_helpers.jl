@@ -119,3 +119,7 @@ end
 @inline function memrealtime()
     ccall("llvm.amdgcn.s.memrealtime", llvmcall, UInt64, ())
 end
+
+@inline function readcyclecounter()
+    ccall("llvm.readcyclecounter", llvmcall, UInt64, ())
+end

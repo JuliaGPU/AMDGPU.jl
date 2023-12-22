@@ -16,11 +16,9 @@ include("device/synchronization.jl")
 include("device/execution_control.jl")
 include("device/exceptions.jl")
 
-const IS_NAVI3 = AMDGPU.device().gcn_arch in ("gfx1100", "gfx1101", "gfx1102", "gfx1103")
 
-# TODO NAVI 3 does not support `memtime` and `memrealtime` llvm intrinsic.
 # TODO Julia 1.9 fails with out-of-bounds error for some reason...
-if VERSION ≥ v"1.10-" && !IS_NAVI3
+if VERSION ≥ v"1.10-"
     include("device/random.jl")
 end
 
