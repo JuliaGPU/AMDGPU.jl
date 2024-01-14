@@ -44,7 +44,9 @@ GPUArrays.device(x::ROCArray) = x.buf[].device
 
 GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
 
-function GPUArrays.derive(::Type{T}, N::Int, x::ROCArray, dims::Dims, offset::Int) where T
+function GPUArrays.derive(
+    ::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int,
+) where {N, T}
     ref = copy(x.buf)
     offset += (x.offset * Base.elsize(x)) ÷ sizeof(T)
     ROCArray{T, N}(ref, dims; offset)

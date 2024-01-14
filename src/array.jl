@@ -41,6 +41,9 @@ Return the device associated with the array `A`.
 """
 device(A::ROCArray) = A.buf[].device
 
+buftype(x::ROCArray) = buftype(typeof(x))
+buftype(::Type{<:ROCArray{<:Any, <:Any, B}}) where B = B # TODO check `@isdefined`?
+
 ## aliases
 
 const ROCVector{T} = ROCArray{T,1}
@@ -102,9 +105,12 @@ end
 # empty vector constructor
 ROCArray{T,1}() where {T} = ROCArray{T,1}(undef, 0)
 
-Base.similar(a::ROCArray{T,N}) where {T,N} = ROCArray{T,N}(undef, size(a))
-Base.similar(::ROCArray{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
-Base.similar(::ROCArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = ROCArray{T,N}(undef, dims)
+Base.similar(a::ROCArray{T, N, B}) where {T, N, B} =
+    ROCArray{T, N, B}(undef, size(a))
+Base.similar(::ROCArray{T, <:Any, B}, dims::Base.Dims{N}) where {T, N, B} =
+    ROCArray{T, N, B}(undef, dims)
+Base.similar(::ROCArray{<:Any, <:Any, B}, ::Type{T}, dims::Base.Dims{N}) where {T, N, B} =
+    ROCArray{T, N, B}(undef, dims)
 
 ## array interface
 

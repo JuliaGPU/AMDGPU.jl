@@ -174,22 +174,24 @@ function HostBuffer()
     HostBuffer(s.device, s.ctx, C_NULL, C_NULL, 0, true)
 end
 
-function HostBuffer(bytesize::Integer, flags = 0)
+function HostBuffer(
+    bytesize::Integer, flags = 0; stream::HIP.HIPStream = AMDGPU.stream(),
+)
     bytesize == 0 && return HostBuffer()
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     HIP.hipHostMalloc(ptr_ref, bytesize, flags) |> HIP.check
     ptr = ptr_ref[]
     dev_ptr = get_device_ptr(ptr)
-    s = AMDGPU.stream()
-    HostBuffer(s.device, s.ctx, ptr, dev_ptr, bytesize, true)
+    HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, bytesize, true)
 end
 
-function HostBuffer(ptr::Ptr{Cvoid}, sz::Integer)
+function HostBuffer(
+    ptr::Ptr{Cvoid}, sz::Integer; stream::HIP.HIPStream = AMDGPU.stream(),
+)
     HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
     dev_ptr = get_device_ptr(ptr)
-    s = AMDGPU.stream()
-    HostBuffer(s.device, s.ctx, ptr, dev_ptr, sz, false)
+    HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, sz, false)
 end
 
 function view(buf::HostBuffer, bytesize::Int)
