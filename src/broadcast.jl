@@ -1,19 +1,24 @@
-# broadcasting
-
 using Base.Broadcast: BroadcastStyle, Broadcasted
 
-struct ROCArrayStyle{N} <: AbstractGPUArrayStyle{N} end
-ROCArrayStyle(::Val{N}) where N = ROCArrayStyle{N}()
-ROCArrayStyle{M}(::Val{N}) where {N,M} = ROCArrayStyle{N}()
+struct ROCArrayStyle{N, B} <: AbstractGPUArrayStyle{N} end
+ROCArrayStyle{M, B}(::Val{N}) where {N, M, B} = ROCArrayStyle{N, B}()
 
-BroadcastStyle(::Type{<:ROCArray{T,N}}) where {T,N} = ROCArrayStyle{N}()
+# Identify the broadcast style of a wrapped ROCArray.
+BroadcastStyle(::Type{<:ROCArray{T, N, B}}) where {T, N, B} =
+    ROCArrayStyle{N, B}()
+BroadcastStyle(W::Type{<:AnyROCArray{T, N}}) where {T, N} =
+    ROCArrayStyle{N, buftype(Adapt.unwrap_type(W))}()
 
-Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}) where {N,T} =
-    similar(ROCArray{T}, axes(bc))
+# TODO handle broadcast of different buffer types (use unified memory).
 
-Base.similar(bc::Broadcasted{ROCArrayStyle{N}}, ::Type{T}, dims...) where {N,T} =
-    ROCArray{T}(undef, dims...)
+# Allocation of output arrays.
+function Base.similar(
+    bc::Broadcasted{ROCArrayStyle{N, B}}, ::Type{T}, dims,
+) where {N, B, T}
+    similar(ROCArray{T, length(dims), B}, dims)
+end
 
-# broadcasting type ctors isn't GPU compatible
-Broadcast.broadcasted(::ROCArrayStyle{N}, f::Type{T}, args...) where {N, T} =
-    Broadcasted{ROCArrayStyle{N}}((x...) -> T(x...), args, nothing)
+# TODO: revise
+# Broadcasting type ctors isn't GPU compatible.
+Broadcast.broadcasted(::ROCArrayStyle{N, B}, f::Type{T}, args...) where {N, B, T} =
+    Broadcasted{ROCArrayStyle{N, B}}((x...) -> T(x...), args, nothing)
