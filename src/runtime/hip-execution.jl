@@ -39,8 +39,8 @@ end
 end
 
 function (ker::HIPKernel{F, TT})(
-    args...; stream::HIP.HIPStream = AMDGPU.stream(), call_kwargs...,
-) where {F, TT}
+    args::Vararg{Any, N}; stream::HIP.HIPStream = AMDGPU.stream(), call_kwargs...,
+) where {F, TT, N}
     # Check if previous kernels threw an exception.
     AMDGPU.throw_if_exception(stream.device)
     call(ker, map(AMDGPU.rocconvert, args)...; stream, call_kwargs...)
@@ -68,10 +68,9 @@ end
     return ex
 end
 
-function roccall(fun::HIP.HIPFunction, tt::Type, args...; kwargs...)
-    convert_arguments(tt, args...) do pointers...
-        launch(fun, pointers...; kwargs...)
-    end
+function roccall(fun::F, tt::Type{T}, args::Vararg{Any, N}; kwargs...) where {F, T, N}
+    cvt_fn = ((pointers::Vararg{Any, N},) where N) -> launch(fun, pointers...; kwargs...)
+    convert_arguments(cvt_fn, tt, args...)
 end
 
 @inline @generated function pack_arguments(f::Function, args...)
