@@ -193,21 +193,21 @@ function Base.unsafe_wrap(
     own::Bool = false,
 ) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
-    buf = _unsafe_wrap_managed(ptr, dims)
+    buf = _unsafe_wrap_identify_buffer(ptr, dims, own)
     ROCArray{T, N}(DataRef(own ? _free_buffer : (args...) -> (), buf), dims)
 end
 
 function Base.unsafe_wrap(::Type{ROCArray{T,N,B}}, ptr::Ptr{T}, dims::NTuple{N,<:Integer};
     own::Bool=false,
 ) where {T,N,B}
-    buf = _unsafe_wrap_identify_buffer(ptr, dims)
+    buf = _unsafe_wrap_identify_buffer(ptr, dims, own)
     if typeof(buf) !== B
         throw(ArgumentError("Declared buffer type does not match inferred buffer type."))
     end
     ROCArray{T,N}(DataRef(own ? _free_buffer : (args...) -> (), buf), dims)
 end
 
-function _unsafe_wrap_identify_buffer(ptr::Ptr{T}, dims::NTuple{N, <:Integer}) where {T, N}
+function _unsafe_wrap_identify_buffer(ptr::Ptr{T}, dims::NTuple{N, <:Integer}, own::Bool) where {T, N}
     (status, attrs) = Mem.attributes(ptr)
     if status != HIP.hipSuccess # The pointer is unknown to the HIP runtime
         error("The HIP runtime could not identify the attributes of the ptr $ptr.")
@@ -217,7 +217,7 @@ function _unsafe_wrap_identify_buffer(ptr::Ptr{T}, dims::NTuple{N, <:Integer}) w
     sz = prod(dims) * sizeof(T)
     if attrs.memoryType == HIP.hipMemoryTypeHost
         return Mem.HostBuffer(device, context, attrs.hostPointer, attrs.devicePointer, sz, own)
-    elseif attrs.memoryType == hipMemoryTypeDevice
+    elseif attrs.memoryType == HIP.hipMemoryTypeDevice
         return Mem.HIPBuffer(device, context, ptr, sz, own)
     else
         error("Memory type $(attrs.memoryType) is not supported by AMDGPU.jl")
@@ -233,7 +233,7 @@ function Base.unsafe_wrap(::Type{ROCArray{T,1,B}}, p::Ptr{T}, dim::Int; own=fals
     unsafe_wrap(ROCArray{T,1,B}, p, (dim,); own=own)
 end
 
-Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
+Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims::NTuple{N,<:Integer}; kwargs...) where {T, N} =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
 ## interop with CPU arrays
