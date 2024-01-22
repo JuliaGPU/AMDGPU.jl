@@ -197,7 +197,7 @@ function Base.unsafe_wrap(
     ROCArray{T, N}(DataRef(own ? _free_buffer : (args...) -> (), buf), dims)
 end
 
-function Base.unsafe_wrap(::Type{CuArray{T,N,B}}, ptr::Ptr{T}, dims::NTuple{N,<:Integer};
+function Base.unsafe_wrap(::Type{ROCArray{T,N,B}}, ptr::Ptr{T}, dims::NTuple{N,<:Integer};
     own::Bool=false,
 ) where {T,N,B}
     buf = _unsafe_wrap_identify_buffer(ptr, dims)
@@ -226,11 +226,11 @@ end
 
 # integer size input
 function Base.unsafe_wrap(::Union{Type{ROCArray},Type{ROCArray{T}},Type{ROCArray{T,1}}},
-    p::Ptr{T}, dim::Int) where {T}
-    unsafe_wrap(ROCArray{T,1}, p, (dim,))
+    p::Ptr{T}, dim::Int; own=false) where {T}
+    unsafe_wrap(ROCArray{T,1}, p, (dim,); own=own)
 end
-function Base.unsafe_wrap(::Type{ROCArray{T,1,B}}, p::Ptr{T}, dim::Int) where {T,B}
-    unsafe_wrap(ROCArray{T,1,B}, p, (dim,))
+function Base.unsafe_wrap(::Type{ROCArray{T,1,B}}, p::Ptr{T}, dim::Int; own=false) where {T,B}
+    unsafe_wrap(ROCArray{T,1,B}, p, (dim,); own=own)
 end
 
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
