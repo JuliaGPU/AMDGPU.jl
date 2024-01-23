@@ -446,3 +446,147 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         LinearAlgebra.LAPACK.orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.orgqr!(A, tau)
     end
 end
+
+for (fname, matrix_elty, vector_elty) in (
+    (:rocsolver_zgesvdj, :ComplexF64, :Float64),
+    (:rocsolver_cgesvdj, :ComplexF32, :Float32),
+    (:rocsolver_dgesvdj, :Float64, :Float64),
+    (:rocsolver_sgesvdj, :Float32, :Float32),
+)
+    @eval begin
+        function gesvdj!(A::ROCMatrix{$matrix_elty}, abstol::$vector_elty, max_sweeps::Cint)
+            m, n = size(A)
+            lda = max(1, stride(A, 2))
+            dev_residual = ROCVector{$vector_elty}(undef, 1)
+
+            dev_n_sweeps = ROCVector{Cint}(undef, 1)
+
+            S = ROCArray{$vector_elty}(undef, min(m, n))
+            U = ROCMatrix{$matrix_elty}(undef, (m, min(m, n)))
+            ldu = m
+            @assert stride(U, 2) == ldu
+            V = ROCMatrix{$matrix_elty}(undef, (min(m, n), n))
+            ldv = min(m, n)
+            @assert stride(V, 2) == ldv
+
+            dev_info = ROCVector{Cint}(undef, 1)
+
+            $fname(
+                rocBLAS.handle(), 
+                AMDGPU.rocBLAS.rocblas_svect_singular,
+                AMDGPU.rocBLAS.rocblas_svect_singular,
+                m, n, A, lda,
+                abstol,
+                dev_residual,
+                max_sweeps,
+                dev_n_sweeps,
+                S,
+                U, ldu,
+                V, ldv,
+                dev_info
+            ) |> check
+            residual = AMDGPU.@allowscalar dev_residual[1]
+            AMDGPU.unsafe_free!(dev_residual)
+
+            n_sweeps = AMDGPU.@allowscalar dev_n_sweeps[1]
+            AMDGPU.unsafe_free!(dev_n_sweeps)
+
+            info = AMDGPU.@allowscalar dev_info[1]
+            AMDGPU.unsafe_free!(dev_info)
+
+            U, S, transpose(V), residual, n_sweeps, info
+        end
+    end
+end
+
+for (fname, elt) in (
+    (:rocsolver_dsyevd, :Float64),
+    (:rocsolver_ssyevd, :Float32),
+)
+    @eval begin
+        function syevd!(uplo::Char, A::ROCMatrix{$elt})
+            chkuplo(uplo)
+
+            n = size(A, 2)
+            lda = max(1, stride(A, 2))
+
+            D = ROCVector{$elt}(undef, n)
+            E = ROCVector{$elt}(undef, n)
+
+            dev_info = ROCVector{Cint}(undef, 1)
+
+            $fname(
+                rocBLAS.handle(), 
+                AMDGPU.rocBLAS.rocblas_evect_original,
+                uplo,
+                n, A, lda,
+                D, E,
+                dev_info
+            ) |> check
+            info = AMDGPU.@allowscalar dev_info[1]
+            AMDGPU.unsafe_free!(dev_info)
+
+            AMDGPU.unsafe_free!(E)
+
+            D, A
+        end
+    end
+end
+
+for (fname, matrix_elty, vector_elty) in (
+    (:rocsolver_zheevd, :ComplexF64, :Float64),
+    (:rocsolver_cheevd, :ComplexF32, :Float32),
+)
+    @eval begin
+        function heevd!(uplo::Char, A::ROCMatrix{$matrix_elty})
+            chkuplo(uplo)
+
+            n = size(A, 2)
+            lda = max(1, stride(A, 2))
+
+            D = ROCVector{$vector_elty}(undef, n)
+            E = ROCVector{$vector_elty}(undef, n)
+
+            dev_info = ROCVector{Cint}(undef, 1)
+
+            $fname(
+                rocBLAS.handle(), 
+                AMDGPU.rocBLAS.rocblas_evect_original,
+                uplo,
+                n, A, lda,
+                D, E,
+                dev_info
+            ) |> check
+            info = AMDGPU.@allowscalar dev_info[1]
+            AMDGPU.unsafe_free!(dev_info)
+
+            AMDGPU.unsafe_free!(E)
+
+            D, A
+        end
+    end
+end
+
+function LinearAlgebra.eigen(A::Symmetric{T,<:ROCMatrix}) where {T<:BlasReal}
+    A2 = copy(A.data)
+    Eigen(syevd!('U', A2)...)
+end
+
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}) where {T<:BlasComplex}
+    A2 = copy(A.data)
+    Eigen(heevd!('U', A2)...)
+end
+
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(Symmetric(A))
+end
+
+function LinearAlgebra.eigen(A::ROCMatrix{T}) where {T<:BlasReal}
+    A2 = copy(A)
+    issymmetric(A) ? Eigen(syevd!('U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+end
+
+function LinearAlgebra.eigen(A::ROCMatrix{T}) where {T<:BlasComplex}
+    A2 = copy(A)
+    ishermitian(A) ? Eigen(heevd!('U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+end

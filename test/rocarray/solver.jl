@@ -205,4 +205,40 @@ end
     end
 end
 
+@testset "gesvdj!" begin
+    @testset "elts = ($elty, $tol_type)" for (elty, tol_type) in [
+        (ComplexF64, Float64),
+        (ComplexF32, Float32),
+        (Float64, Float64),
+        (Float32, Float32),
+    ]
+        A = rand(elty, m, n)
+        dA = ROCMatrix(A)
+        abstol = tol_type(-1.0)
+        max_sweeps::Int32 = 100
+
+        U, S, V, residual, n_sweeps, info = AMDGPU.rocSOLVER.gesvdj!(dA, abstol, max_sweeps)
+        @test U * Diagonal(S) * Transpose(V) ≈ dA
+    end
+end
+
+@testset "eigen" begin
+    @testset "matrix type = $matrix_type" for (matrix_type, eltypes) in [
+        (Symmetric, [Float32, Float64]),
+        (Hermitian, [Float32, Float64, ComplexF32, ComplexF64]),
+    ]
+        @testset "elty = $elty" for elty in eltypes
+            A = matrix_type(rand(elty, m, m))
+            dA = ROCMatrix(A)
+
+            E = eigen(dA)
+
+            for k in 1:length(E.values)
+                @allowscalar lambda = E.values[k]
+                @test dA * E.vectors[:, k] ≈ lambda .* E.vectors[:, k]
+            end
+        end
+    end
+end
+
 end

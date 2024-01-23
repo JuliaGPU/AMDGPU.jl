@@ -184,6 +184,23 @@ end
 
 const rocblas_check_numerics_mode = rocblas_check_numerics_mode_
 
+@cenum rocblas_svect_::UInt32 begin
+    rocblas_svect_all = 191
+    rocblas_svect_singular = 192
+    rocblas_svect_overwrite = 193
+    rocblas_svect_none = 194
+end
+
+const rocblas_svect = rocblas_svect_
+
+@cenum rocblas_evect_::UInt32 begin
+    rocblas_evect_original = 211
+    rocblas_evect_tridiagonal = 212
+    rocblas_evect_none = 213
+end
+
+const rocblas_evect = rocblas_evect_
+
 function rocblas_create_handle(handle)
     AMDGPU.prepare_state()
     ccall((:rocblas_create_handle, librocblas), rocblas_status, (Ptr{rocblas_handle},), handle)
