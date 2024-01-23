@@ -209,3 +209,43 @@ function rocsolver_zgetri_batched(handle, n, A, lda, ipiv, strideP, info, batch_
     AMDGPU.prepare_state()
     ccall((:rocsolver_zgetri_batched, librocsolver), rocblas_status, (rocblas_handle, Cint, Ptr{Ptr{ComplexF64}}, Cint, Ptr{Cint}, rocblas_stride, Ptr{Cint}, Cint), handle, n, A, lda, ipiv, strideP, info, batch_count)
 end
+
+function rocsolver_zgesvdj(handle, left_svect, right_svect, m, n, A, lda, abstol, residual, max_sweeps, n_sweeps, S, U, ldu, V, ldv, info)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_zgesvdj, librocsolver), rocblas_status, (rocblas_handle, rocblas_svect, rocblas_svect, Cint, Cint, Ptr{ComplexF64}, Cint, Float64, Ptr{Float64}, Cint, Ptr{Cint}, Ptr{Float64}, Ptr{ComplexF64}, Cint, Ptr{ComplexF64}, Cint, Ptr{Cint}), handle, left_svect, right_svect, m, n, A, lda, abstol, residual, max_sweeps, n_sweeps, S, U, ldu, V, ldv, info)
+end
+
+function rocsolver_cgesvdj(handle, left_svect, right_svect, m, n, A, lda, abstol, residual, max_sweeps, n_sweeps, S, U, ldu, V, ldv, info)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_cgesvdj, librocsolver), rocblas_status, (rocblas_handle, rocblas_svect, rocblas_svect, Cint, Cint, Ptr{ComplexF32}, Cint, Float32, Ptr{Float32}, Cint, Ptr{Cint}, Ptr{Float32}, Ptr{ComplexF32}, Cint, Ptr{ComplexF32}, Cint, Ptr{Cint}), handle, left_svect, right_svect, m, n, A, lda, abstol, residual, max_sweeps, n_sweeps, S, U, ldu, V, ldv, info)
+end
+
+function rocsolver_dgesvdj(handle, left_svect, right_svect, m, n, A, lda, abstol, residual, max_sweeps, n_sweeps, S, U, ldu, V, ldv, info)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_dgesvdj, librocsolver), rocblas_status, (rocblas_handle, rocblas_svect, rocblas_svect, Cint, Cint, Ptr{Float64}, Cint, Float64, Ptr{Float64}, Cint, Ptr{Cint}, Ptr{Float64}, Ptr{Float64}, Cint, Ptr{Float64}, Cint, Ptr{Cint}), handle, left_svect, right_svect, m, n, A, lda, abstol, residual, max_sweeps, n_sweeps, S, U, ldu, V, ldv, info)
+end
+
+function rocsolver_sgesvdj(handle, left_svect, right_svect, m, n, A, lda, abstol, residual, max_sweeps, n_sweeps, S, U, ldu, V, ldv, info)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_sgesvdj, librocsolver), rocblas_status, (rocblas_handle, rocblas_svect, rocblas_svect, Cint, Cint, Ptr{Float32}, Cint, Float32, Ptr{Float32}, Cint, Ptr{Cint}, Ptr{Float32}, Ptr{Float32}, Cint, Ptr{Float32}, Cint, Ptr{Cint}), handle, left_svect, right_svect, m, n, A, lda, abstol, residual, max_sweeps, n_sweeps, S, U, ldu, V, ldv, info)
+end
+
+function rocsolver_dsyevd(handle, evect, uplo, n, A, lda, D, E, info)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_dsyevd, librocsolver), rocblas_status, (rocblas_handle, rocblas_evect, rocblas_fill, Cint, Ptr{Float64}, Cint, Ptr{Float64}, Ptr{Float64}, Ptr{Cint}), handle, evect, uplo, n, A, lda, D, E, info)
+end
+
+function rocsolver_ssyevd(handle, evect, uplo, n, A, lda, D, E, info)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_ssyevd, librocsolver), rocblas_status, (rocblas_handle, rocblas_evect, rocblas_fill, Cint, Ptr{Float32}, Cint, Ptr{Float32}, Ptr{Float32}, Ptr{Cint}), handle, evect, uplo, n, A, lda, D, E, info)
+end
+
+function rocsolver_zheevd(handle, evect, uplo, n, A, lda, D, E, info)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_zheevd, librocsolver), rocblas_status, (rocblas_handle, rocblas_evect, rocblas_fill, Cint, Ptr{ComplexF64}, Cint, Ptr{Float64}, Ptr{Float64}, Ptr{Cint}), handle, evect, uplo, n, A, lda, D, E, info)
+end
+
+function rocsolver_cheevd(handle, evect, uplo, n, A, lda, D, E, info)
+    AMDGPU.prepare_state()
+    ccall((:rocsolver_cheevd, librocsolver), rocblas_status, (rocblas_handle, rocblas_evect, rocblas_fill, Cint, Ptr{ComplexF64}, Cint, Ptr{Float64}, Ptr{Float64}, Ptr{Cint}), handle, evect, uplo, n, A, lda, D, E, info)
+end
