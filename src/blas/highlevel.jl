@@ -201,34 +201,34 @@ function gemm_wrapper!(
 end
 
 # Mutating
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCVecOrMat{T}, B::ROCVecOrMat{T}) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'N', 'N', A, B)
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'T', 'N', parent(trA), B)
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'N', 'T', A, parent(trB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, B::ROCMatrix{T}) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'T', 'N', parent(adjA), B)
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'C', 'N', parent(adjA), B)
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'N', 'T', A, parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'N', 'C', A, parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{T, <:ROCMatrix{T}}) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{T, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB))
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}) where T <: ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB))
+LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCVecOrMat{T}, B::ROCVecOrMat{T}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'N', 'N', A, B, alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'T', 'N', parent(trA), B, alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'N', 'T', A, parent(trB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, B::ROCMatrix{T}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
+    gemm_wrapper!(C, 'T', 'N', parent(adjA), B, alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'C', 'N', parent(adjA), B, alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
+    gemm_wrapper!(C, 'N', 'T', A, parent(adjB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'N', 'C', A, parent(adjB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
+    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{T, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
+    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{T, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
+    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB), alpha, beta)
+LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T <: ROCBLASFloatWithHalf =
+    gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB), alpha, beta)
 
 
 ########
