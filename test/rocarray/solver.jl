@@ -218,7 +218,7 @@ end
         max_sweeps::Int32 = 100
 
         U, S, V, residual, n_sweeps, info = AMDGPU.rocSOLVER.gesvdj!(dA, abstol, max_sweeps)
-        @test U * Diagonal(S) * Transpose(V) ≈ dA
+        @test U * Diagonal(S) * V' ≈ dA
     end
 end
 

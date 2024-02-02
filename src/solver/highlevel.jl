@@ -494,7 +494,7 @@ for (fname, matrix_elty, vector_elty) in (
             info = AMDGPU.@allowscalar dev_info[1]
             AMDGPU.unsafe_free!(dev_info)
 
-            U, S, transpose(V), residual, n_sweeps, info
+            U, S, V', residual, n_sweeps, info
         end
     end
 end
