@@ -6,27 +6,27 @@
 
 # Reduce a value across a group, using local memory for communication
 @inline function reduce_group(op, val::T, neutral) where T
-    items::UInt32 = workgroupDim().x
-    item::UInt32 = workitemIdx().x
+    items = workgroupDim().x
+    item = workitemIdx().x
 
     # Shared mem for a complete reduction.
     shared = @ROCDynamicLocalArray(T, items, false)
     @inbounds shared[item] = val
 
     # Perform a reduction.
-    d::UInt32 = UInt32(1)
+    d = 1
     while d < items
         sync_workgroup()
-        index::UInt32 = UInt32(2) * d * (item - UInt32(1)) + UInt32(1)
+        index = 2 * d * (item - 1) + 1
         @inbounds if index ≤ items
             other_val = (index + d) ≤ items ? shared[index + d] : neutral
             shared[index] = op(shared[index], other_val)
         end
-        d *= UInt32(2)
+        d *= 2
     end
 
     # Load the final value on the first item.
-    if item == UInt32(1)
+    if item == 1
         val = @inbounds shared[item]
     end
 
@@ -46,9 +46,8 @@ function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
     localIdx_reduce = workitemIdx().x
     localDim_reduce = workgroupDim().x
 
-    n_elements_other::UInt32 = length(Rother)
-    groupIdx_reduce, groupIdx_other = fldmod1(workgroupIdx().x, n_elements_other)
-    groupDim_reduce = gridGroupDim().x ÷ n_elements_other
+    groupIdx_reduce, groupIdx_other = fldmod1(workgroupIdx().x, length(Rother))
+    groupDim_reduce = gridGroupDim().x ÷ length(Rother)
 
     # group-based indexing into the values outside of the reduction dimension
     # (that means we can safely synchronize items within this group)
@@ -63,11 +62,10 @@ function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
         val = op(neutral, neutral)
 
         # reduce serially across chunks of input vector that don't fit in a group
-        ireduce = localIdx_reduce + (groupIdx_reduce - UInt32(1)) * localDim_reduce
-        n_elements_reduce::UInt32 = length(Rreduce)
-        while ireduce ≤ n_elements_reduce
+        ireduce = localIdx_reduce + (groupIdx_reduce - 1) * localDim_reduce
+        while ireduce ≤ length(Rreduce)
             Ireduce = Rreduce[ireduce]
-            J = Base.max(Iother, Ireduce)
+            J = max(Iother, Ireduce)
             val = op(val, f(_map_getindex(As, J)...))
             ireduce += localDim_reduce * groupDim_reduce
         end
@@ -75,7 +73,7 @@ function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
         val = reduce_group(op, val, neutral)
 
         # write back to memory
-        if localIdx_reduce == UInt32(1)
+        if localIdx_reduce == 1
             R[Iout] = val
         end
     end

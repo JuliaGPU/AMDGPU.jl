@@ -105,6 +105,7 @@ include("broadcast.jl")
 include("exception_handler.jl")
 
 include("kernels/mapreduce.jl")
+include("kernels/indexing.jl")
 include("kernels/accumulate.jl")
 include("kernels/sorting.jl")
 include("kernels/reverse.jl")
