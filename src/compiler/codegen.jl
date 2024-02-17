@@ -91,7 +91,7 @@ function compiler_config(
 )
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
     target = GCNCompilerTarget(; dev_isa, features)
-    params = HIPCompilerParams(HIP.wavefront_size(dev) == 64)
+    params = HIPCompilerParams(HIP.wavefrontsize(dev) == 64)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 

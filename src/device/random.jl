@@ -54,17 +54,6 @@ end
     return ROCDeviceArray{UInt32,1,AS.Local}((32,), ptr)
 end
 
-if VERSION >= v"1.11-"
-    # `Random.seed!(::AbstractRNG)` now passes a `nothing` seed value
-    Random.seed!(rng::Philox2x32, seed::Nothing) =
-        Random.seed!(rng, Base.unsafe_trunc(UInt32, readcyclecounter()))
-else
-    # ... where it used to call `Random_make_seed()`
-    @device_override Random.make_seed() = Base.unsafe_trunc(UInt32, readcyclecounter())
-end
-
-
-
 # generators
 
 using Random123: philox2x_round, philox2x_bumpkey
@@ -84,6 +73,15 @@ struct Philox2x32{R} <: RandomNumbers.AbstractRNG{UInt64}
         end
         return rng
     end
+end
+
+if VERSION >= v"1.11-"
+    # `Random.seed!(::AbstractRNG)` now passes a `nothing` seed value
+    Random.seed!(rng::Philox2x32, seed::Nothing) =
+        Random.seed!(rng, Base.unsafe_trunc(UInt32, readcyclecounter()))
+else
+    # ... where it used to call `Random_make_seed()`
+    @device_override Random.make_seed() = Base.unsafe_trunc(UInt32, readcyclecounter())
 end
 
 # default to 7 rounds; enough to pass SmallCrush

@@ -7,16 +7,18 @@ function main()
     ci = get(ENV, "CI", "") == "true"
 
     @info "Generating Documenter site"
-    makedocs(
+    DocMeta.setdocmeta!(AMDGPU, :DocTestSetup, :(using AMDGPU); recursive=true)
+    makedocs(;
+        modules=[AMDGPU],
         sitename="AMDGPU.jl",
-        format = Documenter.HTML(
+        format=Documenter.HTML(
             # Use clean URLs on CI
             prettyurls = ci,
             canonical = dst,
             assets = ["assets/favicon.ico"],
             analytics = "UA-154489943-2",
         ),
-        pages = [
+        pages=[
             "Home" => "index.md",
             "Quick Start" => "quickstart.md",
             "Devices" => "devices.md",
@@ -32,13 +34,15 @@ function main()
             "Printing" => "printing.md",
             "Logging" => "logging.md",
             "API Reference" => "api.md"
-        ]
+        ],
+        doctest=true,
+        warnonly=[:missing_docs],
     )
     if ci
         @info "Deploying to GitHub"
-        deploydocs(
-            repo = "github.com/JuliaGPU/AMDGPU.jl.git",
-            push_preview = true
+        deploydocs(;
+            repo="github.com/JuliaGPU/AMDGPU.jl.git",
+            push_preview=true,
         )
     end
 end

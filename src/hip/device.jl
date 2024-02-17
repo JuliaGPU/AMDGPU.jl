@@ -2,7 +2,7 @@ struct HIPDevice
     device::hipDevice_t
     device_id::Cint
     gcn_arch::String
-    wavefront_size::Cint
+    wavefrontsize::Cint
 end
 
 const DEFAULT_DEVICE = Ref{Union{Nothing, HIPDevice}}(nothing)
@@ -19,7 +19,27 @@ function HIPDevice(device_id::Integer)
     HIPDevice(device_ref[], device_id, gcn_arch, props.warpSize)
 end
 
+"""
+    device_id(d::HIPDevice)
+
+Zero-based device ID as expected by HIP functions.
+Differs from [`AMDGPU.device_id`](@ref) method by `1`.
+"""
 device_id(d::HIPDevice) = d.device_id - 1
+
+"""
+    wavefrontsize(d::HIPDevice)::Cint
+
+Get size of the wavefront. AMD GPUs support either 32 or 64.
+"""
+wavefrontsize(d::HIPDevice)::Cint = d.wavefrontsize
+
+"""
+    gcn_arch(d::HIPDevice)::String
+
+Get GCN architecture for the device.
+"""
+gcn_arch(d::HIPDevice)::String = d.gcn_arch
 
 function stack_size()
     value = Ref{Csize_t}()
@@ -45,12 +65,23 @@ Base.unsafe_convert(::Type{hipDevice_t}, device::HIPDevice) = device.device
 Base.:(==)(a::HIPDevice, b::HIPDevice) = a.device == b.device
 Base.hash(dev::HIPDevice, h::UInt) = hash(dev.device, h)
 
-function name(dev::HIPDevice)
+"""
+    name(dev::HIPDevice)::String
+
+Get name of the device.
+"""
+function name(dev::HIPDevice)::String
     name_vec = zeros(Cuchar, 64)
     hipDeviceGetName(pointer(name_vec), Cint(64), dev.device) |> check
     return strip(String(name_vec), '\0')
 end
 
+"""
+    properties(dev::HIPDevice)::hipDeviceProp_t
+
+Get all properties for the device.
+See HIP documentation for `hipDeviceProp_t` for the meaning of each field.
+"""
 properties(dev::HIPDevice) = properties(device_id(dev))
 
 function properties(dev_id::Int)
@@ -64,10 +95,6 @@ function attribute(dev::HIPDevice, attr)
     hipDeviceGetAttribute(v, attr, device_id(dev)) |> check
     v[]
 end
-
-wavefront_size(d::HIPDevice) = d.wavefront_size
-
-gcn_arch(d::HIPDevice) = d.gcn_arch
 
 function Base.show(io::IO, dev::HIPDevice)
     print(io, "HIPDevice(name=\"$(name(dev))\", id=$(dev.device_id), gcn_arch=$(dev.gcn_arch))")
@@ -88,10 +115,7 @@ function devices()
 
         arch = gcn_arch(d)
         if occursin("gfx11", arch) && VERSION < v"1.10-"
-            @error """
-            Navi 3 ($arch) requires Julia 1.10+ and ROCm 5.5+ mixed mode:
-            https://amdgpu.juliagpu.org/dev/#LLVM-compatibility-and-mixed-ROCm-mode.
-            """
+            @error "Navi 3 ($arch) requires Julia 1.10+ and ROCm 5.5 or higher."
         end
         devs[i] = d
     end

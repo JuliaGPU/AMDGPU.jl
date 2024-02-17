@@ -222,4 +222,29 @@ function __init__()
     end
 end
 
+# function ker!(x)
+#     i = AMDGPU.Device.activelane()
+#     x[i + 1] = i
+#     return
+# end
+
+# function ker2!(x)
+#     i::Cint = AMDGPU.Device.activelane()
+#     # `addr` points to the next immediate lane.
+#     addr::Cint = ((i + 1) % 8) * 4 # VGPRs are 4 byes wide
+#     x[i + 1] = AMDGPU.Device.permute(addr, i)
+#     return
+# end
+
+# function main()
+#     x = ROCArray{Cint}(undef, 1, 8)
+#     @roc groupsize=8 ker!(x)
+#     @show Array(x)
+
+#     x = ROCArray{Cint}(undef, 1, 8)
+#     @roc groupsize=8 ker2!(x)
+#     @show Array(x)
+#     return
+# end
+
 end
