@@ -40,7 +40,7 @@ end
             @test length(device_name) > 0
 
             @test occursin("gfx", HIP.gcn_arch(device))
-            @test HIP.wavefront_size(device) in (32, 64)
+            @test HIP.wavefrontsize(device) in (32, 64)
         end
     end
 end

@@ -73,4 +73,5 @@ AMDGPU.Device.ballot
 AMDGPU.Device.activemask
 AMDGPU.Device.bpermute
 AMDGPU.Device.permute
+AMDGPU.Device.shfl
 ```

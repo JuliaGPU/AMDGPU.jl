@@ -139,7 +139,7 @@ Get the mask of all active lanes in a warp.
 activemask()::Cuint = ballot(true)
 
 """
-    bpermute(addr::Cint, val::Cint)::Cint
+    bpermute(addr::Integer, val::Cint)::Cint
 
 Read data stored in `val` from the lane VGPR (vector general purpose register)
 given by `addr`.
@@ -155,7 +155,7 @@ Example below shifts all values in the wavefront by 1 to the "left".
 julia> function ker!(x)
            i::Cint = AMDGPU.Device.activelane()
            # `addr` points to the next immediate lane.
-           addr::Cint = ((i + 1) % 8) * 4 # VGPRs are 4 byes wide
+           addr = ((i + 1) % 8) * 4 # VGPRs are 4 byes wide
            # Read data from the next immediate lane.
            x[i + 1] = AMDGPU.Device.bpermute(addr, i)
            return
@@ -171,11 +171,11 @@ julia> x
  1  2  3  4  5  6  7  0
 ```
 """
-bpermute(addr::Cint, val::Cint)::Cint = ccall(
+bpermute(addr::Integer, val::Cint)::Cint = ccall(
     "llvm.amdgcn.ds.bpermute", llvmcall, Cint, (Cint, Cint), addr, val)
 
 """
-    permute(addr::Cint, val::Cint)::Cint
+    permute(addr::Integer, val::Cint)::Cint
 
 Put data stored in `val` to the lane VGPR (vector general purpose register)
 given by `addr`.
@@ -186,7 +186,7 @@ Example below shifts all values in the wavefront by 1 to the "right".
 julia> function ker!(x)
            i::Cint = AMDGPU.Device.activelane()
            # `addr` points to the next immediate lane.
-           addr::Cint = ((i + 1) % 8) * 4 # VGPRs are 4 byes wide
+           addr = ((i + 1) % 8) * 4 # VGPRs are 4 byes wide
            # Put data into the next immediate lane.
            x[i + 1] = AMDGPU.Device.permute(addr, i)
            return
@@ -202,11 +202,81 @@ julia> x
  7  0  1  2  3  4  5  6
 ```
 """
-permute(addr::Cint, val::Cint)::Cint = ccall(
+permute(addr::Integer, val::Cint)::Cint = ccall(
     "llvm.amdgcn.ds.permute", llvmcall, Cint, (Cint, Cint), addr, val)
 
+_shfl(op, x::UInt8) = op(Cint(x)) % UInt8
+_shfl(op, x::UInt16) = op(Cint(x)) % UInt16
+_shfl(op, x::UInt32) = reinterpret(UInt32, op(reinterpret(Cint, x)))
+_shfl(op, x::UInt64) =
+    (UInt64(op((x >>> 32) % Cint)) << 32) |
+    UInt64(op((x & typemax(UInt32)) % Cint))
+_shfl(op, x::UInt128) =
+    (UInt128(_shfl(op, (x >>> 64) % UInt64)) << 64) |
+    UInt128(_shfl(op, ((x & typemax(UInt64)) % UInt64)))
+
+_shfl(op, x::Int8) = reinterpret(Int8, _shfl(op, reinterpret(UInt8, x)))
+_shfl(op, x::Int16) = reinterpret(Int16, _shfl(op, reinterpret(UInt16, x)))
+_shfl(op, x::Int64) = reinterpret(Int64, _shfl(op, reinterpret(UInt64, x)))
+_shfl(op, x::Int128) = reinterpret(Int128, _shfl(op, reinterpret(UInt128, x)))
+
+_shfl(op, x::Float16) = reinterpret(Float16, _shfl(op, reinterpret(UInt16, x)))
+_shfl(op, x::Float32) = reinterpret(Float32, op(reinterpret(Cint, x)))
+_shfl(op, x::Float64) = reinterpret(Float64, _shfl(op, reinterpret(UInt64, x)))
+
+_shfl(op, x::Bool) = op(Cint(x)) % Bool
+_shfl(op, x::Complex) = Complex(_shfl(op, real(x)), _shfl(op, imag(x)))
+
+function shfl(val::Cint, lane, width = 32)
+    self::Cint = activelane()
+    index = (lane & (width - 0x1)) + (self & ~(width - 0x1))
+    bpermute(index << 0x2, val)
+end
+
 """
-TODO
-- __shfl
-- __builtin_memcpy
+    shfl(val, lane, width = 32)
+
+Read data stored in `val` from a `lane`
+(this is a more high-level op than [`bpermute`](@ref)).
+
+If `lane` is outside the range `[0:width - 1]`, the value returned corresponds
+to the value held by the `lane modulo width` (within the same subsection).
+
+```jldoctest
+julia> function ker!(x)
+           i::UInt32 = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl(i, i + 1)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia> x = ROCArray{UInt32}(undef, 1, 8);
+
+julia> @roc groupsize=8 ker!(x);
+
+julia> Int.(x)
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  2  3  4  5  6  7  0
+```
+
+If `width` is less than wavefront size then each subsection of the wavefront
+behaves as a separate entity with a starting logical lane ID of 0.
+
+```jldoctest
+julia> function ker!(x)
+           i::UInt32 = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl(i, i + 1, 4) # <-- Notice width = 4.
+           return
+       end
+ker! (generic function with 1 method)
+
+julia> x = ROCArray{UInt32}(undef, 1, 8);
+
+julia> @roc groupsize=8 ker!(x);
+
+julia> Int.(x)
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  2  3  0  5  6  7  4
+```
 """
+@inline shfl(val, lane, width = 32) = _shfl(x -> shfl(x, lane, width), val)
