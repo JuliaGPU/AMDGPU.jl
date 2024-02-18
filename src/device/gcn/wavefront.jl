@@ -155,7 +155,7 @@ Example below shifts all values in the wavefront by 1 to the "left".
 julia> function ker!(x)
            i::Cint = AMDGPU.Device.activelane()
            # `addr` points to the next immediate lane.
-           addr = ((i + 1) % 8) * 4 # VGPRs are 4 byes wide
+           addr = ((i + 1) % 8) * 4 # VGPRs are 4 bytes wide
            # Read data from the next immediate lane.
            x[i + 1] = AMDGPU.Device.bpermute(addr, i)
            return
@@ -186,7 +186,7 @@ Example below shifts all values in the wavefront by 1 to the "right".
 julia> function ker!(x)
            i::Cint = AMDGPU.Device.activelane()
            # `addr` points to the next immediate lane.
-           addr = ((i + 1) % 8) * 4 # VGPRs are 4 byes wide
+           addr = ((i + 1) % 8) * 4 # VGPRs are 4 bytes wide
            # Put data into the next immediate lane.
            x[i + 1] = AMDGPU.Device.permute(addr, i)
            return
@@ -229,7 +229,29 @@ _shfl(op, x::Complex) = Complex(_shfl(op, real(x)), _shfl(op, imag(x)))
 
 function shfl(val::Cint, lane, width = 32)
     self::Cint = activelane()
-    index = (lane & (width - 0x1)) + (self & ~(width - 0x1))
+    index::Cint = (lane & (width - 0x1)) + (self & ~(width - 0x1))
+    bpermute(index << 0x2, val)
+end
+
+function shfl_up(val::Cint, δ, width = 32)
+    self::Cint = activelane()
+    index::Cint = self - Cint(δ)
+    # Check if `index` is lower than `self` partitioned by `width`.
+    index = ifelse(index < (self & ~(width - 0x1)), self, index)
+    bpermute(index << 0x2, val)
+end
+
+function shfl_down(val::Cint, δ, width = 32)
+    self::Cint = activelane()
+    index::Cint = self + Cint(δ)
+    index = ifelse((self & (width - 0x1)) + δ ≥ width, self, index)
+    bpermute(index << 0x2, val)
+end
+
+function shfl_xor(val::Cint, lane_mask, width = 32)
+    self::Cint = activelane()
+    index::Cint = self ⊻ Cint(lane_mask)
+    index = ifelse(index ≥ (self + width) & ~(width - 0x1), self, index)
     bpermute(index << 0x2, val)
 end
 
@@ -280,3 +302,80 @@ julia> Int.(x)
 ```
 """
 @inline shfl(val, lane, width = 32) = _shfl(x -> shfl(x, lane, width), val)
+
+"""
+    shfl_up(val, δ, width = 32)
+
+Same as [`shfl`](@ref), but instead of specifying lane ID,
+accepts `δ` that is subtracted from the current lane ID.
+I.e. read from a lane with lower ID relative to the caller.
+
+```jldoctest
+julia> function ker!(x)
+           i = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl_up(i, 1)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia> x = ROCArray{Int}(undef, 1, 8);
+
+julia> @roc groupsize=8 ker!(x);
+
+julia> x
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 0  0  1  2  3  4  5  6
+```
+"""
+@inline shfl_up(val, δ, width = 32) = _shfl(x -> shfl_up(x, δ, width), val)
+
+"""
+    shfl_down(val, δ, width = 32)
+
+Same as [`shfl`](@ref), but instead of specifying lane ID,
+accepts `δ` that is added to the current lane ID.
+I.e. read from a lane with higher ID relative to the caller.
+
+```jldoctest
+julia> function ker!(x)
+           i = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl_down(i, 1)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia> x = ROCArray{Int}(undef, 1, 8);
+
+julia> @roc groupsize=8 ker!(x);
+
+julia> x
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  2  3  4  5  6  7  7
+"""
+@inline shfl_down(val, δ, width = 32) = _shfl(x -> shfl_down(x, δ, width), val)
+
+"""
+    shfl_xor(val, lane_mask, width = 32)
+
+Same as [`shfl`](@ref), but instead of specifying lane ID,
+performs bitwise XOR of the caller's lane ID with the `lane_mask`.
+
+```jldoctest
+julia> function ker!(x)
+           i = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl_xor(i, 1)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia> x = ROCArray{Int}(undef, 1, 8);
+
+julia> @roc groupsize=8 ker!(x);
+
+julia> x
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  0  3  2  5  4  7  6
+```
+"""
+@inline shfl_xor(val, lane_mask, width = 32) =
+    _shfl(x -> shfl_xor(x, lane_mask, width), val)

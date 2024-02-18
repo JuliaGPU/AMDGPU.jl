@@ -74,4 +74,7 @@ AMDGPU.Device.activemask
 AMDGPU.Device.bpermute
 AMDGPU.Device.permute
 AMDGPU.Device.shfl
+AMDGPU.Device.shfl_up
+AMDGPU.Device.shfl_down
+AMDGPU.Device.shfl_xor
 ```
