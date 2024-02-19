@@ -61,3 +61,31 @@ indices = ROCArray(rand(1:bins, n))
 target = ROCArray(zeros(UInt32, bins))
 @roc groupsize=256 gridsize=4 ker_atomic_max!(target, source, indices)
 ```
+
+## Device Intrinsics
+
+### Wavefront-Level Primitives
+
+```@docs
+AMDGPU.Device.wavefrontsize
+AMDGPU.Device.activelane
+
+AMDGPU.Device.ballot
+AMDGPU.Device.ballot_sync
+AMDGPU.Device.activemask
+
+AMDGPU.Device.bpermute
+AMDGPU.Device.permute
+
+AMDGPU.Device.shfl
+AMDGPU.Device.shfl_sync
+AMDGPU.Device.shfl_up
+AMDGPU.Device.shfl_up_sync
+AMDGPU.Device.shfl_down
+AMDGPU.Device.shfl_down_sync
+AMDGPU.Device.shfl_xor
+AMDGPU.Device.shfl_xor_sync
+
+AMDGPU.Device.any_sync
+AMDGPU.Device.all_sync
+```

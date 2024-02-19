@@ -8,8 +8,8 @@ If one is not specified via `@roc` or an equivalent interface,
 then the default device is used for those operations,
 which affects compilation and kernel launch.
 
-The device bound to a current Julia task is accessible via [`AMDGPU.device()`](@ref).
-The list of available devices can be queried with [`AMDGPU.devices`](@ref).
+The device bound to a current Julia task is accessible via [`AMDGPU.device`](@ref) method.
+The list of available devices can be queried with [`AMDGPU.devices`](@ref) method.
 
 If you have a `HIPDevice` object, you can also switch
 the device with [`AMDGPU.device!`](@ref).
@@ -34,4 +34,14 @@ AMDGPU.device
 AMDGPU.device!
 AMDGPU.device_id
 AMDGPU.device_id!
+```
+
+## Device Properties
+
+```@docs
+AMDGPU.HIP.name
+AMDGPU.HIP.wavefrontsize
+AMDGPU.HIP.gcn_arch
+AMDGPU.HIP.device_id
+AMDGPU.HIP.properties
 ```

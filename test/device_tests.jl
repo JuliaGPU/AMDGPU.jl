@@ -4,8 +4,6 @@ using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
 import LinearAlgebra
 
-CI = parse(Bool, get(ENV, "CI", "false"))
-
 include("device/launch.jl")
 include("device/array.jl")
 include("device/vadd.jl")
@@ -15,7 +13,6 @@ include("device/wavefront.jl")
 include("device/synchronization.jl")
 include("device/execution_control.jl")
 include("device/exceptions.jl")
-
 
 # TODO Julia 1.9 fails with out-of-bounds error for some reason...
 if VERSION ≥ v"1.10-"
