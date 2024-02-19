@@ -46,6 +46,7 @@ for jltype in (Cuint, _Culong)
         $jltype, ($jltype, Cuint), x, i)
 end
 
+# TODO rename to any/all/same?
 @eval @device_function wfany(x::Cint) = ccall(
     $("extern __ockl_wfany_$(fntypes[Cint])"), llvmcall, Bool, (Cint,), x)
 @eval @device_function wfall(x::Cint) = ccall(
@@ -107,7 +108,7 @@ julia> Array(x)
 activelane()::Cuint = ccall("extern __ockl_activelane_u32", llvmcall, Cuint, ())
 
 """
-    ballot(predicate::Bool)::Cuint
+    ballot(predicate::Bool)::UInt64
 
 Return a value whose `N`th bit is set if and only if `predicate` evaluates to
 `true` for the `N`th lane and the lane is active.
@@ -119,24 +120,29 @@ julia> function ker!(x)
        end
 ker! (generic function with 1 method)
 
-julia> x = ROCArray{Cuint}(undef, 1);
+julia> x = ROCArray{Culong}(undef, 1);
 
 julia> @roc groupsize=32 ker!(x);
 
 julia> x
-1-element ROCArray{UInt32, 1, AMDGPU.Runtime.Mem.HIPBuffer}:
- 0xffffffff
+1-element ROCArray{UInt64, 1, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 0x00000000ffffffff
 ```
 """
-ballot(predicate::Bool)::Cuint = ccall(
-    "llvm.amdgcn.ballot", llvmcall, Cuint, (Bool,), predicate)
+function ballot(predicate::Bool)::UInt64
+    if wavefrontsize() == 32
+        UInt64(ccall("llvm.amdgcn.ballot", llvmcall, UInt32, (Bool,), predicate))
+    else
+        ccall("llvm.amdgcn.ballot.w64", llvmcall, UInt64, (Bool,), predicate)
+    end
+end
 
 """
-    activemask()::Cuint
+    activemask()::UInt64
 
 Get the mask of all active lanes in a warp.
 """
-activemask()::Cuint = ballot(true)
+activemask() = ballot(true)
 
 """
     bpermute(addr::Integer, val::Cint)::Cint
@@ -209,8 +215,8 @@ _shfl(op, x::UInt8) = op(Cint(x)) % UInt8
 _shfl(op, x::UInt16) = op(Cint(x)) % UInt16
 _shfl(op, x::UInt32) = reinterpret(UInt32, op(reinterpret(Cint, x)))
 _shfl(op, x::UInt64) =
-    (UInt64(op((x >>> 32) % Cint)) << 32) |
-    UInt64(op((x & typemax(UInt32)) % Cint))
+    (UInt64(_shfl(op, ((x >>> 32) % UInt32))) << 32) |
+    UInt64(_shfl(op, ((x & typemax(UInt32)) % UInt32)))
 _shfl(op, x::UInt128) =
     (UInt128(_shfl(op, (x >>> 64) % UInt64)) << 64) |
     UInt128(_shfl(op, ((x & typemax(UInt64)) % UInt64)))
@@ -227,13 +233,13 @@ _shfl(op, x::Float64) = reinterpret(Float64, _shfl(op, reinterpret(UInt64, x)))
 _shfl(op, x::Bool) = op(Cint(x)) % Bool
 _shfl(op, x::Complex) = Complex(_shfl(op, real(x)), _shfl(op, imag(x)))
 
-function shfl(val::Cint, lane, width = 32)
+function shfl(val::Cint, lane, width = wavefrontsize())
     self::Cint = activelane()
     index::Cint = (lane & (width - 0x1)) + (self & ~(width - 0x1))
     bpermute(index << 0x2, val)
 end
 
-function shfl_up(val::Cint, δ, width = 32)
+function shfl_up(val::Cint, δ, width = wavefrontsize())
     self::Cint = activelane()
     index::Cint = self - Cint(δ)
     # Check if `index` is lower than `self` partitioned by `width`.
@@ -241,14 +247,14 @@ function shfl_up(val::Cint, δ, width = 32)
     bpermute(index << 0x2, val)
 end
 
-function shfl_down(val::Cint, δ, width = 32)
+function shfl_down(val::Cint, δ, width = wavefrontsize())
     self::Cint = activelane()
     index::Cint = self + Cint(δ)
     index = ifelse((self & (width - 0x1)) + δ ≥ width, self, index)
     bpermute(index << 0x2, val)
 end
 
-function shfl_xor(val::Cint, lane_mask, width = 32)
+function shfl_xor(val::Cint, lane_mask, width = wavefrontsize())
     self::Cint = activelane()
     index::Cint = self ⊻ Cint(lane_mask)
     index = ifelse(index ≥ (self + width) & ~(width - 0x1), self, index)
@@ -256,7 +262,7 @@ function shfl_xor(val::Cint, lane_mask, width = 32)
 end
 
 """
-    shfl(val, lane, width = 32)
+    shfl(val, lane, width = wavefrontsize())
 
 Read data stored in `val` from a `lane`
 (this is a more high-level op than [`bpermute`](@ref)).
@@ -301,10 +307,10 @@ julia> Int.(x)
  1  2  3  0  5  6  7  4
 ```
 """
-@inline shfl(val, lane, width = 32) = _shfl(x -> shfl(x, lane, width), val)
+shfl(val, lane, width = wavefrontsize()) = _shfl(x -> shfl(x, lane, width), val)
 
 """
-    shfl_up(val, δ, width = 32)
+    shfl_up(val, δ, width = wavefrontsize())
 
 Same as [`shfl`](@ref), but instead of specifying lane ID,
 accepts `δ` that is subtracted from the current lane ID.
@@ -327,10 +333,10 @@ julia> x
  0  0  1  2  3  4  5  6
 ```
 """
-@inline shfl_up(val, δ, width = 32) = _shfl(x -> shfl_up(x, δ, width), val)
+shfl_up(val, δ, width = wavefrontsize()) = _shfl(x -> shfl_up(x, δ, width), val)
 
 """
-    shfl_down(val, δ, width = 32)
+    shfl_down(val, δ, width = wavefrontsize())
 
 Same as [`shfl`](@ref), but instead of specifying lane ID,
 accepts `δ` that is added to the current lane ID.
@@ -339,7 +345,7 @@ I.e. read from a lane with higher ID relative to the caller.
 ```jldoctest
 julia> function ker!(x)
            i = AMDGPU.Device.activelane()
-           x[i + 1] = AMDGPU.Device.shfl_down(i, 1)
+           x[i + 1] = AMDGPU.Device.shfl_down(i, 1, 8)
            return
        end
 ker! (generic function with 1 method)
@@ -351,11 +357,13 @@ julia> @roc groupsize=8 ker!(x);
 julia> x
 1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
  1  2  3  4  5  6  7  7
+```
 """
-@inline shfl_down(val, δ, width = 32) = _shfl(x -> shfl_down(x, δ, width), val)
+shfl_down(val, δ, width = wavefrontsize()) =
+    _shfl(x -> shfl_down(x, δ, width), val)
 
 """
-    shfl_xor(val, lane_mask, width = 32)
+    shfl_xor(val, lane_mask, width = wavefrontsize())
 
 Same as [`shfl`](@ref), but instead of specifying lane ID,
 performs bitwise XOR of the caller's lane ID with the `lane_mask`.
@@ -377,5 +385,15 @@ julia> x
  1  0  3  2  5  4  7  6
 ```
 """
-@inline shfl_xor(val, lane_mask, width = 32) =
+shfl_xor(val, lane_mask, width = wavefrontsize()) =
     _shfl(x -> shfl_xor(x, lane_mask, width), val)
+
+readfirstlane(val::Cint)::Cint = ccall(
+    "llvm.amdgcn.readfirstlane", llvmcall, Cint, (Cint,), val)
+
+"""
+    readfirstlane(val)
+
+Read a value stored in `val` from the first lane in the wavefront.
+"""
+readfirstlane(val) = _shfl(x -> readfirstlane(x), val)
