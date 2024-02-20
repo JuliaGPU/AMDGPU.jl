@@ -19,8 +19,11 @@ function versioninfo()
         "Available", "Name", "Version", "Path"],
         alignment=[:c, :l, :l, :l])
 
-    println()
-    display(AMDGPU.devices())
+    if functional(:hip)
+        println()
+        display(AMDGPU.devices())
+    end
+    return
 end
 
 """
