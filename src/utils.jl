@@ -1,17 +1,18 @@
 function versioninfo()
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
+    _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
     data = String[
-        _status(functional(:lld))         "LLD"              "-"                        _libpath(lld_path);
-        _status(functional(:device_libs)) "Device Libraries" "-"                        _libpath(libdevice_libs);
-        _status(functional(:hip))         "HIP"              "$(HIP.runtime_version())" _libpath(libhip);
-        _status(functional(:rocblas))     "rocBLAS"          "$(rocBLAS.version())"     _libpath(librocblas);
-        _status(functional(:rocsolver))   "rocSOLVER"        "$(rocSOLVER.version())"   _libpath(librocsolver);
-        _status(functional(:rocalution))  "rocALUTION"       "-"                        _libpath(librocalution);
-        _status(functional(:rocsparse))   "rocSPARSE"        "-"                        _libpath(librocsparse);
-        _status(functional(:rocrand))     "rocRAND"          "$(rocRAND.version())"     _libpath(librocrand);
-        _status(functional(:rocfft))      "rocFFT"           "$(rocFFT.version())"      _libpath(librocfft);
-        _status(functional(:MIOpen))      "MIOpen"           "$(MIOpen.version())"      _libpath(libMIOpen_path);
+        _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_path);
+        _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
+        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
+        _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
+        _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
+        _status(functional(:rocalution))  "rocALUTION"       "-"                                 _libpath(librocalution);
+        _status(functional(:rocsparse))   "rocSPARSE"        "-"                                 _libpath(librocsparse);
+        _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
+        _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
+        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
     ]
 
     PrettyTables.pretty_table(data; header=[
