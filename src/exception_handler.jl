@@ -39,16 +39,16 @@ struct ExceptionHolder
         n_buffers = 50
         n_str_buffers = 100
 
-        exception_flag = Mem.HostBuffer(sizeof(Int32), HIP.hipHostAllocMapped)
+        exception_flag = Mem.HostBuffer(sizeof(Int32), HIP.hipHostAllocDefault)
         gate = ROCArray(UInt64[0])
         buffers_counter = ROCArray(Int32[0])
         str_buffers_counter = ROCArray(Int32[0])
 
         errprintf_buffers = [
-            Mem.HostBuffer(buf_len, HIP.hipHostAllocMapped)
+            Mem.HostBuffer(buf_len, HIP.hipHostAllocDefault)
             for _ in 1:n_buffers]
         str_buffers = [
-            Mem.HostBuffer(str_len, HIP.hipHostAllocMapped)
+            Mem.HostBuffer(str_len, HIP.hipHostAllocDefault)
             for _ in 1:n_str_buffers]
 
         errprintf_buffers_dev = ROCArray(Mem.device_ptr.(errprintf_buffers))

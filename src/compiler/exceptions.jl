@@ -10,7 +10,7 @@ const _exception_flags = Dict{HIP.HIPDevice, Mem.HostBuffer}()
 
 function create_exception!(mod::HIP.HIPModule)
     exception_flag = get!(_exception_flags, mod.dev,
-        Mem.HostBuffer(sizeof(Int), HIP.hipHostAllocMapped))
+        Mem.HostBuffer(sizeof(Int), HIP.hipHostAllocDefault))
     return Mem.device_ptr(exception_flag)
 end
 
