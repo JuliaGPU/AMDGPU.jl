@@ -2,6 +2,7 @@ module HIP
 
 using CEnum
 import Preferences
+import PrettyTables
 
 import ..AMDGPU
 import ..AMDGPU.libhip

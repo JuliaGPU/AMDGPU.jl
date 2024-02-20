@@ -1,60 +1,25 @@
-function versioninfo(io::IO=stdout)
+function versioninfo()
     _status(st::Bool) = st ? "+" : "-"
-    function _lib_title(name::String, sym::Symbol; version_fn::Function)
-        st = _status(functional(sym))
-        ver = (functional(sym) && version_fn ≢ identity) ? "v$(version_fn())" : ""
-        "[$st] $name $ver"
-    end
+    _libpath(p::String) = isempty(p) ? "-" : p
+    data = String[
+        _status(functional(:lld))         "LLD"              "-"                        _libpath(lld_path);
+        _status(functional(:device_libs)) "Device Libraries" "-"                        _libpath(libdevice_libs);
+        _status(functional(:hip))         "HIP"              "$(HIP.runtime_version())" _libpath(libhip);
+        _status(functional(:rocblas))     "rocBLAS"          "$(rocBLAS.version())"     _libpath(librocblas);
+        _status(functional(:rocsolver))   "rocSOLVER"        "$(rocSOLVER.version())"   _libpath(librocsolver);
+        _status(functional(:rocalution))  "rocALUTION"       "-"                        _libpath(librocalution);
+        _status(functional(:rocsparse))   "rocSPARSE"        "-"                        _libpath(librocsparse);
+        _status(functional(:rocrand))     "rocRAND"          "$(rocRAND.version())"     _libpath(librocrand);
+        _status(functional(:rocfft))      "rocFFT"           "$(rocFFT.version())"      _libpath(librocfft);
+        _status(functional(:MIOpen))      "MIOpen"           "$(MIOpen.version())"      _libpath(libMIOpen_path);
+    ]
 
-    println("ROCm provided by: ", use_artifacts() ? "JLLs" : "system")
-    println("[$(_status(functional(:lld)))] ld.lld")
-    if functional(:lld)
-        println("    @ $lld_path")
-    end
-    println("[$(_status(functional(:device_libs)))] ROCm-Device-Libs")
-    if functional(:device_libs)
-        println("    @ $libdevice_libs")
-    end
-    println(_lib_title("HIP Runtime", :hip; version_fn=HIP.runtime_version))
-    if functional(:hip)
-        println("    @ $libhip")
-    end
-    println(_lib_title("rocBLAS", :rocblas; version_fn=rocBLAS.version))
-    if functional(:rocblas)
-        println("    @ $librocblas")
-    end
-    println(_lib_title("rocSOLVER", :rocsolver; version_fn=rocSOLVER.version))
-    if functional(:rocsolver)
-        println("    @ $librocsolver")
-    end
-    println("[$(_status(functional(:rocalution)))] rocALUTION")
-    if functional(:rocalution)
-        println("    @ $librocalution")
-    end
-    println("[$(_status(functional(:rocsparse)))] rocSPARSE")
-    if functional(:rocsparse)
-        println("    @ $librocsparse")
-    end
-    println(_lib_title("rocRAND", :rocrand; version_fn=rocRAND.version))
-    if functional(:rocrand)
-        println("    @ $librocrand")
-    end
-    println(_lib_title("rocFFT", :rocfft; version_fn=rocFFT.version))
-    if functional(:rocfft)
-        println("    @ $librocfft")
-    end
-    println(_lib_title("MIOpen", :MIOpen; version_fn=MIOpen.version))
-    if functional(:MIOpen)
-        println("    @ $libMIOpen_path")
-    end
+    PrettyTables.pretty_table(data; header=[
+        "Available", "Name", "Version", "Path"],
+        alignment=[:c, :l, :l, :l])
 
-    if functional(:hip)
-        println()
-        println("HIP Devices [$(length(HIP.devices()))]")
-        for (i, device) in enumerate(HIP.devices())
-            println("    $i. ", repr(device))
-        end
-    end
+    println()
+    display(AMDGPU.devices())
 end
 
 """

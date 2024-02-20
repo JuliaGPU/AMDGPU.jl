@@ -153,6 +153,15 @@ function Base.show(io::IO, stream::HIPStream)
     print(io, "HIPStream(device=$(stream.device), ptr=$(repr(UInt64(stream.stream))), priority=$(stream.priority))")
 end
 
+function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, stream::HIPStream)
+    data = reshape([
+        "$(repr(UInt64(stream.stream)))",
+        "$(stream.priority)",
+        "$(stream.device)",
+    ], 1, :)
+    PrettyTables.pretty_table(io, data; header=["Ptr", "Priority", "Device"])
+end
+
 function priority_to_symbol(priority)
     priority ==  0 && return :normal
     priority == -1 && return :high

@@ -96,10 +96,6 @@ function attribute(dev::HIPDevice, attr)
     v[]
 end
 
-function Base.show(io::IO, dev::HIPDevice)
-    print(io, "HIPDevice(name=\"$(name(dev))\", id=$(dev.device_id), gcn_arch=$(dev.gcn_arch))")
-end
-
 function ndevices()
     count_ref = Ref{Cint}()
     hipGetDeviceCount(count_ref) |> check
@@ -148,4 +144,30 @@ function can_access_peer(dev::HIPDevice, peer::HIPDevice)
     result = Ref{Cint}(0)
     hipDeviceCanAccessPeer(result, device_id(dev), device_id(peer)) |> check
     return result[] == 1
+end
+
+# Pretty-printing.
+
+function Base.show(io::IO, dev::HIPDevice)
+    print(io, "HIPDevice(id=$(dev.device_id), name=$(name(dev)), gcn_arch=$(dev.gcn_arch))")
+end
+
+function __pretty_data(dev::HIPDevice)
+    props = properties(dev)
+    name_ptr = pointer([props.name...])
+    name = unsafe_string(name_ptr)
+    reshape(String[
+        "$(dev.device_id)", name, "$(dev.gcn_arch)",
+        "$(dev.wavefrontsize)", "$(Base.format_bytes(props.totalGlobalMem))",
+    ], 1, :)
+end
+
+function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, dev::HIPDevice)
+    PrettyTables.pretty_table(io, __pretty_data(dev); header=[
+        "Id", "Name", "GCN arch", "Wavefront", "Memory"])
+end
+
+function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, devs::Vector{HIPDevice})
+    PrettyTables.pretty_table(io, vcat(__pretty_data.(devs)...); header=[
+        "Id", "Name", "GCN arch", "Wavefront", "Memory"])
 end
