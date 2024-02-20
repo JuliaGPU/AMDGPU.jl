@@ -10,8 +10,9 @@ using Preferences
 using Printf
 
 import Atomix: @atomic, @atomicswap, @atomicreplace
-import LinearAlgebra
 import Core: LLVMPtr
+import LinearAlgebra
+import PrettyTables
 
 const Maybe{T} = Union{Nothing, T}
 
