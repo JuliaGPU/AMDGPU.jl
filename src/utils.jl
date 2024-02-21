@@ -1,4 +1,5 @@
 function versioninfo()
+    @info "AMDGPU versioninfo"
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
@@ -21,6 +22,7 @@ function versioninfo()
 
     if functional(:hip)
         println()
+        @info "AMDGPU devices"
         display(AMDGPU.devices())
     end
     return

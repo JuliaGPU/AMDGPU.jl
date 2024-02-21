@@ -90,7 +90,6 @@ end
 
 const TARGET_TESTS = isempty(ARGS) ? TEST_NAMES : ARGS
 
-
 # Run tests in parallel.
 np = set_jobs ? jobs : (Sys.CPU_THREADS ÷ 2)
 # Limit to 2 workers, otherwise unfortunate things happen.
@@ -100,11 +99,11 @@ np = min(np, length(TARGET_TESTS))
 InteractiveUtils.versioninfo()
 AMDGPU.versioninfo()
 
-data = String["$np" "$(AMDGPU.device())" "$(TARGET_TESTS)";]
+@info "Test suite info"
+data = String["$np" "$(AMDGPU.device())" join(TARGET_TESTS, ", ");]
 PrettyTables.pretty_table(data; header=[
-    "Workers", "Device", "Tests"])
+    "Workers", "Device", "Tests"], crop=:none)
 
-CI = parse(Bool, get(ENV, "CI", "false"))
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
     for tt in TARGET_TESTS
         startswith(ti.name, tt) && return true
