@@ -1,4 +1,4 @@
-@testitem "hip - extra" begin
+@testitem "hip - rocFFT" begin
 
 using Test
 using LinearAlgebra
@@ -9,14 +9,6 @@ import AMDGPU: @allowscalar
 
 Random.seed!(1)
 AMDGPU.allowscalar(false)
-
-if AMDGPU.functional(:rocsolver)
-    include("rocarray/solver.jl")
-end
-
-if AMDGPU.functional(:rocsparse)
-    include("rocsparse/rocsparse.jl")
-end
 
 # TODO rocFFT needs an update to work with ROCm 6.0+.
 if HIP.runtime_version() ≥ v"6-"
