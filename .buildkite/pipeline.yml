@@ -42,6 +42,20 @@ steps:
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
+  - label: "GPU-less environment"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "1.10"
+      - JuliaCI/julia-test#v1:
+          run_tests: false
+    command: |
+      julia --project -e '
+        using AMDGPU
+        @assert !AMDGPU.functional()
+    agents:
+      queue: "juliagpu"
+      intel: "*"
+
 env:
   JULIA_AMDGPU_LOGGING_ENABLED: true
   SECRET_CODECOV_TOKEN: "lVqFGgrywYmQrILXBcP8i6TosP+q/W2oTDVLIdkWFWscd/a61oSVb8Tycq3qvngsrdmKU9EevdQo+1x+w7cu4IuTq63ahQc0RFgi4Q29hC52OgN2wFql984Cqq3T96P3jyV0ZljaRT+a+9AY0oWmmCph55amvvQ4DOMq3tfGDbp7gdueQvJmSYQGVT3/9Sjn4/esYppcKBGltQqQX2E7WrHLpnqRmsmjcSeZ/S/+PgPRb4ZnpBecAUP2d/MlPgKfP0ZUGbDlcbGu+ZDZNksxKIYuAlNrWPhpNAro7hACfEk4T5RRpNiwmJyXJZ8LUD8zNYIUKSmHjUtmqhNXgujWXA==;U2FsdGVkX1/v/P2Y7KZsvC55Au6eET37uDE6M5I6J275maix+SMD0EoJQ19cFp/lae+G8V7dvpPGfrh4hj2nOg=="
