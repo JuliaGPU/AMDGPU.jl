@@ -15,7 +15,7 @@ For example, using non-blocking synchronization instead of blocking with
 `AMDGPU.synchronize(; blocking=false)` (which is also the default).
 
 To stop hostcalls after synchronization, provide `stop_hostcalls=true`
-keyword argument, otherwise the performance might degarde
+keyword argument, otherwise the performance might degrade
 because of constant pooling of HSA signals in a loop.
 
 ## Example
