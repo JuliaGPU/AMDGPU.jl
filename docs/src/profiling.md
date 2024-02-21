@@ -1,6 +1,7 @@
 ## rocprof
 
-rocprof allows profiling both HSA & HIP API calls.
+[rocprofv2](https://github.com/ROCm/rocprofiler?tab=readme-ov-file#rocprofiler-v2)
+allows profiling both HSA & HIP API calls (rocprof being deprecated).
 
 Let's profile simple copying kernel saved in `profile.jl` file:
 ```julia
@@ -34,10 +35,10 @@ main(2^24)
 ```
 
 ```bash
-ENABLE_JITPROFILING=1 rocprof --hip-trace --hsa-trace julia ./profile.jl
+ENABLE_JITPROFILING=1 rocprofv2 --plugin perfetto --hip-trace --hsa-trace --kernel-trace -o prof julia ./profile.jl
 ```
 
-This will produce `results.json` (among other files) which can be visualized
+This will produce `prof_output.pftrace` file which can be visualized
 using [Perfetto UI](https://ui.perfetto.dev/).
 
 |Zoomed out|Zoomed in|
@@ -60,7 +61,7 @@ We can fix this by moving synchronization outside the loop so that it happens on
 
 Running profiling again and visualizing results we now see that
 kernel launches are adjacent to each other and that the average
-wall duaration is lower.
+wall duration is lower.
 
 |Zoomed out|Zoomed in|
 |:---:|:---:|
