@@ -51,7 +51,7 @@ steps:
     command: |
       julia --project -e '
         using AMDGPU
-        @assert AMDGPU.functional()'
+        @assert !AMDGPU.functional()'
     agents:
       queue: "juliagpu"
       intel: "*"
