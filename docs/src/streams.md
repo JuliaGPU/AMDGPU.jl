@@ -65,7 +65,7 @@ with `nonblocking_synchronization`
 or with fine-grained `AMDGPU.synchronize(; blocking=true)`.
 Blocking synchronization might offer slightly lower latency.
 
-You can also perform synchroization of the expression with
+You can also perform synchronization of the expression with
 [`AMDGPU.@sync`](@ref) macro, which will execute given expression and
 synchronize afterwards (using [`AMDGPU.synchronize`](@ref) under the hood).
 
