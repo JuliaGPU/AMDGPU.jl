@@ -2,6 +2,7 @@ using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
 import AMDGPU.Device: HostCallHolder, hostcall!
 
+import PrettyTables
 import InteractiveUtils
 using LinearAlgebra
 using ReTestItems
@@ -89,17 +90,19 @@ end
 
 const TARGET_TESTS = isempty(ARGS) ? TEST_NAMES : ARGS
 
-@info "Running following tests: $TARGET_TESTS."
 
 # Run tests in parallel.
 np = set_jobs ? jobs : (Sys.CPU_THREADS ÷ 2)
 # Limit to 2 workers, otherwise unfortunate things happen.
 np = clamp(np, 1, 2)
+np = min(np, length(TARGET_TESTS))
 
-@info "Running tests with $np workers."
-@info "Testing using device $(AMDGPU.device())."
 InteractiveUtils.versioninfo()
 AMDGPU.versioninfo()
+
+data = String["$np" "$(AMDGPU.device())" "$(TARGET_TESTS)";]
+PrettyTables.pretty_table(data; header=[
+    "Workers", "Device", "Tests"])
 
 CI = parse(Bool, get(ENV, "CI", "false"))
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
