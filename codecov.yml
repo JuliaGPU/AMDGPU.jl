@@ -1,0 +1,9 @@
+coverage:
+  ignore:
+    - "src/*/lib*.jl"
+    - "src/device"
+    - "docs/"
+  status:
+    patch: false
+    project: false
+    changes: false
