@@ -986,7 +986,7 @@ for (mmname, smname, elty) in
             $(mmname)(
                 handle, side, uplo, transa, diag, m, n, Ref(alpha),
                 A, lda, B, ldb, C, ldc) |> check
-            B
+            C
         end
         function trmm(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
