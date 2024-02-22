@@ -58,7 +58,7 @@ julia> Pkg.test("AMDGPU"; test_args=["core", "kernelabstractions"])
 
 Full list of tests to run can be obtained with `--list` argument:
 
-```
+```julia
 julia> Pkg.test("AMDGPU"; test_args=["--list"])
 ```
 
