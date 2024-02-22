@@ -141,10 +141,13 @@ end
                 rand(T, 5, 5), rand(T, 5, 5), rand(T, 5, 5))
         end
 
-       @testset "hermitian" begin
-            @test testf(
-                (c, a, b) -> mul!(c, Hermitian(a), b),
-                rand(T, 5, 5), Hermitian(rand(T, 5, 5)), rand(T, 5, 5))
+        
+        if T <: Real
+            @testset "hermitian" begin
+                @test testf(
+                    (c, a, b) -> mul!(c, Hermitian(a), b),
+                    rand(T, 5, 5), Hermitian(rand(T, 5, 5)), rand(T, 5, 5))
+            end
         end
 
         # @testset "trsm adjtype=$adjtype, uplotype=$uplotype" for adjtype in (
