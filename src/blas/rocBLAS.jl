@@ -2,9 +2,11 @@ module rocBLAS
 
 using ..AMDGPU
 import AMDGPU: librocblas, AnyROCArray, StridedROCVector, StridedROCMatrix
+import AMDGPU: StridedROCVecOrMat, StridedROCArray
 import AMDGPU: HandleCache, HIP, library_state
 import .HIP: HIPContext, HIPStream, hipStream_t, hipEvent_t
 
+using GPUArrays
 using LinearAlgebra
 using LinearAlgebra: AdjOrTrans, MulAddMul
 if VERSION ≥ v"1.10-"

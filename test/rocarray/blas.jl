@@ -140,29 +140,72 @@ end
                 (c, a, b) -> mul!(c, f(a), g(b), Ts(1), Ts(1)),
                 rand(T, 5, 5), rand(T, 5, 5), rand(T, 5, 5))
         end
+    end
 
-        
-        if T <: Real
-            @testset "hermitian" begin
-                @test testf(
-                    (c, a, b) -> mul!(c, Hermitian(a), b),
-                    rand(T, 5, 5), Hermitian(rand(T, 5, 5)), rand(T, 5, 5))
-            end
+    @testset for T in (Float32, Float64, ComplexF32, ComplexF64)
+        @testset "hermitian" begin
+            @test testf(
+                (c, a, b) -> mul!(c, Hermitian(a), b),
+                rand(T, 5, 5), Hermitian(rand(T, 5, 5)), rand(T, 5, 5))
         end
 
-        # @testset "trsm adjtype=$adjtype, uplotype=$uplotype" for adjtype in (
-        #     identity, adjoint, transpose,
-        # ), uplotype in (
-        #     UpperTriangular, LowerTriangular,
-        #     UnitUpperTriangular, UnitLowerTriangular,
-        # )
-        #     @test testf(
-        #         (a, b) -> adjtype(uplotype(a)) \ b,
-        #         triu(rand(T, m, m)), rand(T, m, n))
-        #     @test testf(
-        #         (a, b) -> b / adjtype(uplotype(a)),
-        #         triu(rand(T, m, m)), rand(T, n, m))
-        # end
+        @testset "trsm ($T, $adjtype, $uplotype)" for adjtype in (
+            identity, adjoint, transpose,
+        ), uplotype in (
+            UpperTriangular, LowerTriangular,
+            UnitUpperTriangular, UnitLowerTriangular,
+        )
+            @test testf(
+                (a, b) -> adjtype(uplotype(a)) \ b,
+                triu(rand(T, m, m)), rand(T, m, n))
+            @test testf(
+                (a, b) -> b / adjtype(uplotype(a)),
+                triu(rand(T, m, m)), rand(T, n, m))
+        end
+
+        @testset "triangular-dense mul ($T, $adjtype, $uplotype)" for adjtype in (
+            identity, adjoint, transpose,
+        ), uplotype in (
+            UpperTriangular, LowerTriangular,
+            UnitUpperTriangular, UnitLowerTriangular,
+        )
+            A = rand(T, m, m)
+            A = A + transpose(A)
+
+            @test testf(
+                (c, a, b) -> mul!(c, adjtype(uplotype(a)), b),
+                zeros(T, m, n), A, rand(T, m, n))
+            @test testf(
+                (c, a, b) -> mul!(c, b, adjtype(uplotype(a))),
+                zeros(T, n, m), A, rand(T, n, m))
+        end
+
+        @testset "triangular-triangular mul"  for (TRa, ta, TRb, tb) in (
+            (UpperTriangular, identity,  LowerTriangular, identity),
+            (LowerTriangular, identity,  UpperTriangular, identity),
+            (UpperTriangular, identity,  UpperTriangular, transpose),
+            (UpperTriangular, transpose, UpperTriangular, identity),
+            (LowerTriangular, identity,  LowerTriangular, transpose),
+            (LowerTriangular, transpose, LowerTriangular, identity),
+        )
+            A = rand(T, m, m)
+            A = A + transpose(A)
+            B = rand(T, m, m)
+            B = B + transpose(B)
+
+            @test testf(
+                (c, a, b) -> mul!(c, ta(TRa(a)), tb(TRb(b))),
+                rand(T, m, m), A, B)
+        end
+
+        @testset "Diagonal mul" begin
+            @test testf(
+                (c, a, b) -> mul!(c, Diagonal(a), b),
+                zeros(T, m, m), rand(T, m, m), rand(T, m, m))
+            @test testf(
+                (c, a, b) -> mul!(c, a, Diagonal(b)),
+                zeros(T, m, m), rand(T, m, m), rand(T, m, m))
+        end
     end
 
     @testset "gemm()" begin
@@ -231,28 +274,6 @@ end
                     (at == 'T' ? transpose(hA[:, :, i]) : hA[:, :, i]) *
                     (bt == 'T' ? transpose(hB[:, :, 1]) : hB[:, :, 1])
                 @test hC[:, :, i] ≈ c
-            end
-        end
-    end
-
-    @testset "triangular mul/div" begin
-        for T in (Float32, Float64)
-            A = triu(rand(T, 20, 20))
-            B = rand(T, 20, 20)
-            b = rand(T, 20)
-
-            for t in (identity, transpose, adjoint), TR in (
-                UpperTriangular, LowerTriangular,
-                UnitUpperTriangular, UnitLowerTriangular,
-            )
-                @test testf((a, b) -> ldiv!(t(TR(a)), b),
-                    A, copy(B))
-                @test testf((a, b) -> rdiv!(b, t(TR(a))),
-                    A, copy(B))
-                @test testf((a, b) -> lmul!(t(TR(a)), b),
-                    A, copy(B))
-                @test testf((a, b) -> rmul!(b, t(TR(a))),
-                    A, copy(B))
             end
         end
     end

@@ -192,16 +192,14 @@ end
 # BLAS 3
 #
 
-########
-# GEMM
-########
-function gemm_wrapper!(
-    C::ROCVecOrMat{T}, tA::Char, tB::Char,
-    A::ROCVecOrMat{T}, B::ROCVecOrMat{T},
-    alpha = one(T), beta = zero(T),
-) where T <: ROCBLASFloatWithHalf
-    mA, nA = rocblas_size(tA, A)
-    mB, nB = rocblas_size(tB, B)
+function LinearAlgebra.generic_matmatmul!(
+    C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat,
+    B::StridedROCVecOrMat, _add::MulAddMul,
+)
+    T = eltype(C)
+    alpha, beta = _add.alpha, _add.beta
+    mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
+    mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
 
     nA != mB && throw(DimensionMismatch(
         "A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
@@ -213,114 +211,97 @@ function gemm_wrapper!(
             "C has dimensions $(size(C)), should have ($mA,$nB)"))
         return LinearAlgebra.rmul!(C, 0)
     end
-    gemm!(tA, tB, alpha, A, B, beta, C)
+
+    if alpha isa Union{Bool, T} && beta isa Union{Bool, T}
+        α, β = T(alpha), T(beta)
+
+        if (
+            all(in(('N', 'T', 'C')), (tA, tB)) && T <: ROCBLASFloat &&
+            A isa StridedROCArray{T} && B isa StridedROCArray{T}
+        )
+            return gemm!(tA, tB, α, A, B, β, C)
+        elseif (tA == 'S' || tA == 's') && tB == 'N'
+            return symm!('L', tA == 'S' ? 'U' : 'L', α, A, B, β, C)
+        elseif (tB == 'S' || tB == 's') && tA == 'N'
+            return symm!('R', tB == 'S' ? 'U' : 'L', α, B, A, β, C)
+        elseif (tA == 'H' || tA == 'h') && tB == 'N'
+            return hemm!('L', tA == 'H' ? 'U' : 'L', α, A, B, β, C)
+        elseif (tB == 'H' || tB == 'h') && tA == 'N'
+            return hemm!('R', tB == 'H' ? 'U' : 'L', α, B, A, β, C)
+        end
+    end
+
+    GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
 end
 
-# Mutating
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCVecOrMat{T}, B::ROCVecOrMat{T}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'N', 'N', A, B, alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'T', 'N', parent(trA), B, alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'N', 'T', A, parent(trB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, B::ROCMatrix{T}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'T', 'N', parent(adjA), B, alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, B::ROCMatrix{T}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'C', 'N', parent(adjA), B, alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'N', 'T', A, parent(adjB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, A::ROCMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'N', 'C', A, parent(adjB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{T, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{T, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T<:ROCBLASReal =
-    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB), alpha, beta)
-LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:ROCMatrix{T}}, alpha::T = one(T), beta::T = zero(T)) where T <: ROCBLASFloatWithHalf =
-    gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB), alpha, beta)
+if VERSION ≥ v"1.10-"
+    LinearAlgebra.generic_trimatmul!(
+        C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
+        A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
+    ) where T <: ROCBLASFloat = trmm!(
+        'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+        isunitc, one(T), A, B, C)
 
+    LinearAlgebra.generic_mattrimul!(
+        C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
+        A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
+    ) where T <: ROCBLASFloat = trmm!(
+        'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+        isunitc, one(T), B, A, C)
 
-########
-# TRSM
-########
+    const AdjOrTransOrROCMatrix{T} = Union{
+        StridedROCMatrix{T}, AdjOrTrans{<: T, <: StridedROCMatrix}}
 
-# TODO requires ROCm 5.6 for out-of-place trmm:
-# https://rocm.docs.amd.com/projects/rocBLAS/en/latest/API_Reference_Guide.html#announced-in-rocblas-3-0
-#
-# if VERSION ≥ v"1.10-"
-#     LinearAlgebra.generic_trimatmul!(
-#         C::ROCMatrix{T}, uploc, isunitc, tfun::Function,
-#         A::ROCMatrix{T}, B::ROCMatrix{T},
-#     ) where T <: ROCBLASFloat = trmm!(
-#         'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-#         isunitc, one(T), A, B, C)
+    function LinearAlgebra.generic_trimatmul!(
+        C::StridedROCMatrix{T}, uplocA, isunitcA,
+        tfunA::Function, A::StridedROCMatrix{T},
+        triB::UpperOrLowerTriangular{T, <: AdjOrTransOrROCMatrix{T}},
+    ) where T <: ROCBLASFloat
+        uplocB = LinearAlgebra.uplo_char(triB)
+        isunitcB = LinearAlgebra.isunit_char(triB)
+        B = parent(triB)
+        tfunB = LinearAlgebra.wrapperop(B)
+        transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
+        transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
+        if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
+            triu!(B)
+            trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+        elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
+            tril!(B)
+            trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+        elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
+            # operation is reversed to avoid executing the tranpose
+            triu!(A)
+            trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
+        elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
+            tril!(B)
+            trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+        elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
+            triu!(B)
+            trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+        elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
+            tril!(A)
+            trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
+        else
+            throw("mixed triangular-triangular multiplication") # TODO: rethink
+        end
+        return C
+    end
 
-#     LinearAlgebra.generic_mattrimul!(
-#         C::ROCMatrix{T}, uploc, isunitc, tfun::Function,
-#         A::ROCMatrix{T}, B::ROCMatrix{T},
-#     ) where T <: ROCBLASFloat = trmm!(
-#         'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-#         isunitc, one(T), B, A, C)
+    LinearAlgebra.generic_trimatdiv!(
+        C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
+        A::StridedROCMatrix{T}, B::AbstractMatrix{T},
+    ) where T <: ROCBLASFloat = trsm!(
+        'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+        isunitc, one(T), A, C === B ? C : copyto!(C, B))
 
-#     # tri-tri-mul!
-#     const AdjOrTransOrROCMatrix{T} = Union{ROCMatrix{T}, AdjOrTrans{<:T,<:ROCMatrix}}
-
-#     function LinearAlgebra.generic_trimatmul!(
-#         C::ROCMatrix{T}, uplocA, isunitcA, tfunA::Function,
-#         A::ROCMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrROCMatrix{T}},
-#     ) where T <: ROCBLASFloat
-#         uplocB = LinearAlgebra.uplo_char(triB)
-#         isunitcB = LinearAlgebra.isunit_char(triB)
-#         B = parent(triB)
-#         tfunB = LinearAlgebra.wrapperop(B)
-#         transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
-#         transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
-#         if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
-#             triu!(B)
-#             trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-#         elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
-#             tril!(B)
-#             trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-#         elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
-#             # operation is reversed to avoid executing the tranpose
-#             triu!(A)
-#             trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
-#         elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
-#             tril!(B)
-#             trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-#         elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
-#             triu!(B)
-#             trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-#         elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
-#             tril!(A)
-#             trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
-#         else
-#             throw("mixed triangular-triangular multiplication") # TODO: rethink
-#         end
-#         return C
-#     end
-
-#     LinearAlgebra.generic_trimatdiv!(
-#         C::ROCMatrix{T}, uploc, isunitc, tfun::Function,
-#         A::ROCMatrix{T}, B::AbstractMatrix{T},
-#     ) where T <: ROCBLASFloat = trsm!(
-#         'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-#         isunitc, one(T), A, C === B ? C : copyto!(C, B))
-
-#     LinearAlgebra.generic_mattridiv!(
-#         C::ROCMatrix{T}, uploc, isunitc, tfun::Function,
-#         A::AbstractMatrix{T}, B::ROCMatrix{T},
-#     ) where T <: ROCBLASFloat = trsm!(
-#         'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-#         isunitc, one(T), B, C === A ? C : copyto!(C, A))
-# else
+    LinearAlgebra.generic_mattridiv!(
+        C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
+        A::AbstractMatrix{T}, B::StridedROCMatrix{T},
+    ) where T <: ROCBLASFloat = trsm!(
+        'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+        isunitc, one(T), B, C === A ? C : copyto!(C, A))
+else
     for (t, uploc, isunitc) in (
         (:LowerTriangular, 'L', 'N'),
         (:UnitLowerTriangular, 'L', 'U'),
@@ -328,14 +309,26 @@ LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatr
         (:UnitUpperTriangular, 'U', 'U'),
     )
         @eval begin
-        LinearAlgebra.lmul!(A::$t{T, <: ROCMatrix}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+        LinearAlgebra.lmul!(
+            A::$t{T, <: StridedROCMatrix},
+            B::StridedROCMatrix{T},
+        ) where T <: ROCBLASFloat =
             trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, B)
-        LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{T, <: ROCMatrix}) where T <: ROCBLASFloat =
+        LinearAlgebra.rmul!(
+            A::StridedROCMatrix{T},
+            B::$t{T, <: StridedROCMatrix},
+        ) where T <: ROCBLASFloat =
             trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, A)
 
-        LinearAlgebra.ldiv!(A::$t{T, <: ROCMatrix}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+        LinearAlgebra.ldiv!(
+            A::$t{T, <: StridedROCMatrix},
+            B::StridedROCMatrix{T},
+        ) where T <: ROCBLASFloat =
             trsm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B)
-        LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{T, <: ROCMatrix}) where T <: ROCBLASFloat =
+        LinearAlgebra.rdiv!(
+            A::StridedROCMatrix{T},
+            B::$t{T, <: StridedROCMatrix},
+        ) where T <: ROCBLASFloat =
             trsm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
         end
     end
@@ -349,35 +342,71 @@ LinearAlgebra.mul!(C::ROCMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:ROCMatr
     )
         @eval begin
         # Multiplication.
-        LinearAlgebra.lmul!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+        LinearAlgebra.lmul!(
+            A::$t{<: Any, <: Transpose{T, <: StridedROCMatrix}},
+            B::StridedROCMatrix{T},
+        ) where T <: ROCBLASFloat =
             trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
-        LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+        LinearAlgebra.lmul!(
+            A::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
+            B::StridedROCMatrix{T},
+        ) where T <: ROCBLASFloat =
             trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
-        LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASComplex =
+        LinearAlgebra.lmul!(
+            A::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
+            B::StridedROCMatrix{T},
+        ) where T <: ROCBLASComplex =
             trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, B)
 
-        LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Transpose{T, <: ROCMatrix}}) where T <: ROCBLASFloat =
+        LinearAlgebra.rmul!(
+            A::StridedROCMatrix{T},
+            B::$t{<: Any, <: Transpose{T, <: StridedROCMatrix}},
+        ) where T <: ROCBLASFloat =
             trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
-        LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}) where T <: ROCBLASFloat =
+        LinearAlgebra.rmul!(
+            A::StridedROCMatrix{T},
+            B::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
+        ) where T <: ROCBLASFloat =
             trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
-        LinearAlgebra.rmul!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}) where T <: ROCBLASComplex =
+        LinearAlgebra.rmul!(
+            A::StridedROCMatrix{T},
+            B::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
+        ) where T <: ROCBLASComplex =
             trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, A)
 
         # Left division.
-        LinearAlgebra.ldiv!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+        LinearAlgebra.ldiv!(
+            A::$t{<: Any, <: Transpose{T, <: StridedROCMatrix}},
+            B::StridedROCMatrix{T},
+        ) where T <: ROCBLASFloat =
             trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-        LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASFloat =
+        LinearAlgebra.ldiv!(
+            A::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
+            B::StridedROCMatrix{T},
+        ) where T <: ROCBLASFloat =
             trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-        LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCMatrix{T}) where T <: ROCBLASComplex =
+        LinearAlgebra.ldiv!(
+            A::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
+            B::StridedROCMatrix{T},
+        ) where T <: ROCBLASComplex =
             trsm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B)
 
         # Right division.
-        LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Transpose{T, <: ROCMatrix}}) where T <: ROCBLASFloat =
+        LinearAlgebra.rdiv!(
+            A::StridedROCMatrix{T},
+            B::$t{<: Any, <: Transpose{T, <: StridedROCMatrix}},
+        ) where T <: ROCBLASFloat =
             trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-        LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}) where T <: ROCBLASFloat =
+        LinearAlgebra.rdiv!(
+            A::StridedROCMatrix{T},
+            B::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
+        ) where T <: ROCBLASFloat =
             trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-        LinearAlgebra.rdiv!(A::ROCMatrix{T}, B::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}) where T <: ROCBLASComplex =
+        LinearAlgebra.rdiv!(
+            A::StridedROCMatrix{T},
+            B::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
+        ) where T <: ROCBLASComplex =
             trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
         end
     end
-# end
+end
