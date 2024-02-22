@@ -1,6 +1,6 @@
 module HSA
 
-include("LibHSARuntime.jl")
+include("libHSA.jl")
 
 # Forward prefixed names
 hsa_names = map(string, names(LibHSARuntime))

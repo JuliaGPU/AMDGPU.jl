@@ -8,7 +8,7 @@ import AMDGPU: libMIOpen_path
 import AMDGPU.Runtime.Mem # TODO remove?
 import .HIP: hipStream_t
 
-include("low_level.jl")
+include("libMIOpen.jl")
 
 const STATUS_DESCRIPTORS = Dict(
     miopenStatusSuccess => "Success",

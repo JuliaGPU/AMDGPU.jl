@@ -1,4 +1,4 @@
-@testitem "hip - core" begin
+@testitem "hip - core" setup=[TSCore] begin
 
 using Test
 using LinearAlgebra
@@ -30,16 +30,6 @@ if length(AMDGPU.devices()) > 1
         dev1, dev2, _ = AMDGPU.devices()
         @test AMDGPU.HIP.can_access_peer(dev1, dev2) isa Bool
     end
-end
-
-if AMDGPU.functional(:rocblas)
-    include("rocarray/blas.jl")
-end
-if AMDGPU.functional(:MIOpen)
-    include("dnn/miopen.jl")
-end
-if AMDGPU.functional(:rocrand)
-    include("rocarray/random.jl")
 end
 
 end
