@@ -4,6 +4,10 @@ using AMDGPU.rocBLAS
 using AMDGPU.HIP
 import .rocBLAS: rocblas_int
 
+m = 20
+n = 35
+k = 13
+
 handle = rocBLAS.handle()
 
 @testset "Build Information" begin
@@ -25,10 +29,6 @@ end
         @test Ax ≈ Array(Ax_d)
     end
 end
-
-m = 20
-n = 35
-k = 13
 
 @testset "Level 1" begin
     @testset for T in (Float32, Float64, ComplexF32, ComplexF64)
@@ -131,7 +131,37 @@ end
     end
 end
 
-@testset "Level 3 BLAS" begin
+@testset "Level 3" begin
+    @testset for T in (Float16, Float32, Float64, ComplexF32, ComplexF64)
+        @testset "mul! C = $f(A) *  $g(B) * $Ts(a) + C * $Ts(b)" for f in (
+            identity, transpose, adjoint,
+        ), g in (identity, transpose, adjoint), Ts in (Int, T)
+            @test testf(
+                (c, a, b) -> mul!(c, f(a), g(b), Ts(1), Ts(1)),
+                rand(T, 5, 5), rand(T, 5, 5), rand(T, 5, 5))
+        end
+
+       @testset "hermitian" begin
+            @test testf(
+                (c, a, b) -> mul!(c, Hermitian(a), b),
+                rand(T, 5, 5), Hermitian(rand(T, 5, 5)), rand(T, 5, 5))
+        end
+
+        # @testset "trsm adjtype=$adjtype, uplotype=$uplotype" for adjtype in (
+        #     identity, adjoint, transpose,
+        # ), uplotype in (
+        #     UpperTriangular, LowerTriangular,
+        #     UnitUpperTriangular, UnitLowerTriangular,
+        # )
+        #     @test testf(
+        #         (a, b) -> adjtype(uplotype(a)) \ b,
+        #         triu(rand(T, m, m)), rand(T, m, n))
+        #     @test testf(
+        #         (a, b) -> b / adjtype(uplotype(a)),
+        #         triu(rand(T, m, m)), rand(T, n, m))
+        # end
+    end
+
     @testset "gemm()" begin
         for T in (Float16, Float32, Float64, ComplexF32, ComplexF64)
             for at in ('N', 'T'), bt in ('N', 'T')
@@ -202,54 +232,24 @@ end
         end
     end
 
-    @testset "triangular lmul!, rmul!, ldiv!, rdiv!" begin
+    @testset "triangular mul/div" begin
         for T in (Float32, Float64)
             A = triu(rand(T, 20, 20))
             B = rand(T, 20, 20)
             b = rand(T, 20)
-            dA, dB, db = ROCArray(A), ROCArray(B), ROCArray(b)
 
-            for t in (
-                identity, transpose, adjoint,
-            ), TR in (
-                UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular,
+            for t in (identity, transpose, adjoint), TR in (
+                UpperTriangular, LowerTriangular,
+                UnitUpperTriangular, UnitLowerTriangular,
             )
-
-                # Left division.
-                dC = copy(dB)
-                ldiv!(t(TR(dA)), dC)
-                C = t(TR(A)) \ B
-                @test C ≈ Array(dC)
-
-                # Right division.
-                dC = copy(dB)
-                rdiv!(dC, t(TR(dA)))
-                C = B / t(TR(A))
-                @test C ≈ Array(dC)
-
-                # Left division vector.
-                dc = copy(db)
-                ldiv!(t(TR(dA)), dc)
-                c = t(TR(A)) \ b
-                @test c ≈ Array(dc)
-
-                # Left multiplication.
-                dC = copy(dB)
-                lmul!(t(TR(dA)), dC)
-                C = t(TR(A)) * B
-                @test C ≈ Array(dC)
-
-                # Right multiplication.
-                dC = copy(dB)
-                rmul!(dC, t(TR(dA)))
-                C = B * t(TR(A))
-                @test C ≈ Array(dC)
-
-                # Left multiplication by vector.
-                dc = copy(db)
-                lmul!(t(TR(dA)), dc)
-                c = t(TR(A)) * b
-                @test c ≈ Array(dc)
+                @test testf((a, b) -> ldiv!(t(TR(a)), b),
+                    A, copy(B))
+                @test testf((a, b) -> rdiv!(b, t(TR(a))),
+                    A, copy(B))
+                @test testf((a, b) -> lmul!(t(TR(a)), b),
+                    A, copy(B))
+                @test testf((a, b) -> rmul!(b, t(TR(a))),
+                    A, copy(B))
             end
         end
     end
