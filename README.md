@@ -30,7 +30,7 @@
 AMDGPU.jl can be installed with the Julia package manager.
 From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 
-```
+```julia
 pkg> add AMDGPU
 ```
 
@@ -38,6 +38,28 @@ Or, equivalently, via the `Pkg` API:
 
 ```julia
 julia> import Pkg; Pkg.add("AMDGPU")
+```
+
+## Testing
+
+To ensure that everything is working you can run tests for the package with
+
+```julia
+pkg> test AMDGPU
+```
+
+Or specifying a subset of tests to run:
+
+```julia
+julia> using Pkg
+
+julia> Pkg.test("AMDGPU"; test_args=["core", "kernelabstractions"])
+```
+
+Full list of tests to run can be obtained with `--list` argument:
+
+```
+julia> Pkg.test("AMDGPU"; test_args=["--list"])
 ```
 
 ## Questions and Contributions
