@@ -1,4 +1,4 @@
-@testitem "hip - core" begin
+@testitem "hip - core" setup=[TSCore] begin
 
 using Test
 using LinearAlgebra

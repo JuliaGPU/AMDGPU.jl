@@ -13,14 +13,6 @@ end
 
 @testset "Highlevel" begin
     for T in (Float32, Float64)
-        # Regular array
-        A = rand(T, 8, 8)
-        x = rand(T, 8)
-        RA = ROCArray(A)
-        Rx = ROCArray(x)
-        Rb = RA * Rx
-        @test A*x ≈ Array(Rb)
-
         # View into array
         A = rand(T, 8, 8, 2)
         x = rand(T, 8, 2)
@@ -32,95 +24,109 @@ end
         Ax_d = view(A_d, :, :, 2) * view(x_d, :, 2)
         @test Ax ≈ Array(Ax_d)
     end
-    @testset "norm" begin
-        for T in (Float32, Float64, ComplexF32, ComplexF64)
-            x = rand(T, 8)
-            Rx = ROCArray(x)
-            nx = norm(Rx)
-            @test nx ≈ norm(x)
-        end
+end
+
+m = 20
+n = 35
+k = 13
+
+@testset "Level 1" begin
+    @testset for T in (Float32, Float64, ComplexF32, ComplexF64)
+        A = AMDGPU.rand(T, m)
+        B = ROCArray{T}(undef, m)
+        rocBLAS.blascopy!(m, A, 1, B, 1)
+        @test Array(A) == Array(B)
+
+        @test testf(rmul!, rand(T, 2, 3), Ref(rand()))
+        @test testf(dot, rand(T, m), rand(T, m))
+        @test testf(*, transpose(rand(T, m)), rand(T, m))
+        @test testf(*, rand(T, m)', rand(T, m))
+        @test testf(norm, rand(T, m))
+        @test testf(BLAS.asum, rand(T, m))
+        @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
+        @test testf(axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+
+        @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
+        @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
+
+        @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
+        @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
     end
 end
 
-@testset "Level 1 BLAS" begin
-    @testset "scal()" begin
-        for T in (Float32, Float64)
-            A = rand(T, 8)
-            RA = ROCArray(A)
-            rocBLAS.scal!(8, T(5), RA, 1)
-            @test A .* 5 ≈ Array(RA)
-        end
-    end
-    @testset "copy()" begin
-        for T in (Float32, Float64)
-            A = rand(T, 8)
-            B = rand(T, 8)
-            RA = ROCArray(A)
-            RB = ROCArray(B)
-            rocBLAS.blascopy!(8, RA, 1, RB, 1)
-            @test A ≈ Array(RA)
-            @test A ≈ Array(RB)
-        end
-    end
-    @testset "dot()" begin
-        for T in (Float32, Float64)
-            A = rand(T, 8)
-            B = rand(T, 8)
-            RA = ROCArray(A)
-            RB = ROCArray(B)
-            result = rocBLAS.dot(8, RA, 1, RB, 1)
-            @test LinearAlgebra.dot(A, B) ≈ result
-        end
-    end
-    @testset "axpy!" begin
-        for T in (Float32, Float64, ComplexF32, ComplexF64)
-            x, y = rand(T, 8), rand(T, 8)
-            Rx, Ry = ROCArray(x), ROCArray(y)
-            alpha = rand(T)
-            axpy!(alpha, Rx, Ry)
-            @test alpha * x + y ≈ Array(Ry)
-        end
-    end
-    @testset "axpby!" begin
-        for T in (Float32, Float64, ComplexF32, ComplexF64)
-            x, y = rand(T, 8), rand(T, 8)
-            Rx, Ry = ROCArray(x), ROCArray(y)
-            alpha, beta = rand(T), rand(T)
-            axpby!(alpha, Rx, beta, Ry)
-            @test alpha * x + beta * y ≈ Array(Ry)
-        end
-    end
-    @testset "rotate!" begin
-        for T in (Float32, Float64, ComplexF32, ComplexF64)
-            x, y = rand(T, 8), rand(T, 8)
-            Rx, Ry = ROCArray(x), ROCArray(y)
-            c, s = rand(real(T)), rand(T)
-            rotate!(Rx, Ry, c, s)
-            @test c * x + s * y ≈ Array(Rx)
-            @test -conj(s) * x + c * y ≈ Array(Ry)
-        end
-    end
-    @testset "reflect!" begin
-        for T in (Float32, Float64, ComplexF32, ComplexF64)
-            x, y = rand(T, 8), rand(T, 8)
-            Rx, Ry = ROCArray(x), ROCArray(y)
-            c, s = rand(real(T)), rand(T)
-            reflect!(Rx, Ry, c, s)
-            @test c * x + s * y ≈ Array(Rx)
-            @test conj(s) * x - c * y ≈ Array(Ry)
-        end
-    end
-end
+@testset "Level 2" begin
+    @testset for T in (Float32, Float64, ComplexF32, ComplexF64)
+        alpha, beta = rand(T), rand(T)
 
-@testset "Level 2 BLAS" begin
-    @testset "gemv()" begin
-        for T in (Float32, Float64)
-            A = rand(T, 8, 4)
-            x = rand(T, 4)
-            y = zeros(T, 8)
-            RA, Rx, Ry = ROCArray.((A, x, y))
-            rocBLAS.gemv!('N', T(5), RA, Rx, T(0), Ry)
-            @test 5A * x ≈ Array(Ry)
+        @testset "gemv" begin
+            @test testf(*, rand(T, m, n), rand(T, n))
+            @test testf(*, transpose(rand(T, m, n)), rand(T, m))
+            @test testf(*, rand(T, m, n)', rand(T, m))
+
+            x = rand(T, m)
+            A = rand(T, m, m + 1)
+            y = rand(T, m)
+            dx = ROCArray(x)
+            dA = ROCArray(A)
+            dy = ROCArray(y)
+            @test_throws DimensionMismatch mul!(dy, dA, dx)
+
+            A = rand(T, m + 1, m)
+            dA = ROCArray(A)
+            @test_throws DimensionMismatch mul!(dy, dA, dx)
+
+            A = rand(T, m, n)
+            x = rand(T, n)
+            y = zeros(T, m)
+            dA, dx, dy = ROCArray.((A, x, y))
+            α = rand(T)
+            rocBLAS.gemv!('N', α, dA, dx, T(0), dy)
+            @test α * A * x ≈ Array(dy)
+        end
+
+        @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (
+            identity, transpose, adjoint,
+        ), Ts in (Int, T)
+            @test testf(
+                (y, a, b) -> mul!(y, f(a), b, Ts(1), Ts(2)),
+                rand(T, 5), rand(T, 5, 5), rand(T, 5))
+        end
+
+        @testset "hermitian" begin
+            @test testf(
+                (a, b) -> Hermitian(a) * b,
+                rand(T, 5, 5), rand(T, 5))
+            @test testf(
+                (y, a, b) -> mul!(y, Hermitian(a), b), rand(T, 5),
+                rand(T, 5, 5), rand(T, 5))
+        end
+
+        A = rand(T, m, m)
+        x = rand(T, m)
+        @testset "Triangular mul/lmul!"  for TR in (
+            UpperTriangular, LowerTriangular,
+        ), f in (
+            identity, adjoint, transpose,
+        )
+            @test testf((a, b) -> f(TR(A)) * x, A, x)
+            @test testf((a, b) -> lmul!(f(TR(A)), b), A, copy(x))
+        end
+
+        A, x = rand(T, m, m), rand(T, m)
+        @testset "Triangular ldiv" for TR in (
+            UpperTriangular, LowerTriangular,
+        ), f in (
+            identity, adjoint, transpose,
+        )
+            @test testf((a, b) -> f(TR(A)) \ x, A, x)
+            @test testf((a, b) -> ldiv!(f(TR(A)), b), A, copy(x))
+        end
+
+        @testset "inv($TR)" for TR in (
+            UpperTriangular, LowerTriangular,
+            UnitUpperTriangular, UnitLowerTriangular,
+        )
+            @test testf(x -> inv(TR(x)), rand(T, m, m))
         end
     end
 end

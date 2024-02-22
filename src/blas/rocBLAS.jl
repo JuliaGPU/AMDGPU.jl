@@ -1,12 +1,12 @@
 module rocBLAS
 
 using ..AMDGPU
-import AMDGPU: librocblas, AnyROCArray
+import AMDGPU: librocblas, AnyROCArray, StridedROCVector, StridedROCMatrix
 import AMDGPU: HandleCache, HIP, library_state
 import .HIP: HIPContext, HIPStream, hipStream_t, hipEvent_t
 
 using LinearAlgebra
-using LinearAlgebra: AdjOrTrans
+using LinearAlgebra: AdjOrTrans, MulAddMul
 if VERSION ≥ v"1.10-"
     using LinearAlgebra: wrap, UpperOrLowerTriangular
 end

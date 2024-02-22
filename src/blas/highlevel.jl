@@ -2,11 +2,9 @@ rocblas_size(t::Char, M::ROCVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N'
 
 const ROCBLASArray{T<:ROCBLASFloat} = ROCArray{T}
 
-###########
 #
 # BLAS 1
 #
-###########
 
 LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASFloat}, k::Number) =
   scal!(length(x), convert(eltype(x), k), x, 1)
@@ -84,11 +82,9 @@ function LinearAlgebra.reflect!(
     x, y
 end
 
-############
 #
 # BLAS 2
 #
-############
 
 if VERSION ≥ v"1.10-"
     # multiplication
@@ -145,36 +141,56 @@ else
     end
 end
 
-#########
 # GEMV
-##########
 
-function gemv_wrapper!(
-    y::ROCVector{T}, tA::Char, A::ROCMatrix{T}, x::ROCVector{T},
-    alpha = one(T), beta = zero(T),
-) where T <: ROCBLASFloat
-    mA, nA = rocblas_size(tA, A)
-    if nA != length(x)
-        throw(DimensionMismatch("second dimension of A, $nA, does not match length of x, $(length(x))"))
+function LinearAlgebra.generic_matvecmul!(
+    Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
+    _add::MulAddMul,
+)
+    mA, nA = tA == 'N' ? size(A) : reverse(size(A))
+
+    nA != length(B) && throw(DimensionMismatch(
+        "second dimension of A, $nA, does not match length of B, $(length(B))"))
+    mA != length(Y) && throw(DimensionMismatch(
+        "first dimension of A, $mA, does not match length of Y, $(length(Y))"))
+
+    mA == 0 && return Y
+    nA == 0 && return rmul!(Y, 0)
+
+    T = eltype(Y)
+    alpha, beta = _add.alpha, _add.beta
+    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
+        α, β = T(alpha), T(beta)
+        if T <: ROCBLASFloat && eltype(A) == eltype(B) == T
+            if tA in ('N', 'T', 'C')
+                return gemv!(tA, α, A, B, β, Y)
+            elseif tA in ('S', 's')
+                return symv!(tA == 'S' ? 'U' : 'L', α, A, B, β, Y)
+            elseif tA in ('H', 'h')
+                return hemv!(tA == 'H' ? 'U' : 'L', α, A, B, β, Y)
+            end
+        end
     end
-    if mA != length(y)
-        throw(DimensionMismatch("first dimension of A, $mA, does not match length of y, $(length(y))"))
-    end
-    mA == 0 && return y
-    nA == 0 && return rmul!(y, 0)
-    gemv!(tA, alpha, A, x, beta, y)
+    LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, MulAddMul(alpha, beta))
 end
 
-LinearAlgebra.mul!(Y::ROCVector{T}, A::ROCMatrix{T}, B::ROCVector{T}) where T<:ROCBLASFloat = gemv_wrapper!(Y, 'N', A,  B)
-LinearAlgebra.lmul!(Y::ROCVector{T}, A::LinearAlgebra.Transpose{<:Any, ROCMatrix{T}}, B::ROCVector{T}) where T<:ROCBLASFloat = gemv_wrapper!(Y, 'T', A.parent, B)
-LinearAlgebra.lmul!(Y::ROCVector{T}, A::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, B::ROCVector{T}) where T<:ROCBLASFloat = gemv_wrapper!(Y, 'T', A.parent, B)
-LinearAlgebra.lmul!(Y::ROCVector{T}, A::LinearAlgebra.Adjoint{<:Any, ROCMatrix{T}}, B::ROCVector{T}) where T<:ROCBLASComplex = gemv_wrapper!(Y, 'C', A.parent, B)
+if VERSION < v"1.10.0-DEV.1365"
+    @inline LinearAlgebra.gemv!(
+        Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix,
+        B::StridedROCVector, a::Number, b::Number,
+    ) = LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
 
-############
+    # disambiguation with LinearAlgebra.jl
+    @inline LinearAlgebra.gemv!(
+        Y::ROCVector{T}, tA::AbstractChar, A::StridedROCMatrix{T},
+        B::StridedROCVector{T}, a::Number, b::Number,
+    ) where T <: ROCBLASFloat =
+        LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
+end
+
 #
 # BLAS 3
 #
-############
 
 ########
 # GEMM
