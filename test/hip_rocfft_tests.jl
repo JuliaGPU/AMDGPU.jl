@@ -10,11 +10,10 @@ import AMDGPU: @allowscalar
 Random.seed!(1)
 AMDGPU.allowscalar(false)
 
-# TODO rocFFT needs an update to work with ROCm 6.0+.
-if HIP.runtime_version() ≥ v"6-"
-    @test_skip "rocFFT"
-else
+if AMDGPU.functional(:rocfft)
     include("rocarray/fft.jl")
+else
+    @test_skip "rocFFT"
 end
 
 end

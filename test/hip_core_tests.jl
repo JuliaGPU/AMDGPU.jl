@@ -32,14 +32,4 @@ if length(AMDGPU.devices()) > 1
     end
 end
 
-if AMDGPU.functional(:rocblas)
-    include("rocarray/blas.jl")
-end
-if AMDGPU.functional(:MIOpen)
-    include("dnn/miopen.jl")
-end
-if AMDGPU.functional(:rocrand)
-    include("rocarray/random.jl")
-end
-
 end
