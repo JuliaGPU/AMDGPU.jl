@@ -7,6 +7,7 @@ import PrettyTables
 import ..AMDGPU
 import ..AMDGPU.libhip
 
+include("call.jl")
 include("libhip_common.jl")
 include("error.jl")
 include("libhip.jl")
@@ -35,12 +36,7 @@ function HIPContext(device::HIPDevice)
             context_ref = Ref{hipContext_t}()
             hipCtxCreate(context_ref, Cuint(0), device.device) |> check
             context = HIPContext(context_ref[], true)
-
             device!(device)
-            finalizer(context) do c
-                c.valid = false
-                hipCtxDestroy(c.context) |> check
-            end
             return context
         end
     end
