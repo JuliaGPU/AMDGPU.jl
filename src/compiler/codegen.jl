@@ -100,13 +100,13 @@ end
 
 
 function compiler_config(dev::HIP.HIPDevice;
-    name::Union{String, Nothing} = nothing,
+    name::Union{String, Nothing} = nothing, kernel::Bool = true,
     unsafe_fp_atomics::Bool = true,
 )
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
     target = GCNCompilerTarget(; dev_isa, features)
     params = HIPCompilerParams(HIP.wavefrontsize(dev) == 64, unsafe_fp_atomics)
-    CompilerConfig(target, params; kernel=true, name, always_inline=true)
+    CompilerConfig(target, params; kernel, name, always_inline=true)
 end
 
 const hipfunction_lock = ReentrantLock()
