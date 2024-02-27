@@ -1,3 +1,16 @@
+"""
+    (ker::HIPKernel)(args::Vararg{Any, N}; kwargs...)
+
+Launch compiled HIPKernel by passing arguments to it.
+
+The following kwargs are supported:
+- `gridsize::ROCDim = 1`: Size of the grid.
+- `groupsize::ROCDim = 1`:  Size of the workgroup.
+- `shmem::Integer = 0`:
+    Amount of dynamically-allocated shared memory in bytes.
+- `stream::HIP.HIPStream = AMDGPU.stream()`:
+    Stream on which to launch the kernel.
+"""
 struct HIPKernel{F, TT} <: AbstractKernel{F, TT}
     f::F
     fun::HIP.HIPFunction

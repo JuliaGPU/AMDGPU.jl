@@ -37,6 +37,12 @@ This value can then be used to select the groupsize for the kernel:
 @roc groupsize=occupancy.groupsize mykernel(args...)
 ```
 
+```@docs
+AMDGPU.@roc
+AMDGPU.Runtime.HIPKernel
+AMDGPU.Compiler.hipfunction
+```
+
 ## Atomics
 
 AMDGPU.jl relies on [Atomix.jl](https://github.com/JuliaConcurrent/Atomix.jl)

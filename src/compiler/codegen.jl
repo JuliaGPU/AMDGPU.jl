@@ -1,6 +1,12 @@
 struct HIPCompilerParams <: AbstractCompilerParams
     # Whether to compile kernel for the wavefront of size 64.
     wavefrontsize64::Bool
+    # AMD GPU devices support fast atomic read-modify-write (RMW)
+    # operations on floating-point values.
+    # On single- or double-precision floating-point values this may generate
+    # a hardware RMW instruction that is faster than emulating
+    # the atomic operation using an atomic compare-and-swap (CAS) loop.
+    unsafe_fp_atomics::Bool
 end
 
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
@@ -65,10 +71,18 @@ function GPUCompiler.finish_module!(
     target_fns = (
         "signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
+    atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
+
     for fn in LLVM.functions(mod)
-        any(occursin.(target_fns, LLVM.name(fn))) || continue
-        attrs = LLVM.function_attributes(fn)
-        inline_attr ∈ collect(attrs) || push!(attrs, inline_attr)
+        do_inline = any(occursin.(target_fns, LLVM.name(fn)))
+        if job.config.params.unsafe_fp_atomics || do_inline
+            attrs = LLVM.function_attributes(fn)
+
+            do_inline && inline_attr ∉ collect(attrs) &&
+                push!(attrs, inline_attr)
+            job.config.params.unsafe_fp_atomics &&
+                push!(attrs, atomic_attr)
+        end
     end
 
     return entry
@@ -85,18 +99,36 @@ function parse_llvm_features(arch::String)
 end
 
 
-function compiler_config(
-    dev::HIP.HIPDevice; kernel::Bool = true,
-    name::Union{String, Nothing} = nothing, always_inline::Bool = true,
+function compiler_config(dev::HIP.HIPDevice;
+    name::Union{String, Nothing} = nothing, kernel::Bool = true,
+    unsafe_fp_atomics::Bool = true,
 )
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
     target = GCNCompilerTarget(; dev_isa, features)
-    params = HIPCompilerParams(HIP.wavefrontsize(dev) == 64)
-    CompilerConfig(target, params; kernel, name, always_inline)
+    params = HIPCompilerParams(HIP.wavefrontsize(dev) == 64, unsafe_fp_atomics)
+    CompilerConfig(target, params; kernel, name, always_inline=true)
 end
 
 const hipfunction_lock = ReentrantLock()
 
+"""
+    hipfunction(f::F, tt::TT = Tuple{}; kwargs...)
+
+Compile Julia function `f` to a HIP kernel given a tuple of
+argument's types `tt` that it accepts.
+
+The following kwargs are supported:
+
+- `name::Union{String, Nothing} = nothing`:
+    A unique name to give a compiled kernel.
+- `unsafe_fp_atomics::Bool = true`:
+    Whether to use 'unsafe' floating-point atomics.
+    AMD GPU devices support fast atomic read-modify-write (RMW)
+    operations on floating-point values.
+    On single- or double-precision floating-point values this may generate
+    a hardware RMW instruction that is faster than emulating
+    the atomic operation using an atomic compare-and-swap (CAS) loop.
+"""
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
     Base.@lock hipfunction_lock begin
         dev = AMDGPU.device()
