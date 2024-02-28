@@ -22,7 +22,7 @@ function HIPStream(priority::Symbol = :normal)
     priority_int = symbol_to_priority(priority)
 
     stream_ref = Ref{hipStream_t}()
-    hipStreamCreateWithPriority(stream_ref, Cuint(0), priority_int) |> check
+    hipStreamCreateWithPriority(stream_ref, 0, priority_int) |> check
     d = device()
     stream = HIPStream(stream_ref[], priority, d, HIPContext(d))
     finalizer(stream) do s

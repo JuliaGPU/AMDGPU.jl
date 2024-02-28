@@ -262,7 +262,7 @@ const hipModule_t = Ptr{Cvoid}
 
 const hipFunction_t = Ptr{Cvoid}
 
-const hipHostFn = Ptr{Cvoid}
+const hipHostFn_t = Ptr{Cvoid}
 
 const hiprtcLinkState = Ptr{Cvoid}
 

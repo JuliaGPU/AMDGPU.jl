@@ -164,7 +164,8 @@ function GPUArrays.mapreducedim!(
         @roc gridsize=grid groupsize=blocks shmem=reduce_shmem partial_mapreduce_device(
             f, op, init, Rreduce, Rother, partial, A)
 
-        GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
+        GPUArrays.mapreducedim!(identity, op, R′, partial; init)
+        AMDGPU.unsafe_free!(partial)
     end
 
     return R
