@@ -110,7 +110,7 @@ for (fname, elty) in (
             chkside(side)
             chktrans(trans)
 
-            m, n = (ndims(C) == 2) ? size(C) : (size(C, 1), 1)
+            m, n = (ndims(C) == 2) ? size(C) : (length(C), 1)
             k = length(τ)
             mA  = size(A, 1)
 
