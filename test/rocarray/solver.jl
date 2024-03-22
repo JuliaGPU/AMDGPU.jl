@@ -164,7 +164,7 @@ end
                 dC = ROCArray(C)
                 dD = side == 'L' ? op(dH) * dC : dC * op(dH)
 
-                ormqr!(side, trans, dA, dτ, dC)
+                rocSOLVER.ormqr!(side, trans, dA, dτ, dC)
                 @test dC ≈ dD
             end
         end
