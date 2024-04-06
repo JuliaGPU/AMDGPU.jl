@@ -716,10 +716,10 @@ end
 
 ## (GE) general matrix-matrix multiplication strided batched
 for (fname, elty) in
-        ((:rocblas_dgemmStridedBatched,:Float64),
-         (:rocblas_sgemmStridedBatched,:Float32),
-         (:rocblas_zgemmStridedBatched,:ComplexF64),
-         (:rocblas_cgemmStridedBatched,:ComplexF32))
+        ((:rocblas_dgemm_strided_batched,:Float64),
+         (:rocblas_sgemm_strided_batched,:Float32),
+         (:rocblas_zgemm_strided_batched,:ComplexF64),
+         (:rocblas_cgemm_strided_batched,:ComplexF32))
     @eval begin
         function gemm_strided_batched!(
             transA::Char, transB::Char, alpha::($elty),
@@ -1020,10 +1020,10 @@ end
 
 ## (TR) triangular triangular matrix solution batched
 for (fname, elty) in
-        ((:rocblas_dtrsmBatched,:Float64),
-         (:rocblas_strsmBatched,:Float32),
-         (:rocblas_ztrsmBatched,:ComplexF64),
-         (:rocblas_ctrsmBatched,:ComplexF32))
+        ((:rocblas_dtrsm_batched,:Float64),
+         (:rocblas_strsm_batched,:Float32),
+         (:rocblas_ztrsm_batched,:ComplexF64),
+         (:rocblas_ctrsm_batched,:ComplexF32))
     @eval begin
         function trsm_batched!(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
