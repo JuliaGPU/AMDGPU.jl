@@ -72,7 +72,6 @@ include("runtime/Runtime.jl")
 import .Runtime
 import .Runtime: Mem, ROCDim, ROCDim3
 
-const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
 
 # Device sources must load _before_ the compiler infrastructure,
