@@ -90,14 +90,14 @@ if VERSION ≥ v"1.10-"
     # multiplication
     LinearAlgebra.generic_trimatmul!(
         c::ROCVector{T}, uploc, isunitc, tfun::Function,
-        A::ROCMatrix{T}, b::AbstractVector{T},
+        A::ROCMatrix{T}, b::ROCVector{T},
     ) where T <: ROCBLASFloat = trmv!(
         uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
         isunitc, A, c === b ? c : copyto!(c, b))
     # division
     LinearAlgebra.generic_trimatdiv!(
         C::ROCVector{T}, uploc, isunitc, tfun::Function,
-        A::ROCMatrix{T}, B::AbstractVector{T},
+        A::ROCMatrix{T}, B::ROCVector{T},
     ) where T <: ROCBLASFloat = trsv!(
         uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
         isunitc, A, C === B ? C : copyto!(C, B))
