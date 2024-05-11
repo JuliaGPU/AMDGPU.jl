@@ -8,8 +8,6 @@ m = 20
 n = 35
 k = 13
 
-handle = rocBLAS.handle()
-
 @testset "Build Information" begin
     ver = rocBLAS.version()
     @test ver isa VersionNumber
@@ -103,13 +101,13 @@ end
 
         A = rand(T, m, m)
         x = rand(T, m)
-        @testset "Triangular mul/lmul!"  for TR in (
+        @testset "Triangular mul/lmul!" for TR in (
             UpperTriangular, LowerTriangular,
         ), f in (
             identity, adjoint, transpose,
         )
-            @test testf((a, b) -> f(TR(A)) * x, A, x)
-            @test testf((a, b) -> lmul!(f(TR(A)), b), A, copy(x))
+            @test testf((a, b) -> f(TR(a)) * b, A, x)
+            @test testf((a, b) -> lmul!(f(TR(a)), b), A, copy(x))
         end
 
         A, x = rand(T, m, m), rand(T, m)
@@ -118,15 +116,17 @@ end
         ), f in (
             identity, adjoint, transpose,
         )
-            @test testf((a, b) -> f(TR(A)) \ x, A, x)
-            @test testf((a, b) -> ldiv!(f(TR(A)), b), A, copy(x))
+            @test testf((a, b) -> f(TR(a)) \ b, A, x)
+            @test testf((a, b) -> ldiv!(f(TR(a)), b), A, copy(x))
         end
 
+        x = rand(T, m, m)
         @testset "inv($TR)" for TR in (
             UpperTriangular, LowerTriangular,
             UnitUpperTriangular, UnitLowerTriangular,
+            Diagonal,
         )
-            @test testf(x -> inv(TR(x)), rand(T, m, m))
+            @test testf(a -> inv(TR(a)), x)
         end
     end
 end

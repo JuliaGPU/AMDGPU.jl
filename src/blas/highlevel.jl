@@ -89,15 +89,15 @@ end
 if VERSION ≥ v"1.10-"
     # multiplication
     LinearAlgebra.generic_trimatmul!(
-        c::ROCVector{T}, uploc, isunitc, tfun::Function,
-        A::ROCMatrix{T}, b::AbstractVector{T},
+        c::StridedROCVector{T}, uploc, isunitc, tfun::Function,
+        A::StridedROCMatrix{T}, b::StridedROCVector{T},
     ) where T <: ROCBLASFloat = trmv!(
         uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
         isunitc, A, c === b ? c : copyto!(c, b))
     # division
     LinearAlgebra.generic_trimatdiv!(
-        C::ROCVector{T}, uploc, isunitc, tfun::Function,
-        A::ROCMatrix{T}, B::AbstractVector{T},
+        C::StridedROCVector{T}, uploc, isunitc, tfun::Function,
+        A::StridedROCMatrix{T}, B::StridedROCVector{T},
     ) where T <: ROCBLASFloat = trsv!(
         uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
         isunitc, A, C === B ? C : copyto!(C, B))
@@ -409,4 +409,44 @@ else
             trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
         end
     end
+end
+
+# Matrix inversion.
+
+for (t, uploc, isunitc) in (
+    (:LowerTriangular, 'U', 'N'),
+    (:UnitLowerTriangular, 'U', 'U'),
+    (:UpperTriangular, 'L', 'N'),
+    (:UnitUpperTriangular, 'L', 'U'),
+)
+    @eval function LinearAlgebra.inv(x::$t{T, <: ROCMatrix{T}}) where T <: ROCBLASFloat
+        out = ROCArray{T}(I(size(x, 1)))
+        $t(LinearAlgebra.ldiv!(x, out))
+    end
+end
+
+# Diagonal matrix.
+
+Base.Array(D::Diagonal{T, <: ROCArray{T}}) where T = Diagonal(Array(D.diag))
+
+ROCArray(D::Diagonal{T, <: Vector{T}}) where T = Diagonal(ROCArray(D.diag))
+
+function LinearAlgebra.inv(D::Diagonal{T, <: ROCArray{T}}) where T
+    Di = map(inv, D.diag)
+    any(isinf, Di) && error("Singular Exception $Di")
+    Diagonal(Di)
+end
+
+function Base.:/(A::ROCArray, D::Diagonal)
+    B = similar(A, typeof(oneunit(eltype(A)) / oneunit(eltype(D))))
+    _rdiv!(B, A, D)
+end
+
+function _rdiv!(B::ROCArray, A::ROCArray, D::Diagonal)
+    m, n = size(A, 1), size(A, 2)
+    (k = length(D.diag)) != n && throw(DimensionMismatch(
+        "left hand side has $n columns but D is $k by $k"))
+
+    B .= A * inv(D)
+    return B
 end
