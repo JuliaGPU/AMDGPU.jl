@@ -68,7 +68,6 @@ function pool_create(dev::HIPDevice)
         get!(pools, HIP.device_id(dev)) do
             max_size::UInt64 = hard_memory_limit()
             max_size = max_size != typemax(UInt64) ? max_size : UInt64(0)
-            @show Base.format_bytes(max_size)
 
             pool = HIP.HIPMemoryPool(dev; max_size)
             # TODO set soft threshold?
