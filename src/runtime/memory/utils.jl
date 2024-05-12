@@ -32,7 +32,7 @@ Returns the used amount of memory (in bytes), allocated on the device.
 """
 used() = total() - free()
 
-function parse_memory_limit(limit_str::String)
+function parse_memory_limit(limit_str::String)::UInt64
     limit_str == "none" && return typemax(UInt64)
 
     units = ("%", "MiB", "GiB")

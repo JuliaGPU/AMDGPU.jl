@@ -4,20 +4,18 @@ mutable struct HIPMemoryPool
     function HIPMemoryPool(dev::HIPDevice;
         alloc_type::hipMemAllocationType = hipMemAllocationTypePinned,
         handle_type::hipMemAllocationHandleType = hipMemHandleTypeNone,
+        max_size::Csize_t = 0,
     )
         location = hipMemLocation(hipMemLocationTypeDevice, device_id(dev))
         props = Ref(hipMemPoolProps(
             alloc_type, handle_type, location,
-            C_NULL, ntuple(i->Cuchar(0), 64)))
+            C_NULL, max_size, ntuple(i->Cuchar(0), 56)))
 
         handle_ref = Ref{hipMemPool_t}()
         hipMemPoolCreate(handle_ref, props) |> check
-        pool = new(handle_ref[])
-
-        finalizer(pool) do pool
-            hipMemPoolDestroy(pool) |> check
-        end
-        return pool
+        # No finalizer, since the pool can be active
+        # without any references to it.
+        return new(handle_ref[])
     end
 
     global function default_memory_pool(dev::HIPDevice)

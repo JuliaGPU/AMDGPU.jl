@@ -59,6 +59,25 @@ function mark_pool!(dev::HIP.HIPDevice)
     status[] = true
 end
 
+# Device ID => HIPMemoryPool
+const MEMORY_POOLS = AMDGPU.LockedObject(
+    Dict{Int64, HIP.HIPMemoryPool}())
+
+function pool_create(dev::HIPDevice)
+    Base.lock(MEMORY_POOLS) do pools
+        get!(pools, HIP.device_id(dev)) do
+            max_size::UInt64 = hard_memory_limit()
+            max_size = max_size != typemax(UInt64) ? max_size : UInt64(0)
+            @show Base.format_bytes(max_size)
+
+            pool = HIP.HIPMemoryPool(dev; max_size)
+            # TODO set soft threshold?
+            HIP.memory_pool!(dev, pool)
+            return pool
+        end
+    end
+end
+
 struct HIPBuffer <: AbstractAMDBuffer
     device::HIPDevice # TODO not used?
     ctx::HIPContext
@@ -68,32 +87,24 @@ struct HIPBuffer <: AbstractAMDBuffer
 end
 
 function HIPBuffer(bytesize; stream::HIP.HIPStream)
-    dev = stream.device
-    ctx = stream.ctx
+    dev, ctx = stream.device, stream.ctx
     bytesize == 0 && return HIPBuffer(dev, ctx, C_NULL, 0, true)
 
-    # mark_pool!(dev)
-    pool = HIP.memory_pool(dev)
-    has_limit = hard_memory_limit() != typemax(UInt64)
+    pool = pool_create(dev)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     ptr = alloc_or_retry!(isnothing; stream) do
         try
-            # Try to ensure there is enough memory before even trying to allocate.
-            if has_limit
-                used = HIP.used_memory(pool)
-                (used + bytesize) > hard_memory_limit() &&
-                    throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
-            end
-
             # Try to allocate.
             # NOTE Async is ~300x slower for small (≤ 16 bytes) allocations:
             # https://github.com/ROCm/HIP/issues/3370#issuecomment-1842938966
             if bytesize > 16
                 HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
+                # HIP.hipMallocFromPoolAsync(ptr_ref, bytesize, pool, stream) |> HIP.check
             else
                 HIP.hipMalloc(ptr_ref, bytesize) |> HIP.check
             end
+
             ptr = ptr_ref[]
             ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             return ptr
@@ -105,11 +116,6 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     end
     @assert ptr != C_NULL "hipMallocAsync resulted in C_NULL for $(Base.format_bytes(bytesize))"
 
-    if has_limit
-        if HIP.reserved_memory(pool) > hard_memory_limit()
-            HIP.reclaim() # TODO do not reclaim all memory
-        end
-    end
     HIPBuffer(dev, ctx, ptr, bytesize, true)
 end
 
