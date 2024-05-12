@@ -44,7 +44,10 @@ end
 wait(event::HIPEvent) = hipEventSynchronize(event) |> check
 
 function synchronize(event::HIPEvent)
-    non_blocking_synchronize(event) || wait(event)
+    if !non_blocking_synchronize(event)
+        AMDGPU.maybe_collect(; blocking=true)
+    end
+    wait(event)
     return
 end
 

@@ -169,6 +169,11 @@ function hipMallocAsync(dev_ptr, size, stream)
     @gcsafe_ccall libhip.hipMallocAsync(dev_ptr::Ptr{Ptr{Cvoid}}, size::Csize_t, stream::hipStream_t)::hipError_t
 end
 
+function hipMallocFromPoolAsync(dev_ptr, size, mem_pool, stream)
+    AMDGPU.prepare_state()
+    @gcsafe_ccall libhip.hipMallocFromPoolAsync(dev_ptr::Ptr{Ptr{Cvoid}}, size::Csize_t, mem_pool::hipMemPool_t, stream::hipStream_t)::hipError_t
+end
+
 function hipFreeAsync(dev_ptr, stream)
     AMDGPU.prepare_state()
     @gcsafe_ccall libhip.hipFreeAsync(dev_ptr::Ptr{Cvoid}, stream::hipStream_t)::hipError_t

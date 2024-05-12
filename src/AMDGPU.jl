@@ -72,6 +72,8 @@ include("runtime/Runtime.jl")
 import .Runtime
 import .Runtime: Mem, ROCDim, ROCDim3
 
+include("stats.jl")
+
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
 
