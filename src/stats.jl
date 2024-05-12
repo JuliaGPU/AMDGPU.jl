@@ -121,7 +121,6 @@ function maybe_collect(; blocking::Bool = false)
             pool = Mem.pool_create(dev)
             max_size = free() + stats.live +
                 (HIP.reserved_memory(pool) - HIP.used_memory(pool))
-            @show Base.format_bytes(max_size)
         end
 
         Base.@atomic stats.size = max_size
