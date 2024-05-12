@@ -72,6 +72,7 @@ include("pool.jl")
 include("module.jl")
 
 function device_synchronize()
+    AMDGPU.maybe_collect(; blocking=true)
     hipDeviceSynchronize() |> check
 end
 

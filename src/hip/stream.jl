@@ -141,6 +141,7 @@ function synchronize(stream::HIPStream; blocking::Bool = false)
         end
     end
     # Perform an actual API call even after non-blocking synchronization.
+    AMDGPU.maybe_collect(; blocking=true)
     wait(stream)
     return
 end
