@@ -1,8 +1,8 @@
 """
     info()
 
-Returns a tuple of two integers, indicating respectively the free and total amount of memory
-(in bytes) available for allocation on the device.
+Returns a tuple of two integers, indicating respectively the free and total
+amount of memory (in bytes) available for allocation on the device.
 """
 function info()
     free_ref = Ref{Csize_t}()
@@ -14,14 +14,16 @@ end
 """
     free()
 
-Returns the free amount of memory (in bytes), available for allocation on the device.
+Returns the free amount of memory (in bytes),
+available for allocation on the device.
 """
 free() = info()[1]
 
 """
     total()
 
-Returns the total amount of memory (in bytes), available for allocation on the device.
+Returns the total amount of memory (in bytes),
+available for allocation on the device.
 """
 total() = info()[2]
 
