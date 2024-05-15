@@ -89,7 +89,5 @@ include("descriptors.jl")
 include("convolution.jl")
 include("pooling.jl")
 include("activations.jl")
-# include("softmax.jl")
-# include("batchnorm.jl")
 
 end
