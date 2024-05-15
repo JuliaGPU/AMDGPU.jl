@@ -5,7 +5,6 @@ using CEnum
 using ..AMDGPU
 import AMDGPU: ROCArray, LockedObject, HandleCache, HIP, library_state
 import AMDGPU: libMIOpen_path
-import AMDGPU.Runtime.Mem # TODO remove?
 import .HIP: hipStream_t
 
 include("libMIOpen.jl")
@@ -89,8 +88,8 @@ stream() = lib_state().stream
 include("descriptors.jl")
 include("convolution.jl")
 include("pooling.jl")
-include("softmax.jl")
 include("activations.jl")
-include("batchnorm.jl")
+# include("softmax.jl")
+# include("batchnorm.jl")
 
 end
