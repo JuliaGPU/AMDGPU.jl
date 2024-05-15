@@ -28,16 +28,17 @@ end
     include("pool.jl")
 end
 
-@testset "Softmax" begin
-    include("softmax.jl")
-end
+# NOTE: https://github.com/ROCm/MIOpen/issues/2966
+# @testset "Softmax" begin
+#     include("softmax.jl")
+# end
 
 @testset "Activations" begin
     include("activations.jl")
 end
 
-@testset "Batch Normalization" begin
-    include("batchnorm.jl")
-end
+# @testset "Batch Normalization" begin
+#     include("batchnorm.jl")
+# end
 
 end

@@ -12,38 +12,22 @@
             # Regular softmax.
 
             yd = MIOpen.softmax(xd; dims)
-            if T == Float16
-                @test !any(isnan.(Array(yd)))
-            else
-                y = NNlib.softmax(x; dims)
-                @test Array(yd) ≈ y atol=atol
-            end
+            y = NNlib.softmax(x; dims)
+            @test Array(yd) ≈ y atol=atol
 
             dxd = MIOpen.∇softmax(dyd, yd; dims)
-            if T == Float16
-                @test !any(isnan.(Array(dxd)))
-            else
-                dx = NNlib.∇softmax_data(dy, y; dims)
-                @test Array(dxd) ≈ dx atol=atol
-            end
+            dx = NNlib.∇softmax_data(dy, y; dims)
+            @test Array(dxd) ≈ dx atol=atol
 
             # Log softmax.
 
             yd = MIOpen.logsoftmax(xd; dims)
-            if T == Float16
-                @test !any(isnan.(Array(yd)))
-            else
-                y = NNlib.logsoftmax(x; dims)
-                @test Array(yd) ≈ y atol=atol
-            end
+            y = NNlib.logsoftmax(x; dims)
+            @test Array(yd) ≈ y atol=atol
 
             dxd = MIOpen.∇logsoftmax(dyd, yd; dims)
-            if T == Float16
-                @test !any(isnan.(Array(dxd)))
-            else
-                dx = NNlib.∇logsoftmax_data(dy, y; dims)
-                @test Array(dxd) ≈ dx atol=atol
-            end
+            dx = NNlib.∇logsoftmax_data(dy, y; dims)
+            @test Array(dxd) ≈ dx atol=atol
         end
     end
 end
