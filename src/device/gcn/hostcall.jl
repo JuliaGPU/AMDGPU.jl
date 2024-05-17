@@ -54,7 +54,7 @@ function HostCall(
     buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.HostBuffer(buf_len, AMDGPU.HIP.hipHostAllocDefault)
 
-    buf_ptr = LLVMPtr{UInt8, AS.Global}(Base.unsafe_convert(Ptr{UInt8}, buf))
+    buf_ptr = LLVMPtr{UInt8, AS.Global}(convert(Ptr{UInt8}, buf))
     host_signal_store!(HSA.Signal(signal_handle), READY_SENTINEL)
     HostCall{RT, AT}(signal_handle, buf_ptr, buf_len)
 end
@@ -144,7 +144,7 @@ function HostCallHolder(
 
                     ret_ref = Ref{rettype}(ret)
                     GC.@preserve ret_ref begin
-                        ret_ptr = Base.unsafe_convert(Ptr{Cvoid}, ret_buf)
+                        ret_ptr = convert(Ptr{Cvoid}, ret_buf)
                         if sizeof(ret) > 0
                             src_ptr = reinterpret(Ptr{Cvoid},
                                 Base.unsafe_convert(Ptr{rettype}, ret_ref))

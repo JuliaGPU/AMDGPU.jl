@@ -161,3 +161,81 @@ function maybe_collect(; blocking::Bool = false)
     Base.@atomic stats.last_gc_time = 0.75 * stats.last_gc_time + 0.25 * gc_time
     return
 end
+
+# TODO handle stream capturing when we support HIP graphs
+mutable struct Managed{M}
+    const mem::M
+    stream::HIPStream
+    dirty::Bool
+
+    function Managed(mem; stream=AMDGPU.stream(), dirty=true)
+        new{typeof(mem)}(mem, stream, dirty)
+    end
+end
+
+function synchronize(m::Managed)
+    m.dirty || return
+    synchronize(m.stream)
+    m.dirty = false
+    return
+end
+
+function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T, M}
+    strm = AMDGPU.stream()
+
+    # TODO handle stream capture
+
+    # TODO handle access on another device
+    # if M == Mem.HIPBuffer && managed.mem.ctx != tls.ctx
+    #     # Enable peer-to-peer access.
+    # end
+
+    if managed.stream != strm
+        synchronize(managed)
+        managed.stream = strm
+    end
+
+    managed.dirty = true
+    # TODO introduce HIPPtr to differentiate
+    if M <: Mem.HIPBuffer
+        convert(Ptr{T}, managed.mem)
+    else
+        convert(Ptr{T}, managed.mem.dev_ptr)
+    end
+end
+
+# TODO workaround until we have HIPPtr
+function Base.convert(::Type{Mem.AbstractAMDBuffer}, managed::Managed{M}) where M
+    strm = AMDGPU.stream()
+
+    # TODO handle stream capture
+
+    # TODO handle access on another device
+    # if M == Mem.HIPBuffer && managed.mem.ctx != tls.ctx
+    #     # Enable peer-to-peer access.
+    # end
+
+    if managed.stream != strm
+        synchronize(managed)
+        managed.stream = strm
+    end
+
+    managed.dirty = true
+    return managed.mem
+end
+
+function pool_alloc(::Type{B}, bytesize) where B
+    s = AMDGPU.stream()
+    Managed(B(bytesize; stream=s); stream=s)
+end
+
+function pool_free(managed::Managed{M}) where M
+    _pool_free(managed.mem, managed.stream)
+end
+
+function _pool_free(buf, stream::HIPStream)
+    if !HIP.isvalid(stream)
+        stream = AMDGPU.default_stream()
+    end
+    context!(() -> Mem.free(buf; stream), buf.ctx)
+end

@@ -6,6 +6,8 @@ mutable struct HIPStream
     priority::Symbol
     device::HIPDevice
     ctx::HIPContext
+
+    Base.@atomic valid::Bool
 end
 
 """
@@ -24,16 +26,19 @@ function HIPStream(priority::Symbol = :normal)
     stream_ref = Ref{hipStream_t}()
     hipStreamCreateWithPriority(stream_ref, 0, priority_int) |> check
     d = device()
-    stream = HIPStream(stream_ref[], priority, d, HIPContext(d))
+    stream = HIPStream(stream_ref[], priority, d, HIPContext(d), true)
     finalizer(stream) do s
         AMDGPU.context!(s.ctx) do
             hipStreamDestroy(s.stream) |> check
         end
+        Base.@atomic s.valid = false
     end
     return stream
 end
 
-default_stream() = HIPStream(C_NULL, :normal, device(), HIPContext())
+isvalid(s::HIPStream) = s.valid
+
+default_stream() = HIPStream(C_NULL, :normal, device(), HIPContext(), true)
 
 """
     HIPStream(stream::hipStream_t)
@@ -43,7 +48,7 @@ Device is the default device that's currently in use.
 """
 function HIPStream(stream::hipStream_t)
     d = device()
-    HIPStream(stream, priority(stream), d, HIPContext(d))
+    HIPStream(stream, priority(stream), d, HIPContext(d), true)
 end
 
 function isdone(stream::HIPStream)
