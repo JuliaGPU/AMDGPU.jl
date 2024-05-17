@@ -137,6 +137,7 @@ function __init__()
             Sys.islinux() ? "libamdhip64" : "amdhip64";
             rocm_path, artifact_library=:HIP_jll)
 
+        # TODO check if opaque pointer is enabled and turn off artifacts
         from_artifact = if isempty(libhip)
             use_artifacts()
         else

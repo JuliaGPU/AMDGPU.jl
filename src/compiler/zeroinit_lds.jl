@@ -38,7 +38,7 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
 
         # Use memset to clear all values to 0.
         for gbl in to_init
-            sz = llvmsize(eltype(value_type(gbl)))
+            sz = llvmsize(eltype(value_type(gbl))) # LLVM 16 taking type of opaque pointer
             sz == 0 && continue
 
             LLVM.memset!(builder, gbl,

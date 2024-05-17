@@ -105,26 +105,25 @@ PrettyTables.pretty_table(data; header=[
     "Workers", "Device", "Tests"], crop=:none)
 
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
-    ti.name == "core: device" && return true
-    # # TODO broken tests or hang CI
-    # ti.name == "hip - rocFFT" && return false
-    # ti.name == "hip - rocSPARSE" && return false
-    # ti.name == "hip - rocSOLVER" && return false
+    # TODO broken tests or hang CI
+    ti.name == "hip - rocFFT" && return false
+    ti.name == "hip - rocSPARSE" && return false
+    ti.name == "hip - rocSOLVER" && return false
 
-    # for tt in TARGET_TESTS
-    #     startswith(ti.name, tt) && return true
-    # end
+    for tt in TARGET_TESTS
+        startswith(ti.name, tt) && return true
+    end
     return false
 end
 
-# if "core" in TARGET_TESTS && Sys.islinux()
-#     @info "Testing `Hostcalls` on the main thread."
-#     @testset "Hostcalls" begin
-#         include("device/hostcall.jl")
+if "core" in TARGET_TESTS && Sys.islinux()
+    @info "Testing `Hostcalls` on the main thread."
+    @testset "Hostcalls" begin
+        include("device/hostcall.jl")
 
-#         # TODO 1.11 fails
-#         if VERSION < v"1.11-"
-#             include("device/output.jl")
-#         end
-#     end
-# end
+        # TODO 1.11 fails
+        if VERSION < v"1.11-"
+            include("device/output.jl")
+        end
+    end
+end
