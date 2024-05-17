@@ -1,6 +1,15 @@
 Base.to_index(::ROCArray, I::AbstractArray{Bool}) = findall(I)
 
-# TODO Julia 1.11 specifics
+if VERSION >= v"1.11.0-DEV.1157"
+    Base.to_indices(x::ROCArray, I::Tuple{AbstractArray{Bool}}) =
+        (Base.to_index(x, I[1]),)
+else
+    function Base.to_indices(
+        x::ROCArray, inds, I::Tuple{Union{Array{Bool,N}, BitArray{N}}},
+    ) where N
+        (Base.to_index(A, I[1]),)
+    end
+end
 
 function Base.findall(bools::AnyROCArray{Bool})
     I = keytype(bools)
