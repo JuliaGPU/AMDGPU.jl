@@ -72,7 +72,7 @@ include("runtime/Runtime.jl")
 import .Runtime
 import .Runtime: Mem, ROCDim, ROCDim3
 
-include("stats.jl")
+include("memory.jl")
 
 const ci_cache = GPUCompiler.CodeCache()
 Base.Experimental.@MethodTable(method_table)
@@ -216,12 +216,6 @@ function __init__()
         if !functional(symbol)
             @warn "$name is unavailable, functionality will be disabled."
         end
-    end
-
-    # Ensure that operations executed by the REPL backend finish before returning.
-    # Displaying values happens on a different task.
-    if isdefined(Base, :active_repl_backend)
-        push!(Base.active_repl_backend.ast_transforms, synchronize_rocm_tasks)
     end
 end
 

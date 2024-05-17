@@ -1,64 +1,3 @@
-# const _POOL_STATUS = AMDGPU.LockedObject(
-#     Dict{HIP.HIPDevice, Base.RefValue{Union{Nothing, Bool}}}())
-
-# function pool_status(dev::HIP.HIPDevice)
-#     Base.lock(_POOL_STATUS) do ps
-#         get!(ps, dev, Ref{Union{Nothing, Bool}}(nothing))
-#     end
-# end
-
-# const __pool_cleanup = Ref{Task}()
-# function pool_cleanup()
-#     idle_counters = Base.fill(0, HIP.ndevices())
-#     devices = HIP.devices()
-#     while true
-#         for (i, dev) in enumerate(devices)
-#             status = pool_status(dev)
-#             isnothing(status[]) && continue
-
-#             if status[]::Bool
-#                 idle_counters[i] = 0
-#             else
-#                 idle_counters[i] += 1
-#             end
-#             status[] = false
-
-#             if idle_counters[i] == 5
-#                 old_device = HIP.device()
-#                 old_device != dev && HIP.device!(dev)
-#                 HIP.reclaim()
-#                 old_device != dev && HIP.device!(old_device)
-#             end
-#         end
-
-#         try
-#             sleep(60)
-#         catch ex
-#             if ex isa EOFError
-#                 # If we get EOF here, it's because Julia is shutting down,
-#                 # so we should just exit the loop.
-#                 break
-#             else
-#                 rethrow()
-#             end
-#         end
-#     end
-# end
-
-# function mark_pool!(dev::HIP.HIPDevice)
-#     status = pool_status(dev)
-#     if isnothing(status[])
-#         # Default to `0` which is the default value in HIP.
-#         limit = parse_memory_limit(@load_preference("soft_memory_limit", "0 MiB"))
-#         HIP.attribute!(
-#             HIP.memory_pool(dev), HIP.hipMemPoolAttrReleaseThreshold, limit)
-#         if !isassigned(__pool_cleanup)
-#             __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
-#         end
-#     end
-#     status[] = true
-# end
-
 # Device ID => HIPMemoryPool
 const MEMORY_POOLS = AMDGPU.LockedObject(
     Dict{Int64, HIP.HIPMemoryPool}())
@@ -76,6 +15,9 @@ function pool_create(dev::HIPDevice)
         end
     end
 end
+
+# ccall integration
+Base.unsafe_convert(T, buf::AbstractAMDBuffer) = convert(T, buf)
 
 struct HIPBuffer <: AbstractAMDBuffer
     device::HIPDevice # TODO not used?
@@ -125,8 +67,7 @@ function HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int)
     HIPBuffer(s.device, s.ctx, ptr, bytesize, false)
 end
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::HIPBuffer) where T =
-    convert(Ptr{T}, buf.ptr)
+Base.convert(::Type{Ptr{T}}, buf::HIPBuffer) where T = convert(Ptr{T}, buf.ptr)
 
 function view(buf::HIPBuffer, bytesize::Int)
     bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
@@ -233,8 +174,7 @@ transfer!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
 transfer!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where T =
-    convert(Ptr{T}, buf.ptr)
+Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where T = convert(Ptr{T}, buf.ptr)
 
 @inline device_ptr(buf::HostBuffer) = buf.dev_ptr
 

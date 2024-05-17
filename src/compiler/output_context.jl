@@ -15,7 +15,7 @@ function create_output_context!(#= TODO mod::HIP.HIPModule =#)
 
         # Pointer to HostCall to be read from device.
         buf = Mem.HostBuffer(sizeof(holder.hc), HIP.hipHostAllocDefault)
-        ptr = Base.unsafe_convert(Ptr{Device.OUTPUT_CONTEXT_TYPE}, buf)
+        ptr = convert(Ptr{Device.OUTPUT_CONTEXT_TYPE}, buf)
         Base.unsafe_store!(ptr, holder.hc)
         return holder, buf
     end
@@ -48,8 +48,7 @@ function create_printf_output_context!()
         end
         # Pointer to HostCall to be read from device.
         buf = Mem.HostBuffer(sizeof(holder.hc), HIP.hipHostAllocDefault)
-        ptr = Base.unsafe_convert(
-            Ptr{Device.PRINTF_OUTPUT_CONTEXT_TYPE}, buf)
+        ptr = convert(Ptr{Device.PRINTF_OUTPUT_CONTEXT_TYPE}, buf)
         Base.unsafe_store!(ptr, holder.hc)
         return holder, buf
     end
