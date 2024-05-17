@@ -110,7 +110,16 @@ function account!(stats::MemoryStats, bytes::Integer)
     Base.@atomic stats.live += bytes
 end
 
+const EAGER_GC::Ref{Bool} = Ref{Bool}(@load_preference("eager_gc", true))
+
+function eager_gc!(flag::Bool)
+    global EAGER_GC[] = flag
+    @set_preferences!("eager_gc" => flag)
+end
+
 function maybe_collect(; blocking::Bool = false)
+    EAGER_GC[] || return
+
     stats = memory_stats()
     current_time = time()
 

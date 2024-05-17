@@ -136,6 +136,9 @@ Template of `LocalPreferences.toml` with all options:
 
 ```toml
 [AMDGPU]
+# If `true` (default), eagerly run GC to keep the pool from growing too big.
+# GC is triggered during new allocatoins or synchronization points.
+eager_gc = false
 # If `true` then use ROCm libraries provided by artifacts.
 # However, not all ROCm libraries are available as artifacts.
 use_artifacts = false
