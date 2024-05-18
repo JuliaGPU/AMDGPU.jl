@@ -79,15 +79,3 @@ end
         @test ForwardDiff.gradient(_x -> sum(_x .^ p), x) ≈ p .* (x .^ (p - 1))
     end
 end
-
-#= FIXME
-@testset "Broadcast Fix" begin
-    if AMDGPU.libmiopen !== nothing
-        using NNlib
-
-        f(x) = logσ.(x)
-        ds = Dual.(rand(5),1)
-        @test f(ds) ≈ collect(f(ROCArray(ds)))
-    end
-end
-=#
