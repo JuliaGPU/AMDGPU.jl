@@ -22,8 +22,10 @@
 ## Requirements
 
 - Julia 1.9+ (Navi 3 GPUs require Julia 1.10 or higher).
-- ROCm 5.3 - 6.0, which means only GPUs that are supported by these versions will work.
+- ROCm 5.3+, which means only GPUs that are supported by these versions will work.
 - 64-bit Linux and Windows are supported, see [requirements](https://amdgpu.juliagpu.org/dev/#Installation) section in the docs.
+
+For Julia 1.11 set `JULIA_LLVM_ARGS="-opaque-pointers"` to enable opaque pointers and use system-wide device libraries, instead of patched from artifacts.
 
 ## Quick start
 
