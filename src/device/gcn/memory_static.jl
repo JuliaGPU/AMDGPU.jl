@@ -42,8 +42,7 @@
             entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
-            ptr_with_as = gep!(builder, gv_typ, gv,
-                [ConstantInt(0), ConstantInt(0)])
+            ptr_with_as = gep!(builder, gv_typ, gv, [ConstantInt(0), ConstantInt(0)])
             ptr = bitcast!(builder, ptr_with_as, T_ptr_i8)
             ret!(builder, ptr)
         end

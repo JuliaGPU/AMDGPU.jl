@@ -23,8 +23,6 @@ end
 
 GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
 
-GPUCompiler.ci_cache(@nospecialize(::HIPCompilerJob)) = AMDGPU.ci_cache
-
 GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
 GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState

@@ -8,5 +8,5 @@
 
 docs/build
 docs/Manifest.toml
-Manifest.toml
+Manifest*.toml
 LocalPreferences.toml

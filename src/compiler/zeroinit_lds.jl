@@ -22,9 +22,11 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
     to_init = []
     for gbl in LLVM.globals(mod)
         if startswith(LLVM.name(gbl), "__zeroinit")
-            as = LLVM.addrspace(value_type(gbl))
+            vt = value_type(gbl)
+            as = LLVM.addrspace(vt)
             if as == AMDGPU.Device.AS.Local
-                push!(to_init, gbl)
+                sz = llvmsize(global_value_type(gbl))
+                push!(to_init, (gbl, sz))
             end
         end
     end
@@ -37,13 +39,10 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
         position!(builder, instruction)
 
         # Use memset to clear all values to 0.
-        for gbl in to_init
-            sz = llvmsize(eltype(value_type(gbl)))
+        for (gbl, sz) in to_init
             sz == 0 && continue
-
             LLVM.memset!(builder, gbl,
-                ConstantInt(UInt8(0)), ConstantInt(sz),
-                LLVM.alignment(gbl))
+                ConstantInt(UInt8(0)), ConstantInt(sz), LLVM.alignment(gbl))
         end
 
         # Synchronize the workgroup to prevent races.

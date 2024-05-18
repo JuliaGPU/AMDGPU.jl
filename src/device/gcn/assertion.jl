@@ -29,10 +29,11 @@ macro rocassert(ex, msgs...)
         msg = :(Main.Base.string($(Expr(:quote,msg))))
     end
 
-    return :($(esc(ex)) ? $(nothing)
-                        : rocassert_fail($(Val(Symbol(msg))),
-                                         $(Val(__source__.file)),
-                                         $(Val(__source__.line))))
+    return :($(esc(ex)) ? $(nothing) :
+        rocassert_fail(
+            $(Val(Symbol(msg))),
+            $(Val(__source__.file)),
+            $(Val(__source__.line))))
 end
 
 assert_counter = 0
