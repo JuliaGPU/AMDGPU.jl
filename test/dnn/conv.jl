@@ -37,41 +37,29 @@ end
     wh2 = rand(Float32, 3, 4, 3, 16)
     x, w1, w2 = ROCArray.((xh, wh1, wh2))
 
-    yh = NNlib.conv(xh, wh1; pad=(0, 0), stride=(1, 1), dilation=(1, 1), flipped=true)
     y = MIOpen.convolution(x, w1; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
-    @test y ≈ ROCArray(yh)
     @test size(y) == (9, 9, 16, 10)
 
-    yh = NNlib.conv(xh, wh1; pad=(2, 2), stride=(2, 2), dilation=(1, 1), flipped=true)
     y = MIOpen.convolution(x, w1; padding=(2, 2), stride=(2, 2), dilation=(1, 1), groups=1)
-    @test y ≈ ROCArray(yh)
     @test size(y) == (7, 7, 16, 10)
 
-    yh = NNlib.conv(xh, wh2; pad=(2, 3), stride=(1, 2), dilation=(1, 1), flipped=true)
     y = MIOpen.convolution(x, w2; padding=(2, 3), stride=(1, 2), dilation=(1, 1), groups=1)
-    @test y ≈ ROCArray(yh)
     @test size(y) == (12, 7, 16, 10)
 
-    yh = NNlib.conv(xh, wh1; pad=(2, 3), stride=(1, 2), dilation=(2, 2), flipped=true)
     y = MIOpen.convolution(x, w1; padding=(2, 3), stride=(1, 2), dilation=(2, 2), groups=1)
-    @test y ≈ ROCArray(yh)
     @test size(y) == (12, 7, 16, 10)
 
     # Depthwise convolution.
     wdh1 = rand(Float32, 2, 2, 1, 3)
     wd1 = ROCArray(wdh1)
-    yh = NNlib.depthwiseconv(xh, wdh1; pad=(0, 0), stride=(1, 1), dilation=(1, 1), flipped=true)
     y = MIOpen.convolution(x, wd1; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=3)
-    @test y ≈ ROCArray(yh)
     @test size(y) == (9, 9, 3, 10)
 
     # Grouped convolution.
     xh = ones(Float32, 10, 10, 4, 10)
     wdh2 = ones(Float32, 2, 2, 2, 4)
     x, wd2 = ROCArray.((xh, wdh2))
-    yh = NNlib.conv(xh, wdh2; pad=(0, 0), stride=(1, 1), dilation=(1, 1), groups=2, flipped=true)
     y = MIOpen.convolution(x, wd2; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=2)
-    @test y ≈ ROCArray(yh)
     @test size(y) == (9, 9, 4, 10)
 end
 

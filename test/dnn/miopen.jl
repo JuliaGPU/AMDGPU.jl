@@ -1,6 +1,5 @@
 @testset "MIOpen" begin
 
-using NNlib
 using AMDGPU.MIOpen
 
 @testset "Tensor descriptors" begin
