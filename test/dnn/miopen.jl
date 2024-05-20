@@ -31,4 +31,8 @@ end
     include("activations.jl")
 end
 
+@testset "Batchnorm" begin
+    include("activations.jl")
+end
+
 end
