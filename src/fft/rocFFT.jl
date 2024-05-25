@@ -1,26 +1,26 @@
 module rocFFT
 export ROCFFTError
 
+using CEnum
+using LinearAlgebra
+
+# TODO
+# @reexport using AbstractFFTs
+
 import AbstractFFTs: complexfloat, realfloat
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!
 import AbstractFFTs: plan_rfft, plan_brfft, plan_inv, normalization
 import AbstractFFTs: fft, bfft, ifft, rfft, Plan, ScaledPlan
 
-# TODO
-# @reexport using AbstractFFTs
-
-using LinearAlgebra
-
 import ..AMDGPU
-import .AMDGPU: ROCArray, ROCVector, HandleCache, HIP, unsafe_free!, check
+import .AMDGPU: ROCArray, ROCVector, HandleCache, HIP, unsafe_free!, check, @check
 import AMDGPU: librocfft
 import .HIP: hipStream_t, HIPContext, HIPStream
-
-using CEnum
 
 include("librocfft.jl")
 include("error.jl")
 include("util.jl")
+include("wrappers.jl")
 include("fft.jl")
 
 version() = VersionNumber(

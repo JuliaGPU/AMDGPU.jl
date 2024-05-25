@@ -14,13 +14,16 @@ const ROCFFT_FORWARD = true
 const ROCFFT_INVERSE = false
 
 # TODO: Real to Complex full not possible atm
+# For R2C -> cast array to Complex first
+
 # K is flag for forward/inverse
-mutable struct cROCFFTPlan{T,K,inplace,N} <: ROCFFTPlan{T,K,inplace}
+mutable struct cROCFFTPlan{T, K, inplace, N} <: ROCFFTPlan{T, K, inplace}
     handle::rocfft_plan
+    stream::HIPStream
     workarea::ROCVector{Int8}
     execution_info::rocfft_execution_info
-    sz::NTuple{N,Int} # Julia size of input array
-    osz::NTuple{N,Int} # Julia size of output array
+    sz::NTuple{N, Int} # Julia size of input array
+    osz::NTuple{N, Int} # Julia size of output array
     xtype::rocfft_transform_type
     region::Any
     pinv::ScaledPlan # required by AbstractFFTs API
@@ -35,11 +38,12 @@ mutable struct cROCFFTPlan{T,K,inplace,N} <: ROCFFTPlan{T,K,inplace}
         info = info_ref[]
 
         # assign to the current stream
-        rocfft_execution_info_set_stream(info, AMDGPU.stream())
+        stream = AMDGPU.stream()
+        rocfft_execution_info_set_stream(info, stream)
         if length(workarea) > 0
             rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
         end
-        p = new(handle, workarea, info, size(X), sizey, xtype, region)
+        p = new(handle, stream, workarea, info, size(X), sizey, xtype, region)
         finalizer(unsafe_free!, p)
         p
     end
@@ -47,6 +51,7 @@ end
 
 mutable struct rROCFFTPlan{T,K,inplace,N} <: ROCFFTPlan{T,K,inplace}
     handle::rocfft_plan
+    stream::HIPStream
     workarea::ROCVector{Int8}
     execution_info::rocfft_execution_info
     sz::NTuple{N,Int} # Julia size of input array
@@ -63,14 +68,24 @@ mutable struct rROCFFTPlan{T,K,inplace,N} <: ROCFFTPlan{T,K,inplace}
         rocfft_execution_info_create(info_ref)
         info = info_ref[]
 
-        rocfft_execution_info_set_stream(info, AMDGPU.stream())
+        stream = AMDGPU.stream()
+        rocfft_execution_info_set_stream(info, stream)
         if length(workarea) > 0
             rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
         end
-        p = new(handle, workarea, info, size(X), sizey, xtype, region)
+        p = new(handle, stream, workarea, info, size(X), sizey, xtype, region)
         finalizer(unsafe_free!, p)
         p
     end
+end
+
+function update_stream!(plan::ROCFFTPlan)
+    new_stream = AMDGPU.stream()
+    if plan.stream != new_stream
+        plan.stream = new_stream
+        rocfft_execution_info_set_stream(info, new_stream)
+    end
+    return
 end
 
 const xtypenames = (
@@ -140,8 +155,7 @@ function plan_inv(p::cROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}) where {T<:rocfftCo
     xtype = rocfft_transform_type_complex_inverse
     pp = get_plan(xtype, p.sz, T, inplace, p.region)
     ScaledPlan(
-        cROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}(
-            pp..., X, p.sz, xtype, p.region),
+        cROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}(pp..., X, p.sz, xtype, p.region),
         normalization(X, p.region))
 end
 
@@ -198,9 +212,8 @@ function assert_applicable(p::ROCFFTPlan{T,K}, X::ROCArray{T}, Y::ROCArray{Ty}) 
     end
 end
 
-# TODO update stream
-
 function unsafe_execute!(plan::cROCFFTPlan{T,K,true,N}, X::ROCArray{T,N}) where {T,K,N}
+    update_stream!(plan)
     rocfft_execute(plan, [pointer(X),], C_NULL, plan.execution_info)
 end
 
@@ -209,6 +222,7 @@ function unsafe_execute!(
 ) where {T,N,K}
     X = copy(X) # since input array can also be modified
     # TODO on 1.11 we need to manually cast `pointer(X)` to `Ptr{Cvoid}`.
+    update_stream!(plan)
     rocfft_execute(plan, [pointer(X),], [pointer(Y),], plan.execution_info)
 end
 
@@ -218,6 +232,7 @@ function unsafe_execute!(
 ) where {T<:rocfftReals,N}
     @assert plan.xtype == rocfft_transform_type_real_forward
     Xcopy = copy(X)
+    update_stream!(plan)
     rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
 end
 
@@ -227,9 +242,9 @@ function unsafe_execute!(
 ) where {T<:rocfftComplexes,N}
     @assert plan.xtype == rocfft_transform_type_real_inverse
     Xcopy = copy(X)
+    update_stream!(plan)
     rocfft_execute(plan, [pointer(Xcopy),], [pointer(Y),], plan.execution_info)
 end
-
 
 function LinearAlgebra.mul!(y::ROCArray{Ty}, p::ROCFFTPlan{T,K,false}, x::ROCArray{T}) where {T,Ty,K}
     assert_applicable(p, x, y)
