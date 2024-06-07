@@ -85,14 +85,6 @@ ROCArray{T}(::UndefInitializer, dims::NTuple{N, Integer}) where {T,N} =
 ROCArray{T}(::UndefInitializer, dims::Vararg{Integer, N}) where {T, N} =
     ROCArray{T,N}(undef, convert(Tuple{Vararg{Int}}, dims))
 
-# from Base arrays
-function ROCArray{T,N}(x::Array{T,N}, dims::Dims{N}) where {T,N}
-    r = ROCArray{T,N}(undef, dims)
-    Mem.upload!(convert(Mem.AbstractAMDBuffer, r.buf[]),
-        pointer(x), sizeof(x); stream=stream())
-    return r
-end
-
 # empty vector constructor
 ROCArray{T,1}() where {T} = ROCArray{T,1}(undef, 0)
 
@@ -111,8 +103,13 @@ Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
 
 ## interop with Julia arrays
 
-ROCArray{T,N}(x::AbstractArray{S,N}) where {T,N,S} =
-    ROCArray{T,N}(convert(Array{T}, x), size(x))
+function ROCArray{T,N,B}(x::AbstractArray{<:Any,N}) where {T,N,B}
+    r = ROCArray{T,N,B}(undef, size(x))
+    copyto!(r, convert(Array{T}, x))
+    return r
+end
+
+ROCArray{T,N}(x::AbstractArray{<:Any,N}) where {T,N} = ROCArray{T,N,Mem.HIPBuffer}(x)
 
 # underspecified constructors
 ROCArray(A::AbstractArray{T,N}) where {T,N} = ROCArray{T,N}(A)
