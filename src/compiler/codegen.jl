@@ -181,10 +181,13 @@ function hipcompile(@nospecialize(job::CompilerJob))
         push!(global_hostcalls, gbl_name)
     end
     if !isempty(global_hostcalls)
-        @warn """Global hostcalls detected: $global_hostcalls.
+        @warn """Global hostcalls detected!
+        - Source: $(job.source)
+        - Hostcalls: $(global_hostcalls)
+
         Use `AMDGPU.synchronize(; stop_hostcalls=false)` to synchronize and stop them.
         Otherwise, performance might degrade if they keep running in the background.
-        """ maxlog=1
+        """
     end
 
     if !isempty(globals)
