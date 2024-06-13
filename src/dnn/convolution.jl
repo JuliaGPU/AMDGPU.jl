@@ -63,7 +63,7 @@ function get_workspace_size(
     wsize_ref = Ref{Csize_t}(0)
     get_workspace_size_func(conv_type)(
         handle, a_desc.handle, b_desc.handle,
-        conv_desc.handle, c_desc.handle, wsize_ref) |> check
+        conv_desc.handle, c_desc.handle, wsize_ref) # NOTE: do not |> check...
     wsize_ref[]
 end
 
@@ -93,9 +93,12 @@ function find_algorithm(
     cache = get_benchmark_cache(conv_type, conv_args)
     isnothing(cache) || return cache
 
-    workspace = ROCArray{UInt8}(undef, 0)
+    wsize = get_workspace_size(conv_type; handle, a_desc, b_desc, conv_desc, c_desc)
+    workspace = ROCArray{UInt8}(undef, wsize)
     perf_results = find_conv_algo(conv_type;
         handle, workspace, a, a_desc, b, b_desc, conv_desc, c, c_desc)
+    AMDGPU.unsafe_free!(workspace)
+
     set_benchmark_cache!(conv_type, conv_args, perf_results)
     workspace = ROCArray{UInt8}(undef, perf_results.memory)
 

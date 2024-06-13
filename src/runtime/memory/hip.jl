@@ -38,14 +38,8 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     ptr = alloc_or_retry!(isnothing; stream) do
         try
             # Try to allocate.
-            # NOTE Async is ~300x slower for small (≤ 16 bytes) allocations:
-            # https://github.com/ROCm/HIP/issues/3370#issuecomment-1842938966
-            if bytesize > 16
-                HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
-                # HIP.hipMallocFromPoolAsync(ptr_ref, bytesize, pool, stream) |> HIP.check
-            else
-                HIP.hipMalloc(ptr_ref, bytesize) |> HIP.check
-            end
+            HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
+            # HIP.hipMallocFromPoolAsync(ptr_ref, bytesize, pool, stream) |> HIP.check
 
             ptr = ptr_ref[]
             ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
@@ -78,11 +72,7 @@ function free(buf::HIPBuffer; stream::HIP.HIPStream)
     buf.own || return
 
     buf.ptr == C_NULL && return
-    if buf.bytesize > 16
-        HIP.hipFreeAsync(buf, stream) |> HIP.check
-    else
-        HIP.hipFree(buf) |> HIP.check
-    end
+    HIP.hipFreeAsync(buf, stream) |> HIP.check
     AMDGPU.account!(AMDGPU.memory_stats(buf.device), -buf.bytesize)
     return
 end
@@ -93,13 +83,9 @@ function upload!(dst::HIPBuffer, src::Ptr, bytesize::Int; stream::HIP.HIPStream)
     return
 end
 
-function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream, async::Bool)
+function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return
-    if async
-        HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream) |> HIP.check
-    else
-        HIP.hipMemcpyDtoH(dst, src, bytesize) |> HIP.check
-    end
+    HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream) |> HIP.check
     return
 end
 
@@ -157,10 +143,10 @@ upload!(dst::HostBuffer, src::Ptr, sz::Int; stream::HIP.HIPStream) =
 upload!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
 
-download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream, async::Bool) =
+download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
 
-download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream, async::Bool) =
+download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
 
 transfer!(dst::HostBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =

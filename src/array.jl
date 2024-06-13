@@ -135,11 +135,13 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
+    stm = stream()
     Mem.download!(
         pointer(dest, d_offset),
         Mem.view(convert(Mem.AbstractAMDBuffer, source.buf[]),
             (source.offset + s_offset - 1) * sizeof(T)),
-        amount * sizeof(T); stream=stream(), async)
+        amount * sizeof(T); stream=stm)
+    async || synchronize(stm)
     dest
 end
 
