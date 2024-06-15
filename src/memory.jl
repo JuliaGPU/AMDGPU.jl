@@ -143,6 +143,10 @@ function maybe_collect(; blocking::Bool = false)
     min_pressure = blocking ? 0.5 : 0.75
     pressure < min_pressure && return
 
+    # TODO take allocations into account
+    #   if pressure is high but we didn't allocate - don't collect
+    #   otherwise try hard
+
     # Check that we don't collect too often.
     gc_rate = stats.last_gc_time / (current_time - stats.last_time)
     # Tolerate 5% GC time.
@@ -160,7 +164,7 @@ function maybe_collect(; blocking::Bool = false)
     # Call the GC.
     Base.@atomic stats.last_time = current_time
     pre_gc_live = stats.live
-    gc_time = Base.@elapsed GC.gc(false)
+    gc_time = Base.@elapsed GC.gc(pressure > 0.9 ? true : false)
     post_gc_live = stats.live
 
     # Update stats.
