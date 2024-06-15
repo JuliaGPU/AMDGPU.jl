@@ -100,6 +100,7 @@ Base.similar(::ROCArray{<:Any, <:Any, B}, ::Type{T}, dims::Base.Dims{N}) where {
 Base.elsize(::Type{<:ROCArray{T}}) where {T} = sizeof(T)
 Base.size(x::ROCArray) = x.dims
 Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
+Base.dataids(A::ROCArray) = (UInt(pointer(A)),)
 
 ## interop with Julia arrays
 
