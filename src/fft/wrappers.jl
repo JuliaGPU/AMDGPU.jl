@@ -25,7 +25,6 @@ end
 
 function destroy_plan!(plan)
     rocfft_plan_destroy(plan.handle)
-    rocfft_execution_info_destroy(plan.execution_info)
 end
 
 function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
