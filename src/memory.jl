@@ -81,7 +81,7 @@ function hard_memory_limit()
     hard_limit = parse_memory_limit(
         @load_preference("hard_memory_limit", "none"))
 
-    @info "Setting hard memory limit: $(Base.format_bytes(hard_limit))"
+    @debug "Setting hard memory limit: $(Base.format_bytes(hard_limit))"
     HARD_MEMORY_LIMIT[] = hard_limit
 end
 
@@ -93,7 +93,7 @@ function soft_memory_limit()
     soft_limit = parse_memory_limit(
         @load_preference("soft_memory_limit", "none"))
 
-    @info "Setting soft memory limit: $(Base.format_bytes(soft_limit))"
+    @debug "Setting soft memory limit: $(Base.format_bytes(soft_limit))"
     SOFT_MEMORY_LIMIT[] = soft_limit
 end
 
@@ -181,15 +181,12 @@ function maybe_collect(; blocking::Bool = false)
 
     # Always free if pressure is 0.9 and we freed a lot.
     pressure > 0.9 && (max_gc_rate *= freed_alot ? Inf : 2;)
-    if gc_rate > max_gc_rate
-        @info "[EGC] Not freeing. Pressure $pressure, GC rate $gc_rate, max GC rate $max_gc_rate"
-        return
-    end
+    gc_rate > max_gc_rate && return
 
     # Call the GC.
     Base.@atomic stats.last_time = current_time
     pre_gc_live = stats.live
-    gc_time = Base.@elapsed GC.gc(pressure > 0.9 ? true : false)
+    gc_time = Base.@elapsed GC.gc(pressure > 0.7 ? true : false)
     post_gc_live = stats.live
 
     # Update stats.
@@ -197,7 +194,6 @@ function maybe_collect(; blocking::Bool = false)
     Base.@atomic stats.last_freed = freed
     # Smooth out GC times.
     Base.@atomic stats.last_gc_time = 0.75 * stats.last_gc_time + 0.25 * gc_time
-    @info "[EGC] Pressure $pressure, Freed $freed, GC time $(stats.last_gc_time)"
     return
 end
 
