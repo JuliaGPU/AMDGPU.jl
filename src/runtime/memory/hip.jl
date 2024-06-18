@@ -9,7 +9,10 @@ function pool_create(dev::HIPDevice)
             max_size = max_size != typemax(UInt64) ? max_size : UInt64(0)
 
             pool = HIP.HIPMemoryPool(dev; max_size)
-            # TODO set soft threshold?
+            # Allow pool to use up all device memory.
+            soft_limit = AMDGPU.soft_memory_limit()
+            HIP.attribute!(pool, HIP.hipMemPoolAttrReleaseThreshold, soft_limit)
+
             HIP.memory_pool!(dev, pool)
             return pool
         end

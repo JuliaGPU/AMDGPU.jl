@@ -67,16 +67,34 @@ end
 """
 Set a hard limit for total GPU memory allocations.
 """
-set_memory_alloc_limit!(limit::String) =
+hard_memory_limit!(limit::String) =
     @set_preferences!("hard_memory_limit" => limit)
+
+soft_memory_limit!(limit::String) =
+    @set_preferences!("soft_memory_limit" => limit)
 
 const HARD_MEMORY_LIMIT = Ref{Union{Nothing, UInt64}}(nothing)
 function hard_memory_limit()
-    l = HARD_MEMORY_LIMIT[]
-    l ≢ nothing && return l
+    hard_limit = HARD_MEMORY_LIMIT[]
+    hard_limit ≢ nothing && return hard_limit
 
-    HARD_MEMORY_LIMIT[] = parse_memory_limit(
+    hard_limit = parse_memory_limit(
         @load_preference("hard_memory_limit", "none"))
+
+    @info "Setting hard memory limit: $(Base.format_bytes(hard_limit))"
+    HARD_MEMORY_LIMIT[] = hard_limit
+end
+
+const SOFT_MEMORY_LIMIT = Ref{Union{Nothing, UInt64}}(nothing)
+function soft_memory_limit()
+    soft_limit = SOFT_MEMORY_LIMIT[]
+    soft_limit ≢ nothing && return soft_limit
+
+    soft_limit = parse_memory_limit(
+        @load_preference("soft_memory_limit", "none"))
+
+    @info "Setting soft memory limit: $(Base.format_bytes(soft_limit))"
+    SOFT_MEMORY_LIMIT[] = soft_limit
 end
 
 mutable struct MemoryStats
@@ -152,14 +170,21 @@ function maybe_collect(; blocking::Bool = false)
     # Tolerate 5% GC time.
     max_gc_rate = 0.05
     # If freed a lot of memory last time, double max GC rate.
-    (stats.last_freed > 0.1 * stats.size) && (max_gc_rate *= 2;)
+    freed_alot = stats.last_freed > 0.1 * stats.size
+    freed_alot && (max_gc_rate *= 2;)
     # Be more aggressive if we are going to block.
     blocking && (max_gc_rate *= 2;)
 
-    # And even more if we are at a limit.
-    pressure > 0.9 && (max_gc_rate *= 2;)
-    pressure > 0.95 && (max_gc_rate *= 2;)
-    gc_rate > max_gc_rate && return
+    # And even more if the pressure is high.
+    pressure > 0.5 && (max_gc_rate *= 2;)
+    pressure > 0.7 && (max_gc_rate *= 2;)
+
+    # Always free if pressure is 0.9 and we freed a lot.
+    pressure > 0.9 && (max_gc_rate *= freed_alot ? Inf : 2;)
+    if gc_rate > max_gc_rate
+        @info "[EGC] Not freeing. Pressure $pressure, GC rate $gc_rate, max GC rate $max_gc_rate"
+        return
+    end
 
     # Call the GC.
     Base.@atomic stats.last_time = current_time
@@ -172,6 +197,7 @@ function maybe_collect(; blocking::Bool = false)
     Base.@atomic stats.last_freed = freed
     # Smooth out GC times.
     Base.@atomic stats.last_gc_time = 0.75 * stats.last_gc_time + 0.25 * gc_time
+    @info "[EGC] Pressure $pressure, Freed $freed, GC time $(stats.last_gc_time)"
     return
 end
 
