@@ -13,6 +13,20 @@ function get_plan(args...)
     return handle, workarea
 end
 
+function release_plan!(plan)
+    key = (
+        AMDGPU.context(), plan.xtype, plan.sz,
+        eltype(plan), is_inplace(plan), plan.region)
+    value = (plan.handle, length(plan.workarea))
+    push!(IDLE_HANDLES, key, value) do
+        destroy_plan!(plan)
+    end
+end
+
+function destroy_plan!(plan)
+    rocfft_plan_destroy(plan.handle)
+end
+
 function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
     precision = (real(T) == Float64) ?
         rocfft_precision_double : rocfft_precision_single
@@ -168,10 +182,4 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
     end
     rocfft_plan_get_work_buffer_size(handle_ref[], worksize_ref)
     return handle_ref[], Int(worksize_ref[])
-end
-
-function release_plan(plan)
-    push!(IDLE_HANDLES, plan) do
-        unsafe_free!(plan)
-    end
 end

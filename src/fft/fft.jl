@@ -1,9 +1,16 @@
 abstract type ROCFFTPlan{T, K, inplace} <: Plan{T} end
 
+Base.eltype(::ROCFFTPlan{T}) where T = T
+
+is_inplace(::ROCFFTPlan{<:Any, <:Any, inplace}) where inplace = inplace
+
 Base.unsafe_convert(::Type{rocfft_plan}, p::ROCFFTPlan) = p.handle
 
-function unsafe_free!(plan::ROCFFTPlan)
-    rocfft_plan_destroy(plan.handle)
+function AMDGPU.unsafe_free!(plan::ROCFFTPlan)
+    if plan.handle != C_NULL
+        release_plan!(plan)
+        plan.handle = C_NULL
+    end
     unsafe_free!(plan.workarea)
     rocfft_execution_info_destroy(plan.execution_info)
 end
@@ -44,7 +51,7 @@ mutable struct cROCFFTPlan{T, K, inplace, N} <: ROCFFTPlan{T, K, inplace}
             rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
         end
         p = new(handle, stream, workarea, info, size(X), sizey, xtype, region)
-        finalizer(unsafe_free!, p)
+        finalizer(AMDGPU.unsafe_free!, p)
         p
     end
 end
