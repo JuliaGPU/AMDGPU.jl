@@ -1,7 +1,5 @@
 rocblas_size(t::Char, M::ROCVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
 
-const ROCBLASArray{T<:ROCBLASFloat} = ROCArray{T}
-
 #
 # BLAS 1
 #
@@ -19,30 +17,36 @@ LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASComplex}, k::Number) =
 LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASFloat}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)
 
-function LinearAlgebra.BLAS.dot(DX::ROCArray{T}, DY::ROCArray{T}) where T <: Union{Float16, Float32, Float64}
+function LinearAlgebra.dot(
+    DX::StridedROCArray{T}, DY::StridedROCArray{T},
+) where T <: Union{Float16, Float32, Float64}
     n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dot(n, DX, 1, DY, 1)
+    n == length(DY) || throw(DimensionMismatch(
+        "dot product arguments have lengths $(length(DX)) and $(length(DY))"))
+    dot(n, DX, stride(DX, 1), DY, stride(DY, 1))
 end
 
-function LinearAlgebra.BLAS.dotc(DX::ROCArray{T}, DY::ROCArray{T}) where T <: ROCBLASComplex
+function LinearAlgebra.dot(
+    DX::StridedROCArray{T}, DY::StridedROCArray{T},
+) where T <: ROCBLASComplex
     n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotc(n, DX, 1, DY, 1)
+    n == length(DY) || throw(DimensionMismatch(
+        "dot product arguments have lengths $(length(DX)) and $(length(DY))"))
+    dotc(n, DX, stride(DX, 1), DY, stride(DY, 1))
 end
 
-function LinearAlgebra.BLAS.dot(DX::ROCArray{T}, DY::ROCArray{T}) where T <: ROCBLASComplex
-    dotc(DX, DY)
+function LinearAlgebra.:(*)(
+    transx::Transpose{<:Any, <:StridedROCVector{T}}, y::StridedROCVector{T},
+) where T <: Union{ComplexF16, ROCBLASComplex}
+    x = transx.parent
+    n = length(x)
+    n == length(y) || throw(DimensionMismatch(
+        "dot product arguments have lengths $(length(x)) and $(length(y))"))
+    dotu(n, x, stride(x, 1), y, stride(y, 1))
 end
 
-function LinearAlgebra.BLAS.dotu(DX::ROCArray{T}, DY::ROCArray{T}) where T <: ROCBLASComplex
-    n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotu(n, DX, 1, DY, 1)
-end
-
-LinearAlgebra.norm(x::ROCArray{T}) where T <: ROCBLASFloat = nrm2(length(x), x, 1)
-LinearAlgebra.BLAS.asum(x::ROCBLASArray) = asum(length(x), x, 1)
+LinearAlgebra.norm(x::ROCArray{T}) where T <: ROCBLASFloat = nrm2(length(x), x, stride(x, 1))
+LinearAlgebra.BLAS.asum(x::ROCArray{T}) where T <: ROCBLASFloat = asum(length(x), x, stride(x, 1))
 
 function LinearAlgebra.axpy!(
     alpha::Number, x::ROCArray{T}, y::ROCArray{T},

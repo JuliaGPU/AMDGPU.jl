@@ -177,7 +177,8 @@ function maybe_collect(; blocking::Bool = false)
     # And even more if the pressure is high.
     pressure > 0.6 && (max_gc_rate *= 2;)
     pressure > 0.8 && (max_gc_rate *= 2;)
-    gc_rate > max_gc_rate && return
+    # Always try to collect if pressure ≥ 0.9.
+    gc_rate > max_gc_rate && pressure < 0.9 && return
 
     Base.@atomic stats.last_time = current_time
 
