@@ -5,6 +5,7 @@
 # #if defined(__HIP_PLATFORM_AMD__) && !defined(__HIP_PLATFORM_NVIDIA__)
 
 using Clang.Generators
+using JuliaFormatter
 
 include_dir = normpath("/opt/rocm/include")
 hip_dir = joinpath(include_dir, "hip")
@@ -22,3 +23,6 @@ headers = [
 
 ctx = create_context(headers, args, options)
 build!(ctx)
+
+path = options["general"]["output_file_path"]
+format_file(path, YASStyle())
