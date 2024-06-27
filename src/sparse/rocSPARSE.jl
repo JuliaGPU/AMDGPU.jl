@@ -4,10 +4,9 @@ using Adapt: Adapt, adapt
 using Base.Broadcast: Broadcasted
 using CEnum: @cenum
 using LinearAlgebra
-using LinearAlgebra: HermOrSym, BlasComplex, BlasFloat, BlasReal
+using LinearAlgebra: HermOrSym, BlasComplex, BlasFloat, BlasReal, MulAddMul, AdjOrTrans
 using SparseArrays
 using SparseArrays: nonzeroinds, dimlub
-
 using ..AMDGPU
 using ..AMDGPU: @allowscalar
 using ..AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim

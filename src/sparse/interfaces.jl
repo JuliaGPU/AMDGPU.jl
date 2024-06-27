@@ -31,39 +31,38 @@ op_wrappers = (
     (T -> :(Transpose{<:T, <:$T}), T -> 'T', A -> :(parent($A))),
     (T -> :(Adjoint{<:T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
 
-for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
-    TypeA = wrapa(taga(:(ROCSparseMatrix{T})))
+function LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::DenseROCVector{T}, _add::MulAddMul) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    mv_wrapper(tA, _add.alpha, A, B, _add.beta, C)
+end
 
-    @eval begin
-        function LinearAlgebra.mul!(
-            C::ROCVector{T}, A::$TypeA, B::DenseROCVector{T},
-            alpha::Number, beta::Number,
-        ) where T <: Union{Float16, ComplexF16, BlasFloat}
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
-        end
+function LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::ROCSparseVector{T}, _add::MulAddMul) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    mv_wrapper(tA, _add.alpha, A, ROCVector{T}(B), _add.beta, C)
+end
 
-        function LinearAlgebra.mul!(
-            C::ROCVector{Complex{T}}, A::$TypeA, B::DenseROCVector{Complex{T}},
-            alpha::Number, beta::Number,
-        ) where T <: Union{Float16, BlasFloat}
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
-        end
-    end
+function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::ROCSparseMatrix{T}, B::DenseROCMatrix{T}, _add::MulAddMul) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm_wrapper(tA, tB, _add.alpha, A, B, _add.beta, C)
+end
 
-    for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
-        TypeB = wrapb(tagb(:(DenseROCMatrix{T})))
+function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSC{T}, _add::MulAddMul) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
 
-        @eval begin
-            function LinearAlgebra.mul!(
-                C::ROCMatrix{T}, A::$TypeA, B::$TypeB,
-                alpha::Number, beta::Number,
-            ) where T <: Union{Float16, ComplexF16, BlasFloat}
-                mm_wrapper(
-                    $transa(T), $transb(T), alpha,
-                    $(untaga(unwrapa(:A))), $(untagb(unwrapb(:B))), beta, C)
-            end
-        end
-    end
+function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSR{T}, _add::MulAddMul) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
+end
+
+function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCOO{T}, _add::MulAddMul) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, _add.alpha, A, B, _add.beta, C, 'O')
 end
 
 Base.:(+)(A::ROCSparseMatrixCSR, B::ROCSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
@@ -136,63 +135,161 @@ end
 
 # triangular
 
-## direct
-for (t, uploc, isunitc) in (
-    (:LowerTriangular, 'L', 'N'),
-    (:UnitLowerTriangular, 'L', 'U'),
-    (:UpperTriangular, 'U', 'N'),
-    (:UnitUpperTriangular, 'U', 'U'),
-)
+for SparseMatrixType in (:ROCSparseMatrixBSR,)
+    if VERSION ≥ v"1.10-"
     @eval begin
-        # Left division
-        LinearAlgebra.ldiv!(
-            A::$t{T,<:AbstractROCSparseMatrix}, B::DenseROCVector{T},
-        ) where T <: BlasFloat =
-            sv2!('N', $uploc, $isunitc, one(T), parent(A), B, 'O')
+        LinearAlgebra.generic_trimatdiv!(C::DenseROCVector{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseROCVector{T}) where T <: BlasFloat =
+            sv2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', uploc, isunitc, one(T), A, C === B ? C : copyto!(C, B), 'O')
 
-        LinearAlgebra.ldiv!(
-            A::$t{T,<:AbstractROCSparseMatrix}, B::DenseROCMatrix{T},
-        ) where T <: BlasFloat =
-            sm2!('N', 'N', $uploc, $isunitc, one(T), parent(A), B, 'O')
+        LinearAlgebra.generic_trimatdiv!(C::DenseROCMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseROCMatrix{T}) where T <: BlasFloat =
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), A, C === B ? C : copyto!(C, B), 'O')
+
+        function LinearAlgebra.generic_trimatdiv!(C::DenseROCMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::AdjOrTrans{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            transb = LinearAlgebra.wrapper_char(B)
+            C !== parent(B) && copyto!(C, B)
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), A, C, 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::Transpose{T,<:DenseROCMatrix{T}}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::Transpose{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            B === C || throw(ErrorException("This operation is only supported if B and C are identical."))
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'T', uploc, isunitc, one(T), A, parent(B), 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::Adjoint{T,<:DenseROCMatrix{T}}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::Adjoint{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            B === C || throw(ErrorException("This operation is only supported if B and C are identical."))
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'C', uploc, isunitc, one(T), A, parent(B), 'O')
+        end
+    end
+    else
+    ## direct
+    for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
+                                (:UnitLowerTriangular, 'L', 'U'),
+                                (:UpperTriangular, 'U', 'N'),
+                                (:UnitUpperTriangular, 'U', 'U'))
+        @eval begin
+            # Left division with vectors
+            LinearAlgebra.ldiv!(A::$t{T,<:$SparseMatrixType}, B::DenseROCVector{T}) where T <: BlasFloat =
+                sv2!('N', $uploc, $isunitc, one(T), parent(A), B, 'O')
+
+            # Left division with matrices
+            LinearAlgebra.ldiv!(A::$t{T,<:$SparseMatrixType}, B::DenseROCMatrix{T}) where T <: BlasFloat =
+                sm2!('N', 'N', $uploc, $isunitc, one(T), parent(A), B, 'O')
+
+            LinearAlgebra.ldiv!(A::$t{T,<:$SparseMatrixType}, B::Transpose{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                sm2!('N', 'T', $uploc, $isunitc, one(T), parent(A), parent(B), 'O')
+
+            LinearAlgebra.ldiv!(A::$t{T,<:$SparseMatrixType}, B::Adjoint{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                sm2!('N', 'C', $uploc, $isunitc, one(T), parent(A), parent(B), 'O')
+        end
+    end
+
+    ## adjoint/transpose ('uploc' reversed)
+    for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
+                                (:UnitLowerTriangular, 'U', 'U'),
+                                (:UpperTriangular, 'L', 'N'),
+                                (:UnitUpperTriangular, 'L', 'U'))
+
+        for (opa, transa) in ((:Transpose, 'T'),
+                              (:Adjoint, 'C'))
+            @eval begin
+                # Left division with vectors
+                LinearAlgebra.ldiv!(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::DenseROCVector{T}) where T <: BlasFloat =
+                    sv2!($transa, $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
+
+                # Left division with matrices
+                LinearAlgebra.ldiv!(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::DenseROCMatrix{T}) where T <: BlasFloat =
+                    sm2!($transa, 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
+
+                LinearAlgebra.ldiv!(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::Transpose{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                    sm2!($transa, 'T', $uploc, $isunitc, one(T), parent(parent(A)), parent(B), 'O')
+
+                LinearAlgebra.ldiv!(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::Adjoint{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                    sm2!($transa, 'C', $uploc, $isunitc, one(T), parent(parent(A)), parent(B), 'O')
+            end
+        end
+    end
+    end # VERSION
+end # SparseMatrixType loop
+
+for SparseMatrixType in (:ROCSparseMatrixCOO, :ROCSparseMatrixCSR, :ROCSparseMatrixCSC)
+    if VERSION ≥ v"1.10-"
+    @eval begin
+        function LinearAlgebra.generic_trimatdiv!(C::DenseROCVector{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseROCVector{T}) where T <: BlasFloat
+            sv!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', uploc, isunitc, one(T), A, B, C, 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::DenseROCMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseROCMatrix{T}) where T <: BlasFloat
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), A, B, C, 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::DenseROCMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::AdjOrTrans{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            transb = LinearAlgebra.wrapper_char(B)
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', transb, uploc, isunitc, one(T), A, parent(B), C, 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::Transpose{T,<:DenseROCMatrix{T}}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::Transpose{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'T', uploc, isunitc, one(T), A, parent(B), parent(C), 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::Adjoint{T,<:DenseROCMatrix{T}}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::Adjoint{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'C', uploc, isunitc, one(T), A, parent(B), parent(C), 'O')
+        end
+    end
+    else # pre-1.9 VERSIONs
+    ## direct
+    for (t, uploc, isunitc) in (
+        (:LowerTriangular, 'L', 'N'),
+        (:UnitLowerTriangular, 'L', 'U'),
+        (:UpperTriangular, 'U', 'N'),
+        (:UnitUpperTriangular, 'U', 'U'),
+    )
+        @eval begin
+            # Left division with vectors
+            LinearAlgebra.ldiv!(
+                A::$t{T,<:AbstractROCSparseMatrix}, B::DenseROCVector{T}) where T <: BlasFloat =
+                sv!('N', $uploc, $isunitc, one(T), parent(A), B, B, 'O')
+
+            # Left division with matrices
+            LinearAlgebra.ldiv!(
+                A::$t{T,<:AbstractROCSparseMatrix}, B::DenseROCMatrix{T}) where T <: BlasFloat =
+                sm!('N', 'N', $uploc, $isunitc, one(T), parent(A), B, B, 'O')
+
+            LinearAlgebra.ldiv!(
+                A::$t{T,<:$SparseMatrixType}, B::Transpose{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                sm!('N', 'T', $uploc, $isunitc, one(T), parent(A), parent(B), parent(B), 'O')
+
+            LinearAlgebra.ldiv!(A::$t{T,<:$SparseMatrixType}, B::Adjoint{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                sm!('N', 'C', $uploc, $isunitc, one(T), parent(A), parent(B), parent(B), 'O')
+        end
+    end
+
+    ## adjoint/transpose ('uploc' reversed)
+    for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
+                                (:UnitLowerTriangular, 'U', 'U'),
+                                (:UpperTriangular, 'L', 'N'),
+                                (:UnitUpperTriangular, 'L', 'U'))
+
+        for (opa, transa) in ((:Transpose, 'T'),
+                              (:Adjoint, 'C'))
+            @eval begin
+                # Left division with vectors
+                LinearAlgebra.ldiv!(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::DenseROCVector{T}) where T <: BlasFloat =
+                    sv!($transa, $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
+
+                # Left division with matrices
+                LinearAlgebra.ldiv!LinearAlgebra.ldiv!(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::Transpose{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                    sm!($transa, 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, B, 'O')
+
+                LinearAlgebra.ldiv!(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::Transpose{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                    sm!($transa, 'T', $uploc, $isunitc, one(T), parent(parent(A)), parent(B), parent(B), 'O')
+
+                LinearAlgebra.ldiv!(A::$t{T,<:$opa{T,<:$SparseMatrixType}}, B::Adjoint{T,<:DenseROCMatrix}) where T <: BlasFloat =
+                    sm!($transa, 'C', $uploc, $isunitc, one(T), parent(parent(A)), parent(B), parent(B), 'O')
+            end
+        end
+    end
     end
 end
-
-## adjoint/transpose ('uploc' reversed)
-for (t, uploc, isunitc) in (
-    (:LowerTriangular, 'U', 'N'),
-    (:UnitLowerTriangular, 'U', 'U'),
-    (:UpperTriangular, 'L', 'N'),
-    (:UnitUpperTriangular, 'L', 'U'),
-)
-    @eval begin
-        # Left division with vectors
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCVector{T}) where {T<:BlasFloat} =
-            sv2!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCVector{T}) where {T<:BlasReal} =
-            sv2!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCVector{T}) where {T<:BlasComplex} =
-            sv2!('C', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        # Left division with matrices
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCMatrix{T}) where {T<:BlasFloat} =
-            sm2!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCMatrix{T}) where {T<:BlasReal} =
-            sm2!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCMatrix{T}) where {T<:BlasComplex} =
-            sm2!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-    end
-end
-
 
 ## uniform scaling
 
