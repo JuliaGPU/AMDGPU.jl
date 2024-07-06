@@ -85,9 +85,6 @@ include("codegen/trap.jl")
 include("rocarray/base.jl")
 include("rocarray/broadcast.jl")
 
-const IS_NAVI3 = AMDGPU.device().gcn_arch in ("gfx1100", "gfx1101", "gfx1102", "gfx1103")
-if !IS_NAVI3
-    include("tls.jl") # TODO hangs on Navi 3
-end
+include("tls.jl")
 
 end
