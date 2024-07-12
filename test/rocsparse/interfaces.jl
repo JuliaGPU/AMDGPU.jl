@@ -148,8 +148,8 @@
         dA = ROCSparseMatrixCSR(A)
 
         @assert issymmetric(A)
-        LinearAlgebra.mul!(C, f(Symmetric(A)), h(B), alpha, beta)
-        LinearAlgebra.mul!(dC, f(Symmetric(dA)), h(dB), alpha, beta)
+        LinearAlgebra.mul!(C, f(A), h(B), alpha, beta)
+        LinearAlgebra.mul!(dC, f(dA), h(dB), alpha, beta)
         @test C ≈ collect(dC)
     end
 

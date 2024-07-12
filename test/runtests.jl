@@ -105,10 +105,6 @@ PrettyTables.pretty_table(data; header=[
     "Workers", "Device", "Tests"], crop=:none)
 
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
-    # TODO broken tests or hang CI
-    ti.name == "hip - rocSPARSE" && return false
-    ti.name == "hip - rocSOLVER" && return false
-
     for tt in TARGET_TESTS
         startswith(ti.name, tt) && return true
     end
