@@ -21,7 +21,7 @@
 
 ## Requirements
 
-- Julia 1.9+ (Navi 3 GPUs require Julia 1.10 or higher).
+- Julia 1.10+.
 - ROCm 5.3+, which means only GPUs that are supported by these versions will work.
 - 64-bit Linux and Windows are supported, see [requirements](https://amdgpu.juliagpu.org/dev/#Installation) section in the docs.
 
