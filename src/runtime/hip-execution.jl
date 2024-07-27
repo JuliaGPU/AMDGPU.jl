@@ -124,4 +124,7 @@ function launch(
             fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,
             shmem, stream, kernel_params, C_NULL) |> HIP.check
     end
+
+    AMDGPU.LAUNCH_BLOCKING[] && AMDGPU.synchronize(stream)
+    return
 end

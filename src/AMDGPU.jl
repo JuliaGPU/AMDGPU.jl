@@ -16,6 +16,13 @@ import PrettyTables
 
 const Maybe{T} = Union{Nothing, T}
 
+"""
+If `true`, then synchronizes immediately after every Julia kernel launch
+(launched by `@roc` macro).
+Meant to be used together with `HIP_LAUNCH_BLOCKING=1`.
+"""
+const LAUNCH_BLOCKING::Ref{Bool} = Ref{Bool}(false)
+
 export @roc, roc, rocconvert
 export HIPDevice, has_rocm_gpu
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
@@ -132,8 +139,25 @@ function __init__()
         Runtime.RT_EXITING[] = true
     end
 
+    if haskey(ENV, "JULIA_AMDGPU_LAUNCH_BLOCKING")
+        launch_blocking = parse(Bool, ENV["JULIA_AMDGPU_LAUNCH_BLOCKING"])
+        LAUNCH_BLOCKING[] = launch_blocking
+        if launch_blocking
+            @info "`JULIA_AMDGPU_LAUNCH_BLOCKING` is set to `true`. " *
+                "Synchronizing immediately after every Julia kernel launch."
+        end
+    end
+
+    if haskey(ENV, "HIP_LAUNCH_BLOCKING")
+        launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])
+        if launch_blocking
+            @info "`HIP_AMDGPU_LAUNCH_BLOCKING` is set to `true`. " *
+                "Synchronizing immediately after every HIP kernel launch."
+        end
+    end
+
     if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
-        env_use_artifacts = !parse(Bool, get(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS", "true"))
+        env_use_artifacts = !parse(Bool, ENV["JULIA_AMDGPU_DISABLE_ARTIFACTS"])
         if use_artifacts() != env_use_artifacts
             enable_artifacts!(env_use_artifacts)
             @warn """
@@ -164,7 +188,7 @@ function __init__()
             @warn """
             HSA runtime is unavailable, compilation and runtime functionality will be disabled.
             """
-            if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+            if parse(Bool, ENV["JULIA_AMDGPU_CORE_MUST_LOAD"])
                 print_build_diagnostics()
                 error("Failed to load HSA runtime, but HSA must load, bailing out")
             end
@@ -176,7 +200,7 @@ function __init__()
         @warn """
         LLD is unavailable, compilation functionality will be disabled.
         """
-        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+        if parse(Bool, ENV["JULIA_AMDGPU_CORE_MUST_LOAD"])
             print_build_diagnostics()
             error("Failed to find ld.lld, but ld.lld must exist, bailing out")
         end
@@ -187,7 +211,7 @@ function __init__()
         @warn """
         Device libraries are unavailable, device intrinsics will be disabled.
         """
-        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
+        if parse(Bool, ENV["JULIA_AMDGPU_CORE_MUST_LOAD"])
             print_build_diagnostics()
             error("Failed to find Device Libs, but Device Libs must exist, bailing out")
         end
@@ -200,7 +224,7 @@ function __init__()
         @warn """
         HIP library is unavailable, HIP integration will be disabled.
         """
-        if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
+        if parse(Bool, ENV["JULIA_AMDGPU_HIP_MUST_LOAD"])
             print_build_diagnostics()
             error("Failed to load HIP runtime, but HIP must load, bailing out")
         end
