@@ -192,7 +192,7 @@ end
 function free!(holder::HostCallHolder)
     if !Runtime.RT_EXITING[]
         buf_ptr = reinterpret(Ptr{Cvoid}, holder.hc.buf_ptr)
-        HIP.hipHostFree(buf_ptr) |> HIP.check
+        HIP.hipHostFree(buf_ptr)
         Mem.free.(holder.ret_bufs)
     end
 end
