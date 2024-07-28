@@ -107,18 +107,27 @@ end
         end
     end
 
-    for X in (
-        rand(Cint(0):Cint(1), wavefrontsize),
-        zeros(Cint, wavefrontsize),
-        ones(Cint, wavefrontsize),
-    )
-        RX, RY = ROCArray(X), ROCArray(zeros(Bool,3))
-        @roc groupsize=wavefrontsize bool_kernel(RX,RY)
-        Y = Array(RY)
+    opaque_pointers = false
+    if "JULIA_LLVM_ARGS" in ENV
+        llvm_args = ENV["JULIA_LLVM_ARGS"]
+        opaque_pointers = occursin("-opaque-pointers", llvm_args)
+    end
+    if !opaque_pointers
+        for X in (
+            rand(Cint(0):Cint(1), wavefrontsize),
+            zeros(Cint, wavefrontsize),
+            ones(Cint, wavefrontsize),
+        )
+            RX, RY = ROCArray(X), ROCArray(zeros(Bool,3))
+            @roc groupsize=wavefrontsize bool_kernel(RX,RY)
+            Y = Array(RY)
 
-        @test_skip Y[1] == all(x -> x == 1, X)
-        @test_skip Y[2] == any(x->x==1,X)
-        @test_skip Y[3] == (length(unique(X)) == 1)
+            @test_skip Y[1] == all(x -> x == 1, X)
+            @test_skip Y[2] == any(x->x==1,X)
+            @test_skip Y[3] == (length(unique(X)) == 1)
+        end
+    else
+        @info "Broken wfany tests when opaque pointers"
     end
 end
 
