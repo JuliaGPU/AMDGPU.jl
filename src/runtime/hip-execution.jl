@@ -122,7 +122,7 @@ function launch(
     pack_arguments(args...) do kernel_params
         HIP.hipModuleLaunchKernel(
             fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,
-            shmem, stream, kernel_params, C_NULL) |> HIP.check
+            shmem, stream, kernel_params, C_NULL)
     end
 
     AMDGPU.LAUNCH_BLOCKING[] && AMDGPU.synchronize(stream)
