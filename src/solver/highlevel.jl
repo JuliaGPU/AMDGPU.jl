@@ -11,7 +11,7 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
 
             devinfo = ROCVector{Cint}(undef, 1)
-            $fname(rocBLAS.handle(), uplo, n, A, lda, devinfo) |> check
+            $fname(rocBLAS.handle(), uplo, n, A, lda, devinfo)
 
             info = AMDGPU.@allowscalar devinfo[1]
             AMDGPU.unsafe_free!(devinfo)
@@ -36,7 +36,7 @@ for (fname, elty) in (
             (m == n) || throw(DimensionMismatch("first dimension of B, $m, must match second dimension of A, $n"))
             lda  = max(1, stride(A, 2))
             ldb  = max(1, stride(B, 2))
-            $fname(rocBLAS.handle(), uplo, n, nrhs, A, lda, B, ldb) |> check
+            $fname(rocBLAS.handle(), uplo, n, nrhs, A, lda, B, ldb)
 
             B
         end
@@ -62,7 +62,7 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
 
             devinfo = ROCVector{Cint}(undef, 1)
-            $fname(rocBLAS.handle(), uplo, n, A, lda, ipiv, devinfo) |> check
+            $fname(rocBLAS.handle(), uplo, n, A, lda, ipiv, devinfo)
 
             info = AMDGPU.@allowscalar devinfo[1]
             AMDGPU.unsafe_free!(devinfo)
@@ -89,7 +89,7 @@ for (fname, elty) in (
         function geqrf!(A::ROCMatrix{$elty}, tau::ROCVector{$elty})
             m, n = size(A)
             lda = max(1, stride(A, 2))
-            $fname(rocBLAS.handle(), m, n, A, lda, tau) |> check
+            $fname(rocBLAS.handle(), m, n, A, lda, tau)
             A, tau
         end
     end
@@ -125,7 +125,7 @@ for (fname, elty) in (
 
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
-            $fname(rocBLAS.handle(), side, trans, m, n, k, A, lda, τ, C, ldc) |> check
+            $fname(rocBLAS.handle(), side, trans, m, n, k, A, lda, τ, C, ldc)
             C
         end
     end
@@ -142,7 +142,7 @@ for (fname, elty) in (
             m, n = size(A)
             lda = max(1, stride(A, 2))
             k = length(tau)
-            $fname(rocBLAS.handle(), m, n, k, A, lda, tau) |> check
+            $fname(rocBLAS.handle(), m, n, k, A, lda, tau)
             A
         end
     end
@@ -166,7 +166,7 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
 
             devinfo = ROCArray{Cint}(undef, 1)
-            $fname(rocBLAS.handle(), m, n, A, lda, ipiv, devinfo) |> check
+            $fname(rocBLAS.handle(), m, n, A, lda, ipiv, devinfo)
 
             info = AMDGPU.@allowscalar devinfo[1]
             AMDGPU.unsafe_free!(devinfo)
@@ -201,7 +201,7 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
             ldb = max(1, stride(B, 2))
 
-            $fname(rocBLAS.handle(), trans, n, nrhs, A, lda, ipiv, B, ldb) |> check
+            $fname(rocBLAS.handle(), trans, n, nrhs, A, lda, ipiv, B, ldb)
             B
         end
     end
@@ -227,7 +227,7 @@ for (fname, elty) in
             batch_count = length(A)
             info = ROCVector{Cint}(undef, batch_count)
             Aptrs = device_batch(A)
-            $fname(rocBLAS.handle(), m, n, Aptrs, lda, ipiv, strideP, info, batch_count) |> check
+            $fname(rocBLAS.handle(), m, n, Aptrs, lda, ipiv, strideP, info, batch_count)
 
             flags = AMDGPU.@allowscalar collect(info)
             AMDGPU.unsafe_free!(info)
@@ -249,7 +249,7 @@ for (fname, elty) in
             batch_count = length(A)
             info = ROCVector{Cint}(undef, batch_count)
             Aptrs = device_batch(A)
-            $fname(rocBLAS.handle(), n, Aptrs, lda, ipiv, strideP, info, batch_count) |> check
+            $fname(rocBLAS.handle(), n, Aptrs, lda, ipiv, strideP, info, batch_count)
 
             flags = AMDGPU.@allowscalar collect(info)
             AMDGPU.unsafe_free!(info)
@@ -472,7 +472,7 @@ for (fname, matrix_elty, vector_elty) in (
             dev_info = ROCVector{Cint}(undef, 1)
 
             $fname(
-                rocBLAS.handle(), 
+                rocBLAS.handle(),
                 AMDGPU.rocBLAS.rocblas_svect_singular,
                 AMDGPU.rocBLAS.rocblas_svect_singular,
                 m, n, A, lda,
@@ -484,7 +484,7 @@ for (fname, matrix_elty, vector_elty) in (
                 U, ldu,
                 V, ldv,
                 dev_info
-            ) |> check
+            )
             residual = AMDGPU.@allowscalar dev_residual[1]
             AMDGPU.unsafe_free!(dev_residual)
 
@@ -516,13 +516,13 @@ for (fname, elt) in (
             dev_info = ROCVector{Cint}(undef, 1)
 
             $fname(
-                rocBLAS.handle(), 
+                rocBLAS.handle(),
                 AMDGPU.rocBLAS.rocblas_evect_original,
                 uplo,
                 n, A, lda,
                 D, E,
                 dev_info
-            ) |> check
+            )
             info = AMDGPU.@allowscalar dev_info[1]
             AMDGPU.unsafe_free!(dev_info)
 
@@ -550,13 +550,13 @@ for (fname, matrix_elty, vector_elty) in (
             dev_info = ROCVector{Cint}(undef, 1)
 
             $fname(
-                rocBLAS.handle(), 
+                rocBLAS.handle(),
                 AMDGPU.rocBLAS.rocblas_evect_original,
                 uplo,
                 n, A, lda,
                 D, E,
                 dev_info
-            ) |> check
+            )
             info = AMDGPU.@allowscalar dev_info[1]
             AMDGPU.unsafe_free!(dev_info)
 

@@ -7,7 +7,7 @@ amount of memory (in bytes) available for allocation on the device.
 function info()
     free_ref = Ref{Csize_t}()
     total_ref = Ref{Csize_t}()
-    HIP.hipMemGetInfo(free_ref, total_ref) |> HIP.check
+    HIP.hipMemGetInfo(free_ref, total_ref)
     return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 

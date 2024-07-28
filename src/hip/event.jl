@@ -7,7 +7,7 @@ Base.:(==)(a::HIPEvent, b::HIPEvent) = a.handle == b.handle
 Base.unsafe_convert(::Type{hipEvent_t}, event::HIPEvent) = event.handle
 
 function record(event::HIPEvent)
-    hipEventRecord(event.handle, event.stream) |> check
+    hipEventRecord(event.handle, event.stream)
     return event
 end
 
@@ -41,7 +41,7 @@ function non_blocking_synchronize(event::HIPEvent)
     return false
 end
 
-wait(event::HIPEvent) = hipEventSynchronize(event) |> check
+wait(event::HIPEvent) = hipEventSynchronize(event)
 
 function synchronize(event::HIPEvent)
     if !non_blocking_synchronize(event)
@@ -54,17 +54,15 @@ end
 function HIPEvent(stream::hipStream_t; do_record::Bool = true, timing=false)
     event_ref = Ref{hipEvent_t}()
     if !timing
-        hipEventCreateWithFlags(event_ref, hipEventDisableTiming) |> check
+        hipEventCreateWithFlags(event_ref, hipEventDisableTiming)
     else
-        hipEventCreate(event_ref) |> check
+        hipEventCreate(event_ref)
     end
     event = HIPEvent(event_ref[], stream)
     do_record && record(event)
 
-    finalizer(event) do e
-        hipEventDestroy(e) |> check
-    end
-    event
+    finalizer(hipEventDestroy, event)
+    return event
 end
 HIPEvent(stream::HIPStream; kwargs...) = HIPEvent(stream.stream; kwargs...)
 
@@ -77,6 +75,6 @@ See also [`@elapsed`](@ref).
 """
 function elapsed(start::HIPEvent, stop::HIPEvent)
     time_ref = Ref{Cfloat}()
-    hipEventElapsedTime(time_ref, start, stop) |> check
+    hipEventElapsedTime(time_ref, start, stop)
     return time_ref[]/1000
 end

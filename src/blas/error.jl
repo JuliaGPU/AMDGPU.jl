@@ -1,7 +1,5 @@
 export ROCBLASError
 
-import .AMDGPU: @check, check
-
 struct ROCBLASError <: Exception
     code::rocblas_status
     msg::AbstractString

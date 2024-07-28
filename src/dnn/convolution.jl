@@ -63,7 +63,7 @@ function get_workspace_size(
     wsize_ref = Ref{Csize_t}(0)
     get_workspace_size_func(conv_type)(
         handle, a_desc.handle, b_desc.handle,
-        conv_desc.handle, c_desc.handle, wsize_ref) # NOTE: do not |> check...
+        conv_desc.handle, c_desc.handle, wsize_ref) # NOTE: do not...
     wsize_ref[]
 end
 
@@ -82,7 +82,7 @@ function find_conv_algo(
         handle, a_desc.handle, a, b_desc.handle, b,
         conv_desc.handle, c_desc.handle, c, n_algos,
         perf_count_ref, perf_results_ref,
-        workspace, length(workspace), exhaustive_search) |> check
+        workspace, length(workspace), exhaustive_search)
     perf_results_ref[]
 end
 
@@ -128,7 +128,7 @@ function convolution!(
     miopenConvolutionForward(
         handle, Ref{Float32}(1f0), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, Ref{Float32}(0f0), ydesc.handle, y,
-        workspace, perf_results.memory) |> check
+        workspace, perf_results.memory)
     AMDGPU.unsafe_free!(workspace)
     y
 end
@@ -171,7 +171,7 @@ function ∇convolution_weight!(
     miopenConvolutionBackwardWeights(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, Ref{Float32}(0f0), ∇wdesc.handle, ∇w,
-        workspace, perf_algo.memory) |> check
+        workspace, perf_algo.memory)
     AMDGPU.unsafe_free!(workspace)
     ∇w
 end
@@ -214,7 +214,7 @@ function ∇convolution_data!(
     miopenConvolutionBackwardData(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, Ref{Float32}(0f0), ∇xdesc.handle, ∇x,
-        workspace, perf_algo.memory) |> check
+        workspace, perf_algo.memory)
     AMDGPU.unsafe_free!(workspace)
     ∇x
 end

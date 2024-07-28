@@ -5,6 +5,7 @@ using CEnum
 using ..AMDGPU
 import AMDGPU: ROCArray, LockedObject, HandleCache, HIP, library_state
 import AMDGPU: libMIOpen_path
+import AMDGPU: check, @check
 import .HIP: hipStream_t
 
 include("libMIOpen.jl")
@@ -58,7 +59,7 @@ miopen_data_type(t) = DATA_TYPES[t]
 
 function version()
     major, minor, patch = Ref{Csize_t}(0), Ref{Csize_t}(0), Ref{Csize_t}(0)
-    miopenGetVersion(major, minor, patch) |> check
+    miopenGetVersion(major, minor, patch)
     VersionNumber(major[], minor[], patch[])
 end
 
@@ -66,12 +67,12 @@ function create_handle()::miopenHandle_t
     AMDGPU.functional(:MIOpen) || error("MIOpen is not available")
 
     handle = Ref{miopenHandle_t}()
-    miopenCreate(handle) |> check
+    miopenCreate(handle)
     handle[]
 end
 
 function destroy_handle!(handle::miopenHandle_t)
-    miopenDestroy(handle) |> check
+    miopenDestroy(handle)
     nothing
 end
 
@@ -80,7 +81,7 @@ const IDLE_HANDLES = HandleCache{HIPContext, miopenHandle_t}()
 lib_state() = library_state(
     :MIOpen, miopenHandle_t, IDLE_HANDLES,
     create_handle, destroy_handle!,
-    (nh, s) -> check(miopenSetStream(nh, s)))
+    (nh, s) -> miopenSetStream(nh, s))
 
 handle() = lib_state().handle
 stream() = lib_state().stream

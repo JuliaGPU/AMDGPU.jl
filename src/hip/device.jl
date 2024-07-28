@@ -12,7 +12,7 @@ function HIPDevice(device_id::Integer)
     isempty(ALL_DEVICES) || return ALL_DEVICES[device_id]
 
     device_ref = Ref{hipDevice_t}()
-    hipDeviceGet(device_ref, device_id - 1) |> check
+    hipDeviceGet(device_ref, device_id - 1)
 
     props = properties(device_id - 1)
     gcn_arch = unsafe_string(pointer([props.gcnArchName...]))
@@ -43,22 +43,22 @@ gcn_arch(d::HIPDevice)::String = d.gcn_arch
 
 function stack_size()
     value = Ref{Csize_t}()
-    hipDeviceGetLimit(value, hipLimitStackSize) |> check
+    hipDeviceGetLimit(value, hipLimitStackSize)
     value[]
 end
 
 function stack_size!(value::Integer)
-    hipDeviceSetLimit(hipLimitStackSize, value) |> check
+    hipDeviceSetLimit(hipLimitStackSize, value)
 end
 
 function heap_size()
     value = Ref{Csize_t}()
-    hipDeviceGetLimit(value, hipLimitMallocHeapSize) |> check
+    hipDeviceGetLimit(value, hipLimitMallocHeapSize)
     value[]
 end
 
 function heap_size!(value::Integer)
-    hipDeviceSetLimit(hipLimitMallocHeapSize, value) |> check
+    hipDeviceSetLimit(hipLimitMallocHeapSize, value)
 end
 
 Base.unsafe_convert(::Type{hipDevice_t}, device::HIPDevice) = device.device
@@ -72,7 +72,7 @@ Get name of the device.
 """
 function name(dev::HIPDevice)::String
     name_vec = zeros(Cuchar, 64)
-    hipDeviceGetName(pointer(name_vec), Cint(64), dev.device) |> check
+    hipDeviceGetName(pointer(name_vec), Cint(64), dev.device)
     return strip(String(name_vec), '\0')
 end
 
@@ -86,19 +86,19 @@ properties(dev::HIPDevice) = properties(device_id(dev))
 
 function properties(dev_id::Int)
     props_ref = Ref{hipDeviceProp_t}()
-    hipGetDeviceProperties(props_ref, dev_id) |> check
+    hipGetDeviceProperties(props_ref, dev_id)
     props_ref[]
 end
 
 function attribute(dev::HIPDevice, attr)
     v = Ref{Cint}()
-    hipDeviceGetAttribute(v, attr, device_id(dev)) |> check
+    hipDeviceGetAttribute(v, attr, device_id(dev))
     v[]
 end
 
 function ndevices()
     count_ref = Ref{Cint}()
-    hipGetDeviceCount(count_ref) |> check
+    hipGetDeviceCount(count_ref)
     count_ref[]
 end
 
@@ -121,17 +121,17 @@ end
 
 function device()
     device_id_ref = Ref{Cint}()
-    hipGetDevice(device_id_ref) |> check
+    hipGetDevice(device_id_ref)
     return HIPDevice(device_id_ref[] + 1)
 end
 
-device!(device::HIPDevice) = hipSetDevice(device_id(device)) |> check
+device!(device::HIPDevice) = hipSetDevice(device_id(device))
 
-device!(device_id::Integer) = hipSetDevice(device_id - 1) |> check
+device!(device_id::Integer) = hipSetDevice(device_id - 1)
 
 function device!(f::Base.Callable, device::HIPDevice)
     old_device_id_ref = Ref{Cint}()
-    hipGetDevice(old_device_id_ref) |> check
+    hipGetDevice(old_device_id_ref)
     device!(device)
     try
         f()
@@ -142,7 +142,7 @@ end
 
 function can_access_peer(dev::HIPDevice, peer::HIPDevice)
     result = Ref{Cint}(0)
-    hipDeviceCanAccessPeer(result, device_id(dev), device_id(peer)) |> check
+    hipDeviceCanAccessPeer(result, device_id(dev), device_id(peer))
     return result[] == 1
 end
 

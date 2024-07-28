@@ -16,7 +16,7 @@ const miopenHandle_t = Ptr{miopenHandle}
 end
 
 function miopenGetErrorString(error)
-    ccall((:miopenGetErrorString, libMIOpen_path), Ptr{Cchar}, (miopenStatus_t,), error)
+    @check ccall((:miopenGetErrorString, libMIOpen_path), Ptr{Cchar}, (miopenStatus_t,), error)
 end
 
 # typedef void * ( * miopenAllocatorFunction ) ( void * context , size_t sizeBytes )
@@ -27,47 +27,47 @@ const miopenDeallocatorFunction = Ptr{Cvoid}
 
 function miopenGetVersion(major, minor, patch)
     AMDGPU.prepare_state()
-    ccall((:miopenGetVersion, libMIOpen_path), miopenStatus_t, (Ptr{Csize_t}, Ptr{Csize_t}, Ptr{Csize_t}), major, minor, patch)
+    @check ccall((:miopenGetVersion, libMIOpen_path), miopenStatus_t, (Ptr{Csize_t}, Ptr{Csize_t}, Ptr{Csize_t}), major, minor, patch)
 end
 
 function miopenCreate(handle)
     AMDGPU.prepare_state()
-    ccall((:miopenCreate, libMIOpen_path), miopenStatus_t, (Ptr{miopenHandle_t},), handle)
+    @check ccall((:miopenCreate, libMIOpen_path), miopenStatus_t, (Ptr{miopenHandle_t},), handle)
 end
 
 function miopenCreateWithStream(handle, stream)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateWithStream, libMIOpen_path), miopenStatus_t, (Ptr{miopenHandle_t}, hipStream_t), handle, stream)
+    @check ccall((:miopenCreateWithStream, libMIOpen_path), miopenStatus_t, (Ptr{miopenHandle_t}, hipStream_t), handle, stream)
 end
 
 function miopenDestroy(handle)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroy, libMIOpen_path), miopenStatus_t, (miopenHandle_t,), handle)
+    @check ccall((:miopenDestroy, libMIOpen_path), miopenStatus_t, (miopenHandle_t,), handle)
 end
 
 function miopenSetStream(handle, streamID)
     AMDGPU.prepare_state()
-    ccall((:miopenSetStream, libMIOpen_path), miopenStatus_t, (miopenHandle_t, hipStream_t), handle, streamID)
+    @check ccall((:miopenSetStream, libMIOpen_path), miopenStatus_t, (miopenHandle_t, hipStream_t), handle, streamID)
 end
 
 function miopenGetStream(handle, streamID)
     AMDGPU.prepare_state()
-    ccall((:miopenGetStream, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{hipStream_t}), handle, streamID)
+    @check ccall((:miopenGetStream, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{hipStream_t}), handle, streamID)
 end
 
 function miopenSetAllocator(handle, allocator, deallocator, allocatorContext)
     AMDGPU.prepare_state()
-    ccall((:miopenSetAllocator, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenAllocatorFunction, miopenDeallocatorFunction, Ptr{Cvoid}), handle, allocator, deallocator, allocatorContext)
+    @check ccall((:miopenSetAllocator, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenAllocatorFunction, miopenDeallocatorFunction, Ptr{Cvoid}), handle, allocator, deallocator, allocatorContext)
 end
 
 function miopenGetKernelTime(handle, time)
     AMDGPU.prepare_state()
-    ccall((:miopenGetKernelTime, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cfloat}), handle, time)
+    @check ccall((:miopenGetKernelTime, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cfloat}), handle, time)
 end
 
 function miopenEnableProfiling(handle, enable)
     AMDGPU.prepare_state()
-    ccall((:miopenEnableProfiling, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Bool), handle, enable)
+    @check ccall((:miopenEnableProfiling, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Bool), handle, enable)
 end
 
 struct miopenFusionOpDescriptor
@@ -236,132 +236,132 @@ end
 
 function miopenCreateTensorDescriptor(tensorDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateTensorDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenTensorDescriptor_t},), tensorDesc)
+    @check ccall((:miopenCreateTensorDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenTensorDescriptor_t},), tensorDesc)
 end
 
 function miopenSet4dTensorDescriptor(tensorDesc, dataType, n, c, h, w)
     AMDGPU.prepare_state()
-    ccall((:miopenSet4dTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, miopenDataType_t, Cint, Cint, Cint, Cint), tensorDesc, dataType, n, c, h, w)
+    @check ccall((:miopenSet4dTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, miopenDataType_t, Cint, Cint, Cint, Cint), tensorDesc, dataType, n, c, h, w)
 end
 
 function miopenSet4dTensorDescriptorEx(tensorDesc, dataType, n, c, h, w, nStride, cStride, hStride, wStride)
     AMDGPU.prepare_state()
-    ccall((:miopenSet4dTensorDescriptorEx, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, miopenDataType_t, Cint, Cint, Cint, Cint, Cint, Cint, Cint, Cint), tensorDesc, dataType, n, c, h, w, nStride, cStride, hStride, wStride)
+    @check ccall((:miopenSet4dTensorDescriptorEx, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, miopenDataType_t, Cint, Cint, Cint, Cint, Cint, Cint, Cint, Cint), tensorDesc, dataType, n, c, h, w, nStride, cStride, hStride, wStride)
 end
 
 function miopenGet4dTensorDescriptor(tensorDesc, dataType, n, c, h, w, nStride, cStride, hStride, wStride)
     AMDGPU.prepare_state()
-    ccall((:miopenGet4dTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{miopenDataType_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), tensorDesc, dataType, n, c, h, w, nStride, cStride, hStride, wStride)
+    @check ccall((:miopenGet4dTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{miopenDataType_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), tensorDesc, dataType, n, c, h, w, nStride, cStride, hStride, wStride)
 end
 
 function miopenSetTensorDescriptor(tensorDesc, dataType, nbDims, dimsA, stridesA)
     AMDGPU.prepare_state()
-    ccall((:miopenSetTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, miopenDataType_t, Cint, Ptr{Cint}, Ptr{Cint}), tensorDesc, dataType, nbDims, dimsA, stridesA)
+    @check ccall((:miopenSetTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, miopenDataType_t, Cint, Ptr{Cint}, Ptr{Cint}), tensorDesc, dataType, nbDims, dimsA, stridesA)
 end
 
 function miopenGetTensorDescriptorSize(tensorDesc, size)
     AMDGPU.prepare_state()
-    ccall((:miopenGetTensorDescriptorSize, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Cint}), tensorDesc, size)
+    @check ccall((:miopenGetTensorDescriptorSize, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Cint}), tensorDesc, size)
 end
 
 function miopenGetTensorDescriptor(tensorDesc, dataType, dimsA, stridesA)
     AMDGPU.prepare_state()
-    ccall((:miopenGetTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{miopenDataType_t}, Ptr{Cint}, Ptr{Cint}), tensorDesc, dataType, dimsA, stridesA)
+    @check ccall((:miopenGetTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{miopenDataType_t}, Ptr{Cint}, Ptr{Cint}), tensorDesc, dataType, dimsA, stridesA)
 end
 
 function miopenDestroyTensorDescriptor(tensorDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t,), tensorDesc)
+    @check ccall((:miopenDestroyTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t,), tensorDesc)
 end
 
 function miopenOpTensor(handle, tensorOp, alpha1, aDesc, A, alpha2, bDesc, B, beta, cDesc, C)
     AMDGPU.prepare_state()
-    ccall((:miopenOpTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorOp_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, tensorOp, alpha1, aDesc, A, alpha2, bDesc, B, beta, cDesc, C)
+    @check ccall((:miopenOpTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorOp_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, tensorOp, alpha1, aDesc, A, alpha2, bDesc, B, beta, cDesc, C)
 end
 
 function miopenSetTensor(handle, yDesc, y, alpha)
     AMDGPU.prepare_state()
-    ccall((:miopenSetTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}), handle, yDesc, y, alpha)
+    @check ccall((:miopenSetTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}), handle, yDesc, y, alpha)
 end
 
 function miopenScaleTensor(handle, yDesc, y, alpha)
     AMDGPU.prepare_state()
-    ccall((:miopenScaleTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}), handle, yDesc, y, alpha)
+    @check ccall((:miopenScaleTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}), handle, yDesc, y, alpha)
 end
 
 function miopenGetTensorNumBytes(tensorDesc, numBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetTensorNumBytes, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Csize_t}), tensorDesc, numBytes)
+    @check ccall((:miopenGetTensorNumBytes, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Csize_t}), tensorDesc, numBytes)
 end
 
 function miopenTransformTensor(handle, alpha, xDesc, x, beta, yDesc, y)
     AMDGPU.prepare_state()
-    ccall((:miopenTransformTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, xDesc, x, beta, yDesc, y)
+    @check ccall((:miopenTransformTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, xDesc, x, beta, yDesc, y)
 end
 
 function miopenCreateConvolutionDescriptor(convDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateConvolutionDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenConvolutionDescriptor_t},), convDesc)
+    @check ccall((:miopenCreateConvolutionDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenConvolutionDescriptor_t},), convDesc)
 end
 
 function miopenInitConvolutionDescriptor(convDesc, c_mode, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w)
     AMDGPU.prepare_state()
-    ccall((:miopenInitConvolutionDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenConvolutionMode_t, Cint, Cint, Cint, Cint, Cint, Cint), convDesc, c_mode, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w)
+    @check ccall((:miopenInitConvolutionDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenConvolutionMode_t, Cint, Cint, Cint, Cint, Cint, Cint), convDesc, c_mode, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w)
 end
 
 function miopenInitConvolutionNdDescriptor(convDesc, spatialDim, padA, strideA, dilationA, c_mode)
     AMDGPU.prepare_state()
-    ccall((:miopenInitConvolutionNdDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, miopenConvolutionMode_t), convDesc, spatialDim, padA, strideA, dilationA, c_mode)
+    @check ccall((:miopenInitConvolutionNdDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, miopenConvolutionMode_t), convDesc, spatialDim, padA, strideA, dilationA, c_mode)
 end
 
 function miopenGetConvolutionDescriptor(convDesc, c_mode, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w)
     AMDGPU.prepare_state()
-    ccall((:miopenGetConvolutionDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Ptr{miopenConvolutionMode_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), convDesc, c_mode, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w)
+    @check ccall((:miopenGetConvolutionDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Ptr{miopenConvolutionMode_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), convDesc, c_mode, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w)
 end
 
 function miopenGetConvolutionNdDescriptor(convDesc, requestedSpatialDim, spatialDim, padA, strideA, dilationA, c_mode)
     AMDGPU.prepare_state()
-    ccall((:miopenGetConvolutionNdDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{miopenConvolutionMode_t}), convDesc, requestedSpatialDim, spatialDim, padA, strideA, dilationA, c_mode)
+    @check ccall((:miopenGetConvolutionNdDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{miopenConvolutionMode_t}), convDesc, requestedSpatialDim, spatialDim, padA, strideA, dilationA, c_mode)
 end
 
 function miopenSetConvolutionGroupCount(convDesc, groupCount)
     AMDGPU.prepare_state()
-    ccall((:miopenSetConvolutionGroupCount, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint), convDesc, groupCount)
+    @check ccall((:miopenSetConvolutionGroupCount, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint), convDesc, groupCount)
 end
 
 function miopenSetTransposeConvOutputPadding(convDesc, adj_h, adj_w)
     AMDGPU.prepare_state()
-    ccall((:miopenSetTransposeConvOutputPadding, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint, Cint), convDesc, adj_h, adj_w)
+    @check ccall((:miopenSetTransposeConvOutputPadding, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint, Cint), convDesc, adj_h, adj_w)
 end
 
 function miopenSetTransposeConvNdOutputPadding(convDesc, spatialDim, adjA)
     AMDGPU.prepare_state()
-    ccall((:miopenSetTransposeConvNdOutputPadding, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint, Ptr{Cint}), convDesc, spatialDim, adjA)
+    @check ccall((:miopenSetTransposeConvNdOutputPadding, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, Cint, Ptr{Cint}), convDesc, spatialDim, adjA)
 end
 
 function miopenGetConvolutionForwardOutputDim(convDesc, inputTensorDesc, filterDesc, n, c, h, w)
     AMDGPU.prepare_state()
-    ccall((:miopenGetConvolutionForwardOutputDim, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), convDesc, inputTensorDesc, filterDesc, n, c, h, w)
+    @check ccall((:miopenGetConvolutionForwardOutputDim, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), convDesc, inputTensorDesc, filterDesc, n, c, h, w)
 end
 
 function miopenGetConvolutionNdForwardOutputDim(convDesc, inputTensorDesc, filterDesc, nDim, outputTensorDimA)
     AMDGPU.prepare_state()
-    ccall((:miopenGetConvolutionNdForwardOutputDim, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cint}, Ptr{Cint}), convDesc, inputTensorDesc, filterDesc, nDim, outputTensorDimA)
+    @check ccall((:miopenGetConvolutionNdForwardOutputDim, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cint}, Ptr{Cint}), convDesc, inputTensorDesc, filterDesc, nDim, outputTensorDimA)
 end
 
 function miopenDestroyConvolutionDescriptor(convDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyConvolutionDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t,), convDesc)
+    @check ccall((:miopenDestroyConvolutionDescriptor, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t,), convDesc)
 end
 
 function miopenSetConvolutionAttribute(convDesc, attr, value)
     AMDGPU.prepare_state()
-    ccall((:miopenSetConvolutionAttribute, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenConvolutionAttrib_t, Cint), convDesc, attr, value)
+    @check ccall((:miopenSetConvolutionAttribute, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenConvolutionAttrib_t, Cint), convDesc, attr, value)
 end
 
 function miopenGetConvolutionAttribute(convDesc, attr, value)
     AMDGPU.prepare_state()
-    ccall((:miopenGetConvolutionAttribute, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenConvolutionAttrib_t, Ptr{Cint}), convDesc, attr, value)
+    @check ccall((:miopenGetConvolutionAttribute, libMIOpen_path), miopenStatus_t, (miopenConvolutionDescriptor_t, miopenConvolutionAttrib_t, Ptr{Cint}), convDesc, attr, value)
 end
 
 @cenum miopenConvFwdAlgorithm_t::UInt32 begin
@@ -429,77 +429,77 @@ end
 
 function miopenConvolutionForwardGetSolutionCount(handle, wDesc, xDesc, convDesc, yDesc, solutionCount)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionForwardGetSolutionCount, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, wDesc, xDesc, convDesc, yDesc, solutionCount)
+    @check ccall((:miopenConvolutionForwardGetSolutionCount, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, wDesc, xDesc, convDesc, yDesc, solutionCount)
 end
 
 function miopenConvolutionForwardGetSolution(handle, wDesc, xDesc, convDesc, yDesc, maxSolutionCount, solutionCount, solutions)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionForwardGetSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Csize_t, Ptr{Csize_t}, Ptr{miopenConvSolution_t}), handle, wDesc, xDesc, convDesc, yDesc, maxSolutionCount, solutionCount, solutions)
+    @check ccall((:miopenConvolutionForwardGetSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Csize_t, Ptr{Csize_t}, Ptr{miopenConvSolution_t}), handle, wDesc, xDesc, convDesc, yDesc, maxSolutionCount, solutionCount, solutions)
 end
 
 function miopenConvolutionForwardGetSolutionWorkspaceSize(handle, wDesc, xDesc, convDesc, yDesc, solution_id, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionForwardGetSolutionWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint, Ptr{Csize_t}), handle, wDesc, xDesc, convDesc, yDesc, solution_id, workSpaceSize)
+    @check ccall((:miopenConvolutionForwardGetSolutionWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint, Ptr{Csize_t}), handle, wDesc, xDesc, convDesc, yDesc, solution_id, workSpaceSize)
 end
 
 function miopenConvolutionForwardCompileSolution(handle, wDesc, xDesc, convDesc, yDesc, solution_id)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionForwardCompileSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint), handle, wDesc, xDesc, convDesc, yDesc, solution_id)
+    @check ccall((:miopenConvolutionForwardCompileSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint), handle, wDesc, xDesc, convDesc, yDesc, solution_id)
 end
 
 function miopenConvolutionForwardImmediate(handle, wDesc, w, xDesc, x, convDesc, yDesc, y, workSpace, workSpaceSize, solution_id)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionForwardImmediate, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Cint), handle, wDesc, w, xDesc, x, convDesc, yDesc, y, workSpace, workSpaceSize, solution_id)
+    @check ccall((:miopenConvolutionForwardImmediate, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Cint), handle, wDesc, w, xDesc, x, convDesc, yDesc, y, workSpace, workSpaceSize, solution_id)
 end
 
 function miopenConvolutionBackwardDataGetSolutionCount(handle, dyDesc, wDesc, convDesc, dxDesc, solutionCount)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardDataGetSolutionCount, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, dyDesc, wDesc, convDesc, dxDesc, solutionCount)
+    @check ccall((:miopenConvolutionBackwardDataGetSolutionCount, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, dyDesc, wDesc, convDesc, dxDesc, solutionCount)
 end
 
 function miopenConvolutionBackwardDataGetSolution(handle, dyDesc, wDesc, convDesc, dxDesc, maxSolutionCount, solutionCount, solutions)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardDataGetSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Csize_t, Ptr{Csize_t}, Ptr{miopenConvSolution_t}), handle, dyDesc, wDesc, convDesc, dxDesc, maxSolutionCount, solutionCount, solutions)
+    @check ccall((:miopenConvolutionBackwardDataGetSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Csize_t, Ptr{Csize_t}, Ptr{miopenConvSolution_t}), handle, dyDesc, wDesc, convDesc, dxDesc, maxSolutionCount, solutionCount, solutions)
 end
 
 function miopenConvolutionBackwardDataGetSolutionWorkspaceSize(handle, dyDesc, wDesc, convDesc, dxDesc, solution_id, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardDataGetSolutionWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint, Ptr{Csize_t}), handle, dyDesc, wDesc, convDesc, dxDesc, solution_id, workSpaceSize)
+    @check ccall((:miopenConvolutionBackwardDataGetSolutionWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint, Ptr{Csize_t}), handle, dyDesc, wDesc, convDesc, dxDesc, solution_id, workSpaceSize)
 end
 
 function miopenConvolutionBackwardDataCompileSolution(handle, dyDesc, wDesc, convDesc, dxDesc, solution_id)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardDataCompileSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint), handle, dyDesc, wDesc, convDesc, dxDesc, solution_id)
+    @check ccall((:miopenConvolutionBackwardDataCompileSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint), handle, dyDesc, wDesc, convDesc, dxDesc, solution_id)
 end
 
 function miopenConvolutionBackwardDataImmediate(handle, dyDesc, dy, wDesc, w, convDesc, dxDesc, dx, workSpace, workSpaceSize, solution_id)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardDataImmediate, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Cint), handle, dyDesc, dy, wDesc, w, convDesc, dxDesc, dx, workSpace, workSpaceSize, solution_id)
+    @check ccall((:miopenConvolutionBackwardDataImmediate, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Cint), handle, dyDesc, dy, wDesc, w, convDesc, dxDesc, dx, workSpace, workSpaceSize, solution_id)
 end
 
 function miopenConvolutionBackwardWeightsGetSolutionCount(handle, dyDesc, xDesc, convDesc, dwDesc, solutionCount)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardWeightsGetSolutionCount, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, dyDesc, xDesc, convDesc, dwDesc, solutionCount)
+    @check ccall((:miopenConvolutionBackwardWeightsGetSolutionCount, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, dyDesc, xDesc, convDesc, dwDesc, solutionCount)
 end
 
 function miopenConvolutionBackwardWeightsGetSolution(handle, dyDesc, xDesc, convDesc, dwDesc, maxSolutionCount, solutionCount, solutions)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardWeightsGetSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Csize_t, Ptr{Csize_t}, Ptr{miopenConvSolution_t}), handle, dyDesc, xDesc, convDesc, dwDesc, maxSolutionCount, solutionCount, solutions)
+    @check ccall((:miopenConvolutionBackwardWeightsGetSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Csize_t, Ptr{Csize_t}, Ptr{miopenConvSolution_t}), handle, dyDesc, xDesc, convDesc, dwDesc, maxSolutionCount, solutionCount, solutions)
 end
 
 function miopenConvolutionBackwardWeightsGetSolutionWorkspaceSize(handle, dyDesc, xDesc, convDesc, dwDesc, solution_id, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardWeightsGetSolutionWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint, Ptr{Csize_t}), handle, dyDesc, xDesc, convDesc, dwDesc, solution_id, workSpaceSize)
+    @check ccall((:miopenConvolutionBackwardWeightsGetSolutionWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint, Ptr{Csize_t}), handle, dyDesc, xDesc, convDesc, dwDesc, solution_id, workSpaceSize)
 end
 
 function miopenConvolutionBackwardWeightsCompileSolution(handle, dyDesc, xDesc, convDesc, dwDesc, solution_id)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardWeightsCompileSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint), handle, dyDesc, xDesc, convDesc, dwDesc, solution_id)
+    @check ccall((:miopenConvolutionBackwardWeightsCompileSolution, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Cint), handle, dyDesc, xDesc, convDesc, dwDesc, solution_id)
 end
 
 function miopenConvolutionBackwardWeightsImmediate(handle, dyDesc, dy, xDesc, x, convDesc, dwDesc, dw, workSpace, workSpaceSize, solution_id)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardWeightsImmediate, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Cint), handle, dyDesc, dy, xDesc, x, convDesc, dwDesc, dw, workSpace, workSpaceSize, solution_id)
+    @check ccall((:miopenConvolutionBackwardWeightsImmediate, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Cint), handle, dyDesc, dy, xDesc, x, convDesc, dwDesc, dw, workSpace, workSpaceSize, solution_id)
 end
 
 function miopenConvolutionForwardGetWorkSpaceSize(handle, wDesc, xDesc, convDesc, yDesc, workSpaceSize)
@@ -509,237 +509,237 @@ end
 
 function miopenFindConvolutionForwardAlgorithm(handle, xDesc, x, wDesc, w, convDesc, yDesc, y, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
     AMDGPU.prepare_state()
-    ccall((:miopenFindConvolutionForwardAlgorithm, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, Ptr{Cint}, Ptr{miopenConvAlgoPerf_t}, Ptr{Cvoid}, Csize_t, Bool), handle, xDesc, x, wDesc, w, convDesc, yDesc, y, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
+    @check ccall((:miopenFindConvolutionForwardAlgorithm, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, Ptr{Cint}, Ptr{miopenConvAlgoPerf_t}, Ptr{Cvoid}, Csize_t, Bool), handle, xDesc, x, wDesc, w, convDesc, yDesc, y, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
 end
 
 function miopenConvolutionForward(handle, alpha, xDesc, x, wDesc, w, convDesc, algo, beta, yDesc, y, workSpace, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenConvFwdAlgorithm_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, alpha, xDesc, x, wDesc, w, convDesc, algo, beta, yDesc, y, workSpace, workSpaceSize)
+    @check ccall((:miopenConvolutionForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenConvFwdAlgorithm_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, alpha, xDesc, x, wDesc, w, convDesc, algo, beta, yDesc, y, workSpace, workSpaceSize)
 end
 
 function miopenConvolutionForwardBias(handle, alpha, bDesc, b, beta, yDesc, y)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionForwardBias, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, bDesc, b, beta, yDesc, y)
+    @check ccall((:miopenConvolutionForwardBias, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, bDesc, b, beta, yDesc, y)
 end
 
 function miopenConvolutionBackwardDataGetWorkSpaceSize(handle, dyDesc, wDesc, convDesc, dxDesc, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardDataGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, dyDesc, wDesc, convDesc, dxDesc, workSpaceSize)
+    @check ccall((:miopenConvolutionBackwardDataGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, dyDesc, wDesc, convDesc, dxDesc, workSpaceSize)
 end
 
 function miopenFindConvolutionBackwardDataAlgorithm(handle, dyDesc, dy, wDesc, w, convDesc, dxDesc, dx, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
     AMDGPU.prepare_state()
-    ccall((:miopenFindConvolutionBackwardDataAlgorithm, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, Ptr{Cint}, Ptr{miopenConvAlgoPerf_t}, Ptr{Cvoid}, Csize_t, Bool), handle, dyDesc, dy, wDesc, w, convDesc, dxDesc, dx, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
+    @check ccall((:miopenFindConvolutionBackwardDataAlgorithm, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, Ptr{Cint}, Ptr{miopenConvAlgoPerf_t}, Ptr{Cvoid}, Csize_t, Bool), handle, dyDesc, dy, wDesc, w, convDesc, dxDesc, dx, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
 end
 
 function miopenConvolutionBackwardData(handle, alpha, dyDesc, dy, wDesc, w, convDesc, algo, beta, dxDesc, dx, workSpace, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardData, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenConvBwdDataAlgorithm_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, alpha, dyDesc, dy, wDesc, w, convDesc, algo, beta, dxDesc, dx, workSpace, workSpaceSize)
+    @check ccall((:miopenConvolutionBackwardData, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenConvBwdDataAlgorithm_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, alpha, dyDesc, dy, wDesc, w, convDesc, algo, beta, dxDesc, dx, workSpace, workSpaceSize)
 end
 
 function miopenConvolutionBackwardWeightsGetWorkSpaceSize(handle, dyDesc, xDesc, convDesc, dwDesc, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardWeightsGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, dyDesc, xDesc, convDesc, dwDesc, workSpaceSize)
+    @check ccall((:miopenConvolutionBackwardWeightsGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, dyDesc, xDesc, convDesc, dwDesc, workSpaceSize)
 end
 
 function miopenFindConvolutionBackwardWeightsAlgorithm(handle, dyDesc, dy, xDesc, x, convDesc, dwDesc, dw, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
     AMDGPU.prepare_state()
-    ccall((:miopenFindConvolutionBackwardWeightsAlgorithm, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, Ptr{Cint}, Ptr{miopenConvAlgoPerf_t}, Ptr{Cvoid}, Csize_t, Bool), handle, dyDesc, dy, xDesc, x, convDesc, dwDesc, dw, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
+    @check ccall((:miopenFindConvolutionBackwardWeightsAlgorithm, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, Ptr{Cint}, Ptr{miopenConvAlgoPerf_t}, Ptr{Cvoid}, Csize_t, Bool), handle, dyDesc, dy, xDesc, x, convDesc, dwDesc, dw, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
 end
 
 function miopenConvolutionBackwardWeights(handle, alpha, dyDesc, dy, xDesc, x, convDesc, algo, beta, dwDesc, dw, workSpace, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardWeights, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenConvBwdWeightsAlgorithm_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, alpha, dyDesc, dy, xDesc, x, convDesc, algo, beta, dwDesc, dw, workSpace, workSpaceSize)
+    @check ccall((:miopenConvolutionBackwardWeights, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenConvolutionDescriptor_t, miopenConvBwdWeightsAlgorithm_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, alpha, dyDesc, dy, xDesc, x, convDesc, algo, beta, dwDesc, dw, workSpace, workSpaceSize)
 end
 
 function miopenConvolutionBackwardBias(handle, alpha, dyDesc, dy, beta, dbDesc, db)
     AMDGPU.prepare_state()
-    ccall((:miopenConvolutionBackwardBias, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, dyDesc, dy, beta, dbDesc, db)
+    @check ccall((:miopenConvolutionBackwardBias, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, dyDesc, dy, beta, dbDesc, db)
 end
 
 function miopenCreatePoolingDescriptor(poolDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreatePoolingDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenPoolingDescriptor_t},), poolDesc)
+    @check ccall((:miopenCreatePoolingDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenPoolingDescriptor_t},), poolDesc)
 end
 
 function miopenSetPoolingIndexType(poolDesc, index_type)
     AMDGPU.prepare_state()
-    ccall((:miopenSetPoolingIndexType, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenIndexType_t), poolDesc, index_type)
+    @check ccall((:miopenSetPoolingIndexType, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenIndexType_t), poolDesc, index_type)
 end
 
 function miopenGetPoolingIndexType(poolDesc, index_type)
     AMDGPU.prepare_state()
-    ccall((:miopenGetPoolingIndexType, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, Ptr{miopenIndexType_t}), poolDesc, index_type)
+    @check ccall((:miopenGetPoolingIndexType, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, Ptr{miopenIndexType_t}), poolDesc, index_type)
 end
 
 function miopenSetPoolingWorkSpaceIndexMode(poolDesc, workspace_index)
     AMDGPU.prepare_state()
-    ccall((:miopenSetPoolingWorkSpaceIndexMode, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenPoolingWorkspaceIndexMode_t), poolDesc, workspace_index)
+    @check ccall((:miopenSetPoolingWorkSpaceIndexMode, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenPoolingWorkspaceIndexMode_t), poolDesc, workspace_index)
 end
 
 function miopenGetPoolingWorkSpaceIndexMode(poolDesc, workspace_index)
     AMDGPU.prepare_state()
-    ccall((:miopenGetPoolingWorkSpaceIndexMode, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, Ptr{miopenPoolingWorkspaceIndexMode_t}), poolDesc, workspace_index)
+    @check ccall((:miopenGetPoolingWorkSpaceIndexMode, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, Ptr{miopenPoolingWorkspaceIndexMode_t}), poolDesc, workspace_index)
 end
 
 function miopenSet2dPoolingDescriptor(poolDesc, mode, windowHeight, windowWidth, pad_h, pad_w, stride_h, stride_w)
     AMDGPU.prepare_state()
-    ccall((:miopenSet2dPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenPoolingMode_t, Cint, Cint, Cint, Cint, Cint, Cint), poolDesc, mode, windowHeight, windowWidth, pad_h, pad_w, stride_h, stride_w)
+    @check ccall((:miopenSet2dPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenPoolingMode_t, Cint, Cint, Cint, Cint, Cint, Cint), poolDesc, mode, windowHeight, windowWidth, pad_h, pad_w, stride_h, stride_w)
 end
 
 function miopenGet2dPoolingDescriptor(poolDesc, mode, windowHeight, windowWidth, pad_h, pad_w, stride_h, stride_w)
     AMDGPU.prepare_state()
-    ccall((:miopenGet2dPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, Ptr{miopenPoolingMode_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), poolDesc, mode, windowHeight, windowWidth, pad_h, pad_w, stride_h, stride_w)
+    @check ccall((:miopenGet2dPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, Ptr{miopenPoolingMode_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), poolDesc, mode, windowHeight, windowWidth, pad_h, pad_w, stride_h, stride_w)
 end
 
 function miopenGetPoolingForwardOutputDim(poolDesc, tensorDesc, n, c, h, w)
     AMDGPU.prepare_state()
-    ccall((:miopenGetPoolingForwardOutputDim, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenTensorDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), poolDesc, tensorDesc, n, c, h, w)
+    @check ccall((:miopenGetPoolingForwardOutputDim, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenTensorDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), poolDesc, tensorDesc, n, c, h, w)
 end
 
 function miopenSetNdPoolingDescriptor(poolDesc, mode, nbDims, windowDimA, padA, stridesA)
     AMDGPU.prepare_state()
-    ccall((:miopenSetNdPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenPoolingMode_t, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), poolDesc, mode, nbDims, windowDimA, padA, stridesA)
+    @check ccall((:miopenSetNdPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenPoolingMode_t, Cint, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), poolDesc, mode, nbDims, windowDimA, padA, stridesA)
 end
 
 function miopenGetNdPoolingDescriptor(poolDesc, nbDimsRequested, mode, nbDims, windowDimA, padA, stridesA)
     AMDGPU.prepare_state()
-    ccall((:miopenGetNdPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, Cint, Ptr{miopenPoolingMode_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), poolDesc, nbDimsRequested, mode, nbDims, windowDimA, padA, stridesA)
+    @check ccall((:miopenGetNdPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, Cint, Ptr{miopenPoolingMode_t}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), poolDesc, nbDimsRequested, mode, nbDims, windowDimA, padA, stridesA)
 end
 
 function miopenGetPoolingNdForwardOutputDim(poolDesc, tensorDesc, dims, tensorDimArr)
     AMDGPU.prepare_state()
-    ccall((:miopenGetPoolingNdForwardOutputDim, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenTensorDescriptor_t, Cint, Ptr{Cint}), poolDesc, tensorDesc, dims, tensorDimArr)
+    @check ccall((:miopenGetPoolingNdForwardOutputDim, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenTensorDescriptor_t, Cint, Ptr{Cint}), poolDesc, tensorDesc, dims, tensorDimArr)
 end
 
 function miopenPoolingGetWorkSpaceSize(yDesc, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenPoolingGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Csize_t}), yDesc, workSpaceSize)
+    @check ccall((:miopenPoolingGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Csize_t}), yDesc, workSpaceSize)
 end
 
 function miopenPoolingGetWorkSpaceSizeV2(poolDesc, yDesc, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenPoolingGetWorkSpaceSizeV2, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), poolDesc, yDesc, workSpaceSize)
+    @check ccall((:miopenPoolingGetWorkSpaceSizeV2, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), poolDesc, yDesc, workSpaceSize)
 end
 
 function miopenPoolingForward(handle, poolDesc, alpha, xDesc, x, beta, yDesc, y, do_backward, workSpace, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenPoolingForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenPoolingDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Bool, Ptr{Cvoid}, Csize_t), handle, poolDesc, alpha, xDesc, x, beta, yDesc, y, do_backward, workSpace, workSpaceSize)
+    @check ccall((:miopenPoolingForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenPoolingDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Bool, Ptr{Cvoid}, Csize_t), handle, poolDesc, alpha, xDesc, x, beta, yDesc, y, do_backward, workSpace, workSpaceSize)
 end
 
 function miopenPoolingBackward(handle, poolDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx, workSpace)
     AMDGPU.prepare_state()
-    ccall((:miopenPoolingBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenPoolingDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}), handle, poolDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx, workSpace)
+    @check ccall((:miopenPoolingBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenPoolingDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}), handle, poolDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx, workSpace)
 end
 
 function miopenDestroyPoolingDescriptor(poolDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t,), poolDesc)
+    @check ccall((:miopenDestroyPoolingDescriptor, libMIOpen_path), miopenStatus_t, (miopenPoolingDescriptor_t,), poolDesc)
 end
 
 function miopenCreateLRNDescriptor(lrnDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateLRNDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenLRNDescriptor_t},), lrnDesc)
+    @check ccall((:miopenCreateLRNDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenLRNDescriptor_t},), lrnDesc)
 end
 
 function miopenSetLRNDescriptor(lrnDesc, mode, lrnN, lrnAlpha, lrnBeta, lrnK)
     AMDGPU.prepare_state()
-    ccall((:miopenSetLRNDescriptor, libMIOpen_path), miopenStatus_t, (miopenLRNDescriptor_t, miopenLRNMode_t, Cuint, Cdouble, Cdouble, Cdouble), lrnDesc, mode, lrnN, lrnAlpha, lrnBeta, lrnK)
+    @check ccall((:miopenSetLRNDescriptor, libMIOpen_path), miopenStatus_t, (miopenLRNDescriptor_t, miopenLRNMode_t, Cuint, Cdouble, Cdouble, Cdouble), lrnDesc, mode, lrnN, lrnAlpha, lrnBeta, lrnK)
 end
 
 function miopenGetLRNDescriptor(lrnDesc, mode, lrnN, lrnAlpha, lrnBeta, lrnK)
     AMDGPU.prepare_state()
-    ccall((:miopenGetLRNDescriptor, libMIOpen_path), miopenStatus_t, (miopenLRNDescriptor_t, Ptr{miopenLRNMode_t}, Ptr{Cuint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), lrnDesc, mode, lrnN, lrnAlpha, lrnBeta, lrnK)
+    @check ccall((:miopenGetLRNDescriptor, libMIOpen_path), miopenStatus_t, (miopenLRNDescriptor_t, Ptr{miopenLRNMode_t}, Ptr{Cuint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), lrnDesc, mode, lrnN, lrnAlpha, lrnBeta, lrnK)
 end
 
 function miopenLRNGetWorkSpaceSize(yDesc, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenLRNGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Csize_t}), yDesc, workSpaceSize)
+    @check ccall((:miopenLRNGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Csize_t}), yDesc, workSpaceSize)
 end
 
 function miopenLRNForward(handle, lrnDesc, alpha, xDesc, x, beta, yDesc, y, do_backward, workSpace)
     AMDGPU.prepare_state()
-    ccall((:miopenLRNForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenLRNDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Bool, Ptr{Cvoid}), handle, lrnDesc, alpha, xDesc, x, beta, yDesc, y, do_backward, workSpace)
+    @check ccall((:miopenLRNForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenLRNDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Bool, Ptr{Cvoid}), handle, lrnDesc, alpha, xDesc, x, beta, yDesc, y, do_backward, workSpace)
 end
 
 function miopenLRNBackward(handle, lrnDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx, workSpace)
     AMDGPU.prepare_state()
-    ccall((:miopenLRNBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenLRNDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}), handle, lrnDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx, workSpace)
+    @check ccall((:miopenLRNBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenLRNDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}), handle, lrnDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx, workSpace)
 end
 
 function miopenDestroyLRNDescriptor(lrnDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyLRNDescriptor, libMIOpen_path), miopenStatus_t, (miopenLRNDescriptor_t,), lrnDesc)
+    @check ccall((:miopenDestroyLRNDescriptor, libMIOpen_path), miopenStatus_t, (miopenLRNDescriptor_t,), lrnDesc)
 end
 
 function miopenDeriveBNTensorDescriptor(derivedBnDesc, xDesc, bn_mode)
     AMDGPU.prepare_state()
-    ccall((:miopenDeriveBNTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenBatchNormMode_t), derivedBnDesc, xDesc, bn_mode)
+    @check ccall((:miopenDeriveBNTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenBatchNormMode_t), derivedBnDesc, xDesc, bn_mode)
 end
 
 function miopenBatchNormalizationForwardTraining(handle, bn_mode, alpha, beta, xDesc, x, yDesc, y, bnScaleBiasMeanVarDesc, bnScale, bnBias, expAvgFactor, resultRunningMean, resultRunningVariance, epsilon, resultSaveMean, resultSaveInvVariance)
     AMDGPU.prepare_state()
-    ccall((:miopenBatchNormalizationForwardTraining, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Ptr{Cvoid}, Ptr{Cvoid}), handle, bn_mode, alpha, beta, xDesc, x, yDesc, y, bnScaleBiasMeanVarDesc, bnScale, bnBias, expAvgFactor, resultRunningMean, resultRunningVariance, epsilon, resultSaveMean, resultSaveInvVariance)
+    @check ccall((:miopenBatchNormalizationForwardTraining, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Ptr{Cvoid}, Ptr{Cvoid}), handle, bn_mode, alpha, beta, xDesc, x, yDesc, y, bnScaleBiasMeanVarDesc, bnScale, bnBias, expAvgFactor, resultRunningMean, resultRunningVariance, epsilon, resultSaveMean, resultSaveInvVariance)
 end
 
 function miopenBatchNormalizationForwardInference(handle, bn_mode, alpha, beta, xDesc, x, yDesc, y, bnScaleBiasMeanVarDesc, bnScale, bnBias, estimatedMean, estimatedVariance, epsilon)
     AMDGPU.prepare_state()
-    ccall((:miopenBatchNormalizationForwardInference, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble), handle, bn_mode, alpha, beta, xDesc, x, yDesc, y, bnScaleBiasMeanVarDesc, bnScale, bnBias, estimatedMean, estimatedVariance, epsilon)
+    @check ccall((:miopenBatchNormalizationForwardInference, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble), handle, bn_mode, alpha, beta, xDesc, x, yDesc, y, bnScaleBiasMeanVarDesc, bnScale, bnBias, estimatedMean, estimatedVariance, epsilon)
 end
 
 function miopenBatchNormalizationBackward(handle, bn_mode, alphaDataDiff, betaDataDiff, alphaParamDiff, betaParamDiff, xDesc, x, dyDesc, dy, dxDesc, dx, bnScaleBiasDiffDesc, bnScale, resultBnScaleDiff, resultBnBiasDiff, epsilon, savedMean, savedInvVariance)
     AMDGPU.prepare_state()
-    ccall((:miopenBatchNormalizationBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Ptr{Cvoid}, Ptr{Cvoid}), handle, bn_mode, alphaDataDiff, betaDataDiff, alphaParamDiff, betaParamDiff, xDesc, x, dyDesc, dy, dxDesc, dx, bnScaleBiasDiffDesc, bnScale, resultBnScaleDiff, resultBnBiasDiff, epsilon, savedMean, savedInvVariance)
+    @check ccall((:miopenBatchNormalizationBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Ptr{Cvoid}, Ptr{Cvoid}), handle, bn_mode, alphaDataDiff, betaDataDiff, alphaParamDiff, betaParamDiff, xDesc, x, dyDesc, dy, dxDesc, dx, bnScaleBiasDiffDesc, bnScale, resultBnScaleDiff, resultBnBiasDiff, epsilon, savedMean, savedInvVariance)
 end
 
 function miopenCreateActivationDescriptor(activDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateActivationDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenActivationDescriptor_t},), activDesc)
+    @check ccall((:miopenCreateActivationDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenActivationDescriptor_t},), activDesc)
 end
 
 function miopenSetActivationDescriptor(activDesc, mode, activAlpha, activBeta, activGamma)
     AMDGPU.prepare_state()
-    ccall((:miopenSetActivationDescriptor, libMIOpen_path), miopenStatus_t, (miopenActivationDescriptor_t, miopenActivationMode_t, Cdouble, Cdouble, Cdouble), activDesc, mode, activAlpha, activBeta, activGamma)
+    @check ccall((:miopenSetActivationDescriptor, libMIOpen_path), miopenStatus_t, (miopenActivationDescriptor_t, miopenActivationMode_t, Cdouble, Cdouble, Cdouble), activDesc, mode, activAlpha, activBeta, activGamma)
 end
 
 function miopenGetActivationDescriptor(activDesc, mode, activAlpha, activBeta, activGamma)
     AMDGPU.prepare_state()
-    ccall((:miopenGetActivationDescriptor, libMIOpen_path), miopenStatus_t, (miopenActivationDescriptor_t, Ptr{miopenActivationMode_t}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), activDesc, mode, activAlpha, activBeta, activGamma)
+    @check ccall((:miopenGetActivationDescriptor, libMIOpen_path), miopenStatus_t, (miopenActivationDescriptor_t, Ptr{miopenActivationMode_t}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}), activDesc, mode, activAlpha, activBeta, activGamma)
 end
 
 function miopenActivationForward(handle, activDesc, alpha, xDesc, x, beta, yDesc, y)
     AMDGPU.prepare_state()
-    ccall((:miopenActivationForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenActivationDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, activDesc, alpha, xDesc, x, beta, yDesc, y)
+    @check ccall((:miopenActivationForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenActivationDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, activDesc, alpha, xDesc, x, beta, yDesc, y)
 end
 
 function miopenActivationBackward(handle, activDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx)
     AMDGPU.prepare_state()
-    ccall((:miopenActivationBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenActivationDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, activDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx)
+    @check ccall((:miopenActivationBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenActivationDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, activDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx)
 end
 
 function miopenDestroyActivationDescriptor(activDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyActivationDescriptor, libMIOpen_path), miopenStatus_t, (miopenActivationDescriptor_t,), activDesc)
+    @check ccall((:miopenDestroyActivationDescriptor, libMIOpen_path), miopenStatus_t, (miopenActivationDescriptor_t,), activDesc)
 end
 
 function miopenSoftmaxForward(handle, alpha, xDesc, x, beta, yDesc, y)
     AMDGPU.prepare_state()
-    ccall((:miopenSoftmaxForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, xDesc, x, beta, yDesc, y)
+    @check ccall((:miopenSoftmaxForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, xDesc, x, beta, yDesc, y)
 end
 
 function miopenSoftmaxBackward(handle, alpha, yDesc, y, dyDesc, dy, beta, dxDesc, dx)
     AMDGPU.prepare_state()
-    ccall((:miopenSoftmaxBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, yDesc, y, dyDesc, dy, beta, dxDesc, dx)
+    @check ccall((:miopenSoftmaxBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, alpha, yDesc, y, dyDesc, dy, beta, dxDesc, dx)
 end
 
 function miopenSoftmaxForward_V2(handle, alpha, xDesc, x, beta, yDesc, y, algorithm, mode)
     AMDGPU.prepare_state()
-    ccall((:miopenSoftmaxForward_V2, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenSoftmaxAlgorithm_t, miopenSoftmaxMode_t), handle, alpha, xDesc, x, beta, yDesc, y, algorithm, mode)
+    @check ccall((:miopenSoftmaxForward_V2, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenSoftmaxAlgorithm_t, miopenSoftmaxMode_t), handle, alpha, xDesc, x, beta, yDesc, y, algorithm, mode)
 end
 
 function miopenSoftmaxBackward_V2(handle, alpha, yDesc, y, dyDesc, dy, beta, dxDesc, dx, algorithm, mode)
     AMDGPU.prepare_state()
-    ccall((:miopenSoftmaxBackward_V2, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenSoftmaxAlgorithm_t, miopenSoftmaxMode_t), handle, alpha, yDesc, y, dyDesc, dy, beta, dxDesc, dx, algorithm, mode)
+    @check ccall((:miopenSoftmaxBackward_V2, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenSoftmaxAlgorithm_t, miopenSoftmaxMode_t), handle, alpha, yDesc, y, dyDesc, dy, beta, dxDesc, dx, algorithm, mode)
 end
 
 struct miopenFusionPlanDescriptor
@@ -764,122 +764,122 @@ end
 
 function miopenCreateFusionPlan(fusePlanDesc, fuseDirection, inputDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateFusionPlan, libMIOpen_path), miopenStatus_t, (Ptr{miopenFusionPlanDescriptor_t}, miopenFusionDirection_t, miopenTensorDescriptor_t), fusePlanDesc, fuseDirection, inputDesc)
+    @check ccall((:miopenCreateFusionPlan, libMIOpen_path), miopenStatus_t, (Ptr{miopenFusionPlanDescriptor_t}, miopenFusionDirection_t, miopenTensorDescriptor_t), fusePlanDesc, fuseDirection, inputDesc)
 end
 
 function miopenDestroyFusionPlan(fusePlanDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyFusionPlan, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t,), fusePlanDesc)
+    @check ccall((:miopenDestroyFusionPlan, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t,), fusePlanDesc)
 end
 
 function miopenCompileFusionPlan(handle, fusePlanDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCompileFusionPlan, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenFusionPlanDescriptor_t), handle, fusePlanDesc)
+    @check ccall((:miopenCompileFusionPlan, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenFusionPlanDescriptor_t), handle, fusePlanDesc)
 end
 
 function miopenFusionPlanGetOp(fusePlanDesc, op_idx, op)
     AMDGPU.prepare_state()
-    ccall((:miopenFusionPlanGetOp, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Cint, Ptr{miopenFusionOpDescriptor_t}), fusePlanDesc, op_idx, op)
+    @check ccall((:miopenFusionPlanGetOp, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Cint, Ptr{miopenFusionOpDescriptor_t}), fusePlanDesc, op_idx, op)
 end
 
 function miopenFusionPlanGetWorkSpaceSize(handle, fusePlanDesc, workSpaceSize, algo)
     AMDGPU.prepare_state()
-    ccall((:miopenFusionPlanGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenFusionPlanDescriptor_t, Ptr{Csize_t}, miopenConvFwdAlgorithm_t), handle, fusePlanDesc, workSpaceSize, algo)
+    @check ccall((:miopenFusionPlanGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenFusionPlanDescriptor_t, Ptr{Csize_t}, miopenConvFwdAlgorithm_t), handle, fusePlanDesc, workSpaceSize, algo)
 end
 
 function miopenFusionPlanConvolutionGetAlgo(fusePlanDesc, requestAlgoCount, returnedAlgoCount, returnedAlgos)
     AMDGPU.prepare_state()
-    ccall((:miopenFusionPlanConvolutionGetAlgo, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Cint, Ptr{Cint}, Ptr{miopenConvFwdAlgorithm_t}), fusePlanDesc, requestAlgoCount, returnedAlgoCount, returnedAlgos)
+    @check ccall((:miopenFusionPlanConvolutionGetAlgo, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Cint, Ptr{Cint}, Ptr{miopenConvFwdAlgorithm_t}), fusePlanDesc, requestAlgoCount, returnedAlgoCount, returnedAlgos)
 end
 
 function miopenFusionPlanConvolutionSetAlgo(fusePlanDesc, algo)
     AMDGPU.prepare_state()
-    ccall((:miopenFusionPlanConvolutionSetAlgo, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, miopenConvFwdAlgorithm_t), fusePlanDesc, algo)
+    @check ccall((:miopenFusionPlanConvolutionSetAlgo, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, miopenConvFwdAlgorithm_t), fusePlanDesc, algo)
 end
 
 function miopenCreateOpConvForward(fusePlanDesc, convOp, convDesc, wDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateOpConvForward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t), fusePlanDesc, convOp, convDesc, wDesc)
+    @check ccall((:miopenCreateOpConvForward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t), fusePlanDesc, convOp, convDesc, wDesc)
 end
 
 function miopenCreateOpActivationForward(fusePlanDesc, activFwdOp, mode)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateOpActivationForward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenActivationMode_t), fusePlanDesc, activFwdOp, mode)
+    @check ccall((:miopenCreateOpActivationForward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenActivationMode_t), fusePlanDesc, activFwdOp, mode)
 end
 
 function miopenCreateOpActivationBackward(fusePlanDesc, activBwdOp, mode)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateOpActivationBackward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenActivationMode_t), fusePlanDesc, activBwdOp, mode)
+    @check ccall((:miopenCreateOpActivationBackward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenActivationMode_t), fusePlanDesc, activBwdOp, mode)
 end
 
 function miopenCreateOpBiasForward(fusePlanDesc, biasOp, bDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateOpBiasForward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenTensorDescriptor_t), fusePlanDesc, biasOp, bDesc)
+    @check ccall((:miopenCreateOpBiasForward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenTensorDescriptor_t), fusePlanDesc, biasOp, bDesc)
 end
 
 function miopenCreateOpBatchNormInference(fusePlanDesc, bnOp, bn_mode, bnScaleBiasMeanVarDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateOpBatchNormInference, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenBatchNormMode_t, miopenTensorDescriptor_t), fusePlanDesc, bnOp, bn_mode, bnScaleBiasMeanVarDesc)
+    @check ccall((:miopenCreateOpBatchNormInference, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenBatchNormMode_t, miopenTensorDescriptor_t), fusePlanDesc, bnOp, bn_mode, bnScaleBiasMeanVarDesc)
 end
 
 function miopenCreateOpBatchNormForward(fusePlanDesc, bnFwdOp, bn_mode, runningMeanVariance)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateOpBatchNormForward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenBatchNormMode_t, Bool), fusePlanDesc, bnFwdOp, bn_mode, runningMeanVariance)
+    @check ccall((:miopenCreateOpBatchNormForward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenBatchNormMode_t, Bool), fusePlanDesc, bnFwdOp, bn_mode, runningMeanVariance)
 end
 
 function miopenCreateOpBatchNormBackward(fusePlanDesc, bnBwdOp, bn_mode)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateOpBatchNormBackward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenBatchNormMode_t), fusePlanDesc, bnBwdOp, bn_mode)
+    @check ccall((:miopenCreateOpBatchNormBackward, libMIOpen_path), miopenStatus_t, (miopenFusionPlanDescriptor_t, Ptr{miopenFusionOpDescriptor_t}, miopenBatchNormMode_t), fusePlanDesc, bnBwdOp, bn_mode)
 end
 
 function miopenCreateOperatorArgs(args)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateOperatorArgs, libMIOpen_path), miopenStatus_t, (Ptr{miopenOperatorArgs_t},), args)
+    @check ccall((:miopenCreateOperatorArgs, libMIOpen_path), miopenStatus_t, (Ptr{miopenOperatorArgs_t},), args)
 end
 
 function miopenDestroyOperatorArgs(args)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyOperatorArgs, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t,), args)
+    @check ccall((:miopenDestroyOperatorArgs, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t,), args)
 end
 
 function miopenSetOpArgsConvForward(args, convOp, alpha, beta, w)
     AMDGPU.prepare_state()
-    ccall((:miopenSetOpArgsConvForward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), args, convOp, alpha, beta, w)
+    @check ccall((:miopenSetOpArgsConvForward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), args, convOp, alpha, beta, w)
 end
 
 function miopenSetOpArgsActivForward(args, activFwdOp, alpha, beta, activAlpha, activBeta, activGamma)
     AMDGPU.prepare_state()
-    ccall((:miopenSetOpArgsActivForward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Cdouble, Cdouble), args, activFwdOp, alpha, beta, activAlpha, activBeta, activGamma)
+    @check ccall((:miopenSetOpArgsActivForward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Cdouble, Cdouble), args, activFwdOp, alpha, beta, activAlpha, activBeta, activGamma)
 end
 
 function miopenSetOpArgsActivBackward(args, activBwdOp, alpha, beta, y, reserved, activAlpha, activBeta, activGamma)
     AMDGPU.prepare_state()
-    ccall((:miopenSetOpArgsActivBackward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Cdouble, Cdouble), args, activBwdOp, alpha, beta, y, reserved, activAlpha, activBeta, activGamma)
+    @check ccall((:miopenSetOpArgsActivBackward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Cdouble, Cdouble), args, activBwdOp, alpha, beta, y, reserved, activAlpha, activBeta, activGamma)
 end
 
 function miopenSetOpArgsBatchNormInference(args, bnOp, alpha, beta, bnScale, bnBias, estimatedMean, estimatedVariance, epsilon)
     AMDGPU.prepare_state()
-    ccall((:miopenSetOpArgsBatchNormInference, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble), args, bnOp, alpha, beta, bnScale, bnBias, estimatedMean, estimatedVariance, epsilon)
+    @check ccall((:miopenSetOpArgsBatchNormInference, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble), args, bnOp, alpha, beta, bnScale, bnBias, estimatedMean, estimatedVariance, epsilon)
 end
 
 function miopenSetOpArgsBatchNormForward(args, bnOp, alpha, beta, bnScale, bnBias, savedMean, savedInvVariance, runningMean, runningVariance, expAvgFactor, epsilon)
     AMDGPU.prepare_state()
-    ccall((:miopenSetOpArgsBatchNormForward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Cdouble), args, bnOp, alpha, beta, bnScale, bnBias, savedMean, savedInvVariance, runningMean, runningVariance, expAvgFactor, epsilon)
+    @check ccall((:miopenSetOpArgsBatchNormForward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Cdouble, Cdouble), args, bnOp, alpha, beta, bnScale, bnBias, savedMean, savedInvVariance, runningMean, runningVariance, expAvgFactor, epsilon)
 end
 
 function miopenSetOpArgsBatchNormBackward(args, bnOp, alpha, beta, x, bnScale, bnBias, resultBnScaleDiff, resultBnBiasDiff, savedMean, savedInvVariance)
     AMDGPU.prepare_state()
-    ccall((:miopenSetOpArgsBatchNormBackward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), args, bnOp, alpha, beta, x, bnScale, bnBias, resultBnScaleDiff, resultBnBiasDiff, savedMean, savedInvVariance)
+    @check ccall((:miopenSetOpArgsBatchNormBackward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), args, bnOp, alpha, beta, x, bnScale, bnBias, resultBnScaleDiff, resultBnBiasDiff, savedMean, savedInvVariance)
 end
 
 function miopenSetOpArgsBiasForward(args, biasOp, alpha, beta, bias)
     AMDGPU.prepare_state()
-    ccall((:miopenSetOpArgsBiasForward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), args, biasOp, alpha, beta, bias)
+    @check ccall((:miopenSetOpArgsBiasForward, libMIOpen_path), miopenStatus_t, (miopenOperatorArgs_t, miopenFusionOpDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), args, biasOp, alpha, beta, bias)
 end
 
 function miopenExecuteFusionPlan(handle, fusePlanDesc, inputDesc, input, outputDesc, output, args)
     AMDGPU.prepare_state()
-    ccall((:miopenExecuteFusionPlan, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenFusionPlanDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenOperatorArgs_t), handle, fusePlanDesc, inputDesc, input, outputDesc, output, args)
+    @check ccall((:miopenExecuteFusionPlan, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenFusionPlanDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenOperatorArgs_t), handle, fusePlanDesc, inputDesc, input, outputDesc, output, args)
 end
 
 @cenum miopenRNNMode_t::UInt32 begin
@@ -915,122 +915,122 @@ end
 
 function miopenCreateRNNDescriptor(rnnDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateRNNDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenRNNDescriptor_t},), rnnDesc)
+    @check ccall((:miopenCreateRNNDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenRNNDescriptor_t},), rnnDesc)
 end
 
 function miopenGetRNNDescriptor(rnnDesc, rnnMode, algoMode, inputMode, dirMode, biasMode, hiddenSize, layer)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNDescriptor, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Ptr{miopenRNNMode_t}, Ptr{miopenRNNAlgo_t}, Ptr{miopenRNNInputMode_t}, Ptr{miopenRNNDirectionMode_t}, Ptr{miopenRNNBiasMode_t}, Ptr{Cint}, Ptr{Cint}), rnnDesc, rnnMode, algoMode, inputMode, dirMode, biasMode, hiddenSize, layer)
+    @check ccall((:miopenGetRNNDescriptor, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Ptr{miopenRNNMode_t}, Ptr{miopenRNNAlgo_t}, Ptr{miopenRNNInputMode_t}, Ptr{miopenRNNDirectionMode_t}, Ptr{miopenRNNBiasMode_t}, Ptr{Cint}, Ptr{Cint}), rnnDesc, rnnMode, algoMode, inputMode, dirMode, biasMode, hiddenSize, layer)
 end
 
 function miopenGetRNNDescriptor_V2(rnnDesc, hiddenSize, layer, dropoutDesc, inputMode, dirMode, rnnMode, biasMode, algoMode, dataType)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNDescriptor_V2, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{miopenDropoutDescriptor_t}, Ptr{miopenRNNInputMode_t}, Ptr{miopenRNNDirectionMode_t}, Ptr{miopenRNNMode_t}, Ptr{miopenRNNBiasMode_t}, Ptr{miopenRNNAlgo_t}, Ptr{miopenDataType_t}), rnnDesc, hiddenSize, layer, dropoutDesc, inputMode, dirMode, rnnMode, biasMode, algoMode, dataType)
+    @check ccall((:miopenGetRNNDescriptor_V2, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{miopenDropoutDescriptor_t}, Ptr{miopenRNNInputMode_t}, Ptr{miopenRNNDirectionMode_t}, Ptr{miopenRNNMode_t}, Ptr{miopenRNNBiasMode_t}, Ptr{miopenRNNAlgo_t}, Ptr{miopenDataType_t}), rnnDesc, hiddenSize, layer, dropoutDesc, inputMode, dirMode, rnnMode, biasMode, algoMode, dataType)
 end
 
 function miopenDestroyRNNDescriptor(rnnDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyRNNDescriptor, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t,), rnnDesc)
+    @check ccall((:miopenDestroyRNNDescriptor, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t,), rnnDesc)
 end
 
 function miopenSetRNNDescriptor(rnnDesc, hsize, nlayers, inMode, direction, rnnMode, biasMode, algo, dataType)
     AMDGPU.prepare_state()
-    ccall((:miopenSetRNNDescriptor, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Cint, Cint, miopenRNNInputMode_t, miopenRNNDirectionMode_t, miopenRNNMode_t, miopenRNNBiasMode_t, miopenRNNAlgo_t, miopenDataType_t), rnnDesc, hsize, nlayers, inMode, direction, rnnMode, biasMode, algo, dataType)
+    @check ccall((:miopenSetRNNDescriptor, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Cint, Cint, miopenRNNInputMode_t, miopenRNNDirectionMode_t, miopenRNNMode_t, miopenRNNBiasMode_t, miopenRNNAlgo_t, miopenDataType_t), rnnDesc, hsize, nlayers, inMode, direction, rnnMode, biasMode, algo, dataType)
 end
 
 function miopenSetRNNDescriptor_V2(rnnDesc, hsize, nlayers, dropoutDesc, inMode, direction, rnnMode, biasMode, algo, dataType)
     AMDGPU.prepare_state()
-    ccall((:miopenSetRNNDescriptor_V2, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Cint, Cint, miopenDropoutDescriptor_t, miopenRNNInputMode_t, miopenRNNDirectionMode_t, miopenRNNMode_t, miopenRNNBiasMode_t, miopenRNNAlgo_t, miopenDataType_t), rnnDesc, hsize, nlayers, dropoutDesc, inMode, direction, rnnMode, biasMode, algo, dataType)
+    @check ccall((:miopenSetRNNDescriptor_V2, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Cint, Cint, miopenDropoutDescriptor_t, miopenRNNInputMode_t, miopenRNNDirectionMode_t, miopenRNNMode_t, miopenRNNBiasMode_t, miopenRNNAlgo_t, miopenDataType_t), rnnDesc, hsize, nlayers, dropoutDesc, inMode, direction, rnnMode, biasMode, algo, dataType)
 end
 
 function miopenGetRNNWorkspaceSize(handle, rnnDesc, sequenceLen, xDesc, numBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Csize_t}), handle, rnnDesc, sequenceLen, xDesc, numBytes)
+    @check ccall((:miopenGetRNNWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Csize_t}), handle, rnnDesc, sequenceLen, xDesc, numBytes)
 end
 
 function miopenGetRNNTrainingReserveSize(handle, rnnDesc, sequenceLen, xDesc, numBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNTrainingReserveSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Csize_t}), handle, rnnDesc, sequenceLen, xDesc, numBytes)
+    @check ccall((:miopenGetRNNTrainingReserveSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Csize_t}), handle, rnnDesc, sequenceLen, xDesc, numBytes)
 end
 
 function miopenGetRNNParamsSize(handle, rnnDesc, xDesc, numBytes, dtype)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNParamsSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}, miopenDataType_t), handle, rnnDesc, xDesc, numBytes, dtype)
+    @check ccall((:miopenGetRNNParamsSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}, miopenDataType_t), handle, rnnDesc, xDesc, numBytes, dtype)
 end
 
 function miopenGetRNNParamsDescriptor(handle, rnnDesc, xDesc, wDesc, dtype)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNParamsDescriptor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenDataType_t), handle, rnnDesc, xDesc, wDesc, dtype)
+    @check ccall((:miopenGetRNNParamsDescriptor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenDataType_t), handle, rnnDesc, xDesc, wDesc, dtype)
 end
 
 function miopenGetRNNInputTensorSize(handle, rnnDesc, seqLen, xDesc, numBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNInputTensorSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Csize_t}), handle, rnnDesc, seqLen, xDesc, numBytes)
+    @check ccall((:miopenGetRNNInputTensorSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Csize_t}), handle, rnnDesc, seqLen, xDesc, numBytes)
 end
 
 function miopenGetRNNHiddenTensorSize(handle, rnnDesc, seqLen, xDesc, numBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNHiddenTensorSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Csize_t}), handle, rnnDesc, seqLen, xDesc, numBytes)
+    @check ccall((:miopenGetRNNHiddenTensorSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Csize_t}), handle, rnnDesc, seqLen, xDesc, numBytes)
 end
 
 function miopenGetRNNLayerParamSize(handle, rnnDesc, layer, xDesc, paramID, numBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNLayerParamSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, Cint, Ptr{Csize_t}), handle, rnnDesc, layer, xDesc, paramID, numBytes)
+    @check ccall((:miopenGetRNNLayerParamSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, Cint, Ptr{Csize_t}), handle, rnnDesc, layer, xDesc, paramID, numBytes)
 end
 
 function miopenGetRNNLayerBiasSize(handle, rnnDesc, layer, biasID, numBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNLayerBiasSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Cint, Ptr{Csize_t}), handle, rnnDesc, layer, biasID, numBytes)
+    @check ccall((:miopenGetRNNLayerBiasSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Cint, Ptr{Csize_t}), handle, rnnDesc, layer, biasID, numBytes)
 end
 
 function miopenGetRNNLayerParam(handle, rnnDesc, layer, xDesc, wDesc, w, paramID, paramDesc, layerParam)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNLayerParam, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, rnnDesc, layer, xDesc, wDesc, w, paramID, paramDesc, layerParam)
+    @check ccall((:miopenGetRNNLayerParam, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, rnnDesc, layer, xDesc, wDesc, w, paramID, paramDesc, layerParam)
 end
 
 function miopenGetRNNLayerBias(handle, rnnDesc, layer, xDesc, wDesc, w, biasID, biasDesc, layerBias)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNLayerBias, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, rnnDesc, layer, xDesc, wDesc, w, biasID, biasDesc, layerBias)
+    @check ccall((:miopenGetRNNLayerBias, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, rnnDesc, layer, xDesc, wDesc, w, biasID, biasDesc, layerBias)
 end
 
 function miopenGetRNNLayerParamOffset(rnnDesc, layer, xDesc, paramID, paramDesc, layerParamOffset)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNLayerParamOffset, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, Cint, miopenTensorDescriptor_t, Ptr{Csize_t}), rnnDesc, layer, xDesc, paramID, paramDesc, layerParamOffset)
+    @check ccall((:miopenGetRNNLayerParamOffset, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, Cint, miopenTensorDescriptor_t, Ptr{Csize_t}), rnnDesc, layer, xDesc, paramID, paramDesc, layerParamOffset)
 end
 
 function miopenGetRNNLayerBiasOffset(rnnDesc, layer, xDesc, biasID, biasDesc, layerBiasOffset)
     AMDGPU.prepare_state()
-    ccall((:miopenGetRNNLayerBiasOffset, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, Cint, miopenTensorDescriptor_t, Ptr{Csize_t}), rnnDesc, layer, xDesc, biasID, biasDesc, layerBiasOffset)
+    @check ccall((:miopenGetRNNLayerBiasOffset, libMIOpen_path), miopenStatus_t, (miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, Cint, miopenTensorDescriptor_t, Ptr{Csize_t}), rnnDesc, layer, xDesc, biasID, biasDesc, layerBiasOffset)
 end
 
 function miopenSetRNNLayerParam(handle, rnnDesc, layer, xDesc, wDesc, w, paramID, paramDesc, layerParam)
     AMDGPU.prepare_state()
-    ccall((:miopenSetRNNLayerParam, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, rnnDesc, layer, xDesc, wDesc, w, paramID, paramDesc, layerParam)
+    @check ccall((:miopenSetRNNLayerParam, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, rnnDesc, layer, xDesc, wDesc, w, paramID, paramDesc, layerParam)
 end
 
 function miopenSetRNNLayerBias(handle, rnnDesc, layer, xDesc, wDesc, w, biasID, biasDesc, layerBias)
     AMDGPU.prepare_state()
-    ccall((:miopenSetRNNLayerBias, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, rnnDesc, layer, xDesc, wDesc, w, biasID, biasDesc, layerBias)
+    @check ccall((:miopenSetRNNLayerBias, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Cint, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, rnnDesc, layer, xDesc, wDesc, w, biasID, biasDesc, layerBias)
 end
 
 function miopenRNNForwardTraining(handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc, cy, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenRNNForwardTraining, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t), handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc, cy, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
+    @check ccall((:miopenRNNForwardTraining, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t), handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc, cy, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
 end
 
 function miopenRNNBackwardData(handle, rnnDesc, sequenceLen, yDesc, y, dyDesc, dy, dhyDesc, dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc, dx, dhxDesc, dhx, dcxDesc, dcx, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenRNNBackwardData, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t), handle, rnnDesc, sequenceLen, yDesc, y, dyDesc, dy, dhyDesc, dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc, dx, dhxDesc, dhx, dcxDesc, dcx, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
+    @check ccall((:miopenRNNBackwardData, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t), handle, rnnDesc, sequenceLen, yDesc, y, dyDesc, dy, dhyDesc, dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc, dx, dhxDesc, dhx, dcxDesc, dcx, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
 end
 
 function miopenRNNBackwardWeights(handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, yDesc, y, dwDesc, dw, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenRNNBackwardWeights, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t), handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, yDesc, y, dwDesc, dw, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
+    @check ccall((:miopenRNNBackwardWeights, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t), handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, yDesc, y, dwDesc, dw, workSpace, workSpaceNumBytes, reserveSpace, reserveSpaceNumBytes)
 end
 
 function miopenRNNForwardInference(handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc, cy, workSpace, workSpaceNumBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenRNNForwardInference, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc, cy, workSpace, workSpaceNumBytes)
+    @check ccall((:miopenRNNForwardInference, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenRNNDescriptor_t, Cint, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{miopenTensorDescriptor_t}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, rnnDesc, sequenceLen, xDesc, x, hxDesc, hx, cxDesc, cx, wDesc, w, yDesc, y, hyDesc, hy, cyDesc, cy, workSpace, workSpaceNumBytes)
 end
 
 @cenum miopenCTCLossAlgo_t::UInt32 begin
@@ -1039,32 +1039,32 @@ end
 
 function miopenCreateCTCLossDescriptor(ctcLossDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateCTCLossDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenCTCLossDescriptor_t},), ctcLossDesc)
+    @check ccall((:miopenCreateCTCLossDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenCTCLossDescriptor_t},), ctcLossDesc)
 end
 
 function miopenGetCTCLossDescriptor(ctcLossDesc, dataType, blank_label_id, apply_softmax_layer)
     AMDGPU.prepare_state()
-    ccall((:miopenGetCTCLossDescriptor, libMIOpen_path), miopenStatus_t, (miopenCTCLossDescriptor_t, Ptr{miopenDataType_t}, Ptr{Cint}, Ptr{Bool}), ctcLossDesc, dataType, blank_label_id, apply_softmax_layer)
+    @check ccall((:miopenGetCTCLossDescriptor, libMIOpen_path), miopenStatus_t, (miopenCTCLossDescriptor_t, Ptr{miopenDataType_t}, Ptr{Cint}, Ptr{Bool}), ctcLossDesc, dataType, blank_label_id, apply_softmax_layer)
 end
 
 function miopenDestroyCTCLossDescriptor(ctcLossDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyCTCLossDescriptor, libMIOpen_path), miopenStatus_t, (miopenCTCLossDescriptor_t,), ctcLossDesc)
+    @check ccall((:miopenDestroyCTCLossDescriptor, libMIOpen_path), miopenStatus_t, (miopenCTCLossDescriptor_t,), ctcLossDesc)
 end
 
 function miopenSetCTCLossDescriptor(ctcLossDesc, dataType, blank_label_id, apply_softmax_layer)
     AMDGPU.prepare_state()
-    ccall((:miopenSetCTCLossDescriptor, libMIOpen_path), miopenStatus_t, (miopenCTCLossDescriptor_t, miopenDataType_t, Cint, Bool), ctcLossDesc, dataType, blank_label_id, apply_softmax_layer)
+    @check ccall((:miopenSetCTCLossDescriptor, libMIOpen_path), miopenStatus_t, (miopenCTCLossDescriptor_t, miopenDataType_t, Cint, Bool), ctcLossDesc, dataType, blank_label_id, apply_softmax_layer)
 end
 
 function miopenGetCTCLossWorkspaceSize(handle, probsDesc, gradientsDesc, labels, labelLengths, inputLengths, algo, ctcLossDesc, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenGetCTCLossWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, miopenCTCLossAlgo_t, miopenCTCLossDescriptor_t, Ptr{Csize_t}), handle, probsDesc, gradientsDesc, labels, labelLengths, inputLengths, algo, ctcLossDesc, workSpaceSize)
+    @check ccall((:miopenGetCTCLossWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, miopenCTCLossAlgo_t, miopenCTCLossDescriptor_t, Ptr{Csize_t}), handle, probsDesc, gradientsDesc, labels, labelLengths, inputLengths, algo, ctcLossDesc, workSpaceSize)
 end
 
 function miopenCTCLoss(handle, probsDesc, probs, labels, labelLengths, inputLengths, losses, gradientsDesc, gradients, algo, ctcLossDesc, workSpace, workSpaceSize)
     AMDGPU.prepare_state()
-    ccall((:miopenCTCLoss, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenCTCLossAlgo_t, miopenCTCLossDescriptor_t, Ptr{Cvoid}, Csize_t), handle, probsDesc, probs, labels, labelLengths, inputLengths, losses, gradientsDesc, gradients, algo, ctcLossDesc, workSpace, workSpaceSize)
+    @check ccall((:miopenCTCLoss, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenCTCLossAlgo_t, miopenCTCLossDescriptor_t, Ptr{Cvoid}, Csize_t), handle, probsDesc, probs, labels, labelLengths, inputLengths, losses, gradientsDesc, gradients, algo, ctcLossDesc, workSpace, workSpaceSize)
 end
 
 @cenum miopenRNGType_t::UInt32 begin
@@ -1073,82 +1073,82 @@ end
 
 function miopenCreateDropoutDescriptor(dropoutDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateDropoutDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenDropoutDescriptor_t},), dropoutDesc)
+    @check ccall((:miopenCreateDropoutDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenDropoutDescriptor_t},), dropoutDesc)
 end
 
 function miopenDestroyDropoutDescriptor(dropoutDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyDropoutDescriptor, libMIOpen_path), miopenStatus_t, (miopenDropoutDescriptor_t,), dropoutDesc)
+    @check ccall((:miopenDestroyDropoutDescriptor, libMIOpen_path), miopenStatus_t, (miopenDropoutDescriptor_t,), dropoutDesc)
 end
 
 function miopenDropoutGetReserveSpaceSize(xDesc, reserveSpaceSizeInBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenDropoutGetReserveSpaceSize, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Csize_t}), xDesc, reserveSpaceSizeInBytes)
+    @check ccall((:miopenDropoutGetReserveSpaceSize, libMIOpen_path), miopenStatus_t, (miopenTensorDescriptor_t, Ptr{Csize_t}), xDesc, reserveSpaceSizeInBytes)
 end
 
 function miopenDropoutGetStatesSize(handle, stateSizeInBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenDropoutGetStatesSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Csize_t}), handle, stateSizeInBytes)
+    @check ccall((:miopenDropoutGetStatesSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, Ptr{Csize_t}), handle, stateSizeInBytes)
 end
 
 function miopenGetDropoutDescriptor(dropoutDesc, handle, dropout, states, seed, use_mask, state_evo, rng_mode)
     AMDGPU.prepare_state()
-    ccall((:miopenGetDropoutDescriptor, libMIOpen_path), miopenStatus_t, (miopenDropoutDescriptor_t, miopenHandle_t, Ptr{Cfloat}, Ptr{Ptr{Cvoid}}, Ptr{Culonglong}, Ptr{Bool}, Ptr{Bool}, Ptr{miopenRNGType_t}), dropoutDesc, handle, dropout, states, seed, use_mask, state_evo, rng_mode)
+    @check ccall((:miopenGetDropoutDescriptor, libMIOpen_path), miopenStatus_t, (miopenDropoutDescriptor_t, miopenHandle_t, Ptr{Cfloat}, Ptr{Ptr{Cvoid}}, Ptr{Culonglong}, Ptr{Bool}, Ptr{Bool}, Ptr{miopenRNGType_t}), dropoutDesc, handle, dropout, states, seed, use_mask, state_evo, rng_mode)
 end
 
 function miopenRestoreDropoutDescriptor(dropoutDesc, handle, dropout, states, stateSizeInBytes, seed, use_mask, state_evo, rng_mode)
     AMDGPU.prepare_state()
-    ccall((:miopenRestoreDropoutDescriptor, libMIOpen_path), miopenStatus_t, (miopenDropoutDescriptor_t, miopenHandle_t, Cfloat, Ptr{Cvoid}, Csize_t, Culonglong, Bool, Bool, miopenRNGType_t), dropoutDesc, handle, dropout, states, stateSizeInBytes, seed, use_mask, state_evo, rng_mode)
+    @check ccall((:miopenRestoreDropoutDescriptor, libMIOpen_path), miopenStatus_t, (miopenDropoutDescriptor_t, miopenHandle_t, Cfloat, Ptr{Cvoid}, Csize_t, Culonglong, Bool, Bool, miopenRNGType_t), dropoutDesc, handle, dropout, states, stateSizeInBytes, seed, use_mask, state_evo, rng_mode)
 end
 
 function miopenSetDropoutDescriptor(dropoutDesc, handle, dropout, states, stateSizeInBytes, seed, use_mask, state_evo, rng_mode)
     AMDGPU.prepare_state()
-    ccall((:miopenSetDropoutDescriptor, libMIOpen_path), miopenStatus_t, (miopenDropoutDescriptor_t, miopenHandle_t, Cfloat, Ptr{Cvoid}, Csize_t, Culonglong, Bool, Bool, miopenRNGType_t), dropoutDesc, handle, dropout, states, stateSizeInBytes, seed, use_mask, state_evo, rng_mode)
+    @check ccall((:miopenSetDropoutDescriptor, libMIOpen_path), miopenStatus_t, (miopenDropoutDescriptor_t, miopenHandle_t, Cfloat, Ptr{Cvoid}, Csize_t, Culonglong, Bool, Bool, miopenRNGType_t), dropoutDesc, handle, dropout, states, stateSizeInBytes, seed, use_mask, state_evo, rng_mode)
 end
 
 function miopenDropoutForward(handle, dropoutDesc, noise_shape, xDesc, x, yDesc, y, reserveSpace, reserveSpaceSizeInBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenDropoutForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenDropoutDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, dropoutDesc, noise_shape, xDesc, x, yDesc, y, reserveSpace, reserveSpaceSizeInBytes)
+    @check ccall((:miopenDropoutForward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenDropoutDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, dropoutDesc, noise_shape, xDesc, x, yDesc, y, reserveSpace, reserveSpaceSizeInBytes)
 end
 
 function miopenDropoutBackward(handle, dropoutDesc, noise_shape, dyDesc, dy, dxDesc, dx, reserveSpace, reserveSpaceSizeInBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenDropoutBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenDropoutDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, dropoutDesc, noise_shape, dyDesc, dy, dxDesc, dx, reserveSpace, reserveSpaceSizeInBytes)
+    @check ccall((:miopenDropoutBackward, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenDropoutDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), handle, dropoutDesc, noise_shape, dyDesc, dy, dxDesc, dx, reserveSpace, reserveSpaceSizeInBytes)
 end
 
 function miopenCreateReduceTensorDescriptor(reduceTensorDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenCreateReduceTensorDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenReduceTensorDescriptor_t},), reduceTensorDesc)
+    @check ccall((:miopenCreateReduceTensorDescriptor, libMIOpen_path), miopenStatus_t, (Ptr{miopenReduceTensorDescriptor_t},), reduceTensorDesc)
 end
 
 function miopenDestroyReduceTensorDescriptor(reduceTensorDesc)
     AMDGPU.prepare_state()
-    ccall((:miopenDestroyReduceTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenReduceTensorDescriptor_t,), reduceTensorDesc)
+    @check ccall((:miopenDestroyReduceTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenReduceTensorDescriptor_t,), reduceTensorDesc)
 end
 
 function miopenSetReduceTensorDescriptor(reduceTensorDesc, reduceTensorOp, reduceTensorCompType, reduceTensorNanOpt, reduceTensorIndices, reduceTensorIndicesType)
     AMDGPU.prepare_state()
-    ccall((:miopenSetReduceTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenReduceTensorDescriptor_t, miopenReduceTensorOp_t, miopenDataType_t, miopenNanPropagation_t, miopenReduceTensorIndices_t, miopenIndicesType_t), reduceTensorDesc, reduceTensorOp, reduceTensorCompType, reduceTensorNanOpt, reduceTensorIndices, reduceTensorIndicesType)
+    @check ccall((:miopenSetReduceTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenReduceTensorDescriptor_t, miopenReduceTensorOp_t, miopenDataType_t, miopenNanPropagation_t, miopenReduceTensorIndices_t, miopenIndicesType_t), reduceTensorDesc, reduceTensorOp, reduceTensorCompType, reduceTensorNanOpt, reduceTensorIndices, reduceTensorIndicesType)
 end
 
 function miopenGetReduceTensorDescriptor(reduceTensorDesc, reduceTensorOp, reduceTensorCompType, reduceTensorNanOpt, reduceTensorIndices, reduceTensorIndicesType)
     AMDGPU.prepare_state()
-    ccall((:miopenGetReduceTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenReduceTensorDescriptor_t, Ptr{miopenReduceTensorOp_t}, Ptr{miopenDataType_t}, Ptr{miopenNanPropagation_t}, Ptr{miopenReduceTensorIndices_t}, Ptr{miopenIndicesType_t}), reduceTensorDesc, reduceTensorOp, reduceTensorCompType, reduceTensorNanOpt, reduceTensorIndices, reduceTensorIndicesType)
+    @check ccall((:miopenGetReduceTensorDescriptor, libMIOpen_path), miopenStatus_t, (miopenReduceTensorDescriptor_t, Ptr{miopenReduceTensorOp_t}, Ptr{miopenDataType_t}, Ptr{miopenNanPropagation_t}, Ptr{miopenReduceTensorIndices_t}, Ptr{miopenIndicesType_t}), reduceTensorDesc, reduceTensorOp, reduceTensorCompType, reduceTensorNanOpt, reduceTensorIndices, reduceTensorIndicesType)
 end
 
 function miopenGetReductionIndicesSize(handle, reduceTensorDesc, aDesc, cDesc, sizeInBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetReductionIndicesSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenReduceTensorDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, reduceTensorDesc, aDesc, cDesc, sizeInBytes)
+    @check ccall((:miopenGetReductionIndicesSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenReduceTensorDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, reduceTensorDesc, aDesc, cDesc, sizeInBytes)
 end
 
 function miopenGetReductionWorkspaceSize(handle, reduceTensorDesc, aDesc, cDesc, sizeInBytes)
     AMDGPU.prepare_state()
-    ccall((:miopenGetReductionWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenReduceTensorDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, reduceTensorDesc, aDesc, cDesc, sizeInBytes)
+    @check ccall((:miopenGetReductionWorkspaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenReduceTensorDescriptor_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, reduceTensorDesc, aDesc, cDesc, sizeInBytes)
 end
 
 function miopenReduceTensor(handle, reduceTensorDesc, indices, indicesSizeInBytes, workspace, workspaceSizeInBytes, alpha, aDesc, A, beta, cDesc, C)
     AMDGPU.prepare_state()
-    ccall((:miopenReduceTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenReduceTensorDescriptor_t, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, reduceTensorDesc, indices, indicesSizeInBytes, workspace, workspaceSizeInBytes, alpha, aDesc, A, beta, cDesc, C)
+    @check ccall((:miopenReduceTensor, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenReduceTensorDescriptor_t, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}, Ptr{Cvoid}, miopenTensorDescriptor_t, Ptr{Cvoid}), handle, reduceTensorDesc, indices, indicesSizeInBytes, workspace, workspaceSizeInBytes, alpha, aDesc, A, beta, cDesc, C)
 end
 
 const MIOPEN_BACKEND_OPENCL = 0

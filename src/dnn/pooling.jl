@@ -85,7 +85,7 @@ end
 function get_workspace_size(pdesc::PoolingDescriptor, ydesc::TensorDescriptor)
     wsize_ref = Ref{Csize_t}(0)
     miopenPoolingGetWorkSpaceSizeV2(
-        pdesc.handle, ydesc.handle, wsize_ref) |> check
+        pdesc.handle, ydesc.handle, wsize_ref)
     wsize_ref[]
 end
 
@@ -99,7 +99,7 @@ function pool!(
     (; handle, stream) = lib_state()
     miopenPoolingForward(
         handle, pdesc.handle, Ref{Float32}(alpha), xdesc.handle, x,
-        Ref{Float32}(beta), ydesc.handle, y, do_backward, workspace, wsize) |> check
+        Ref{Float32}(beta), ydesc.handle, y, do_backward, workspace, wsize)
     y, workspace
 end
 
@@ -114,6 +114,6 @@ function ∇pool!(
     miopenPoolingBackward(
         handle, pdesc.handle, Ref{Float32}(alpha),
         ydesc.handle, y, dydesc.handle, dy, xdesc.handle, x,
-        Ref{Float32}(beta), dxdesc.handle, dx, workspace) |> check
+        Ref{Float32}(beta), dxdesc.handle, dx, workspace)
     dx
 end

@@ -1,7 +1,3 @@
-export HIPError
-
-import .AMDGPU: @check, check
-
 struct HIPError <: Exception
     code::hipError_t
     msg::AbstractString
