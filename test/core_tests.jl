@@ -36,8 +36,10 @@ end
         for (idx, device) in enumerate(devices)
             @test AMDGPU.device_id(device) == idx
 
-            device_name = HIP.name(device)
-            @test length(device_name) > 0
+            if HIP.runtime_version() > v"6"
+                device_name = HIP.name(device)
+                @test length(device_name) > 0
+            end
 
             @test occursin("gfx", HIP.gcn_arch(device))
             @test HIP.wavefrontsize(device) in (32, 64)
