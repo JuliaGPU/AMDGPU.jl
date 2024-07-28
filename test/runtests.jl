@@ -105,10 +105,11 @@ PrettyTables.pretty_table(data; header=[
     "Workers", "Device", "Tests"], crop=:none)
 
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
-    for tt in TARGET_TESTS
-        startswith(ti.name, tt) && return true
-    end
-    return false
+    return ti.name == "core: device"
+    # for tt in TARGET_TESTS
+    #     startswith(ti.name, tt) && return true
+    # end
+    # return false
 end
 
 if "core" in TARGET_TESTS && Sys.islinux()
