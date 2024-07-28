@@ -504,7 +504,7 @@ end
 
 function miopenConvolutionForwardGetWorkSpaceSize(handle, wDesc, xDesc, convDesc, yDesc, workSpaceSize)
     AMDGPU.prepare_state()
-    @check ccall((:miopenConvolutionForwardGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, wDesc, xDesc, convDesc, yDesc, workSpaceSize)
+    ccall((:miopenConvolutionForwardGetWorkSpaceSize, libMIOpen_path), miopenStatus_t, (miopenHandle_t, miopenTensorDescriptor_t, miopenTensorDescriptor_t, miopenConvolutionDescriptor_t, miopenTensorDescriptor_t, Ptr{Csize_t}), handle, wDesc, xDesc, convDesc, yDesc, workSpaceSize)
 end
 
 function miopenFindConvolutionForwardAlgorithm(handle, xDesc, x, wDesc, w, convDesc, yDesc, y, requestAlgoCount, returnedAlgoCount, perfResults, workSpace, workSpaceSize, exhaustiveSearch)
