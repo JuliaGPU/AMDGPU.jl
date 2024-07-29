@@ -108,7 +108,7 @@ end
     end
 
     opaque_pointers = false
-    if "JULIA_LLVM_ARGS" in ENV
+    if haskey(ENV, "JULIA_LLVM_ARGS")
         llvm_args = ENV["JULIA_LLVM_ARGS"]
         opaque_pointers = occursin("-opaque-pointers", llvm_args)
     end
