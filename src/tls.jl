@@ -116,7 +116,7 @@ function context!(ctx::HIPContext)
     else
         old_ctx = state.context
         if old_ctx != ctx
-            HIP.context!(state.context)
+            HIP.context!(ctx)
             state.device = HIP.device()
             state.context = ctx
         end
@@ -190,7 +190,10 @@ function Base.show(io::IO, state::TaskLocalState)
 end
 
 @inline function prepare_state(state = task_local_state!())
-    state.context != HIP.HIPContext() && HIP.context!(state.context)
+    hip_ctx = Ref{HIP.hipContext_t}()
+    HIP.hipCtxGetCurrent(hip_ctx)
+    state.context.context != hip_ctx[] &&
+        HIP.context!(state.context)
     return
 end
 
