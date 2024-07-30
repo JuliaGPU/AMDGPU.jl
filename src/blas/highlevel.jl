@@ -90,60 +90,20 @@ end
 # BLAS 2
 #
 
-if VERSION ≥ v"1.10-"
-    # multiplication
-    LinearAlgebra.generic_trimatmul!(
-        c::StridedROCVector{T}, uploc, isunitc, tfun::Function,
-        A::StridedROCMatrix{T}, b::StridedROCVector{T},
-    ) where T <: ROCBLASFloat = trmv!(
-        uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-        isunitc, A, c === b ? c : copyto!(c, b))
-    # division
-    LinearAlgebra.generic_trimatdiv!(
-        C::StridedROCVector{T}, uploc, isunitc, tfun::Function,
-        A::StridedROCMatrix{T}, B::StridedROCVector{T},
-    ) where T <: ROCBLASFloat = trsv!(
-        uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-        isunitc, A, C === B ? C : copyto!(C, B))
-else
-    for (t, uploc, isunitc) in (
-        (:LowerTriangular, 'L', 'N'),
-        (:UnitLowerTriangular, 'L', 'U'),
-        (:UpperTriangular, 'U', 'N'),
-        (:UnitUpperTriangular, 'U', 'U'),
-    )
-        @eval begin
-        LinearAlgebra.lmul!(A::$t{T, <: ROCMatrix}, B::ROCVector{T}) where T <: ROCBLASFloat =
-            trmv!($uploc, 'N', $isunitc, parent(A), B)
-        LinearAlgebra.ldiv!(A::$t{T, <: ROCMatrix}, B::ROCVector{T}) where T <: ROCBLASFloat =
-            trsv!($uploc, 'N', $isunitc, parent(A), B)
-        end
-    end
-
-    # Adjoint/transpose - reversed uploc.
-    for (t, uploc, isunitc) in (
-        (:LowerTriangular, 'U', 'N'),
-        (:UnitLowerTriangular, 'U', 'U'),
-        (:UpperTriangular, 'L', 'N'),
-        (:UnitUpperTriangular, 'L', 'U'),
-    )
-        @eval begin
-        LinearAlgebra.lmul!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASFloat =
-            trmv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-        LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASFloat =
-            trmv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-        LinearAlgebra.lmul!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASComplex =
-            trmv!($uploc, 'C', $isunitc, parent(parent(A)), B)
-
-        LinearAlgebra.ldiv!(A::$t{<: Any, <: Transpose{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASFloat =
-            trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-        LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASFloat =
-            trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
-        LinearAlgebra.ldiv!(A::$t{<: Any, <: Adjoint{T, <: ROCMatrix}}, B::ROCVector{T}) where T <: ROCBLASComplex =
-            trsv!($uploc, 'C', $isunitc, parent(parent(A)), B)
-        end
-    end
-end
+# multiplication
+LinearAlgebra.generic_trimatmul!(
+    c::StridedROCVector{T}, uploc, isunitc, tfun::Function,
+    A::StridedROCMatrix{T}, b::StridedROCVector{T},
+) where T <: ROCBLASFloat = trmv!(
+    uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+    isunitc, A, c === b ? c : copyto!(c, b))
+# division
+LinearAlgebra.generic_trimatdiv!(
+    C::StridedROCVector{T}, uploc, isunitc, tfun::Function,
+    A::StridedROCMatrix{T}, B::StridedROCVector{T},
+) where T <: ROCBLASFloat = trsv!(
+    uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+    isunitc, A, C === B ? C : copyto!(C, B))
 
 # GEMV
 
@@ -176,20 +136,6 @@ function LinearAlgebra.generic_matvecmul!(
         end
     end
     LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, MulAddMul(alpha, beta))
-end
-
-if VERSION < v"1.10.0-DEV.1365"
-    @inline LinearAlgebra.gemv!(
-        Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix,
-        B::StridedROCVector, a::Number, b::Number,
-    ) = LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
-
-    # disambiguation with LinearAlgebra.jl
-    @inline LinearAlgebra.gemv!(
-        Y::ROCVector{T}, tA::AbstractChar, A::StridedROCMatrix{T},
-        B::StridedROCVector{T}, a::Number, b::Number,
-    ) where T <: ROCBLASFloat =
-        LinearAlgebra.generic_matvecmul!(Y, tA, A, B, MulAddMul(a, b))
 end
 
 #
@@ -238,182 +184,72 @@ function LinearAlgebra.generic_matmatmul!(
     GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
 end
 
-if VERSION ≥ v"1.10-"
-    LinearAlgebra.generic_trimatmul!(
-        C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-        A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
-    ) where T <: ROCBLASFloat = trmm!(
-        'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-        isunitc, one(T), A, B, C)
+LinearAlgebra.generic_trimatmul!(
+    C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
+    A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
+) where T <: ROCBLASFloat = trmm!(
+    'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+    isunitc, one(T), A, B, C)
 
-    LinearAlgebra.generic_mattrimul!(
-        C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-        A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
-    ) where T <: ROCBLASFloat = trmm!(
-        'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-        isunitc, one(T), B, A, C)
+LinearAlgebra.generic_mattrimul!(
+    C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
+    A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
+) where T <: ROCBLASFloat = trmm!(
+    'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+    isunitc, one(T), B, A, C)
 
-    const AdjOrTransOrROCMatrix{T} = Union{
-        StridedROCMatrix{T}, AdjOrTrans{<: T, <: StridedROCMatrix}}
+const AdjOrTransOrROCMatrix{T} = Union{
+    StridedROCMatrix{T}, AdjOrTrans{<: T, <: StridedROCMatrix}}
 
-    function LinearAlgebra.generic_trimatmul!(
-        C::StridedROCMatrix{T}, uplocA, isunitcA,
-        tfunA::Function, A::StridedROCMatrix{T},
-        triB::UpperOrLowerTriangular{T, <: AdjOrTransOrROCMatrix{T}},
-    ) where T <: ROCBLASFloat
-        uplocB = LinearAlgebra.uplo_char(triB)
-        isunitcB = LinearAlgebra.isunit_char(triB)
-        B = parent(triB)
-        tfunB = LinearAlgebra.wrapperop(B)
-        transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
-        transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
-        if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
-            triu!(B)
-            trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-        elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
-            tril!(B)
-            trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-        elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
-            # operation is reversed to avoid executing the tranpose
-            triu!(A)
-            trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
-        elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
-            tril!(B)
-            trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-        elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
-            triu!(B)
-            trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-        elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
-            tril!(A)
-            trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
-        else
-            throw("mixed triangular-triangular multiplication") # TODO: rethink
-        end
-        return C
+function LinearAlgebra.generic_trimatmul!(
+    C::StridedROCMatrix{T}, uplocA, isunitcA,
+    tfunA::Function, A::StridedROCMatrix{T},
+    triB::UpperOrLowerTriangular{T, <: AdjOrTransOrROCMatrix{T}},
+) where T <: ROCBLASFloat
+    uplocB = LinearAlgebra.uplo_char(triB)
+    isunitcB = LinearAlgebra.isunit_char(triB)
+    B = parent(triB)
+    tfunB = LinearAlgebra.wrapperop(B)
+    transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
+    transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
+    if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
+        triu!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+    elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
+        tril!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+    elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
+        # operation is reversed to avoid executing the tranpose
+        triu!(A)
+        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
+    elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
+        tril!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+    elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
+        triu!(B)
+        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
+    elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
+        tril!(A)
+        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
+    else
+        throw("mixed triangular-triangular multiplication") # TODO: rethink
     end
-
-    LinearAlgebra.generic_trimatdiv!(
-        C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-        A::StridedROCMatrix{T}, B::AbstractMatrix{T},
-    ) where T <: ROCBLASFloat = trsm!(
-        'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-        isunitc, one(T), A, C === B ? C : copyto!(C, B))
-
-    LinearAlgebra.generic_mattridiv!(
-        C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-        A::AbstractMatrix{T}, B::StridedROCMatrix{T},
-    ) where T <: ROCBLASFloat = trsm!(
-        'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-        isunitc, one(T), B, C === A ? C : copyto!(C, A))
-else
-    for (t, uploc, isunitc) in (
-        (:LowerTriangular, 'L', 'N'),
-        (:UnitLowerTriangular, 'L', 'U'),
-        (:UpperTriangular, 'U', 'N'),
-        (:UnitUpperTriangular, 'U', 'U'),
-    )
-        @eval begin
-        LinearAlgebra.lmul!(
-            A::$t{T, <: StridedROCMatrix},
-            B::StridedROCMatrix{T},
-        ) where T <: ROCBLASFloat =
-            trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, B)
-        LinearAlgebra.rmul!(
-            A::StridedROCMatrix{T},
-            B::$t{T, <: StridedROCMatrix},
-        ) where T <: ROCBLASFloat =
-            trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, A)
-
-        LinearAlgebra.ldiv!(
-            A::$t{T, <: StridedROCMatrix},
-            B::StridedROCMatrix{T},
-        ) where T <: ROCBLASFloat =
-            trsm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B)
-        LinearAlgebra.rdiv!(
-            A::StridedROCMatrix{T},
-            B::$t{T, <: StridedROCMatrix},
-        ) where T <: ROCBLASFloat =
-            trsm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
-        end
-    end
-
-    # Adjoint/transpose - reversed uploc.
-    for (t, uploc, isunitc) in (
-        (:LowerTriangular, 'U', 'N'),
-        (:UnitLowerTriangular, 'U', 'U'),
-        (:UpperTriangular, 'L', 'N'),
-        (:UnitUpperTriangular, 'L', 'U'),
-    )
-        @eval begin
-        # Multiplication.
-        LinearAlgebra.lmul!(
-            A::$t{<: Any, <: Transpose{T, <: StridedROCMatrix}},
-            B::StridedROCMatrix{T},
-        ) where T <: ROCBLASFloat =
-            trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
-        LinearAlgebra.lmul!(
-            A::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
-            B::StridedROCMatrix{T},
-        ) where T <: ROCBLASFloat =
-            trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
-        LinearAlgebra.lmul!(
-            A::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
-            B::StridedROCMatrix{T},
-        ) where T <: ROCBLASComplex =
-            trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, B)
-
-        LinearAlgebra.rmul!(
-            A::StridedROCMatrix{T},
-            B::$t{<: Any, <: Transpose{T, <: StridedROCMatrix}},
-        ) where T <: ROCBLASFloat =
-            trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
-        LinearAlgebra.rmul!(
-            A::StridedROCMatrix{T},
-            B::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
-        ) where T <: ROCBLASFloat =
-            trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
-        LinearAlgebra.rmul!(
-            A::StridedROCMatrix{T},
-            B::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
-        ) where T <: ROCBLASComplex =
-            trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, A)
-
-        # Left division.
-        LinearAlgebra.ldiv!(
-            A::$t{<: Any, <: Transpose{T, <: StridedROCMatrix}},
-            B::StridedROCMatrix{T},
-        ) where T <: ROCBLASFloat =
-            trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-        LinearAlgebra.ldiv!(
-            A::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
-            B::StridedROCMatrix{T},
-        ) where T <: ROCBLASFloat =
-            trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
-        LinearAlgebra.ldiv!(
-            A::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
-            B::StridedROCMatrix{T},
-        ) where T <: ROCBLASComplex =
-            trsm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B)
-
-        # Right division.
-        LinearAlgebra.rdiv!(
-            A::StridedROCMatrix{T},
-            B::$t{<: Any, <: Transpose{T, <: StridedROCMatrix}},
-        ) where T <: ROCBLASFloat =
-            trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-        LinearAlgebra.rdiv!(
-            A::StridedROCMatrix{T},
-            B::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
-        ) where T <: ROCBLASFloat =
-            trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
-        LinearAlgebra.rdiv!(
-            A::StridedROCMatrix{T},
-            B::$t{<: Any, <: Adjoint{T, <: StridedROCMatrix}},
-        ) where T <: ROCBLASComplex =
-            trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
-        end
-    end
+    return C
 end
+
+LinearAlgebra.generic_trimatdiv!(
+    C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
+    A::StridedROCMatrix{T}, B::AbstractMatrix{T},
+) where T <: ROCBLASFloat = trsm!(
+    'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+    isunitc, one(T), A, C === B ? C : copyto!(C, B))
+
+LinearAlgebra.generic_mattridiv!(
+    C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
+    A::AbstractMatrix{T}, B::StridedROCMatrix{T},
+) where T <: ROCBLASFloat = trsm!(
+    'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
+    isunitc, one(T), B, C === A ? C : copyto!(C, A))
 
 # Matrix inversion.
 

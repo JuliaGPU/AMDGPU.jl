@@ -10,9 +10,7 @@ import .HIP: HIPContext, HIPStream, hipStream_t, hipEvent_t
 using GPUArrays
 using LinearAlgebra
 using LinearAlgebra: AdjOrTrans, MulAddMul
-if VERSION ≥ v"1.10-"
-    using LinearAlgebra: wrap, UpperOrLowerTriangular
-end
+using LinearAlgebra: wrap, UpperOrLowerTriangular
 using CEnum
 
 include("librocblas.jl")

@@ -58,6 +58,20 @@ function GPUCompiler.finish_module!(
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
 
+    # Set kernel target cpu and features.
+    if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
+        target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
+        target_features_attr = StringAttribute("target-features", job.config.target.features)
+        atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
+
+        # TODO add convergent, mustprogress, willreturn attributes?
+
+        attrs = LLVM.function_attributes(entry)
+        push!(attrs, target_cpu_attr)
+        push!(attrs, target_features_attr)
+        push!(attrs, atomic_attr)
+    end
+
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
 
@@ -69,7 +83,6 @@ function GPUCompiler.finish_module!(
     target_fns = (
         "signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
-    atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
 
     for fn in LLVM.functions(mod)
         do_inline = any(occursin.(target_fns, LLVM.name(fn)))
@@ -78,8 +91,6 @@ function GPUCompiler.finish_module!(
 
             do_inline && inline_attr ∉ collect(attrs) &&
                 push!(attrs, inline_attr)
-            job.config.params.unsafe_fp_atomics &&
-                push!(attrs, atomic_attr)
         end
     end
 
@@ -102,8 +113,16 @@ function compiler_config(dev::HIP.HIPDevice;
     unsafe_fp_atomics::Bool = true,
 )
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
+
+    wavefrontsize64 = HIP.wavefrontsize(dev) == 64
+    features = if wavefrontsize64
+        features * "-wavefrontsize32,+wavefrontsize64"
+    else
+        features * "+wavefrontsize32,-wavefrontsize64"
+    end
+
     target = GCNCompilerTarget(; dev_isa, features)
-    params = HIPCompilerParams(HIP.wavefrontsize(dev) == 64, unsafe_fp_atomics)
+    params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics)
     CompilerConfig(target, params; kernel, name, always_inline=true)
 end
 
