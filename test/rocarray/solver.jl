@@ -31,13 +31,8 @@ p = 5
 
         dI = ROCMatrix{elty}(I, size(dF.Q))
         @test det(dF.Q) ≈ det(collect(dF.Q * ROCMatrix{elty}(I, size(dF.Q)))) atol=tol * norm(A)
-        if VERSION ≥ v"1.10-"
-            @test collect((dF.Q' * dI) * dF.Q) ≈ collect(dI)
-            @test collect(dF.Q * (dI * dF.Q')) ≈ collect(dI)
-        else
-            @test collect(dF.Q * dI) ≈ collect(dF.Q)
-            @test collect(dI * dF.Q) ≈ collect(dF.Q)
-        end
+        @test collect((dF.Q' * dI) * dF.Q) ≈ collect(dI)
+        @test collect(dF.Q * (dI * dF.Q')) ≈ collect(dI)
 
         dI = ROCMatrix{elty}(I, size(dF.R))
         @test collect(dF.R * dI) ≈ collect(dF.R)

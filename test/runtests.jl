@@ -93,7 +93,7 @@ const TARGET_TESTS = isempty(ARGS) ? TEST_NAMES : ARGS
 # Run tests in parallel.
 np = set_jobs ? jobs : (Sys.CPU_THREADS ÷ 2)
 # Limit to 2 workers, otherwise unfortunate things happen.
-np = clamp(np, 1, 2)
+np = clamp(np, 1, 4)
 np = min(np, length(TARGET_TESTS))
 
 InteractiveUtils.versioninfo()

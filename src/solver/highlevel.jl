@@ -272,27 +272,6 @@ AMDGPU.ROCMatrix{T}(Q::QRCompactWYQ) where T = error("QRCompactWY format is not 
 Matrix{T}(Q::QRPackedQ{S ,<:ROCArray, <:ROCArray}) where {T, S} = Array(ROCMatrix{T}(Q))
 Matrix{T}(Q::QRCompactWYQ{S, <:ROCArray, <:ROCArray}) where {T, S} = Array(ROCMatrix{T}(Q))
 
-if VERSION < v"1.10-"
-    function Base.collect(src::Union{
-        QRPackedQ{<:Any, <:ROCArray, <:ROCArray},
-        QRCompactWYQ{<:Any, <:ROCArray, <:ROCArray}}
-    )
-        dest = similar(src)
-        copyto!(dest, I)
-        lmul!(src, dest)
-        collect(dest)
-    end
-
-    function Base.similar(
-        src::Union{
-            QRPackedQ{<:Any, <:ROCArray, <:ROCArray},
-            QRCompactWYQ{<:Any, <:ROCArray, <:ROCArray}},
-        ::Type{T}, dims::Dims{N},
-    ) where {T, N}
-        ROCArray{T, N}(undef, dims)
-    end
-end
-
 function Base.getindex(Q::QRPackedQ{<:Any, <:ROCArray}, ::Colon, j::Int)
     y = AMDGPU.zeros(eltype(Q), size(Q, 2))
     y[j] = 1

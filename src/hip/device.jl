@@ -16,7 +16,9 @@ function HIPDevice(device_id::Integer)
 
     props = properties(device_id - 1)
     gcn_arch = unsafe_string(pointer([props.gcnArchName...]))
-    HIPDevice(device_ref[], device_id, gcn_arch, props.warpSize)
+
+    wavefrontsize = props.warpSize
+    HIPDevice(device_ref[], device_id, gcn_arch, wavefrontsize)
 end
 
 """
@@ -110,9 +112,6 @@ function devices()
         d = HIPDevice(i)
 
         arch = gcn_arch(d)
-        if occursin("gfx11", arch) && VERSION < v"1.10-"
-            @error "Navi 3 ($arch) requires Julia 1.10+ and ROCm 5.5 or higher."
-        end
         devs[i] = d
     end
     append!(ALL_DEVICES, devs)

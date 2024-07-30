@@ -107,6 +107,10 @@ end
         end
     end
 
+    # TODO:
+    # revisit, when LLVM 17 support lands, since it has proper
+    # handling of ballot i64 instruction on wave32 targets.
+    # https://github.com/llvm/llvm-project/issues/89332#issuecomment-2255455645
     opaque_pointers = false
     if haskey(ENV, "JULIA_LLVM_ARGS")
         llvm_args = ENV["JULIA_LLVM_ARGS"]
@@ -126,8 +130,6 @@ end
             @test_skip Y[2] == any(x->x==1,X)
             @test_skip Y[3] == (length(unique(X)) == 1)
         end
-    else
-        @info "Broken wfany tests when opaque pointers"
     end
 end
 

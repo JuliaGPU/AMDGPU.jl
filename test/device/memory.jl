@@ -30,32 +30,29 @@
         @test all(iszero, Array(RC))
     end
 
-    # https://reviews.llvm.org/D82496
-    if Base.libllvm_version.major >= 14
-        @testset "Dynamic-size Local Allocation" begin
-            function dynamic_localmem_kernel(A, C)
-                B = @ROCDynamicLocalArray(eltype(C), length(A))
-                for i in 1:length(A)
-                    @inbounds C[i] = B[i]
-                    @inbounds B[i] = A[i] + 1f0
-                end
-                for i in 1:length(A)
-                    @inbounds A[i] = B[i]
-                end
+    @testset "Dynamic-size Local Allocation" begin
+        function dynamic_localmem_kernel(A, C)
+            B = @ROCDynamicLocalArray(eltype(C), length(A))
+            for i in 1:length(A)
+                @inbounds C[i] = B[i]
+                @inbounds B[i] = A[i] + 1f0
             end
-
-            N = 2^10
-            A = rand(Float32, N)
-            RA = ROCArray(A)
-            RC = ROCArray(ones(Float32, N))
-
-            shmem = N * sizeof(Float32)
-            @roc shmem=shmem dynamic_localmem_kernel(RA, RC)
-
-            @test Array(RA) ≈ A .+ 1f0
-            # Test zero-initialization
-            @test all(iszero, Array(RC))
+            for i in 1:length(A)
+                @inbounds A[i] = B[i]
+            end
         end
+
+        N = 2^10
+        A = rand(Float32, N)
+        RA = ROCArray(A)
+        RC = ROCArray(ones(Float32, N))
+
+        shmem = N * sizeof(Float32)
+        @roc shmem=shmem dynamic_localmem_kernel(RA, RC)
+
+        @test Array(RA) ≈ A .+ 1f0
+        # Test zero-initialization
+        @test all(iszero, Array(RC))
     end
 end
 
