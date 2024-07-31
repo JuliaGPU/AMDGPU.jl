@@ -106,11 +106,16 @@ for (fname, elty) in (
             side::Char, trans::Char, A::ROCMatrix{$elty},
             τ::ROCVector{$elty}, C::ROCVecOrMat{$elty},
         )
+            $elty <: Complex && trans == 'T' && throw(ArgumentError(
+                "rocSOLVER.ormqr! supports only 'N' or 'C' for Complex types, " *
+                "but `$trans` was passed."))
+
             trans = ($elty <: Real && trans == 'C') ? 'T' : trans
+
             chkside(side)
             chktrans(trans)
 
-            m, n = (ndims(C) == 2) ? size(C) : (size(C, 1), 1)
+            m, n = (ndims(C) == 2) ? size(C) : (length(C), 1)
             k = length(τ)
             mA  = size(A, 1)
 
@@ -126,7 +131,7 @@ for (fname, elty) in (
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
             $fname(rocBLAS.handle(), side, trans, m, n, k, A, lda, τ, C, ldc)
-            C
+            return C
         end
     end
 end
