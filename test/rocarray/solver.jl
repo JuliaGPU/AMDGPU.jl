@@ -142,6 +142,33 @@ end
     end
 end
 
+@testset "ormqr!" begin
+    @testset "elty = $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+        @testset "side = $side" for side in ('L', 'R')
+            @testset "trans = $trans" for (trans, op) in (
+                ('N', identity), ('T', transpose), ('C', adjoint),
+            )
+                elty <: Real && trans == 'C' && continue
+                elty <: Complex && trans == 'T' && continue
+
+                dA = ROCArray(rand(elty, m, n))
+                dA, dτ = rocSOLVER.geqrf!(dA)
+
+                dI = ROCArray(Matrix{elty}(I, m, m))
+                dH = rocSOLVER.ormqr!(side, 'N', dA, dτ, dI)
+                @test dH' * dH ≈ I
+
+                C = side == 'L' ? rand(elty, m, n) : rand(elty, n, m)
+                dC = ROCArray(C)
+                dD = side == 'L' ? op(dH) * dC : dC * op(dH)
+
+                rocSOLVER.ormqr!(side, trans, dA, dτ, dC)
+                @test dC ≈ dD
+            end
+        end
+    end
+end
+
 @testset "potrf! -- potrs!" begin
     @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A    = rand(elty,n,n)
