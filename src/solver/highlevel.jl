@@ -106,12 +106,11 @@ for (fname, elty) in (
             side::Char, trans::Char, A::ROCMatrix{$elty},
             τ::ROCVector{$elty}, C::ROCVecOrMat{$elty},
         )
-            $elty <: Real && trans == 'C' && throw(ArgumentError(
-                "rocSOLVER.ormqr! supports only 'N' or 'T' for Real types, " *
-                "but `$trans` was passed."))
             $elty <: Complex && trans == 'T' && throw(ArgumentError(
                 "rocSOLVER.ormqr! supports only 'N' or 'C' for Complex types, " *
                 "but `$trans` was passed."))
+
+            trans = ($elty <: Real && trans == 'C') ? 'T' : trans
 
             chkside(side)
             chktrans(trans)

@@ -118,7 +118,7 @@ end
 end
 
 @testset "ldiv!" begin
-    @testset "elty = $elty" for elty in [Float32,]# Float64, ComplexF32, ComplexF64]
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A, x, y = rand(elty, m, m), rand(elty, m), rand(elty, m)
         dA, dx, dy = ROCArray.((A, x, y))
 
