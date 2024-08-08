@@ -26,7 +26,7 @@ const DEVICE_LIBS::Dict{String, DevLib} = Dict{String, DevLib}()
 
 function link_device_libs!(
     target::GCNCompilerTarget, mod::LLVM.Module, undefined_fns::Vector{String};
-    wavefrontsize64::Bool,
+    wavefrontsize64::Bool, only_undefined::Bool,
 )
     isnothing(libdevice_libs) && return
     isempty(undefined_fns) && return
@@ -39,6 +39,7 @@ function link_device_libs!(
         end
         load_and_link!(devlib, mod, undefined_fns)
     end
+    only_undefined && return
 
     # 2. Load OCLC library.
     devlib = get!(DEVICE_LIBS, "oclc") do
