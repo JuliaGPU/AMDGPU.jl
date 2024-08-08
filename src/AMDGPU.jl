@@ -9,6 +9,9 @@ using LLVM, LLVM.Interop
 using Preferences
 using Printf
 
+import UnsafeAtomics
+import UnsafeAtomicsLLVM
+import Atomix
 import Atomix: @atomic, @atomicswap, @atomicreplace
 import Core: LLVMPtr
 import LinearAlgebra
@@ -129,6 +132,20 @@ include(joinpath("fft", "rocFFT.jl"))
 include(joinpath("dnn", "MIOpen.jl"))
 
 include("random.jl")
+
+# Enable hardware FP atomics for +/- ops.
+const ROCIndexableRef{Indexable <: ROCDeviceArray} = Atomix.IndexableRef{Indexable}
+
+function Atomix.modify!(
+    ref::ROCIndexableRef, op::OP, x, ord,
+) where OP <: Union{typeof(+), typeof(-)}
+    x = Atomix.asstorable(ref, x)
+    ptr = Atomix.pointer(ref)
+    root = Atomix.gcroot(ref)
+    GC.@preserve root begin
+        UnsafeAtomics.modify!(ptr, op, x, ord, Val(:agent))
+    end
+end
 
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
