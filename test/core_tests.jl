@@ -1,7 +1,9 @@
 @testitem "core" setup=[TSCore] begin
 
-using AMDGPU: HIP, Runtime, Device, Mem
 import AMDGPU: @allowscalar
+
+using AMDGPU: HIP, Runtime, Device, Mem
+using KernelAbstractions: @atomic
 
 AMDGPU.allowscalar(false)
 
@@ -81,8 +83,7 @@ end
     @test d == deepcopy(d)
 end
 
-include("codegen/synchronization.jl")
-include("codegen/trap.jl")
+include("codegen/codegen.jl")
 
 include("rocarray/base.jl")
 include("rocarray/broadcast.jl")
