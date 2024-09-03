@@ -20,12 +20,32 @@ function square!(x)
     return nothing
 end
 
-@testset "Forward Kernel" begin
+# @testset "Forward Kernel" begin
+#     A = ROCArray(collect(1.0:64.0))
+#     dA = ROCArray(ones(Float64, 64))
+#     Enzyme.autodiff(Forward, square!, Duplicated(A, dA))
+#     @test all(dA .≈ (2:2:128))
+
+#     A = ROCArray(collect(1.0:64.0))
+#     dA = ROCArray(ones(Float64, 64))
+#     dA2 = ROCArray(ones(Float64, 64) .* 3.0)
+#     Enzyme.autodiff(Forward, square!, BatchDuplicated(A, (dA, dA2)))
+#     @test all(dA .≈ (2:2:128))
+#     @test all(dA2 .≈ (2:2:128) .* 3)
+# end
+
+@testset "Reverse Kernel" begin
     A = ROCArray(collect(1.0:64.0))
     dA = ROCArray(ones(Float64, 64))
-    Enzyme.autodiff(Forward, square!, Duplicated(A, dA))
+    Enzyme.autodiff(Reverse, square!, Duplicated(A, dA))
     @test all(dA .≈ (2:2:128))
-end
 
+    A = ROCArray(collect(1.0:64.0))
+    dA = ROCArray(ones(Float64, 64))
+    dA2 = ROCArray(ones(Float64, 64) .* 3.0)
+    Enzyme.autodiff(Reverse, square!, BatchDuplicated(A, (dA, dA2)))
+    @test all(dA .≈ (2:2:128))
+    @test all(dA2 .≈ (2:2:128) .* 3)
+end
 
 end
