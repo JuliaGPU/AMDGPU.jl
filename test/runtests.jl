@@ -2,8 +2,10 @@ using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
 import AMDGPU.Device: HostCallHolder, hostcall!
 
+import Pkg
 import PrettyTables
 import InteractiveUtils
+
 using LinearAlgebra
 using ReTestItems
 using Test
@@ -30,7 +32,7 @@ end
 
 AMDGPU.allowscalar(false)
 
-const TEST_NAMES = ["core", "hip", "ext", "gpuarrays", "kernelabstractions"]
+const TEST_NAMES = ["core", "hip", "ext", "gpuarrays", "kernelabstractions", "enzyme"]
 
 function parse_flags!(args, flag; default = nothing, typ = typeof(default))
     for f in args
@@ -89,6 +91,10 @@ for test_name in ARGS
 end
 
 const TARGET_TESTS = isempty(ARGS) ? TEST_NAMES : ARGS
+
+if "enzyme" in TARGET_TESTS
+    Pkg.add(["EnzymeCore", "Enzyme"])
+end
 
 # Run tests in parallel.
 np = set_jobs ? jobs : (Sys.CPU_THREADS ÷ 2)

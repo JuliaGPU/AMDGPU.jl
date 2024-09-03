@@ -38,13 +38,20 @@ ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 [extensions]
 AMDGPUChainRulesCoreExt = "ChainRulesCore"
 
+[weakdeps]
+EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
+
+[extensions]
+EnzymeCoreExt = "EnzymeCore"
+
 [compat]
 AbstractFFTs = "1.0"
 AcceleratedKernels = "0.2"
 Adapt = "4"
-Atomix = "0.1, 1"
+Atomix = "1"
 CEnum = "0.4, 0.5"
 ChainRulesCore = "1"
+EnzymeCore = "0.8"
 ExprTools = "0.1"
 GPUArrays = "11.2"
 GPUCompiler = "0.27, 1.0"
