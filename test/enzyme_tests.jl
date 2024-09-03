@@ -10,7 +10,7 @@ using GPUCompiler
 end
 
 function square_kernel!(x)
-    i = workgroupIdx().x
+    i = workitemIdx().x
     x[i] *= x[i]
     AMDGPU.sync_workgroup()
     return
@@ -22,13 +22,10 @@ function square!(x)
 end
 
 @testset "Forward Kernel" begin
-    A = AMDGPU.rand(64)
-    dA = AMDGPU.ones(64)
-    A .= (1:1:64)
-    dA .= 1
+    A = ROCArray(collect(1.0:64.0))
+    dA = ROCArray(ones(Float64, 64))
     Enzyme.autodiff(Forward, square!, Duplicated(A, dA))
     @test all(dA .≈ (2:2:128))
-    display(dA); println()
 end
 
 

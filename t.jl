@@ -2,9 +2,9 @@ using AMDGPU
 using EnzymeCore, Enzyme
 
 function square_kernel!(x)
-    i = workgroupIdx().x
+    i = workitemIdx().x
     x[i] *= x[i]
-    # AMDGPU.sync_workgroup()
+    AMDGPU.sync_workgroup()
     return
 end
 

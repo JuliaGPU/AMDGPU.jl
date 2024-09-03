@@ -118,7 +118,6 @@ function launch(
     gridsize::ROCDim = 1, groupsize::ROCDim = 1,
     shmem::Integer = 0, stream::HIP.HIPStream,
 ) where N
-    Core.println("Launching ker $fun")
     gd, bd = ROCDim3(gridsize), ROCDim3(groupsize)
     pack_arguments(args...) do kernel_params
         HIP.hipModuleLaunchKernel(

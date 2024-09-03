@@ -7,7 +7,6 @@ using GPUCompiler
 function EnzymeCore.compiler_job_from_backend(
     ::ROCBackend, @nospecialize(F::Type), @nospecialize(TT::Type),
 )
-    Core.println("ENZ compiler job")
     mi = GPUCompiler.methodinstance(F, TT)
     return GPUCompiler.CompilerJob(mi, AMDGPU.compiler_config(AMDGPU.device()))
 end
@@ -16,7 +15,6 @@ function EnzymeCore.EnzymeRules.forward(
     fn::Const{typeof(AMDGPU.hipfunction)}, ::Type{<: Duplicated},
     f::Const{F}, tt::Const{TT}; kwargs...
 ) where {F, TT}
-    Core.println("ENZ hipfunction")
     res = fn.val(f.val, tt.val; kwargs...)
     return Duplicated(res, res)
 end
@@ -24,7 +22,6 @@ end
 function EnzymeCore.EnzymeRules.forward(
     fn::Const{typeof(AMDGPU.rocconvert)}, ::Type{RT}, x::IT,
 ) where {RT, IT}
-    Core.println("ENZ rocconvert")
     if RT <: Duplicated
         Duplicated(fn.val(x.val), fn.val(x.dval))
     elseif RT <: Const
@@ -47,7 +44,6 @@ end
 function EnzymeCore.EnzymeRules.augmented_primal(
     config, fn::Const{typeof(AMDGPU.rocconvert)}, ::Type{RT}, x::IT,
 ) where {RT, IT}
-    Core.println("ENZ aug primal rocconvert")
     primal = EnzymeRules.needs_primal(config) ?
         fn.val(x.val) : nothing
     primal_T = EnzymeRules.needs_primal(config) ? eltype(RT) : Nothing
