@@ -41,6 +41,24 @@ function EnzymeCore.EnzymeRules.forward(
     end
 end
 
+function meta_fn(fn, args::Vararg{Any, N}) where N
+    EnzymeCore.autodiff_deferred(Forward, fn, Const, args...)
+    nothing
+end
+
+function EnzymeCore.EnzymeRules.forward(
+    fn::EnzymeCore.Annotation{AMDGPU.Runtime.HIPKernel{F, TT}},
+    ::Type{Const{Nothing}}, args...; kwargs...,
+) where {F, TT}
+    GC.@preserve args begin
+        kernel_args = ((rocconvert(a) for a in args)...,)
+        kernel_tt = Tuple{(F, (typeof(a) for a in kernel_args))...}
+        kernel = AMDGPU.hipfunction(meta_fn, kernel_tt)
+        kernel(fn.val.f, args...; kwargs...)
+    end
+    return
+end
+
 function EnzymeCore.EnzymeRules.augmented_primal(
     config, fn::Const{typeof(AMDGPU.rocconvert)}, ::Type{RT}, x::IT,
 ) where {RT, IT}
