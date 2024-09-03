@@ -90,7 +90,10 @@ for test_name in ARGS
     """)
 end
 
-const TARGET_TESTS = isempty(ARGS) ? TEST_NAMES : ARGS
+# Do not run Enzyme tests by default.
+const TARGET_TESTS = isempty(ARGS) ?
+    [t for t in TEST_NAMES if t != "enzyme"] :
+    ARGS
 
 if "enzyme" in TARGET_TESTS
     Pkg.add(["EnzymeCore", "Enzyme"])
