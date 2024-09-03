@@ -12,7 +12,6 @@ end
 function square_kernel!(x)
     i = workitemIdx().x
     x[i] *= x[i]
-    AMDGPU.sync_workgroup()
     return
 end
 
