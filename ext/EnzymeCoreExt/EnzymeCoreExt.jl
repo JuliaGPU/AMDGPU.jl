@@ -52,7 +52,7 @@ function EnzymeCore.EnzymeRules.forward(
 ) where {F, TT}
     GC.@preserve args begin
         kernel_args = ((rocconvert(a) for a in args)...,)
-        kernel_tt = Tuple{(F, (typeof(a) for a in kernel_args))...}
+        kernel_tt = Tuple{(F, (typeof(a) for a in kernel_args)...)...}
         kernel = AMDGPU.hipfunction(meta_fn, kernel_tt)
         kernel(fn.val.f, args...; kwargs...)
     end
