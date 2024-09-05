@@ -141,4 +141,76 @@ function EnzymeRules.augmented_primal(
         primal, shadow, nothing)
 end
 
+function meta_augf(
+    f, tape::ROCDeviceArray{TapeType}, ::Val{ModifiedBetween}, args::Vararg{Any, N},
+) where {N, ModifiedBetween, TapeType}
+    forward, _ = EnzymeCore.autodiff_deferred_thunk(
+        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        TapeType,
+        Const{Core.Typeof(f)},
+        Const{Nothing},
+        map(typeof, args)...,
+    )
+
+    idx = 0
+    # idx *= gridDim().x
+    idx += workgroupIdx().x - 1
+
+    idx *= gridGroupDim().y
+    idx += workgroupIdx().y - 1
+
+    idx *= gridGroupDim().z
+    idx += workgroupIdx().z - 1
+
+    idx *= workgroupDim().x
+    idx += workitemIdx().x - 1
+
+    idx *= workgroupDim().y
+    idx += workitemIdx().y - 1
+
+    idx *= workgroupDim().z
+    idx += workitemIdx().z - 1
+    idx += 1
+
+    @inbounds tape[idx] = forward(Const(f), args...)[1]
+    return
+end
+
+function EnzymeRules.augmented_primal(
+    config, fn::EnzymeCore.Annotation{AMDGPU.Runtime.HIPKernel{F,TT}},
+    ::Type{Const{Nothing}}, args...;
+    groupsize::AMDGPU.Runtime.ROCDim = 1,
+    gridsize::AMDGPU.Runtime.ROCDim = 1, kwargs...,
+) where {F,TT}
+    kernel_args = ((rocconvert(a) for a in args)...,)
+    kernel_tt = map(typeof, kernel_args)
+
+    ModifiedBetween = overwritten(config)
+    compiler_job = EnzymeCore.compiler_job_from_backend(
+        ROCBackend(), typeof(Base.identity), Tuple{Float64})
+    TapeType = EnzymeCore.tape_type(
+        compiler_job,
+        ReverseSplitModified(ReverseSplitWithPrimal, Val(ModifiedBetween)),
+        Const{F}, Const{Nothing},
+        kernel_tt...,
+    )
+    threads = AMDGPU.Runtime.ROCDim3(groupsize)
+    blocks = AMDGPU.Runtime.ROCDim3(gridsize)
+    subtape = ROCArray{TapeType}(
+        undef, blocks.x * blocks.y * blocks.z * threads.x * threads.y * threads.z)
+
+    GC.@preserve args subtape begin
+        subtape_cc = rocconvert(subtape)
+        kernel_tt2 = Tuple{(
+            F, typeof(subtape_cc), Val{ModifiedBetween}, kernel_tt...,
+        )...}
+        kernel = AMDGPU.hipfunction(meta_augf, kernel_tt2)
+        kernel(fn.val.f, subtape_cc, Val(ModifiedBetween), args...;
+            groupsize=(groupsize.x, groupsize.y, groupsize.z),
+            gridsize=(gridsize.x, gridsize.y, gridsize.z),
+            kwargs...)
+    end
+    return AugmentedReturn{Nothing, Nothing, ROCArray}(nothing, nothing, subtape)
+end
+
 end

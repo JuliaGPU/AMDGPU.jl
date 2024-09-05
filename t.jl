@@ -15,7 +15,7 @@ end
 function main()
     A = ROCArray(collect(1.0:64.0))
     dA = ROCArray(ones(Float64, 64))
-    Enzyme.autodiff(Forward, square!, Duplicated(A, dA))
+    Enzyme.autodiff(Reverse, square!, Duplicated(A, dA))
     @show A
     @show dA
     @assert all(dA .≈ (2:2:128))
