@@ -10,6 +10,15 @@
     @test x.buf[].mem isa B
 end
 
+@testset "Constructor" begin
+    x = ROCArray([1.0])
+    y = ROCArray(x)
+    # Constructor doesn't just return its argument.
+    @test y !== x
+    # But is still equal.
+    @test y == x
+end
+
 @testset "ones/zeros" begin
     x = @inferred AMDGPU.ones(4, 3)
     @test x isa ROCArray

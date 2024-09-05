@@ -118,7 +118,7 @@ ROCArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = ROCArray{T,N}(xs)
 (::Type{ROCArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = ROCArray{S,N}(x)
 
 # idempotency
-ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = xs
+ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = copy(xs)
 
 ## conversions
 
