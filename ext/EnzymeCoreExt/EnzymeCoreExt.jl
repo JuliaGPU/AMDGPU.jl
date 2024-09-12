@@ -185,7 +185,7 @@ function EnzymeRules.augmented_primal(
     kernel_args = ((rocconvert(a) for a in args)...,)
     kernel_tt = map(typeof, kernel_args)
 
-    ModifiedBetween = overwritten(config)
+    ModifiedBetween = EnzymeRules.overwritten(config)
     compiler_job = EnzymeCore.compiler_job_from_backend(
         ROCBackend(), typeof(Base.identity), Tuple{Float64})
     TapeType = EnzymeCore.tape_type(
