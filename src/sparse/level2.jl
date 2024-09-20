@@ -216,7 +216,6 @@ for (bname,aname,sname,elty) in (
 
             info_ref = Ref{rocsparse_mat_info}()
             rocsparse_create_mat_info(info_ref)
-            Core.println("MAT INFO")
 
             function bufferSize()
                 out = Ref{Csize_t}(1)
@@ -231,11 +230,9 @@ for (bname,aname,sname,elty) in (
                     handle(), ctransa, m, nnz(A),
                     desc, nonzeros(A), A.colPtr, rowvals(A), info_ref[],
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
-                Core.println("ANAME")
 
                 posit = Ref{Cint}(1)
                 rocsparse_csrsv_zero_pivot(handle(), desc, info_ref[], posit)
-                Core.println("ZERO PIVOT")
 
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
@@ -246,7 +243,6 @@ for (bname,aname,sname,elty) in (
                     nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
                     rowvals(A), info_ref[], X, X,
                     rocsparse_solve_policy_auto, buffer)
-                Core.println("SNAME")
             end
             rocsparse_destroy_mat_info(info_ref[])
             X
