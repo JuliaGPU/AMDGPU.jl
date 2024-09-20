@@ -35,7 +35,9 @@ end
                             T = uplo == 'L' ? tril(T) : triu(T)
                             T = diag == 'N' ? T : T - Diagonal(T) + I
                             T = sparse(T)
-                            d_T = SparseMatrixType == ROCSparseMatrixBSR ? SparseMatrixType(ROCSparseMatrixCSR(T), blockdim) : SparseMatrixType(T)
+                            d_T = SparseMatrixType == ROCSparseMatrixBSR ?
+                                SparseMatrixType(ROCSparseMatrixCSR(T), blockdim) :
+                                SparseMatrixType(T)
                             x = rand(elty,n)
                             d_x = ROCVector{elty}(x)
                             d_y = rocSPARSE.sv2(trans, uplo, diag, d_T, d_x, 'O')
@@ -58,7 +60,9 @@ end
                                 T = uplo == 'L' ? tril(T) : triu(T)
                                 T = diag == 'N' ? T : T - Diagonal(T) + I
                                 T = sparse(T)
-                                d_T = SparseMatrixType == ROCSparseMatrixBSR ? SparseMatrixType(ROCSparseMatrixCSR(T), blockdim) : SparseMatrixType(T)
+                                d_T = SparseMatrixType == ROCSparseMatrixBSR ?
+                                    SparseMatrixType(ROCSparseMatrixCSR(T), blockdim) :
+                                    SparseMatrixType(T)
                                 X = transX == 'N' ? rand(elty,n,p) : rand(elty,p,n)
                                 d_X = ROCMatrix{elty}(X)
                                 d_Y = rocSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')

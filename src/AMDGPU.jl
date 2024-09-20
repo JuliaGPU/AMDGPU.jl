@@ -156,31 +156,12 @@ function __init__()
         Runtime.RT_EXITING[] = true
     end
 
-    if haskey(ENV, "JULIA_AMDGPU_LAUNCH_BLOCKING")
-        launch_blocking = parse(Bool, ENV["JULIA_AMDGPU_LAUNCH_BLOCKING"])
-        LAUNCH_BLOCKING[] = launch_blocking
-        if launch_blocking
-            @info "`JULIA_AMDGPU_LAUNCH_BLOCKING` is set to `true`. " *
-                "Synchronizing immediately after every Julia kernel launch."
-        end
-    end
-
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])
+        LAUNCH_BLOCKING[] = launch_blocking
         if launch_blocking
-            @info "`HIP_AMDGPU_LAUNCH_BLOCKING` is set to `true`. " *
-                "Synchronizing immediately after every HIP kernel launch."
-        end
-    end
-
-    if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
-        env_use_artifacts = !parse(Bool, ENV["JULIA_AMDGPU_DISABLE_ARTIFACTS"])
-        if use_artifacts() != env_use_artifacts
-            enable_artifacts!(env_use_artifacts)
-            @warn """
-            The environment variable JULIA_AMDGPU_DISABLE_ARTIFACTS does not match the value from preferences.
-            Forcing the preferences value to $(env_use_artifacts); please restart Julia for changes to take effect.
-            """
+            @info "`HIP_LAUNCH_BLOCKING` is set to `true`. " *
+                "Synchronizing immediately after every Julia & HIP kernel launch."
         end
     end
 

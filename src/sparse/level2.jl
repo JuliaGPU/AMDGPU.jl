@@ -184,7 +184,7 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_scsrsv_buffer_size, :rocsparse_scsrsv_analysis, :rocsparse_scsrsv_solve, :Float32),
     (:rocsparse_dcsrsv_buffer_size, :rocsparse_dcsrsv_analysis, :rocsparse_dcsrsv_solve, :Float64),
     (:rocsparse_ccsrsv_buffer_size, :rocsparse_ccsrsv_analysis, :rocsparse_ccsrsv_solve, :ComplexF32),
-    (:rocsparse_ccsrsv_buffer_size, :rocsparse_zcsrsv_analysis, :rocsparse_zcsrsv_solve, :ComplexF64),
+    (:rocsparse_zcsrsv_buffer_size, :rocsparse_zcsrsv_analysis, :rocsparse_zcsrsv_solve, :ComplexF64),
 )
     @eval begin
         function sv2!(
@@ -230,8 +230,10 @@ for (bname,aname,sname,elty) in (
                     handle(), ctransa, m, nnz(A),
                     desc, nonzeros(A), A.colPtr, rowvals(A), info_ref[],
                     rocsparse_analysis_policy_force, rocsparse_solve_policy_auto, buffer)
+
                 posit = Ref{Cint}(1)
                 rocsparse_csrsv_zero_pivot(handle(), desc, info_ref[], posit)
+
                 if posit[] >= 0
                     rocsparse_destroy_mat_info(info_ref[])
                     error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
