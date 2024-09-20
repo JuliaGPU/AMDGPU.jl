@@ -156,20 +156,12 @@ function __init__()
         Runtime.RT_EXITING[] = true
     end
 
-    if haskey(ENV, "JULIA_AMDGPU_LAUNCH_BLOCKING")
-        launch_blocking = parse(Bool, ENV["JULIA_AMDGPU_LAUNCH_BLOCKING"])
-        LAUNCH_BLOCKING[] = launch_blocking
-        if launch_blocking
-            @info "`JULIA_AMDGPU_LAUNCH_BLOCKING` is set to `true`. " *
-                "Synchronizing immediately after every Julia kernel launch."
-        end
-    end
-
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])
+        LAUNCH_BLOCKING[] = launch_blocking
         if launch_blocking
-            @info "`HIP_AMDGPU_LAUNCH_BLOCKING` is set to `true`. " *
-                "Synchronizing immediately after every HIP kernel launch."
+            @info "`HIP_LAUNCH_BLOCKING` is set to `true`. " *
+                "Synchronizing immediately after every Julia & HIP kernel launch."
         end
     end
 

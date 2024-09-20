@@ -69,6 +69,5 @@ wall duration is lower.
 
 ## Debugging
 
-Use `JULIA_AMDGPU_LAUNCH_BLOCKING=1` and `HIP_LAUNCH_BLOCKING=1` to
-synchronize immediately after launching GPU kernels.
+Use `HIP_LAUNCH_BLOCKING=1` to synchronize immediately after launching GPU kernels.
 This will allow to pinpoint exact kernel that caused the exception.
