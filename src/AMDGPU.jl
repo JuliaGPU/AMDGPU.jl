@@ -173,17 +173,6 @@ function __init__()
         end
     end
 
-    if haskey(ENV, "JULIA_AMDGPU_DISABLE_ARTIFACTS")
-        env_use_artifacts = !parse(Bool, ENV["JULIA_AMDGPU_DISABLE_ARTIFACTS"])
-        if use_artifacts() != env_use_artifacts
-            enable_artifacts!(env_use_artifacts)
-            @warn """
-            The environment variable JULIA_AMDGPU_DISABLE_ARTIFACTS does not match the value from preferences.
-            Forcing the preferences value to $(env_use_artifacts); please restart Julia for changes to take effect.
-            """
-        end
-    end
-
     # Quiet path first, in case this system doesn't have AMD GPUs
     if Sys.islinux() && !ispath("/dev/kfd")
         @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
