@@ -117,7 +117,17 @@ for SparseMatrixType in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrix
                             dC = ROCArray(C)
                             alpha = rand(T)
                             rocSPARSE.sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
-                            @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+
+                            if AMDGPU.HIP.runtime_version() ≥ v"6.2"
+                                @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                            # TODO remove once we support only ROCm 6.2+
+                            else
+                                if transb == 'T'
+                                    @test_broken opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                                else
+                                    @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
+                                end
+                            end
                         end
                     end
                 end
