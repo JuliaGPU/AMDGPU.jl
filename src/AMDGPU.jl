@@ -205,7 +205,7 @@ function __init__()
             @warn """
             HSA runtime is unavailable, compilation and runtime functionality will be disabled.
             """
-            if parse(Bool, ENV["JULIA_AMDGPU_CORE_MUST_LOAD"])
+            if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
                 print_build_diagnostics()
                 error("Failed to load HSA runtime, but HSA must load, bailing out")
             end
@@ -217,7 +217,7 @@ function __init__()
         @warn """
         LLD is unavailable, compilation functionality will be disabled.
         """
-        if parse(Bool, ENV["JULIA_AMDGPU_CORE_MUST_LOAD"])
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to find ld.lld, but ld.lld must exist, bailing out")
         end
@@ -228,7 +228,7 @@ function __init__()
         @warn """
         Device libraries are unavailable, device intrinsics will be disabled.
         """
-        if parse(Bool, ENV["JULIA_AMDGPU_CORE_MUST_LOAD"])
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to find Device Libs, but Device Libs must exist, bailing out")
         end
@@ -241,7 +241,7 @@ function __init__()
         @warn """
         HIP library is unavailable, HIP integration will be disabled.
         """
-        if parse(Bool, ENV["JULIA_AMDGPU_HIP_MUST_LOAD"])
+        if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to load HIP runtime, but HIP must load, bailing out")
         end
