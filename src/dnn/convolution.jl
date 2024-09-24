@@ -58,12 +58,18 @@ get_workspace_size_func(::Type{miopenConvBwdWeightsAlgorithm_t}) = miopenConvolu
 get_workspace_size_func(::Type{miopenConvBwdDataAlgorithm_t}) = miopenConvolutionBackwardDataGetWorkSpaceSize
 
 function get_workspace_size(
-    conv_type::C; handle, a_desc, b_desc, conv_desc, c_desc,
+    conv_type::C; handle,
+    # fwd:         x, w,  y ->  w, x,  y
+    # bwd weight: dy, x, dw -> dy, x, dw
+    # bwd data:   dy, w, dx -> dy, w, dx
+    a_desc, b_desc, conv_desc::ConvolutionDescriptor, c_desc,
 ) where C <: CONV_ALGOS
+    args = conv_type == miopenConvFwdAlgorithm_t ?
+        # NOTE swap first two args for fwd
+        (b_desc.handle, a_desc.handle, conv_desc.handle, c_desc.handle) :
+        (a_desc.handle, b_desc.handle, conv_desc.handle, c_desc.handle)
     wsize_ref = Ref{Csize_t}(0)
-    get_workspace_size_func(conv_type)(
-        handle, a_desc.handle, b_desc.handle,
-        conv_desc.handle, c_desc.handle, wsize_ref) # NOTE: do not...
+    get_workspace_size_func(conv_type)(handle, args..., wsize_ref) # NOTE: do not check
     wsize_ref[]
 end
 
