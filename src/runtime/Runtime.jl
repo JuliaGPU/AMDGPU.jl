@@ -6,7 +6,7 @@ using ..GPUCompiler
 import ..Adapt
 import Preferences: @load_preference, @set_preferences!
 
-import ..HIP
+import ..HIP, HSA
 import ..AMDGPU
 import ..AMDGPU: getinfo, LockedObject
 import .HIP: HIPDevice
