@@ -104,10 +104,9 @@ function derive_beta_gamma_descriptors(
     dtype, dims, stride = unpack(handle, ndims(handle))
 
     bndesc = TensorDescriptor(handle, dtype)
-    finalizer(bndesc) do d_
-        miopenDestroyTensorDescriptor(d_.handle)
+    return finalizer(bndesc) do d
+        miopenDestroyTensorDescriptor(d.handle)
     end
-    bndesc
 end
 
 # Unsqueeze dimensions at the beginning:

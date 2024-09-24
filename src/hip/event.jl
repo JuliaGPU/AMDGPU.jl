@@ -44,25 +44,20 @@ end
 wait(event::HIPEvent) = hipEventSynchronize(event)
 
 function synchronize(event::HIPEvent)
-    if !non_blocking_synchronize(event)
-        AMDGPU.maybe_collect(; blocking=true)
-    end
+    non_blocking_synchronize(event) || AMDGPU.maybe_collect(; blocking=true)
     wait(event)
     return
 end
 
 function HIPEvent(stream::hipStream_t; do_record::Bool = true, timing=false)
     event_ref = Ref{hipEvent_t}()
-    if !timing
+    timing ?
+        hipEventCreate(event_ref) :
         hipEventCreateWithFlags(event_ref, hipEventDisableTiming)
-    else
-        hipEventCreate(event_ref)
-    end
     event = HIPEvent(event_ref[], stream)
     do_record && record(event)
 
-    finalizer(hipEventDestroy, event)
-    return event
+    return finalizer(hipEventDestroy, event)
 end
 HIPEvent(stream::HIPStream; kwargs...) = HIPEvent(stream.stream; kwargs...)
 
@@ -76,5 +71,5 @@ See also [`@elapsed`](@ref).
 function elapsed(start::HIPEvent, stop::HIPEvent)
     time_ref = Ref{Cfloat}()
     hipEventElapsedTime(time_ref, start, stop)
-    return time_ref[]/1000
+    return time_ref[] / 1000
 end

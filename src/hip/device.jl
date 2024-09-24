@@ -104,6 +104,11 @@ function ndevices()
     count_ref[]
 end
 
+"""
+    devices()
+
+Get list of all devices.
+"""
 function devices()
     isempty(ALL_DEVICES) || return copy(ALL_DEVICES)
 

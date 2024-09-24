@@ -73,7 +73,9 @@ include("utils.jl")
 
 include(joinpath("hsa", "HSA.jl"))
 include(joinpath("hip", "HIP.jl"))
-import .HIP: HIPContext, HIPDevice, HIPStream
+
+using .HIP
+using .HIP: HIPContext, HIPDevice, HIPStream
 export HIPContext, HIPDevice, HIPStream
 
 include("cache.jl")

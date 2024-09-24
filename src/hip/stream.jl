@@ -27,13 +27,12 @@ function HIPStream(priority::Symbol = :normal)
     hipStreamCreateWithPriority(stream_ref, 0, priority_int)
     d = device()
     stream = HIPStream(stream_ref[], priority, d, HIPContext(d), true)
-    finalizer(stream) do s
+    return finalizer(stream) do s
         AMDGPU.context!(s.ctx) do
             hipStreamDestroy(s.stream)
         end
         Base.@atomic s.valid = false
     end
-    return stream
 end
 
 isvalid(s::HIPStream) = s.valid

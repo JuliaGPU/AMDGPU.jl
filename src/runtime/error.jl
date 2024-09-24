@@ -35,4 +35,3 @@ function check(result::HSA.Status)
         throw(HSAError(result))
     end
 end
-

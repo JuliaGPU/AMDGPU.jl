@@ -8,9 +8,7 @@ mutable struct HIPModule
         mod_ref = Ref{hipModule_t}()
         hipModuleLoadData(mod_ref, data)
         mod = new(mod_ref[])
-
-        finalizer(hipModuleUnload, mod)
-        mod
+        return finalizer(hipModuleUnload, mod)
     end
 end
 

@@ -8,8 +8,7 @@ mutable struct RNG <: Random.AbstractRNG
         handle = Ref{rocrand_generator}()
         rocrand_create_generator(handle, typ)
         obj = new(handle[], typ)
-        finalizer(unsafe_destroy!, obj)
-        return obj
+        return finalizer(unsafe_destroy!, obj)
     end
 end
 
