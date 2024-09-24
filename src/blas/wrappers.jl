@@ -536,17 +536,18 @@ end
 
 # Level 3
 ## (GE) general matrix-matrix multiplication
-for (fname, elty) in
-        ((:rocblas_dgemm,:Float64),
-         (:rocblas_sgemm,:Float32),
-         (:rocblas_hgemm,:Float16),
-         (:rocblas_zgemm,:ComplexF64),
-         (:rocblas_cgemm,:ComplexF32))
+for (fname, elty) in (
+    (:rocblas_dgemm,:Float64),
+    (:rocblas_sgemm,:Float32),
+    (:rocblas_hgemm,:Float16),
+    (:rocblas_zgemm,:ComplexF64),
+    (:rocblas_cgemm,:ComplexF32),
+)
     @eval begin
         function gemm!(
             transA::Char, transB::Char, alpha::($elty),
-            A::ROCVecOrMat{$elty}, B::ROCVecOrMat{$elty}, beta::($elty),
-            C::ROCVecOrMat{$elty},
+            A::StridedROCVecOrMat{$elty}, B::StridedROCVecOrMat{$elty}, beta::($elty),
+            C::StridedROCVecOrMat{$elty},
         )
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)

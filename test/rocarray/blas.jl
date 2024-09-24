@@ -26,6 +26,15 @@ end
         Ax_d = view(A_d, :, :, 2) * view(x_d, :, 2)
         @test Ax ≈ Array(Ax_d)
     end
+
+    @testset "Strided matmul" begin
+        for T in (Float16, Float32, Float64, ComplexF32, ComplexF64)
+            x = AMDGPU.rand(T, 10, 10)
+            v1 = @view(x[:, 1:5])
+            v2 = @view(x[1:5, :])
+            @test Array(v1) * Array(v2) ≈ Array(v1 * v2)
+        end
+    end
 end
 
 @testset "Level 1" begin

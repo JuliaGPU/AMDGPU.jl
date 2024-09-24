@@ -51,8 +51,7 @@ mutable struct cROCFFTPlan{T, K, inplace, N} <: ROCFFTPlan{T, K, inplace}
             rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
         end
         p = new(handle, stream, workarea, info, size(X), sizey, xtype, region)
-        finalizer(AMDGPU.unsafe_free!, p)
-        p
+        return finalizer(AMDGPU.unsafe_free!, p)
     end
 end
 
@@ -81,8 +80,7 @@ mutable struct rROCFFTPlan{T,K,inplace,N} <: ROCFFTPlan{T,K,inplace}
             rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
         end
         p = new(handle, stream, workarea, info, size(X), sizey, xtype, region)
-        finalizer(unsafe_free!, p)
-        p
+        return finalizer(unsafe_free!, p)
     end
 end
 

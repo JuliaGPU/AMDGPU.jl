@@ -9,8 +9,7 @@ mutable struct ROCMatrixDescriptor
         descr_ref = Ref{rocsparse_mat_descr}()
         rocsparse_create_mat_descr(descr_ref)
         obj = new(descr_ref[])
-        finalizer(rocsparse_destroy_mat_descr, obj)
-        obj
+        return finalizer(rocsparse_destroy_mat_descr, obj)
     end
 end
 
@@ -40,16 +39,14 @@ mutable struct ROCDenseVectorDescriptor
         desc_ref = Ref{rocsparse_dnvec_descr}()
         rocsparse_create_dnvec_descr(desc_ref, n, T[], T)
         obj = new(desc_ref[])
-        finalizer(rocsparse_destroy_dnvec_descr, obj)
-        obj
+        return finalizer(rocsparse_destroy_dnvec_descr, obj)
     end
 
     function ROCDenseVectorDescriptor(x::DenseROCVector)
         desc_ref = Ref{rocsparse_dnvec_descr}()
         rocsparse_create_dnvec_descr(desc_ref, length(x), x, eltype(x))
         obj = new(desc_ref[])
-        finalizer(rocsparse_destroy_dnvec_descr, obj)
-        obj
+        return finalizer(rocsparse_destroy_dnvec_descr, obj)
     end
 end
 
@@ -66,8 +63,7 @@ mutable struct ROCSparseVectorDescriptor
             desc_ref, length(x), nnz(x), nonzeroinds(x), nonzeros(x),
             eltype(nonzeroinds(x)), IndexBase, eltype(x))
         obj = new(desc_ref[])
-        finalizer(rocsparse_destroy_spvec_descr, obj)
-        obj
+        return finalizer(rocsparse_destroy_spvec_descr, obj)
     end
 end
 
@@ -86,8 +82,7 @@ mutable struct ROCDenseMatrixDescriptor
             rocsparse_create_dnmat_descr(desc_ref, m, n, m, T[], T, 'C')
         end
         obj = new(desc_ref[])
-        finalizer(rocsparse_destroy_dnmat_descr, obj)
-        obj
+        return finalizer(rocsparse_destroy_dnmat_descr, obj)
     end
 
     function ROCDenseMatrixDescriptor(x::DenseROCMatrix; transposed::Bool=false)
@@ -98,8 +93,7 @@ mutable struct ROCDenseMatrixDescriptor
             rocsparse_create_dnmat_descr(desc_ref, size(x)..., stride(x,2), x, eltype(x), 'C')
         end
         obj = new(desc_ref[])
-        finalizer(rocsparse_destroy_dnmat_descr, obj)
-        obj
+        return finalizer(rocsparse_destroy_dnmat_descr, obj)
     end
 end
 
@@ -124,8 +118,7 @@ mutable struct ROCSparseMatrixDescriptor
                 eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A)))
         end
         obj = new(desc_ref[])
-        finalizer(rocsparse_destroy_spmat_descr, obj)
-        return obj
+        return finalizer(rocsparse_destroy_spmat_descr, obj)
     end
 
     function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCSC, IndexBase::Char; transposed::Bool=false)
@@ -142,8 +135,7 @@ mutable struct ROCSparseMatrixDescriptor
                 eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A)))
         end
         obj = new(desc_ref[])
-        finalizer(rocsparse_destroy_spmat_descr, obj)
-        return obj
+        return finalizer(rocsparse_destroy_spmat_descr, obj)
     end
 
     function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCOO, IndexBase::Char; transposed::Bool=false)
@@ -162,8 +154,7 @@ mutable struct ROCSparseMatrixDescriptor
             )
         end
         obj = new(desc_ref[])
-        finalizer(rocsparse_destroy_spmat_descr, obj)
-        return obj
+        return finalizer(rocsparse_destroy_spmat_descr, obj)
     end
 end
 
@@ -178,8 +169,7 @@ mutable struct MatInfo
         info_ref = Ref{rocsparse_mat_info}()
         rocsparse_create_mat_info(info_ref)
         obj = new(info_ref[])
-        finalizer(rocsparse_destroy_mat_info, obj)
-        obj
+        return finalizer(rocsparse_destroy_mat_info, obj)
     end
 end
 

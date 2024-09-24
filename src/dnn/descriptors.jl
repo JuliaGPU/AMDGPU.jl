@@ -35,11 +35,9 @@ function TensorDescriptor(
     handle = handle_ref[]
     miopenSetTensorDescriptor(handle, dtype, dims, sizes, strides)
     d = TensorDescriptor(handle, dtype)
-
-    finalizer(d) do d_
-        miopenDestroyTensorDescriptor(d_.handle)
+    return finalizer(d) do d
+        miopenDestroyTensorDescriptor(d.handle)
     end
-    d
 end
 
 function TensorDescriptor(x::ROCArray{T}) where T
@@ -96,11 +94,9 @@ function ConvolutionDescriptor(
         handle, n_dims, padding, stride, dilation, miopenConvolution)
     miopenSetConvolutionGroupCount(handle, groups)
     d = ConvolutionDescriptor(handle)
-
-    finalizer(d) do d_
-        miopenDestroyConvolutionDescriptor(d_.handle)
+    return finalizer(d) do d
+        miopenDestroyConvolutionDescriptor(d.handle)
     end
-    d
 end
 
 """
@@ -150,11 +146,9 @@ function PoolingDescriptor(
         handle, mode, n_dims, dims, padding, stride)
     miopenSetPoolingIndexType(handle, miopenIndexUint32)
     d = PoolingDescriptor(handle)
-
-    finalizer(d) do d_
-        miopenDestroyPoolingDescriptor(d_.handle)
+    return finalizer(d) do d
+        miopenDestroyPoolingDescriptor(d.handle)
     end
-    d
 end
 
 """
@@ -192,10 +186,9 @@ function ActivationDescriptor()
     miopenCreateActivationDescriptor(handle_ref)
     handle = handle_ref[]
     d = ActivationDescriptor(handle)
-    finalizer(d) do d_
-        miopenDestroyActivationDescriptor(d_.handle)
+    return finalizer(d) do d
+        miopenDestroyActivationDescriptor(d.handle)
     end
-    d
 end
 
 function set!(

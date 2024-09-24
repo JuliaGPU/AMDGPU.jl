@@ -1,5 +1,6 @@
 module HIP
 export HIPError
+export devices, device_synchronize, default_stream
 
 using CEnum
 
@@ -74,6 +75,10 @@ include("event.jl")
 include("pool.jl")
 include("module.jl")
 
+"""
+Blocks until all kernels on all streams have completed.
+Uses currently active device.
+"""
 function device_synchronize()
     AMDGPU.maybe_collect(; blocking=true)
     hipDeviceSynchronize()

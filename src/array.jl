@@ -5,21 +5,19 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
 
     function ROCArray{T, N, B}(
         ::UndefInitializer, dims::Dims{N},
-    ) where {T, N, B <: Union{Mem.HIPBuffer, Mem.HostBuffer}}
+    ) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
         data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
         xs = new{T, N, B}(data, dims, 0)
-        finalizer(unsafe_free!, xs)
-        return xs
+        return finalizer(unsafe_free!, xs)
     end
 
     function ROCArray{T, N}(
         buf::DataRef{Managed{B}}, dims::Dims{N}; offset::Integer = 0,
-    ) where {T, N, B <: Union{Mem.HIPBuffer, Mem.HostBuffer}}
+    ) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
         xs = new{T, N, B}(buf, dims, offset)
-        finalizer(unsafe_free!, xs)
-        return xs
+        return finalizer(unsafe_free!, xs)
     end
 end
 
@@ -117,10 +115,7 @@ ROCArray(A::AbstractArray{T,N}) where {T,N} = ROCArray{T,N}(A)
 ROCArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = ROCArray{T,N}(xs)
 (::Type{ROCArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = ROCArray{S,N}(x)
 
-# idempotency
 ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = copy(xs)
-
-## conversions
 
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
@@ -176,7 +171,6 @@ function Base.copyto!(
     dest
 end
 
-# TODO: Workaround for hanging copy() broadcast kernel
 function Base.copy(X::ROCArray{T}) where T
     Xnew = ROCArray{T}(undef, size(X))
     copyto!(Xnew, 1, X, 1, length(X))
@@ -220,10 +214,8 @@ struct Float32Adaptor end
 
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray) =
     isbits(xs) ? xs : convert(ROCArray, xs)
-
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
     isbits(xs) ? xs : convert(ROCArray{Float32}, xs)
-
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
     isbits(xs) ? xs : convert(ROCArray{ComplexF32}, xs)
 
