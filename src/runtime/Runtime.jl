@@ -16,6 +16,7 @@ struct Adaptor end
 const RT_LOCK = Threads.ReentrantLock()
 const RT_EXITING = Ref{Bool}(false)
 
+include("error.jl")
 include("dims.jl")
 
 module Mem
