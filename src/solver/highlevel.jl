@@ -457,8 +457,8 @@ for (fname, matrix_elty, vector_elty) in (
 
             $fname(
                 rocBLAS.handle(),
-                AMDGPU.rocBLAS.rocblas_svect_singular,
-                AMDGPU.rocBLAS.rocblas_svect_singular,
+                rocblas_svect_singular,
+                rocblas_svect_singular,
                 m, n, A, lda,
                 abstol,
                 dev_residual,
