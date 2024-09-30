@@ -2,3 +2,6 @@
 library_name = "librocfft"
 output_file_path = "./librocfft.jl"
 export_symbol_prefixes = []
+
+[codegen]
+use_ccall_macro = true
