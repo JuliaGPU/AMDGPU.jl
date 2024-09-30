@@ -34,6 +34,15 @@ function get_device_libs(from_artifact::Bool; rocm_path::String)
     end
 end
 
+macro _ensure_defined(var)
+    mod = @__MODULE__
+    esc(quote
+        if !isdefined($mod, $(QuoteNode(Symbol(var))))
+            global $(Symbol(var)) = ""
+        end
+    end)
+end
+
 export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
 export librocblas, librocsparse, librocsolver, librocalution
 export librocrand, librocfft, libMIOpen_path
@@ -115,6 +124,19 @@ function __init__()
         Use `ROCM_PATH` env variable to specify ROCm directory.
 
         """ exception=(err, catch_backtrace())
+
+        @_ensure_defined(libhsaruntime)
+        @_ensure_defined(lld_path)
+        @_ensure_defined(lld_artifact)
+        @_ensure_defined(libhip)
+        @_ensure_defined(libdevice_libs)
+        @_ensure_defined(librocblas)
+        @_ensure_defined(librocsparse)
+        @_ensure_defined(librocsolver)
+        @_ensure_defined(librocalution)
+        @_ensure_defined(librocrand)
+        @_ensure_defined(librocfft)
+        @_ensure_defined(libMIOpen_path)
     end
 end
 
