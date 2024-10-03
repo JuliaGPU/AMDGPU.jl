@@ -22,48 +22,52 @@ function mm_wrapper(
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
 end
 
-tag_wrappers = (
-    (identity, identity),
-    (T -> :(HermOrSym{T, <:$T}), A -> :(parent($A))))
+# legacy methods with final MulAddMul argument
+LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::DenseROCVector{T}, _add::MulAddMul) where T <: BlasFloat =
+    LinearAlgebra.generic_matvecmul!(C, tA, A, B, _add.alpha, _add.beta)
+LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::ROCSparseVector{T}, _add::MulAddMul) where T <: BlasFloat =
+    LinearAlgebra.generic_matvecmul!(C, tA, A, B, _add.alpha, _add.beta)
+LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::ROCSparseMatrix{T}, B::DenseROCMatrix{T}, _add::MulAddMul) where T <: BlasFloat =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
 
-op_wrappers = (
-    (identity, T -> 'N', identity),
-    (T -> :(Transpose{<:T, <:$T}), T -> 'T', A -> :(parent($A))),
-    (T -> :(Adjoint{<:T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
+function LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::DenseROCVector{T}, alpha::Number, beta::Number) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    mv_wrapper(tA, alpha, A, B, beta, C)
+end
 
-for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
-    TypeA = wrapa(taga(:(ROCSparseMatrix{T})))
+function LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::ROCSparseVector{T}, alpha::Number, beta::Number) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    mv_wrapper(tA, alpha, A, ROCVector{T}(B), beta, C)
+end
 
-    @eval begin
-        function LinearAlgebra.mul!(
-            C::ROCVector{T}, A::$TypeA, B::DenseROCVector{T},
-            alpha::Number, beta::Number,
-        ) where T <: Union{Float16, ComplexF16, BlasFloat}
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
-        end
+function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::ROCSparseMatrix{T}, B::DenseROCMatrix{T}, alpha::Number, beta::Number) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm_wrapper(tA, tB, alpha, A, B, beta, C)
+end
 
-        function LinearAlgebra.mul!(
-            C::ROCVector{Complex{T}}, A::$TypeA, B::DenseROCVector{Complex{T}},
-            alpha::Number, beta::Number,
-        ) where T <: Union{Float16, BlasFloat}
-            mv_wrapper($transa(T), alpha, $(untaga(unwrapa(:A))), B, beta, C)
-        end
-    end
+# legacy methods with final MulAddMul argument
+LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSC{T}, _add::MulAddMul) where T <: BlasFloat =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
+LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSR{T}, _add::MulAddMul) where T <: BlasFloat =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
+LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCOO{T}, _add::MulAddMul) where T <: BlasFloat =
+    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
 
-    for (tagb, untagb) in tag_wrappers, (wrapb, transb, unwrapb) in op_wrappers
-        TypeB = wrapb(tagb(:(DenseROCMatrix{T})))
-
-        @eval begin
-            function LinearAlgebra.mul!(
-                C::ROCMatrix{T}, A::$TypeA, B::$TypeB,
-                alpha::Number, beta::Number,
-            ) where T <: Union{Float16, ComplexF16, BlasFloat}
-                mm_wrapper(
-                    $transa(T), $transb(T), alpha,
-                    $(untaga(unwrapa(:A))), $(untagb(unwrapb(:B))), beta, C)
-            end
-        end
-    end
+function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSC{T}, alpha::Number, beta::Number) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, alpha, A, B, beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSR{T}, alpha::Number, beta::Number) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, alpha, A, B, beta, C, 'O')
+end
+function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCOO{T}, alpha::Number, beta::Number) where T <: BlasFloat
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
 
 Base.:(+)(A::ROCSparseMatrixCSR, B::ROCSparseMatrixCSR) = geam(one(eltype(A)), A, one(eltype(A)), B, 'O')
