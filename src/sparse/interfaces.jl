@@ -136,63 +136,56 @@ end
 
 # triangular
 
-## direct
-for (t, uploc, isunitc) in (
-    (:LowerTriangular, 'L', 'N'),
-    (:UnitLowerTriangular, 'L', 'U'),
-    (:UpperTriangular, 'U', 'N'),
-    (:UnitUpperTriangular, 'U', 'U'),
-)
+for SparseMatrixType in (:ROCSparseMatrixBSR,)
     @eval begin
-        # Left division
-        LinearAlgebra.ldiv!(
-            A::$t{T,<:AbstractROCSparseMatrix}, B::DenseROCVector{T},
-        ) where T <: BlasFloat =
-            sv2!('N', $uploc, $isunitc, one(T), parent(A), B, 'O')
+        LinearAlgebra.generic_trimatdiv!(C::DenseROCVector{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseROCVector{T}) where T <: BlasFloat =
+            sv2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', uploc, isunitc, one(T), A, C === B ? C : copyto!(C, B), 'O')
 
-        LinearAlgebra.ldiv!(
-            A::$t{T,<:AbstractROCSparseMatrix}, B::DenseROCMatrix{T},
-        ) where T <: BlasFloat =
-            sm2!('N', 'N', $uploc, $isunitc, one(T), parent(A), B, 'O')
+        LinearAlgebra.generic_trimatdiv!(C::DenseROCMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseROCMatrix{T}) where T <: BlasFloat =
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), A, C === B ? C : copyto!(C, B), 'O')
+
+        function LinearAlgebra.generic_trimatdiv!(C::DenseROCMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::AdjOrTrans{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            transb = LinearAlgebra.wrapper_char(B)
+            C !== parent(B) && copyto!(C, B)
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), A, C, 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::Transpose{T,<:DenseROCMatrix{T}}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::Transpose{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            B === C || throw(ErrorException("This operation is only supported if B and C are identical."))
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'T', uploc, isunitc, one(T), A, parent(B), 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::Adjoint{T,<:DenseROCMatrix{T}}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::Adjoint{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            B === C || throw(ErrorException("This operation is only supported if B and C are identical."))
+            sm2!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'C', uploc, isunitc, one(T), A, parent(B), 'O')
+        end
+    end
+end # SparseMatrixType loop
+
+for SparseMatrixType in (:ROCSparseMatrixCOO, :ROCSparseMatrixCSR, :ROCSparseMatrixCSC)
+    @eval begin
+        function LinearAlgebra.generic_trimatdiv!(C::DenseROCVector{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseROCVector{T}) where T <: BlasFloat
+            sv!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', uploc, isunitc, one(T), A, B, C, 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::DenseROCMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseROCMatrix{T}) where T <: BlasFloat
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'N', uploc, isunitc, one(T), A, B, C, 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::DenseROCMatrix{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::AdjOrTrans{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            transb = LinearAlgebra.wrapper_char(B)
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', transb, uploc, isunitc, one(T), A, parent(B), C, 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::Transpose{T,<:DenseROCMatrix{T}}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::Transpose{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'T', uploc, isunitc, one(T), A, parent(B), parent(C), 'O')
+        end
+
+        function LinearAlgebra.generic_trimatdiv!(C::Adjoint{T,<:DenseROCMatrix{T}}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::Adjoint{T,<:DenseROCMatrix{T}}) where T <: BlasFloat
+            sm!(tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', 'C', uploc, isunitc, one(T), A, parent(B), parent(C), 'O')
+        end
     end
 end
-
-## adjoint/transpose ('uploc' reversed)
-for (t, uploc, isunitc) in (
-    (:LowerTriangular, 'U', 'N'),
-    (:UnitLowerTriangular, 'U', 'U'),
-    (:UpperTriangular, 'L', 'N'),
-    (:UnitUpperTriangular, 'L', 'U'),
-)
-    @eval begin
-        # Left division with vectors
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCVector{T}) where {T<:BlasFloat} =
-            sv2!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCVector{T}) where {T<:BlasReal} =
-            sv2!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCVector{T}) where {T<:BlasComplex} =
-            sv2!('C', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        # Left division with matrices
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCMatrix{T}) where {T<:BlasFloat} =
-            sm2!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCMatrix{T}) where {T<:BlasReal} =
-            sm2!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-
-        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractROCSparseMatrix}},
-                            B::DenseROCMatrix{T}) where {T<:BlasComplex} =
-            sm2!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
-    end
-end
-
 
 ## uniform scaling
 
