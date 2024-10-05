@@ -71,3 +71,28 @@ wall duration is lower.
 
 Use `HIP_LAUNCH_BLOCKING=1` to synchronize immediately after launching GPU kernels.
 This will allow to pinpoint exact kernel that caused the exception.
+
+## Benchmarking
+
+Do not use benchmarktools.jl with AMDGPU as it creates copies, which gives inaccurate results. Instead use a custom allocation-avoiding benchmark function, e.g.:
+
+```julia
+    ...
+function mybelapsed2(f, A,B )
+   f(copy(A),copy(B))
+   t=0.0
+   k=0
+   Acpy=copy(A)
+   Bcpy=copy(B)
+   if(k<1e6 && t<1)
+       AMDGPU.synchronize()
+       t+= @elapsed (AMDGPU.@sync f(Acpy,Bcpy))
+       AMDGPU.synchronize()
+       Acpy.=A
+       Bcpy.=B
+       k+=1
+    end
+    return t/k
+end
+    ...
+```
