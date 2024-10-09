@@ -37,7 +37,6 @@ function rocsparse_get_pointer_mode(handle, pointer_mode)
 end
 
 function rocsparse_get_version(handle, version)
-    AMDGPU.prepare_state()
     @check ccall((:rocsparse_get_version, librocsparse), rocsparse_status,
                  (rocsparse_handle, Ptr{Cint}), handle, version)
 end
