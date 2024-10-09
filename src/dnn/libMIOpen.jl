@@ -26,7 +26,6 @@ const miopenAllocatorFunction = Ptr{Cvoid}
 const miopenDeallocatorFunction = Ptr{Cvoid}
 
 function miopenGetVersion(major, minor, patch)
-    AMDGPU.prepare_state()
     @check ccall((:miopenGetVersion, libMIOpen_path), miopenStatus_t, (Ptr{Csize_t}, Ptr{Csize_t}, Ptr{Csize_t}), major, minor, patch)
 end
 
