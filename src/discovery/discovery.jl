@@ -91,12 +91,13 @@ function __init__()
         global libhip = get_library(
             Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
 
-        # Detect HIP version, which will influence what device libraries to use.
-        hip_version = Base.thisminor(_hip_runtime_version())
         # Check if opaque pointers are enabled and turn off artifacts.
         llvm_args = get(ENV, "JULIA_LLVM_ARGS", "")
         enabled_opaque_pointers = occursin("-opaque-pointers", llvm_args)
-        from_artifact = hip_version > v"5.4" && !enabled_opaque_pointers
+        from_artifact = (
+            # Detect HIP version, which will influence what device libraries to use.
+            (isempty(libhip) || Base.thisminor(_hip_runtime_version()) > v"5.4")
+            && !enabled_opaque_pointers)
 
         # If ROCm 5.5+ - use artifact device libraries.
         global libdevice_libs = get_device_libs(from_artifact; rocm_path)
