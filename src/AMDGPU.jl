@@ -9,6 +9,7 @@ using LLVM, LLVM.Interop
 using Preferences
 using Printf
 
+import AcceleratedKernels as AK
 import UnsafeAtomics
 import UnsafeAtomicsLLVM
 import Atomix
