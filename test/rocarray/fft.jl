@@ -334,4 +334,19 @@ end
     end
 end
 
+@testset "Asynchronous" begin
+    X = rand(Float32, 10, 10)
+    d_X = ROCArray(X)
+
+    p = plan_rfft(X)
+    d_p = plan_rfft(d_X)
+
+    Y = p * X
+
+    task = Threads.@spawn d_p * d_X  # executes FFT on separate AMDGPU stream
+    d_Y = fetch(task)
+
+    @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+end
+
 end # testset FFT
