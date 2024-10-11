@@ -88,6 +88,7 @@ function update_stream!(plan::ROCFFTPlan)
     new_stream = AMDGPU.stream()
     if plan.stream != new_stream
         plan.stream = new_stream
+        info = plan.execution_info
         rocfft_execution_info_set_stream(info, new_stream)
     end
     return
