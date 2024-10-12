@@ -161,17 +161,18 @@ function __pretty_data(dev::HIPDevice)
     name_ptr = pointer([props.name...])
     name = unsafe_string(name_ptr)
     reshape(String[
-        "$(dev.device_id)", name, "$(dev.gcn_arch)",
-        "$(dev.wavefrontsize)", "$(Base.format_bytes(props.totalGlobalMem))",
+        "$(dev.device_id)", name, dev.gcn_arch, "$(dev.wavefrontsize)",
+        Base.format_bytes(props.totalGlobalMem),
+        Base.format_bytes(props.sharedMemPerBlock),
     ], 1, :)
 end
 
 function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, dev::HIPDevice)
     PrettyTables.pretty_table(io, __pretty_data(dev); header=[
-        "Id", "Name", "GCN arch", "Wavefront", "Memory"])
+        "Id", "Name", "GCN arch", "Wavefront", "Memory", "Shared Memory"])
 end
 
 function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, devs::Vector{HIPDevice})
     PrettyTables.pretty_table(io, vcat(__pretty_data.(devs)...); header=[
-        "Id", "Name", "GCN arch", "Wavefront", "Memory"])
+        "Id", "Name", "GCN arch", "Wavefront", "Memory", "Shared Memory"])
 end

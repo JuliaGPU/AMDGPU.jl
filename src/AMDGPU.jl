@@ -154,9 +154,8 @@ import .ROCKernels: ROCBackend
 export ROCBackend
 
 function __init__()
-    atexit() do
-        Runtime.RT_EXITING[] = true
-    end
+    # Used to shutdown hostcalls if any is running.
+    atexit(() -> begin Runtime.RT_EXITING[] = true end)
 
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])
@@ -167,27 +166,18 @@ function __init__()
         end
     end
 
-    # Quiet path first, in case this system doesn't have AMD GPUs
-    if Sys.islinux() && !ispath("/dev/kfd")
-        @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
-        return
-    end
-
-    # Verbose path, something is misconfigured
     if Sys.islinux()
+        if !ispath("/dev/kfd")
+            @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
+            return
+        end
+
         if !isempty(libhsaruntime)
-            # Initialize the HSA runtime.
-            status = HSA.init()
-            if status == HSA.STATUS_SUCCESS
-                # Register shutdown hook.
-                atexit(() -> HSA.shut_down())
-            else
+            HSA.init() == HSA.STATUS_SUCCESS ?
+                atexit(() -> HSA.shut_down()) :
                 @warn "HSA initialization failed with code $status"
-            end
         else
-            @warn """
-            HSA runtime is unavailable, compilation and runtime functionality will be disabled.
-            """
+            @warn "HSA runtime is unavailable, compilation and runtime functionality will be disabled."
             if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
                 print_build_diagnostics()
                 error("Failed to load HSA runtime, but HSA must load, bailing out")
@@ -195,50 +185,38 @@ function __init__()
         end
     end
 
-    # Check whether ld.lld was found
     if !functional(:lld)
-        @warn """
-        LLD is unavailable, compilation functionality will be disabled.
-        """
+        @warn "LLD is unavailable, compilation functionality will be disabled."
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to find ld.lld, but ld.lld must exist, bailing out")
         end
     end
 
-    # Check whether device intrinsics are available
     if !functional(:device_libs)
-        @warn """
-        Device libraries are unavailable, device intrinsics will be disabled.
-        """
+        @warn "Device libraries are unavailable, device intrinsics will be disabled."
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to find Device Libs, but Device Libs must exist, bailing out")
         end
     end
 
-    # Check whether HIP is available
     if functional(:hip)
         HIP.devices()
     else
-        @warn """
-        HIP library is unavailable, HIP integration will be disabled.
-        """
+        @warn "HIP library is unavailable, HIP integration will be disabled."
         if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to load HIP runtime, but HIP must load, bailing out")
         end
     end
 
-    # Check whether external libraries are available.
     hiplibs = (
         ("rocBLAS", :rocblas), ("rocSPARSE", :rocsparse),
         ("rocSOLVER", :rocsolver), ("rocALUTION", :rocalution),
         ("rocRAND", :rocrand), ("rocFFT", :rocfft), ("MIOpen", :MIOpen))
     for (name, symbol) in hiplibs
-        if !functional(symbol)
-            @warn "$name is unavailable, functionality will be disabled."
-        end
+        functional(symbol) || @warn "$name is unavailable, functionality will be disabled."
     end
 end
 
