@@ -84,10 +84,8 @@ end
 end
 
 include("codegen/codegen.jl")
-
 include("rocarray/base.jl")
 include("rocarray/broadcast.jl")
-
 include("tls.jl")
 
 end
