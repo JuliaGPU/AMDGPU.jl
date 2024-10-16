@@ -1,11 +1,4 @@
 """
-    devices()
-
-Get list of all devices.
-"""
-devices() = HIP.devices()
-
-"""
     device_id() -> Int
     device_id(device::HIPDevice) -> Int
 
@@ -22,17 +15,11 @@ Sets the current device to `AMDGPU.devices()[idx]`. See
 """
 device_id!(idx::Integer) = device!(devices()[idx])
 
-# Contexts
-
 function device(context::HIPContext)
     return HIP.context!(context) do
         HIP.device()
     end
 end
-
-# Streams.
-
-default_stream() = HIP.default_stream()
 
 device(stream::HIPStream) = stream.device
 device(idx::Integer) = devices()[idx]
@@ -90,12 +77,6 @@ macro sync(ex)
         ret
     end
 end
-
-"""
-Blocks until all kernels on all streams have completed.
-Uses currently active device.
-"""
-device_synchronize() = HIP.device_synchronize()
 
 """
     rocconvert(x)
@@ -184,11 +165,8 @@ macro roc(ex...)
     end)
 end
 
-function launch_configuration(
-    kern::Runtime.HIPKernel; shmem::Integer = 0, max_block_size::Integer = 0,
-)
+launch_configuration(kern::Runtime.HIPKernel; shmem::Integer = 0, max_block_size::Integer = 0) =
     HIP.launch_configuration(kern.fun; shmem, max_block_size)
-end
 
 """
     @elapsed ex

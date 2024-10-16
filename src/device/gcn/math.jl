@@ -22,8 +22,11 @@ for jltype in (Float64, Float32, Float16)
     type_suffix = fntypes[jltype]
 
     for (mod, intrinsic) in DEFINED_UNARY_INTRNISICS
-        # sin(Float16) is broken, we override it manually at the very bottom.
+        # sin(::Float16) is broken, we override it manually at the very bottom.
         jltype == Float16 && intrinsic == :sin && continue
+        # log(::Float16) is broken, we override it manually at the very bottom.
+        # https://github.com/ROCm/llvm-project/blob/592734c97a3ddcb7ca4009ac94550595a52450ce/amd/device-libs/ocml/src/logH.cl#L15
+        jltype == Float16 && intrinsic == :log && continue
 
         fname = "extern __ocml_$(intrinsic)_$(type_suffix)"
         if isnothing(mod)
@@ -132,4 +135,5 @@ end
 end
 
 # sin(Float16) is broken, so cast to Float32, see #177.
-@device_override Base.sin(x::Float16) = sin(Float32(x))
+@device_override Base.sin(x::Float16) = Float16(sin(Float32(x)))
+@device_override Base.log(x::Float16) = Float16(log(Float32(x)))

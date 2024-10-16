@@ -4,14 +4,11 @@
         γ::ROCArray{T}, β::ROCArray{T},
         μ::ROCArray{T}, ν::ROCArray{T}; iteration::Int, ϵ::Float64 = 1e-5,
     ) where T <: MIOPENFloat
-
 # Arguments:
-
 - `γ`: Scaling.
 - `β`: Bias.
 - `μ`: Running mean for inference.
 - `ν`: Running variance for inference.
-
 If `x` has `N` dims, then `N - 1` is considered as 'feature' dimension.
 Meaning, γ, β, μ, ν must have `size(x, N - 1)` shape.
 """
@@ -36,7 +33,7 @@ function batchnorm_training(
     miopenBatchNormalizationForwardTraining(
         handle, mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle, γ, β, factor,
-        μ, ν, ϵ, μ_saved, ν_saved) |> check
+        μ, ν, ϵ, μ_saved, ν_saved)
     y, μ_saved, ν_saved
 end
 
@@ -46,14 +43,11 @@ end
         γ::ROCArray{T}, β::ROCArray{T},
         μ::ROCArray{T}, ν::ROCArray{T}; ϵ::Float64 = 1e-5,
     ) where T <: MIOPENFloat
-
 # Arguments:
-
 - `γ`: Scaling.
 - `β`: Bias.
 - `μ`: Running mean for inference.
 - `ν`: Running variance for inference.
-
 If `x` has `N` dims, then `N - 1` is considered as 'feature' dimension.
 Meaning, γ, β, μ, ν must have `size(x, N - 1)` shape.
 """
@@ -73,7 +67,7 @@ function batchnorm_inference(
     miopenBatchNormalizationForwardInference(
         handle, mode, Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, ydesc.handle, y, bndesc.handle,
-        γ, β, μ, ν, ϵ) |> check
+        γ, β, μ, ν, ϵ)
     y
 end
 
@@ -95,7 +89,7 @@ function ∇batchnorm(
         Ref{Float32}(1f0), Ref{Float32}(0f0),
         Ref{Float32}(1f0), Ref{Float32}(0f0),
         xdesc.handle, x, dydesc.handle, dy, dxdesc.handle, dx,
-        bndesc.handle, γ, dγ, dβ, ϵ, μ_saved, ν_saved) |> check
+        bndesc.handle, γ, dγ, dβ, ϵ, μ_saved, ν_saved)
     dx, dγ, dβ
 end
 
@@ -103,17 +97,16 @@ function derive_beta_gamma_descriptors(
     xdesc::TensorDescriptor, mode::miopenBatchNormMode_t,
 )
     handle_ref = Ref{miopenTensorDescriptor_t}()
-    miopenCreateTensorDescriptor(handle_ref) |> check
+    miopenCreateTensorDescriptor(handle_ref)
     handle = handle_ref[]
 
-    miopenDeriveBNTensorDescriptor(handle, xdesc.handle, mode) |> check
+    miopenDeriveBNTensorDescriptor(handle, xdesc.handle, mode)
     dtype, dims, stride = unpack(handle, ndims(handle))
 
     bndesc = TensorDescriptor(handle, dtype)
-    finalizer(bndesc) do d_
-        miopenDestroyTensorDescriptor(d_.handle) |> check
+    return finalizer(bndesc) do d
+        miopenDestroyTensorDescriptor(d.handle)
     end
-    bndesc
 end
 
 # Unsqueeze dimensions at the beginning:

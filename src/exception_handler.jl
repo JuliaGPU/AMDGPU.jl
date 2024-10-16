@@ -71,13 +71,13 @@ end
 
 function has_exception(dev::HIPDevice)::Bool
     ex = exception_holder(dev)
-    ptr = Base.unsafe_convert(Ptr{Int}, ex.exception_flag)
+    ptr = convert(Ptr{Int}, ex.exception_flag)
     unsafe_load(ptr) != 0
 end
 
 function reset_exception_holder!(dev::HIPDevice)
     ex = exception_holder(dev)
-    ptr = Base.unsafe_convert(Ptr{Int}, ex.exception_flag)
+    ptr = convert(Ptr{Int}, ex.exception_flag)
     unsafe_store!(ptr, 0)
 
     fill!(ex.buffers_counter, 0)

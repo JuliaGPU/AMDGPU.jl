@@ -120,7 +120,7 @@ function _activation(
     (; handle, stream) = lib_state()
     miopenActivationForward(
         handle, desc.handle, Ref{Float32}(1f0), xdesc.handle, x,
-        Ref{Float32}(0f0), ydesc.handle, y) |> check
+        Ref{Float32}(0f0), ydesc.handle, y)
     y
 end
 
@@ -133,6 +133,6 @@ function _∇activation(
     miopenActivationBackward(
         handle, desc, Ref{Float32}(1f0), ydesc.handle, y,
         dydesc.handle, dy, xdesc.handle, x, Ref{Float32}(0f0),
-        dxdesc.handle, dx) |> check
+        dxdesc.handle, dx)
     dx
 end

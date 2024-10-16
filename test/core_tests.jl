@@ -1,7 +1,9 @@
 @testitem "core" setup=[TSCore] begin
 
-using AMDGPU: HIP, Runtime, Device, Mem
 import AMDGPU: @allowscalar
+
+using AMDGPU: HIP, Runtime, Device, Mem
+using KernelAbstractions: @atomic
 
 AMDGPU.allowscalar(false)
 
@@ -36,8 +38,10 @@ end
         for (idx, device) in enumerate(devices)
             @test AMDGPU.device_id(device) == idx
 
-            device_name = HIP.name(device)
-            @test length(device_name) > 0
+            if HIP.runtime_version() > v"6"
+                device_name = HIP.name(device)
+                @test length(device_name) > 0
+            end
 
             @test occursin("gfx", HIP.gcn_arch(device))
             @test HIP.wavefrontsize(device) in (32, 64)
@@ -79,15 +83,11 @@ end
     @test d == deepcopy(d)
 end
 
-include("codegen/synchronization.jl")
-include("codegen/trap.jl")
+include("codegen/codegen.jl")
 
 include("rocarray/base.jl")
 include("rocarray/broadcast.jl")
 
-const IS_NAVI3 = AMDGPU.device().gcn_arch in ("gfx1100", "gfx1101", "gfx1102", "gfx1103")
-if !IS_NAVI3
-    include("tls.jl") # TODO hangs on Navi 3
-end
+include("tls.jl")
 
 end

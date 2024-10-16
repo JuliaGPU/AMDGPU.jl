@@ -31,13 +31,8 @@ p = 5
 
         dI = ROCMatrix{elty}(I, size(dF.Q))
         @test det(dF.Q) ≈ det(collect(dF.Q * ROCMatrix{elty}(I, size(dF.Q)))) atol=tol * norm(A)
-        if VERSION ≥ v"1.10-"
-            @test collect((dF.Q' * dI) * dF.Q) ≈ collect(dI)
-            @test collect(dF.Q * (dI * dF.Q')) ≈ collect(dI)
-        else
-            @test collect(dF.Q * dI) ≈ collect(dF.Q)
-            @test collect(dI * dF.Q) ≈ collect(dF.Q)
-        end
+        @test collect((dF.Q' * dI) * dF.Q) ≈ collect(dI)
+        @test collect(dF.Q * (dI * dF.Q')) ≈ collect(dI)
 
         dI = ROCMatrix{elty}(I, size(dF.R))
         @test collect(dF.R * dI) ≈ collect(dF.R)
@@ -123,7 +118,7 @@ end
 end
 
 @testset "ldiv!" begin
-    @testset "elty = $elty" for elty in [Float32,]# Float64, ComplexF32, ComplexF64]
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A, x, y = rand(elty, m, m), rand(elty, m), rand(elty, m)
         dA, dx, dy = ROCArray.((A, x, y))
 
@@ -144,6 +139,33 @@ end
         dA, τ = rocSOLVER.geqrf!(dA)
         rocSOLVER.orgqr!(dA, τ)
         @test dA' * dA ≈ I
+    end
+end
+
+@testset "ormqr!" begin
+    @testset "elty = $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+        @testset "side = $side" for side in ('L', 'R')
+            @testset "trans = $trans" for (trans, op) in (
+                ('N', identity), ('T', transpose), ('C', adjoint),
+            )
+                elty <: Real && trans == 'C' && continue
+                elty <: Complex && trans == 'T' && continue
+
+                dA = ROCArray(rand(elty, m, n))
+                dA, dτ = rocSOLVER.geqrf!(dA)
+
+                dI = ROCArray(Matrix{elty}(I, m, m))
+                dH = rocSOLVER.ormqr!(side, 'N', dA, dτ, dI)
+                @test dH' * dH ≈ I
+
+                C = side == 'L' ? rand(elty, m, n) : rand(elty, n, m)
+                dC = ROCArray(C)
+                dD = side == 'L' ? op(dH) * dC : dC * op(dH)
+
+                rocSOLVER.ormqr!(side, trans, dA, dτ, dC)
+                @test dC ≈ dD
+            end
+        end
     end
 end
 

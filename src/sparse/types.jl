@@ -85,7 +85,6 @@ end
 ## SparseChar conversions
 
 function Base.convert(::Type{rocsparse_operation}, trans::SparseChar)
-    @show trans
     if trans == 'N'
         rocsparse_operation_none
     elseif trans == 'T'

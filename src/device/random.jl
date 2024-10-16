@@ -63,25 +63,16 @@ struct Philox2x32{R} <: RandomNumbers.AbstractRNG{UInt64}
     @inline function Philox2x32{R}() where R
         rng = new{R}()
         if rng.key == 0
-            # initialize the key. this happens when first accessing the (0-initialized)
-            # shared memory key from each block. if we ever want to make the device seed
-            # controlable from the host, this would be the place to read a global seed.
-            #
-            # note however that it is undefined how shared memory persists across e.g.
-            # launches, so we may not be able to rely on the zero initalization then.
-            rng.key = Random.make_seed()
+            # initialize the key. this happens when first accessing
+            # the (0-initialized) shared memory key from each block.
+            @static if VERSION >= v"1.11-"
+                Random.seed!(rng, nothing)
+            else
+                rng.key = Random.make_seed()
+            end
         end
         return rng
     end
-end
-
-if VERSION >= v"1.11-"
-    # `Random.seed!(::AbstractRNG)` now passes a `nothing` seed value
-    Random.seed!(rng::Philox2x32, seed::Nothing) =
-        Random.seed!(rng, Base.unsafe_trunc(UInt32, readcyclecounter()))
-else
-    # ... where it used to call `Random_make_seed()`
-    @device_override Random.make_seed() = Base.unsafe_trunc(UInt32, readcyclecounter())
 end
 
 # default to 7 rounds; enough to pass SmallCrush
@@ -135,6 +126,7 @@ function Random.seed!(rng::Philox2x32, seed::Integer, counter::Integer=0)
     rng.ctr1 = counter
     return
 end
+
 # seeding the implicit default RNG
 if VERSION >= v"1.11-"
     @device_override Random.seed!(seed) =
@@ -142,6 +134,15 @@ if VERSION >= v"1.11-"
 else
     @device_override Random.seed!(::Random._GLOBAL_RNG, seed) =
         Random.seed!(Random.default_rng(), seed)
+end
+
+if VERSION >= v"1.11-"
+    # `Random.seed!(::AbstractRNG)` now passes a `nothing` seed value
+    Random.seed!(rng::Philox2x32, seed::Nothing) =
+        Random.seed!(rng, Base.unsafe_trunc(UInt32, readcyclecounter()))
+else
+    # ... where it used to call `Random_make_seed()`
+    @device_override Random.make_seed() = Base.unsafe_trunc(UInt32, readcyclecounter())
 end
 
 """

@@ -58,8 +58,9 @@ function Base.convert(
     ::Type{ROCDeviceArray{T, N, AS.Global}}, a::ROCArray{T, N},
 ) where {T, N}
     # If HostBuffer, use device pointer.
-    ptr = Base.unsafe_convert(Ptr{T},
-        typeof(a.buf[]) <: Mem.HIPBuffer ? a.buf[] : a.buf[].dev_ptr)
+    buf = convert(Mem.AbstractAMDBuffer, a.buf[])
+    ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ?
+        buf : buf.dev_ptr)
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset * sizeof(T))
     ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
 end

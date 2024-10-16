@@ -1,4 +1,5 @@
 using Clang.Generators
+using JuliaFormatter
 
 include_dir = normpath("/opt/rocm/include")
 rocfft_dir  = joinpath(include_dir, "rocfft")
@@ -15,3 +16,6 @@ headers = [
 
 ctx = create_context(headers, args, options)
 build!(ctx)
+
+path = options["general"]["output_file_path"]
+format_file(path, YASStyle())

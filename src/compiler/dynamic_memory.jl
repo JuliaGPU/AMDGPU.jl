@@ -13,8 +13,7 @@ function create_malloc_hostcall!()
         # Create host pinned memory and store HostCall in it.
         # It will be then accessed by kernels from kernel state.
         buf = Mem.HostBuffer(sizeof(holder.hc), HIP.hipHostAllocDefault)
-        ptr = Base.unsafe_convert(
-            Ptr{Device.HostCall{Ptr{Cvoid}, Tuple{Csize_t}}}, buf)
+        ptr = convert(Ptr{Device.HostCall{Ptr{Cvoid}, Tuple{Csize_t}}}, buf)
         Base.unsafe_store!(ptr, holder.hc)
         return holder, buf
     end
@@ -34,8 +33,7 @@ function create_free_hostcall!()
         end
 
         buf = Mem.HostBuffer(sizeof(holder.hc), HIP.hipHostAllocDefault)
-        ptr = Base.unsafe_convert(
-            Ptr{Device.HostCall{Nothing, Tuple{Ptr{Cvoid}}}}, buf)
+        ptr = convert(Ptr{Device.HostCall{Nothing, Tuple{Ptr{Cvoid}}}}, buf)
         Base.unsafe_store!(ptr, holder.hc)
         return holder, buf
     end

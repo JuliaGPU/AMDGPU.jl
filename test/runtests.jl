@@ -93,7 +93,7 @@ const TARGET_TESTS = isempty(ARGS) ? TEST_NAMES : ARGS
 # Run tests in parallel.
 np = set_jobs ? jobs : (Sys.CPU_THREADS ÷ 2)
 # Limit to 2 workers, otherwise unfortunate things happen.
-np = clamp(np, 1, 2)
+np = clamp(np, 1, 4)
 np = min(np, length(TARGET_TESTS))
 
 InteractiveUtils.versioninfo()
@@ -105,11 +105,6 @@ PrettyTables.pretty_table(data; header=[
     "Workers", "Device", "Tests"], crop=:none)
 
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
-    # TODO broken tests or hang CI
-    ti.name == "hip - rocFFT" && return false
-    ti.name == "hip - rocSPARSE" && return false
-    ti.name == "hip - rocSOLVER" && return false
-
     for tt in TARGET_TESTS
         startswith(ti.name, tt) && return true
     end

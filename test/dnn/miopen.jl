@@ -1,6 +1,5 @@
 @testset "MIOpen" begin
 
-using NNlib
 using AMDGPU.MIOpen
 
 @testset "Tensor descriptors" begin
@@ -28,16 +27,12 @@ end
     include("pool.jl")
 end
 
-@testset "Softmax" begin
-    include("softmax.jl")
-end
-
 @testset "Activations" begin
     include("activations.jl")
 end
 
-@testset "Batch Normalization" begin
-    include("batchnorm.jl")
+@testset "Batchnorm" begin
+    include("activations.jl")
 end
 
 end

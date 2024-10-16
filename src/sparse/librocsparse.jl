@@ -37,7 +37,6 @@ function rocsparse_get_pointer_mode(handle, pointer_mode)
 end
 
 function rocsparse_get_version(handle, version)
-    AMDGPU.prepare_state()
     @check ccall((:rocsparse_get_version, librocsparse), rocsparse_status,
                  (rocsparse_handle, Ptr{Cint}), handle, version)
 end
@@ -5257,25 +5256,3 @@ function rocsparse_zcsrcolor(handle, m, nnz, descr, csr_val, csr_row_ptr, csr_co
                   rocsparse_mat_info), handle, m, nnz, descr, csr_val, csr_row_ptr,
                  csr_col_ind, fraction_to_color, ncolors, coloring, reordering, info)
 end
-
-# Skipping MacroDefinition: ROCSPARSE_EXPORT __attribute__ ( ( visibility ( "default" ) ) )
-
-# Skipping MacroDefinition: ROCSPARSE_NO_EXPORT __attribute__ ( ( visibility ( "hidden" ) ) )
-
-# Skipping MacroDefinition: ROCSPARSE_DEPRECATED __attribute__ ( ( __deprecated__ ) )
-
-# const ROCSPARSE_DEPRECATED_EXPORT = ROCSPARSE_EXPORT(ROCSPARSE_DEPRECATED)
-
-# const ROCSPARSE_DEPRECATED_NO_EXPORT = ROCSPARSE_NO_EXPORT(ROCSPARSE_DEPRECATED)
-
-# const ROCSPARSE_KERNEL = __global__
-#
-# const ROCSPARSE_DEVICE_ILF = __device__
-
-# const ROCSPARSE_VERSION_MAJOR = 2
-#
-# const ROCSPARSE_VERSION_MINOR = 2
-#
-# const ROCSPARSE_VERSION_PATCH = 0
-#
-# const ROCSPARSE_VERSION_TWEAK = 22d75cb

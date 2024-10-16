@@ -4,10 +4,19 @@
     B = AMDGPU.Runtime.Mem.HIPBuffer
     x = ROCArray{Float32, 2, B}(undef, 16, 12)
     @test size(x) == (16, 12)
-    @test x.buf[] isa B
+    @test x.buf[].mem isa B
     x = ROCArray{Float32, 2, B}(undef, (16, 12))
     @test size(x) == (16, 12)
-    @test x.buf[] isa B
+    @test x.buf[].mem isa B
+end
+
+@testset "Constructor" begin
+    x = ROCArray([1.0])
+    y = ROCArray(x)
+    # Constructor doesn't just return its argument.
+    @test y !== x
+    # But is still equal.
+    @test y == x
 end
 
 @testset "ones/zeros" begin
@@ -77,7 +86,7 @@ end
         @test AMDGPU.device(RA) == AMDGPU.device()
         @test RA isa ROCArray{Float64, 2}
         # pointer gives device mapped pointer, not host.
-        @test pointer(RA) == RA.buf[].dev_ptr
+        @test pointer(RA) == RA.buf[].mem.dev_ptr
 
         # ROCArray -> Array copy.
         B = zeros(4, 4)

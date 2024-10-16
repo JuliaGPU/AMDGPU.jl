@@ -1,4 +1,4 @@
-@testset "Test with different number of dimensions" begin
+@testset "Different input dimensions" begin
     for sz in ((3, 2), (4, 3, 2), (5, 4, 3, 2))
         x = AMDGPU.ones(Float32, sz)
         γ = AMDGPU.ones(Float32, sz[end - 1])

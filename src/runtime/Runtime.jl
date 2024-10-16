@@ -24,7 +24,7 @@ module Mem
     using Preferences
 
     import AMDGPU
-    import AMDGPU: HIP, HSA, Runtime
+    import AMDGPU: HIP, Runtime
     import .HIP: HIPDevice, HIPContext
     import .Runtime: ROCDim, ROCDim3
 

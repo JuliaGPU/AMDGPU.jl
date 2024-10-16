@@ -77,16 +77,14 @@ end
 end
 
 # LinearAlgebra
-@static if VERSION >= v"1.8-"
-    @device_override function Base.setindex!(
-        D::LinearAlgebra.Diagonal, v, i::Int, j::Int,
-    )
-        @boundscheck checkbounds(D, i, j)
-        if i == j
-            @inbounds D.diag[i] = v
-        elseif !iszero(v)
-            @print_and_throw("Cannot set off-diagonal entry to a nonzero value.\n")
-        end
-        return v
+@device_override function Base.setindex!(
+    D::LinearAlgebra.Diagonal, v, i::Int, j::Int,
+)
+    @boundscheck checkbounds(D, i, j)
+    if i == j
+        @inbounds D.diag[i] = v
+    elseif !iszero(v)
+        @print_and_throw("Cannot set off-diagonal entry to a nonzero value.\n")
     end
+    return v
 end

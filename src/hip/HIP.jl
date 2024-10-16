@@ -1,11 +1,15 @@
 module HIP
+export HIPError
+export devices, device_synchronize, default_stream
 
 using CEnum
+
 import Preferences
 import PrettyTables
 
 import ..AMDGPU
 import ..AMDGPU.libhip
+import .AMDGPU: @check, check
 
 include("call.jl")
 include("libhip_common.jl")
@@ -15,7 +19,7 @@ include("device.jl")
 
 function runtime_version()
     v_ref = Ref{Cint}()
-    hipRuntimeGetVersion(v_ref) |> check
+    hipRuntimeGetVersion(v_ref)
     v = v_ref[]
     major = v ÷ 10_000_000
     minor = (v ÷ 100_000) % 100
@@ -34,7 +38,7 @@ function HIPContext(device::HIPDevice)
     lock(CONTEXTS) do contexts
         get!(contexts, device) do
             context_ref = Ref{hipContext_t}()
-            hipCtxCreate(context_ref, Cuint(0), device.device) |> check
+            hipCtxCreate(context_ref, Cuint(0), device.device)
             context = HIPContext(context_ref[], true)
             device!(device)
             return context
@@ -54,10 +58,10 @@ function Base.show(io::IO, context::HIPContext)
 end
 
 context!(context::HIPContext) = context!(context.context)
-context!(context::hipContext_t) = hipCtxSetCurrent(context) |> check
+context!(context::hipContext_t) = hipCtxSetCurrent(context)
 function context!(f::Base.Callable, context::HIPContext)
     old_context_ref = Ref{hipContext_t}()
-    hipCtxGetCurrent(old_context_ref) |> check
+    hipCtxGetCurrent(old_context_ref)
     context!(context)
     try
         f()
@@ -71,8 +75,15 @@ include("event.jl")
 include("pool.jl")
 include("module.jl")
 
+"""
+Blocks until all kernels on all streams have completed.
+Uses currently active device.
+"""
 function device_synchronize()
-    hipDeviceSynchronize() |> check
+    AMDGPU.maybe_collect(; blocking=true)
+    hipDeviceSynchronize()
+    AMDGPU.synchronize() # To trigger any Julia-kernel exception.
+    return
 end
 
 function reclaim(bytes_to_keep::Integer = 0)
@@ -82,7 +93,7 @@ end
 
 function memcpy(dst, src, sz, kind, stream::HIPStream)
     sz == 0 && return
-    HIP.hipMemcpyWithStream(dst, src, sz, kind, stream) |> HIP.check
+    HIP.hipMemcpyWithStream(dst, src, sz, kind, stream)
     return
 end
 

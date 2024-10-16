@@ -58,12 +58,18 @@ get_workspace_size_func(::Type{miopenConvBwdWeightsAlgorithm_t}) = miopenConvolu
 get_workspace_size_func(::Type{miopenConvBwdDataAlgorithm_t}) = miopenConvolutionBackwardDataGetWorkSpaceSize
 
 function get_workspace_size(
-    conv_type::C; handle, a_desc, b_desc, conv_desc, c_desc,
+    conv_type::C; handle,
+    # fwd:         x, w,  y ->  w, x,  y
+    # bwd weight: dy, x, dw -> dy, x, dw
+    # bwd data:   dy, w, dx -> dy, w, dx
+    a_desc, b_desc, conv_desc::ConvolutionDescriptor, c_desc,
 ) where C <: CONV_ALGOS
+    args = conv_type == miopenConvFwdAlgorithm_t ?
+        # NOTE swap first two args for fwd
+        (b_desc.handle, a_desc.handle, conv_desc.handle, c_desc.handle) :
+        (a_desc.handle, b_desc.handle, conv_desc.handle, c_desc.handle)
     wsize_ref = Ref{Csize_t}(0)
-    get_workspace_size_func(conv_type)(
-        handle, a_desc.handle, b_desc.handle,
-        conv_desc.handle, c_desc.handle, wsize_ref) |> check
+    get_workspace_size_func(conv_type)(handle, args..., wsize_ref) # NOTE: do not check
     wsize_ref[]
 end
 
@@ -82,7 +88,7 @@ function find_conv_algo(
         handle, a_desc.handle, a, b_desc.handle, b,
         conv_desc.handle, c_desc.handle, c, n_algos,
         perf_count_ref, perf_results_ref,
-        workspace, length(workspace), exhaustive_search) |> check
+        workspace, length(workspace), exhaustive_search)
     perf_results_ref[]
 end
 
@@ -93,9 +99,12 @@ function find_algorithm(
     cache = get_benchmark_cache(conv_type, conv_args)
     isnothing(cache) || return cache
 
-    workspace = ROCArray{UInt8}(undef, 0)
+    wsize = get_workspace_size(conv_type; handle, a_desc, b_desc, conv_desc, c_desc)
+    workspace = ROCArray{UInt8}(undef, wsize)
     perf_results = find_conv_algo(conv_type;
         handle, workspace, a, a_desc, b, b_desc, conv_desc, c, c_desc)
+    AMDGPU.unsafe_free!(workspace)
+
     set_benchmark_cache!(conv_type, conv_args, perf_results)
     workspace = ROCArray{UInt8}(undef, perf_results.memory)
 
@@ -125,7 +134,7 @@ function convolution!(
     miopenConvolutionForward(
         handle, Ref{Float32}(1f0), xdesc.handle, x, wdesc.handle, w, cdesc.handle,
         perf_results.fwd_algo, Ref{Float32}(0f0), ydesc.handle, y,
-        workspace, perf_results.memory) |> check
+        workspace, perf_results.memory)
     AMDGPU.unsafe_free!(workspace)
     y
 end
@@ -168,7 +177,7 @@ function ∇convolution_weight!(
     miopenConvolutionBackwardWeights(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, xdesc.handle, x, cdesc.handle,
         perf_algo.bwd_weights_algo, Ref{Float32}(0f0), ∇wdesc.handle, ∇w,
-        workspace, perf_algo.memory) |> check
+        workspace, perf_algo.memory)
     AMDGPU.unsafe_free!(workspace)
     ∇w
 end
@@ -211,7 +220,7 @@ function ∇convolution_data!(
     miopenConvolutionBackwardData(
         handle, Ref{Float32}(1f0), dydesc.handle, dy, wdesc.handle, w, cdesc.handle,
         perf_algo.bwd_data_algo, Ref{Float32}(0f0), ∇xdesc.handle, ∇x,
-        workspace, perf_algo.memory) |> check
+        workspace, perf_algo.memory)
     AMDGPU.unsafe_free!(workspace)
     ∇x
 end

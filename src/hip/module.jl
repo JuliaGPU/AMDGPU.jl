@@ -6,13 +6,9 @@ mutable struct HIPModule
 
         # TODO use alloc_retry?
         mod_ref = Ref{hipModule_t}()
-        hipModuleLoadData(mod_ref, data) |> check
+        hipModuleLoadData(mod_ref, data)
         mod = new(mod_ref[])
-
-        finalizer(mod) do mod
-            hipModuleUnload(mod) |> check
-        end
-        mod
+        return finalizer(hipModuleUnload, mod)
     end
 end
 
@@ -29,7 +25,7 @@ struct HIPFunction
         mod::HIPModule, name::String, global_hostcalls::Vector{Symbol},
     )
         fun_ref = Ref{hipFunction_t}()
-        hipModuleGetFunction(fun_ref, mod, name) |> check
+        hipModuleGetFunction(fun_ref, mod, name)
         new(fun_ref[], mod, global_hostcalls)
     end
 end
@@ -41,6 +37,6 @@ function launch_configuration(
 )
     grid_size_ref, block_size_ref = Ref{Cint}(), Ref{Cint}()
     hipModuleOccupancyMaxPotentialBlockSize(
-        grid_size_ref, block_size_ref, fun, shmem, max_block_size) |> check
+        grid_size_ref, block_size_ref, fun, shmem, max_block_size)
     return (; gridsize=grid_size_ref[], groupsize=block_size_ref[])
 end

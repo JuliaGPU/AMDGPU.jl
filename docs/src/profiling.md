@@ -66,3 +66,8 @@ wall duration is lower.
 |Zoomed out|Zoomed in|
 |:---:|:---:|
 |![image](./assets/profiling-2.png)|![image](./assets/profiling-3.png)|
+
+## Debugging
+
+Use `HIP_LAUNCH_BLOCKING=1` to synchronize immediately after launching GPU kernels.
+This will allow to pinpoint exact kernel that caused the exception.

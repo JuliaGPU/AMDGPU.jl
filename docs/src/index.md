@@ -69,18 +69,6 @@ Standard path:
 If you have non-standard path for ROCm, set `ROCM_PATH=<path>`
 environment variable before launching Julia.
 
-## ROCm artifacts
-
-There is limited support for ROCm 5.4+ artifacts which can be enabled with
-[`AMDGPU.use_artifacts!`](@ref).
-
-Limited means not all libraries are available and some of the functionality
-may be disabled.
-
-```@docs
-AMDGPU.use_artifacts!
-```
-
 ## Extra Setup Details
 
 List of additional steps that may be needed to take to ensure everything is working:
@@ -136,9 +124,9 @@ Template of `LocalPreferences.toml` with all options:
 
 ```toml
 [AMDGPU]
-# If `true` then use ROCm libraries provided by artifacts.
-# However, not all ROCm libraries are available as artifacts.
-use_artifacts = false
+# If `true` (default), eagerly run GC to keep the pool from growing too big.
+# GC is triggered during new allocatoins or synchronization points.
+eager_gc = false
 # Use non-blocking synchronization for all `AMDGPU.synchronize()` calls.
 nonblocking_synchronization = true
 # Memory limit specifies maximum amount of memory in percentages

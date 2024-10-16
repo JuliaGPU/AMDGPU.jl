@@ -23,7 +23,7 @@ for (fname, elty) in (
             DY::ROCArray{$elty}, incy::Integer,
         )
             (; handle, stream) = lib_state()
-            $(fname)(handle, n, DX, incx, DY, incy) |> check
+            $(fname)(handle, n, DX, incx, DY, incy)
             DY
         end
     end
@@ -39,7 +39,7 @@ for (fname, elty) in (
     @eval begin
         function scal!(n::Integer, DA::$elty, DX::ROCArray{$elty}, incx::Integer)
             (; handle, stream) = lib_state()
-            $(fname)(handle, n, Ref(DA), DX, incx) |> check
+            $(fname)(handle, n, Ref(DA), DX, incx)
             DX
         end
     end
@@ -50,7 +50,7 @@ for (fname, elty, celty) in ((:rocblas_sscal, :Float32, :ComplexF32),
     @eval begin
         function scal!(n::Integer, DA::$elty, DX::ROCArray{$celty}, incx::Integer)
             (; handle, stream) = lib_state()
-            $(fname)(handle, 2*n, Ref(DA), DX, incx) |> check
+            $(fname)(handle, 2*n, Ref(DA), DX, incx)
             DX
         end
     end
@@ -69,7 +69,7 @@ for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
             DY::ROCArray{$elty}, incy::Integer,
         )
             result = Ref{$elty}()
-            $(fname)(handle(), n, DX, incx, DY, incy, result) |> check
+            $(fname)(handle(), n, DX, incx, DY, incy, result)
             return result[]
         end
     end
@@ -83,7 +83,7 @@ for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
     @eval begin
         function nrm2(n::Integer, X::ROCArray{$elty}, incx::Integer)
             result = Ref{$ret_type}()
-            $(fname)(handle(), n, X, incx, result) |> check
+            $(fname)(handle(), n, X, incx, result)
             return result[]
         end
     end
@@ -99,7 +99,7 @@ for (fname, elty, ret_type) in ((:rocblas_dasum,:Float64,:Float64),
     @eval begin
         function asum(n::Integer, X::ROCArray{$elty}, incx::Integer)
             result = Ref{$ret_type}()
-            $(fname)(handle(), n, X, incx, result) |> check
+            $(fname)(handle(), n, X, incx, result)
             return result[]
         end
     end
@@ -117,7 +117,7 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
             dy::ROCArray{$elty}, incy::Integer,
         )
             (; handle, stream) = lib_state()
-            $(fname)(handle, n, Ref(alpha), dx, incx, dy, incy) |> check
+            $(fname)(handle, n, Ref(alpha), dx, incx, dy, incy)
             dy
         end
     end
@@ -175,7 +175,7 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
             lda = max(1,stride(A,2))
             incx, incy = stride(X,1), stride(Y,1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, trans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy) |> check
+            $(fname)(handle, trans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy)
             Y
         end
         function gemv(trans::Char, alpha::($elty), A::ROCMatrix{$elty}, X::ROCVector{$elty})
@@ -204,7 +204,7 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
             lda = max(1, stride(A, 2))
             incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, trans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            $(fname)(handle, trans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function gbmv(
@@ -242,7 +242,7 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
             lda = max(1, stride(A, 2))
             incx, incy = stride(x, 1), stride(y,1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            $(fname)(handle, uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function symv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty}, x::ROCVector{$elty})
@@ -270,7 +270,7 @@ for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
             lda = max(1, stride(A, 2))
             incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            $(fname)(handle, uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function hemv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty},
@@ -302,7 +302,7 @@ for (fname, elty) in ((:rocblas_dsbmv,:Float64),
             lda = max(1, stride(A, 2))
             incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            $(fname)(handle, uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function sbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -332,7 +332,7 @@ for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
             lda = max(1,stride(A, 2))
             incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy) |> check
+            $(fname)(handle, uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function hbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -364,7 +364,7 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, diag, n, k, A, lda, x, incx) |> check
+            $(fname)(handle, uplo, trans, diag, n, k, A, lda, x, incx)
             x
         end
         function tbmv(
@@ -393,7 +393,7 @@ for (fname, elty) in ((:rocblas_stbsv,:Float32),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, diag, n, k, A, lda, x, incx) |> check
+            $(fname)(handle, uplo, trans, diag, n, k, A, lda, x, incx)
             x
         end
         function tbsv(
@@ -422,7 +422,7 @@ for (fname, elty) in ((:rocblas_dtrmv,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, diag, n, A, lda, x, incx) |> check
+            $(fname)(handle, uplo, trans, diag, n, A, lda, x, incx)
             x
         end
         function trmv(uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
@@ -446,7 +446,7 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, diag, n, A, lda, x, incx) |> check
+            $(fname)(handle, uplo, trans, diag, n, A, lda, x, incx)
             x
         end
         function trsv(uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
@@ -469,7 +469,7 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
             incy = stride(y,1)
             lda = max(1,stride(A,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, m, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
+            $(fname)(handle, m, n, Ref(alpha), x, incx, y, incy, A, lda)
             A
         end
     end
@@ -489,7 +489,7 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
             incx = stride(x,1)
             lda = max(1,stride(A,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), x, incx, A, lda) |> check
+            $(fname)(handle, uplo, n, Ref(alpha), x, incx, A, lda)
             A
         end
     end
@@ -506,7 +506,7 @@ for (fname, elty) in ((:rocblas_zher,:ComplexF64),
             incx = stride(x,1)
             lda = max(1,stride(A,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), x, incx, A, lda) |> check
+            $(fname)(handle, uplo, n, Ref(alpha), x, incx, A, lda)
             A
         end
     end
@@ -528,7 +528,7 @@ for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
             incy = stride(y,1)
             lda = max(1,stride(A,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), x, incx, y, incy, A, lda) |> check
+            $(fname)(handle, uplo, n, Ref(alpha), x, incx, y, incy, A, lda)
             A
         end
     end
@@ -536,17 +536,18 @@ end
 
 # Level 3
 ## (GE) general matrix-matrix multiplication
-for (fname, elty) in
-        ((:rocblas_dgemm,:Float64),
-         (:rocblas_sgemm,:Float32),
-         (:rocblas_hgemm,:Float16),
-         (:rocblas_zgemm,:ComplexF64),
-         (:rocblas_cgemm,:ComplexF32))
+for (fname, elty) in (
+    (:rocblas_dgemm,:Float64),
+    (:rocblas_sgemm,:Float32),
+    (:rocblas_hgemm,:Float16),
+    (:rocblas_zgemm,:ComplexF64),
+    (:rocblas_cgemm,:ComplexF32),
+)
     @eval begin
         function gemm!(
             transA::Char, transB::Char, alpha::($elty),
-            A::ROCVecOrMat{$elty}, B::ROCVecOrMat{$elty}, beta::($elty),
-            C::ROCVecOrMat{$elty},
+            A::StridedROCVecOrMat{$elty}, B::StridedROCVecOrMat{$elty}, beta::($elty),
+            C::StridedROCVecOrMat{$elty},
         )
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)
@@ -560,7 +561,7 @@ for (fname, elty) in
             ldc = max(1, stride(C, 2))
             (; handle, stream) = lib_state()
             $(fname)(handle, transA, transB,
-                     m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+                     m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
             C
         end
         function gemm(
@@ -580,18 +581,19 @@ end
 # helper function to get a device array of device pointers
 function device_batch(batch::Array{T}) where T <: ROCArray
     E = eltype(T)
-    ROCArray([Base.unsafe_convert(Ptr{E}, arr.buf[]) for arr in batch])
+    ROCArray([convert(Ptr{E}, arr.buf[]) for arr in batch])
 end
 
 function device_batch(x::AnyROCArray{T, 3}) where T
     shift = size(x, 1) * size(x, 2) * sizeof(T)
+    buf = convert(AMDGPU.Mem.AbstractAMDBuffer, x.buf[])
     ROCArray([
-        Base.unsafe_convert(Ptr{T}, AMDGPU.Mem.view(x.buf[], shift * (i - 1)))
+        convert(Ptr{T}, AMDGPU.Mem.view(buf, shift * (i - 1)))
         for i in 1:size(x, 3)])
 end
 
 function device_batch(x::AnyROCArray{T, 3}, batch_count::Int) where T
-    ptr = Base.unsafe_convert(Ptr{T}, x.buf[])
+    ptr = convert(Ptr{T}, x.buf[])
     ROCArray([ptr for i in 1:batch_count])
 end
 
@@ -681,7 +683,7 @@ for (fname, elty) in
             $(fname)(
                 handle, transA, transB,
                 m, n, k, Ref(alpha), Ab, lda, Bb, ldb, Ref(beta),
-                Cb, ldc, batch_count) |> check
+                Cb, ldc, batch_count)
             C
         end
         function gemm_batched(
@@ -743,7 +745,7 @@ for (fname, elty) in
            strideC = stride(C, 3)
            batchCount = size(A, 3)
            (; handle, stream) = lib_state()
-           $(fname)(handle, transA, transB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta), C, ldc, strideC, batchCount) |> check
+           $(fname)(handle, transA, transB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta), C, ldc, strideC, batchCount)
            C
         end
         function gemm_strided_batched(
@@ -784,7 +786,7 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, side, uplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+            $(fname)(handle, side, uplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
             C
         end
         function symm(
@@ -817,7 +819,7 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
+            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc)
             C
         end
     end
@@ -848,7 +850,7 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, side, uplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+            $(fname)(handle, side, uplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
             C
         end
         function hemm(uplo::Char, trans::Char, alpha::($elty), A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
@@ -876,7 +878,7 @@ for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc) |> check
+            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc)
             C
         end
         function herk(uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty})
@@ -912,7 +914,7 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
             C
         end
     end
@@ -948,7 +950,7 @@ for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
            (; handle, stream) = lib_state()
-           $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc) |> check
+           $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
            C
         end
         function her2k(
@@ -985,7 +987,7 @@ for (mmname, smname, elty) in
             (; handle, stream) = lib_state()
             $(mmname)(
                 handle, side, uplo, transa, diag, m, n, Ref(alpha),
-                A, lda, B, ldb, C, ldc) |> check
+                A, lda, B, ldb, C, ldc)
             C
         end
         function trmm(
@@ -1006,7 +1008,7 @@ for (mmname, smname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             (; handle, stream) = lib_state()
-            $(smname)(handle, side, uplo, transa, diag, m, n, Ref(alpha), A, lda, B, ldb) |> check
+            $(smname)(handle, side, uplo, transa, diag, m, n, Ref(alpha), A, lda, B, ldb)
             B
         end
         function trsm(
@@ -1044,7 +1046,7 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Bptrs = device_batch(B)
             (; handle, stream) = lib_state()
-            $(fname)(handle, side, uplo, transa, diag, m, n, Ref(alpha), Aptrs, lda, Bptrs, ldb, length(A)) |> check
+            $(fname)(handle, side, uplo, transa, diag, m, n, Ref(alpha), Aptrs, lda, Bptrs, ldb, length(A))
             B
         end
         function trsm_batched(
@@ -1081,7 +1083,7 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
            (; handle, stream) = lib_state()
-           $(fname)(handle, transa, transb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc) |> check
+           $(fname)(handle, transa, transb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc)
            C
         end
         function geam(
@@ -1119,7 +1121,7 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
            incx = stride(X,1)
            ldc = max(1,stride(C,2))
            (; handle, stream) = lib_state()
-           $(fname)(handle, mode, m, n, A, lda, X, incx, C, ldc) |> check
+           $(fname)(handle, mode, m, n, A, lda, X, incx, C, ldc)
            C
        end
        function dgmm(mode::Char, A::ROCMatrix{$elty}, X::ROCVector{$elty})

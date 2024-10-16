@@ -276,7 +276,8 @@ struct hipMemPoolProps
     handleTypes::hipMemAllocationHandleType
     location::hipMemLocation
     win32SecurityAttributes::Ptr{Cvoid}
-    reserved::NTuple{64,Cuchar}
+    maxSize::Csize_t
+    reserved::NTuple{56,Cuchar}
 end
 
 # NOTE:

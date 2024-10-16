@@ -1,63 +1,26 @@
-const _POOL_STATUS = AMDGPU.LockedObject(
-    Dict{HIP.HIPDevice, Base.RefValue{Union{Nothing, Bool}}}())
+# Device ID => HIPMemoryPool
+const MEMORY_POOLS = AMDGPU.LockedObject(
+    Dict{Int64, HIP.HIPMemoryPool}())
 
-function pool_status(dev::HIP.HIPDevice)
-    Base.lock(_POOL_STATUS) do ps
-        get!(ps, dev, Ref{Union{Nothing, Bool}}(nothing))
-    end
-end
+function pool_create(dev::HIPDevice)
+    Base.lock(MEMORY_POOLS) do pools
+        get!(pools, HIP.device_id(dev)) do
+            max_size::UInt64 = AMDGPU.hard_memory_limit()
+            max_size = max_size != typemax(UInt64) ? max_size : UInt64(0)
 
-const __pool_cleanup = Ref{Task}()
-function pool_cleanup()
-    idle_counters = Base.fill(0, HIP.ndevices())
-    devices = HIP.devices()
-    while true
-        for (i, dev) in enumerate(devices)
-            status = pool_status(dev)
-            isnothing(status[]) && continue
+            pool = HIP.HIPMemoryPool(dev; max_size)
+            # Allow pool to use up all device memory.
+            soft_limit = AMDGPU.soft_memory_limit()
+            HIP.attribute!(pool, HIP.hipMemPoolAttrReleaseThreshold, soft_limit)
 
-            if status[]::Bool
-                idle_counters[i] = 0
-            else
-                idle_counters[i] += 1
-            end
-            status[] = false
-
-            if idle_counters[i] == 5
-                old_device = HIP.device()
-                old_device != dev && HIP.device!(dev)
-                HIP.reclaim()
-                old_device != dev && HIP.device!(old_device)
-            end
-        end
-
-        try
-            sleep(60)
-        catch ex
-            if ex isa EOFError
-                # If we get EOF here, it's because Julia is shutting down,
-                # so we should just exit the loop.
-                break
-            else
-                rethrow()
-            end
+            HIP.memory_pool!(dev, pool)
+            return pool
         end
     end
 end
 
-function mark_pool!(dev::HIP.HIPDevice)
-    status = pool_status(dev)
-    if isnothing(status[])
-        # Default to `0` which is the default value in HIP.
-        limit = parse_memory_limit(@load_preference("soft_memory_limit", "0 MiB"))
-        HIP.attribute!(
-            HIP.memory_pool(dev), HIP.hipMemPoolAttrReleaseThreshold, limit)
-        if !isassigned(__pool_cleanup)
-            __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
-        end
-    end
-    status[] = true
-end
+# ccall integration
+Base.unsafe_convert(T, buf::AbstractAMDBuffer) = convert(T, buf)
 
 struct HIPBuffer <: AbstractAMDBuffer
     device::HIPDevice # TODO not used?
@@ -68,32 +31,19 @@ struct HIPBuffer <: AbstractAMDBuffer
 end
 
 function HIPBuffer(bytesize; stream::HIP.HIPStream)
-    dev = stream.device
-    ctx = stream.ctx
+    dev, ctx = stream.device, stream.ctx
     bytesize == 0 && return HIPBuffer(dev, ctx, C_NULL, 0, true)
 
-    # mark_pool!(dev)
-    pool = HIP.memory_pool(dev)
-    has_limit = hard_memory_limit() != typemax(UInt64)
+    AMDGPU.maybe_collect()
+    pool = pool_create(dev)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     ptr = alloc_or_retry!(isnothing; stream) do
         try
-            # Try to ensure there is enough memory before even trying to allocate.
-            if has_limit
-                used = HIP.used_memory(pool)
-                (used + bytesize) > hard_memory_limit() &&
-                    throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
-            end
-
             # Try to allocate.
-            # NOTE Async is ~300x slower for small (≤ 16 bytes) allocations:
-            # https://github.com/ROCm/HIP/issues/3370#issuecomment-1842938966
-            if bytesize > 16
-                HIP.hipMallocAsync(ptr_ref, bytesize, stream) |> HIP.check
-            else
-                HIP.hipMalloc(ptr_ref, bytesize) |> HIP.check
-            end
+            HIP.hipMallocAsync(ptr_ref, bytesize, stream)
+            # HIP.hipMallocFromPoolAsync(ptr_ref, bytesize, pool, stream)
+
             ptr = ptr_ref[]
             ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             return ptr
@@ -103,13 +53,9 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
             return nothing
         end
     end
-    @assert ptr != C_NULL "hipMallocAsync resulted in C_NULL for $(Base.format_bytes(bytesize))"
+    ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
 
-    if has_limit
-        if HIP.reserved_memory(pool) > hard_memory_limit()
-            HIP.reclaim() # TODO do not reclaim all memory
-        end
-    end
+    AMDGPU.account!(AMDGPU.memory_stats(dev), bytesize)
     HIPBuffer(dev, ctx, ptr, bytesize, true)
 end
 
@@ -118,8 +64,7 @@ function HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int)
     HIPBuffer(s.device, s.ctx, ptr, bytesize, false)
 end
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::HIPBuffer) where T =
-    convert(Ptr{T}, buf.ptr)
+Base.convert(::Type{Ptr{T}}, buf::HIPBuffer) where T = convert(Ptr{T}, buf.ptr)
 
 function view(buf::HIPBuffer, bytesize::Int)
     bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
@@ -130,33 +75,26 @@ function free(buf::HIPBuffer; stream::HIP.HIPStream)
     buf.own || return
 
     buf.ptr == C_NULL && return
-    if buf.bytesize > 16
-        HIP.hipFreeAsync(buf, stream) |> HIP.check
-    else
-        HIP.hipFree(buf) |> HIP.check
-    end
+    HIP.hipFreeAsync(buf, stream)
+    AMDGPU.account!(AMDGPU.memory_stats(buf.device), -buf.bytesize)
     return
 end
 
 function upload!(dst::HIPBuffer, src::Ptr, bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return
-    HIP.hipMemcpyHtoDAsync(dst, src, bytesize, stream) |> HIP.check
+    HIP.hipMemcpyHtoDAsync(dst, src, bytesize, stream)
     return
 end
 
-function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream, async::Bool)
+function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return
-    if async
-        HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream) |> HIP.check
-    else
-        HIP.hipMemcpyDtoH(dst, src, bytesize) |> HIP.check
-    end
+    HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream)
     return
 end
 
 function transfer!(dst::HIPBuffer, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return
-    HIP.hipMemcpyDtoDAsync(dst, src, bytesize, stream) |> HIP.check
+    HIP.hipMemcpyDtoDAsync(dst, src, bytesize, stream)
     return
 end
 
@@ -180,7 +118,7 @@ function HostBuffer(
     bytesize == 0 && return HostBuffer()
 
     ptr_ref = Ref{Ptr{Cvoid}}()
-    HIP.hipHostMalloc(ptr_ref, bytesize, flags) |> HIP.check
+    HIP.hipHostMalloc(ptr_ref, bytesize, flags)
     ptr = ptr_ref[]
     dev_ptr = get_device_ptr(ptr)
     HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, bytesize, true)
@@ -189,7 +127,7 @@ end
 function HostBuffer(
     ptr::Ptr{Cvoid}, sz::Integer; stream::HIP.HIPStream = AMDGPU.stream(),
 )
-    HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped) |> HIP.check
+    HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped)
     dev_ptr = get_device_ptr(ptr)
     HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, sz, false)
 end
@@ -208,10 +146,10 @@ upload!(dst::HostBuffer, src::Ptr, sz::Int; stream::HIP.HIPStream) =
 upload!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
 
-download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream, async::Bool) =
+download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
 
-download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream, async::Bool) =
+download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
 
 transfer!(dst::HostBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
@@ -225,15 +163,14 @@ transfer!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
 transfer!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where T =
-    convert(Ptr{T}, buf.ptr)
+Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where T = convert(Ptr{T}, buf.ptr)
 
 @inline device_ptr(buf::HostBuffer) = buf.dev_ptr
 
 function free(buf::HostBuffer; kwargs...)
     buf.ptr == C_NULL && return
     if buf.own
-        HIP.hipHostFree(buf) |> HIP.check
+        HIP.hipHostFree(buf)
     else
         is_pinned(buf.dev_ptr) && HIP.check(HIP.hipHostUnregister(buf.ptr))
     end
@@ -243,7 +180,7 @@ end
 function get_device_ptr(ptr::Ptr{Cvoid})
     ptr == C_NULL && return C_NULL
     ptr_ref = Ref{Ptr{Cvoid}}()
-    HIP.hipHostGetDevicePointer(ptr_ref, ptr, 0) |> HIP.check
+    HIP.hipHostGetDevicePointer(ptr_ref, ptr, 0)
     ptr_ref[]
 end
 
@@ -261,7 +198,7 @@ function is_pinned(ptr)
             return data.memoryType == HIP.hipMemoryTypeHost
         end
     end
-    st |> HIP.check
+    st
 end
 
 function attributes(ptr)
@@ -321,7 +258,7 @@ function unsafe_copy3d!(
         C_NULL, srcPos, srcPtr,
         C_NULL, dstPos, dstPtr, extent, kind))
 
-    HIP.hipMemcpy3DAsync(params, stream) |> HIP.check
+    HIP.hipMemcpy3DAsync(params, stream)
     async || AMDGPU.synchronize(stream)
     return dst
 end

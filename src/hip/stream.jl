@@ -6,6 +6,8 @@ mutable struct HIPStream
     priority::Symbol
     device::HIPDevice
     ctx::HIPContext
+
+    Base.@atomic valid::Bool
 end
 
 """
@@ -22,18 +24,20 @@ function HIPStream(priority::Symbol = :normal)
     priority_int = symbol_to_priority(priority)
 
     stream_ref = Ref{hipStream_t}()
-    hipStreamCreateWithPriority(stream_ref, 0, priority_int) |> check
+    hipStreamCreateWithPriority(stream_ref, 0, priority_int)
     d = device()
-    stream = HIPStream(stream_ref[], priority, d, HIPContext(d))
-    finalizer(stream) do s
+    stream = HIPStream(stream_ref[], priority, d, HIPContext(d), true)
+    return finalizer(stream) do s
         AMDGPU.context!(s.ctx) do
-            hipStreamDestroy(s.stream) |> check
+            hipStreamDestroy(s.stream)
         end
+        Base.@atomic s.valid = false
     end
-    return stream
 end
 
-default_stream() = HIPStream(C_NULL, :normal, device(), HIPContext())
+isvalid(s::HIPStream) = s.valid
+
+default_stream() = HIPStream(C_NULL, :normal, device(), HIPContext(), true)
 
 """
     HIPStream(stream::hipStream_t)
@@ -43,7 +47,7 @@ Device is the default device that's currently in use.
 """
 function HIPStream(stream::hipStream_t)
     d = device()
-    HIPStream(stream, priority(stream), d, HIPContext(d))
+    HIPStream(stream, priority(stream), d, HIPContext(d), true)
 end
 
 function isdone(stream::HIPStream)
@@ -83,7 +87,7 @@ function launch(f::Base.Callable; stream::HIPStream)
         close(async_cond)
     end
     callback = cglobal(:uv_async_send)
-    hipLaunchHostFunc(stream, callback, cond) |> check
+    hipLaunchHostFunc(stream, callback, cond)
 end
 
 function nonblocking_synchronize(stream::HIPStream)
@@ -128,7 +132,7 @@ function nonblocking_synchronize_old(stream::HIPStream)
     end
 end
 
-wait(stream::HIPStream) = hipStreamSynchronize(stream) |> check
+wait(stream::HIPStream) = hipStreamSynchronize(stream)
 
 function synchronize(stream::HIPStream; blocking::Bool = false)
     if use_nonblocking_synchronize && !blocking
@@ -138,7 +142,10 @@ function synchronize(stream::HIPStream; blocking::Bool = false)
             else
                 nonblocking_synchronize(stream)
             end
+            AMDGPU.maybe_collect(; blocking=true)
         end
+    else
+        AMDGPU.maybe_collect(; blocking=true)
     end
     # Perform an actual API call even after non-blocking synchronization.
     wait(stream)
@@ -184,6 +191,6 @@ end
 
 function priority(stream::hipStream_t)
     priority = Ref{Cint}()
-    hipStreamGetPriority(stream, priority) |> check
+    hipStreamGetPriority(stream, priority)
     priority_to_symbol(priority[])
 end

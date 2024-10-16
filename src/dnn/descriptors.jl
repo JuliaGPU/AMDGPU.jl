@@ -30,16 +30,14 @@ function TensorDescriptor(
     sizes::Vector{Int32}, strides::Vector{Int32},
 )
     handle_ref = Ref{miopenTensorDescriptor_t}()
-    miopenCreateTensorDescriptor(handle_ref) |> check
+    miopenCreateTensorDescriptor(handle_ref)
 
     handle = handle_ref[]
-    miopenSetTensorDescriptor(handle, dtype, dims, sizes, strides) |> check
+    miopenSetTensorDescriptor(handle, dtype, dims, sizes, strides)
     d = TensorDescriptor(handle, dtype)
-
-    finalizer(d) do d_
-        miopenDestroyTensorDescriptor(d_.handle) |> check
+    return finalizer(d) do d
+        miopenDestroyTensorDescriptor(d.handle)
     end
-    d
 end
 
 function TensorDescriptor(x::ROCArray{T}) where T
@@ -54,7 +52,7 @@ end
 Base.ndims(desc::TensorDescriptor) = Base.ndims(desc.handle)
 function Base.ndims(handle::miopenTensorDescriptor_t)
     nd = Ref{Int32}(0)
-    miopenGetTensorDescriptorSize(handle, nd) |> check
+    miopenGetTensorDescriptorSize(handle, nd)
     Int64(nd[])
 end
 
@@ -62,7 +60,7 @@ unpack(desc::TensorDescriptor) = unpack(desc.handle, ndims(desc))
 function unpack(handle::miopenTensorDescriptor_t, nd::Integer)
     dtype = Ref{miopenDataType_t}()
     dims, stride = Vector{Int32}(undef, nd), Vector{Int32}(undef, nd)
-    miopenGetTensorDescriptor(handle, dtype, dims, stride) |> check
+    miopenGetTensorDescriptor(handle, dtype, dims, stride)
     dtype[], dims, stride
 end
 
@@ -89,18 +87,16 @@ function ConvolutionDescriptor(
     dilation::Vector{Int32}, groups::Int32,
 )
     handle_ref = Ref{miopenConvolutionDescriptor_t}()
-    miopenCreateConvolutionDescriptor(handle_ref) |> check
+    miopenCreateConvolutionDescriptor(handle_ref)
 
     handle = handle_ref[]
     miopenInitConvolutionNdDescriptor(
-        handle, n_dims, padding, stride, dilation, miopenConvolution) |> check
-    miopenSetConvolutionGroupCount(handle, groups) |> check
+        handle, n_dims, padding, stride, dilation, miopenConvolution)
+    miopenSetConvolutionGroupCount(handle, groups)
     d = ConvolutionDescriptor(handle)
-
-    finalizer(d) do d_
-        miopenDestroyConvolutionDescriptor(d_.handle) |> check
+    return finalizer(d) do d
+        miopenDestroyConvolutionDescriptor(d.handle)
     end
-    d
 end
 
 """
@@ -129,7 +125,7 @@ function output_size(
     out_nd = Ref{Int32}()
     out_dims = Vector{Int32}(undef, nd)
     miopenGetConvolutionNdForwardOutputDim(
-        cdesc.handle, idesc.handle, wdesc.handle, out_nd, out_dims) |> check
+        cdesc.handle, idesc.handle, wdesc.handle, out_nd, out_dims)
     @assert nd == out_nd[]
     NTuple{nd, Int32}(reverse(out_dims[1:out_nd[]]))
 end
@@ -143,18 +139,16 @@ function PoolingDescriptor(
     dims::Vector{Int32}, padding::Vector{Int32}, stride::Vector{Int32},
 )
     handle_ref = Ref{miopenPoolingDescriptor_t}()
-    miopenCreatePoolingDescriptor(handle_ref) |> check
+    miopenCreatePoolingDescriptor(handle_ref)
 
     handle = handle_ref[]
     miopenSetNdPoolingDescriptor(
-        handle, mode, n_dims, dims, padding, stride) |> check
-    miopenSetPoolingIndexType(handle, miopenIndexUint32) |> check
+        handle, mode, n_dims, dims, padding, stride)
+    miopenSetPoolingIndexType(handle, miopenIndexUint32)
     d = PoolingDescriptor(handle)
-
-    finalizer(d) do d_
-        miopenDestroyPoolingDescriptor(d_.handle) |> check
+    return finalizer(d) do d
+        miopenDestroyPoolingDescriptor(d.handle)
     end
-    d
 end
 
 """
@@ -179,7 +173,7 @@ function output_size(pdesc::PoolingDescriptor, idesc::TensorDescriptor)
     nd = ndims(idesc)
     out_dims = Vector{Int32}(undef, nd)
     miopenGetPoolingNdForwardOutputDim(
-        pdesc.handle, idesc.handle, Int32(nd), out_dims) |> check
+        pdesc.handle, idesc.handle, Int32(nd), out_dims)
     NTuple{nd, Int32}(reverse(out_dims))
 end
 
@@ -189,18 +183,17 @@ end
 
 function ActivationDescriptor()
     handle_ref = Ref{miopenActivationDescriptor_t}()
-    miopenCreateActivationDescriptor(handle_ref) |> check
+    miopenCreateActivationDescriptor(handle_ref)
     handle = handle_ref[]
     d = ActivationDescriptor(handle)
-    finalizer(d) do d_
-        miopenDestroyActivationDescriptor(d_.handle) |> check
+    return finalizer(d) do d
+        miopenDestroyActivationDescriptor(d.handle)
     end
-    d
 end
 
 function set!(
     d::ActivationDescriptor, mode::miopenActivationMode_t,
     α::Float64, β::Float64, γ::Float64,
 )
-    miopenSetActivationDescriptor(d.handle, mode, α, β, γ) |> check
+    miopenSetActivationDescriptor(d.handle, mode, α, β, γ)
 end

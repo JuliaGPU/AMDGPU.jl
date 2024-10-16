@@ -23,8 +23,6 @@ end
 
 GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
 
-GPUCompiler.ci_cache(@nospecialize(::HIPCompilerJob)) = AMDGPU.ci_cache
-
 GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
 GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
@@ -36,21 +34,12 @@ function GPUCompiler.link_libraries!(
     invoke(GPUCompiler.link_libraries!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
+    # Link only if there are undefined functions.
+    # Everything else was loaded in `finish_module!` stage.
     link_device_libs!(
         job.config.target, mod, undefined_fns;
-        wavefrontsize64=job.config.params.wavefrontsize64)
-end
-
-# FIXME this shouldn't be needed
-function GPUCompiler.finish_ir!(
-    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
-)
-    undefined_fns = GPUCompiler.decls(mod)
-    isempty(undefined_fns) && return entry
-    link_device_libs!(
-        job.config.target, mod, LLVM.name.(undefined_fns);
-        wavefrontsize64=job.config.params.wavefrontsize64)
-    return entry
+        wavefrontsize64=job.config.params.wavefrontsize64,
+        only_undefined=true)
 end
 
 function GPUCompiler.finish_module!(
@@ -59,6 +48,31 @@ function GPUCompiler.finish_module!(
     entry = invoke(GPUCompiler.finish_module!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
+
+    # Link libraries early to include options libraries in the runtime.
+    # Otherwise we get wave64 specific instructions on wave32 hardware
+    # which results in ICE.
+    undefined_fns = GPUCompiler.decls(mod)
+    if !isempty(undefined_fns)
+        link_device_libs!(
+            job.config.target, mod, LLVM.name.(undefined_fns);
+            wavefrontsize64=job.config.params.wavefrontsize64,
+            only_undefined=false)
+    end
+
+    # Set kernel target cpu and features.
+    if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
+        target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
+        target_features_attr = StringAttribute("target-features", job.config.target.features)
+        atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
+
+        # TODO add convergent, mustprogress, willreturn attributes?
+
+        attrs = LLVM.function_attributes(entry)
+        push!(attrs, target_cpu_attr)
+        push!(attrs, target_features_attr)
+        push!(attrs, atomic_attr)
+    end
 
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
@@ -71,7 +85,6 @@ function GPUCompiler.finish_module!(
     target_fns = (
         "signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
-    atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
 
     for fn in LLVM.functions(mod)
         do_inline = any(occursin.(target_fns, LLVM.name(fn)))
@@ -80,8 +93,6 @@ function GPUCompiler.finish_module!(
 
             do_inline && inline_attr ∉ collect(attrs) &&
                 push!(attrs, inline_attr)
-            job.config.params.unsafe_fp_atomics &&
-                push!(attrs, atomic_attr)
         end
     end
 
@@ -104,8 +115,19 @@ function compiler_config(dev::HIP.HIPDevice;
     unsafe_fp_atomics::Bool = true,
 )
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
+    if !isempty(features)
+        features = "$features,"
+    end
+
+    wavefrontsize64 = HIP.wavefrontsize(dev) == 64
+    features = if wavefrontsize64
+        features * "-wavefrontsize32,+wavefrontsize64"
+    else
+        features * "+wavefrontsize32,-wavefrontsize64"
+    end
+
     target = GCNCompilerTarget(; dev_isa, features)
-    params = HIPCompilerParams(HIP.wavefrontsize(dev) == 64, unsafe_fp_atomics)
+    params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics)
     CompilerConfig(target, params; kernel, name, always_inline=true)
 end
 
@@ -183,10 +205,13 @@ function hipcompile(@nospecialize(job::CompilerJob))
         push!(global_hostcalls, gbl_name)
     end
     if !isempty(global_hostcalls)
-        @warn """Global hostcalls detected: $global_hostcalls.
+        @warn """Global hostcalls detected!
+        - Source: $(job.source)
+        - Hostcalls: $(global_hostcalls)
+
         Use `AMDGPU.synchronize(; stop_hostcalls=false)` to synchronize and stop them.
         Otherwise, performance might degrade if they keep running in the background.
-        """ maxlog=1
+        """
     end
 
     if !isempty(globals)
