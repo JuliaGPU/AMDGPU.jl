@@ -41,13 +41,14 @@ end
 function safe_exec(str)
     cmd = julia_cmd_projects(str)
     success = false
-    error_str = mktemp() do path, _
-        p = run(pipeline(cmd; stdout=path, stderr=path); wait=false)
+    res_str, err_str = mktemp() do path, _
+        p = run(pipeline(cmd; stdout=path, stderr="$path.err"); wait=false)
         wait(p)
         success = p.exitcode == 0
-        strip(String(read(path)))
+        res_str = strip(String(read(path)))
+        err_str = strip(String(read("$path.err")))
     end
-    return success, error_str
+    return success, res_str
 end
 
 """
