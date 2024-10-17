@@ -47,6 +47,7 @@ function safe_exec(str)
         success = p.exitcode == 0
         res_str = strip(String(read(path)))
         err_str = strip(String(read("$path.err")))
+        res_str, err_str
     end
     return success, res_str
 end
