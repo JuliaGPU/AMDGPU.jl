@@ -106,7 +106,10 @@ function __init__()
         global librocblas = get_library(lib_prefix * "rocblas"; rocm_path)
         global librocsparse = get_library(lib_prefix * "rocsparse"; rocm_path)
         global librocsolver = get_library(lib_prefix * "rocsolver"; rocm_path)
-        global librocalution = get_library(lib_prefix * "rocalution"; rocm_path)
+        # XXX: librocalution is not used by AMDGPU, but depends on MPI
+        #      this opens up various issues https://juliaparallel.org/MPI.jl/stable/knownissues/#Known-issues
+        #      This fix would be to provide librocalution through JLL, for now we use just "librocalution_hip"
+        global librocalution = get_library(lib_prefix * "rocalution_hip"; rocm_path)
         global librocrand = get_library(lib_prefix * "rocrand"; rocm_path)
         global librocfft = get_library(lib_prefix * "rocfft"; rocm_path)
         global libMIOpen_path = get_library(lib_prefix * "MIOpen"; rocm_path)
