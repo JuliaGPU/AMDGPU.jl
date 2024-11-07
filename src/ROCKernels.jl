@@ -17,8 +17,10 @@ struct ROCBackend <: KA.GPU end
 Adapt.adapt_storage(::ROCBackend, a::Array) = Adapt.adapt(AMDGPU.ROCArray, a)
 Adapt.adapt_storage(::ROCBackend, a::AMDGPU.ROCArray) = a
 Adapt.adapt_storage(::KA.CPU, a::AMDGPU.ROCArray) = convert(Array, a)
-Adapt.adapt_storage(::KA.ConstAdaptor, a::AMDGPU.ROCDeviceArray{T}) where T =
-    AMDGPU.ROCDeviceArray(a.shape, LLVM.Interop.addrspacecast(Core.LLVMPtr{T,AMDGPU.Device.AS.Constant}, a.ptr))
+function Adapt.adapt_storage(::KA.ConstAdaptor, a::AMDGPU.ROCDeviceArray{T}) where T
+    ptr = LLVM.Interop.addrspacecast(Core.LLVMPtr{T,AMDGPU.Device.AS.Constant}, a.ptr)
+    AMDGPU.ROCDeviceArray(a.dims, ptr)
+end
 
 KA.argconvert(::KA.Kernel{ROCBackend}, arg) = AMDGPU.rocconvert(arg)
 KA.get_backend(::AMDGPU.ROCArray) = ROCBackend()

@@ -1,3 +1,19 @@
+@testset "ROCDeviceArray array interface" begin
+    x = ROCArray(zeros(Int, 1, 2, 3, 4))
+    xd = rocconvert(x)
+
+    @test typeof(xd) <: DenseArray
+    @test hasproperty(xd, :dims)
+
+    @test size(xd) == size(x)
+    @test length(xd) == length(x)
+    @test strides(xd) == strides(x)
+    @test Base.elsize(xd) == Base.elsize(x)
+    @test sizeof(xd) == sizeof(x)
+
+    @test Int(pointer(xd)) == Int(pointer(x))
+end
+
 @testset "ROCDeviceArray" begin
     RA = ROCArray(rand(4,4))
     RD = rocconvert(RA)
