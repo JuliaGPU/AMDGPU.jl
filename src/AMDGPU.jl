@@ -213,8 +213,7 @@ function __init__()
     end
 
     hiplibs = (
-        ("rocBLAS", :rocblas), ("rocSPARSE", :rocsparse),
-        ("rocSOLVER", :rocsolver), ("rocALUTION", :rocalution),
+        ("rocBLAS", :rocblas), ("rocSPARSE", :rocsparse), ("rocSOLVER", :rocsolver),
         ("rocRAND", :rocrand), ("rocFFT", :rocfft), ("MIOpen", :MIOpen))
     for (name, symbol) in hiplibs
         functional(symbol) || @warn "$name is unavailable, functionality will be disabled."
