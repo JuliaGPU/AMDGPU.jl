@@ -9,7 +9,6 @@ function versioninfo()
         _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
         _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
-        _status(functional(:rocalution))  "rocALUTION"       "-"                                 _libpath(librocalution);
         _status(functional(:rocsparse))   "rocSPARSE"        "-"                                 _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
@@ -62,7 +61,6 @@ function correctly. Available `component` values are:
 - `:device_libs` - Queries ROCm device libraries availability
 - `:rocblas`     - Queries rocBLAS library availability
 - `:rocsolver`   - Queries rocSOLVER library availability
-- `:rocalution`  - Queries rocALUTION library availability
 - `:rocsparse`   - Queries rocSPARSE library availability
 - `:rocrand`     - Queries rocRAND library availability
 - `:rocfft`      - Queries rocFFT library availability
@@ -82,8 +80,6 @@ function functional(component::Symbol)
         return !isempty(librocblas)
     elseif component == :rocsolver
         return !isempty(librocsolver)
-    elseif component == :rocalution
-        return !isempty(librocalution)
     elseif component == :rocsparse
         return !isempty(librocsparse)
     elseif component == :rocrand
@@ -95,7 +91,7 @@ function functional(component::Symbol)
     elseif component == :all
         for component in (
             :hip, :lld, :device_libs, :rocblas, :rocsolver,
-            :rocalution, :rocsparse, :rocrand, :rocfft, :MIOpen,
+            :rocsparse, :rocrand, :rocfft, :MIOpen,
         )
             functional(component) || return false
         end

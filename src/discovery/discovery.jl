@@ -35,7 +35,7 @@ function get_device_libs(from_artifact::Bool; rocm_path::String)
 end
 
 export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
-export librocblas, librocsparse, librocsolver, librocalution
+export librocblas, librocsparse, librocsolver
 export librocrand, librocfft, libMIOpen_path
 export julia_exeflags
 
@@ -106,7 +106,6 @@ function __init__()
         global librocblas = get_library(lib_prefix * "rocblas"; rocm_path)
         global librocsparse = get_library(lib_prefix * "rocsparse"; rocm_path)
         global librocsolver = get_library(lib_prefix * "rocsolver"; rocm_path)
-        global librocalution = get_library(lib_prefix * "rocalution"; rocm_path)
         global librocrand = get_library(lib_prefix * "rocrand"; rocm_path)
         global librocfft = get_library(lib_prefix * "rocfft"; rocm_path)
         global libMIOpen_path = get_library(lib_prefix * "MIOpen"; rocm_path)
