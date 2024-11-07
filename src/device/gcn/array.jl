@@ -25,14 +25,15 @@ ROCDeviceArray
 # NOTE: we can't support the typical `tuple or series of integer` style
 # construction, because we're currently requiring a trailing pointer argument.
 
-struct ROCDeviceArray{T,N,A} <: AbstractArray{T,N}
-    shape::Dims{N}
+struct ROCDeviceArray{T,N,A} <: DenseArray{T,N}
+    # NOTE: `dims` is a mandatory name for things like `strides(xd)` to work.
+    dims::Dims{N}
     ptr::LLVMPtr{T,A}
     len::Int
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    function ROCDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N}
-        new(shape, ptr, prod(shape))
+    function ROCDeviceArray{T,N,A}(dims::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N}
+        new(dims, ptr, prod(dims))
     end
 end
 
@@ -65,7 +66,8 @@ Base.pointer(a::ROCDeviceArray, i::Integer) =
     pointer(a) + (i - 1) * Base.elsize(a) # TODO use _memory_offset(a, i)
 
 Base.elsize(::Type{<:ROCDeviceArray{T}}) where {T} = sizeof(T)
-Base.size(g::ROCDeviceArray) = g.shape
+Base.size(g::ROCDeviceArray) = g.dims
+Base.sizeof(x::ROCDeviceArray) = Base.elsize(x) * length(x)
 Base.length(g::ROCDeviceArray) = g.len
 
 # conversions
@@ -96,14 +98,14 @@ Base.IndexStyle(::Type{<:ROCDeviceArray}) = Base.IndexLinear()
 # comparisons
 
 Base.isequal(a1::R1, a2::R2) where {R1<:ROCDeviceArray,R2<:ROCDeviceArray} =
-    R1 == R2 && a1.shape == a2.shape && a1.ptr == a2.ptr
+    R1 == R2 && a1.dims == a2.dims && a1.ptr == a2.ptr
 
 # other
 
 Base.show(io::IO, a::ROCDeviceVector) =
     print(io, "$(length(a))-element device array at $(pointer(a))")
 Base.show(io::IO, a::ROCDeviceArray) =
-    print(io, "$(join(a.shape, '×')) device array at $(pointer(a))")
+    print(io, "$(join(a.dims, '×')) device array at $(pointer(a))")
 
 Base.show(io::IO, a::SubArray{T,D,P,I,F}) where {T,D,P<:ROCDeviceVector,I,F} =
     print(io, "$(length(a.indices[1]))-element device array view(::$P at $(pointer(parent(a))), $(a.indices[1])) with eltype $T")
@@ -113,12 +115,12 @@ Base.show(io::IO, a::SubArray{T,D,P,I,F}) where {T,D,P<:ROCDeviceArray,I,F} =
 Base.show(io::IO, a::S) where S<:AnyROCDeviceVector =
     print(io, "$(length(a))-element device array wrapper $S at $(pointer(parent(a)))")
 Base.show(io::IO, a::S) where S<:AnyROCDeviceArray =
-    print(io, "$(join(parent(a).shape, '×')) device array wrapper $S at $(pointer(parent(a)))")
+    print(io, "$(join(parent(a).dims, '×')) device array wrapper $S at $(pointer(parent(a)))")
 
 Base.show(io::IO, mime::MIME"text/plain", a::S) where S<:AnyROCDeviceArray = show(io, a)
 
 @inline function Base.unsafe_view(A::ROCDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
-    ptr = pointer(A) + (I[1].start-1)*sizeof(T)
+    ptr = pointer(A) + (I[1].start - 1) * sizeof(T)
     len = I[1].stop - I[1].start + 1
 
     return ROCDeviceArray(len, ptr)
