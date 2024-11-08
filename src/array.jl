@@ -21,7 +21,15 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     end
 end
 
-GPUArrays.storage(a::ROCArray) = a.data
+GPUArrays.storage(a::ROCArray) = a.buf
+
+function GPUArrays.derive(
+    ::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int,
+) where {N, T}
+    ref = copy(x.buf)
+    offset += (x.offset * Base.elsize(x)) ÷ sizeof(T)
+    ROCArray{T, N}(ref, dims; offset)
+end
 
 """
     device(A::ROCArray) -> HIPDevice
