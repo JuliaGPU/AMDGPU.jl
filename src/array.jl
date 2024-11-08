@@ -21,7 +21,7 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     end
 end
 
-unsafe_free!(x::ROCArray) = GPUArrays.unsafe_free!(x.buf)
+GPUArrays.storage(a::ROCArray) = a.data
 
 """
     device(A::ROCArray) -> HIPDevice
@@ -276,3 +276,19 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     A.offset = 0
     return A
 end
+
+# @roc conversion
+
+function Base.convert(
+    ::Type{ROCDeviceArray{T, N, AS.Global}}, a::ROCArray{T, N},
+) where {T, N}
+    # If HostBuffer, use device pointer.
+    buf = convert(Mem.AbstractAMDBuffer, a.buf[])
+    ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ?
+        buf : buf.dev_ptr)
+    llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset * sizeof(T))
+    ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
+end
+
+Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
+    convert(ROCDeviceArray{T,N,AS.Global}, x)
