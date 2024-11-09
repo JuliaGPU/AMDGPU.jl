@@ -35,7 +35,7 @@ UnsafeAtomicsLLVM = "d80eeb9a-aca5-4d75-85e5-170c8b632249"
 
 [compat]
 AbstractFFTs = "1.0"
-AcceleratedKernels = "0.1, 0.2"
+AcceleratedKernels = "0.2"
 Adapt = "4"
 Atomix = "0.1"
 CEnum = "0.4, 0.5"
