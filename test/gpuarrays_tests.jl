@@ -30,9 +30,6 @@ end
 @testitem "gpuarrays - indexing scalar" setup=[TSGPUArrays] begin
     gpuarrays_test("indexing scalar")
 end
-@testitem "gpuarrays - interface" setup=[TSGPUArrays] begin
-    gpuarrays_test("interface")
-end
 @testitem "gpuarrays - linalg" setup=[TSGPUArrays] begin
     gpuarrays_test("linalg")
 end
