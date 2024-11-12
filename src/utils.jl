@@ -13,6 +13,7 @@ function versioninfo()
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
         _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
+        _status(functional(:rocprofv2))   "rocprofv2"        _ver(:rocprofv2, Profiler.version)  _libpath(librocprofiler64v2);
     ]
 
     PrettyTables.pretty_table(data; header=[
@@ -88,10 +89,12 @@ function functional(component::Symbol)
         return !isempty(librocfft)
     elseif component == :MIOpen
         return !isempty(libMIOpen_path)
+    elseif component == :rocprofv2
+        return !isempty(librocprofiler64v2)
     elseif component == :all
         for component in (
             :hip, :lld, :device_libs, :rocblas, :rocsolver,
-            :rocsparse, :rocrand, :rocfft, :MIOpen,
+            :rocsparse, :rocrand, :rocfft, :MIOpen, rocprofv2,
         )
             functional(component) || return false
         end
