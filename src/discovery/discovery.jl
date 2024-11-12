@@ -103,6 +103,7 @@ function __init__()
         global librocrand = find_rocm_library(lib_prefix * "rocrand"; rocm_path)
         global librocfft = find_rocm_library(lib_prefix * "rocfft"; rocm_path)
         global libMIOpen_path = find_rocm_library(lib_prefix * "MIOpen"; rocm_path)
+        global librocprofiler64v2 = get_library(lib_prefix * "rocprofiler64v2"; rocm_path)
     catch err
         @error """ROCm discovery failed!
         Discovered ROCm path: $rocm_path.
