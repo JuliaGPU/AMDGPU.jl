@@ -1,0 +1,7 @@
+[general]
+library_name = "librocprofiler64v2"
+output_file_path = "./librocprof.jl"
+export_symbol_prefixes = []
+
+[codegen]
+use_ccall_macro = true
