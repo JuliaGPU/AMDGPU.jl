@@ -1,3 +1,49 @@
+const MemoryRecords = LockedObject(Dict{UInt64, Any}())
+
+# TODO make TLS
+const RECORD_MEMORY::Ref{Bool} = Ref(false)
+
+function record_memory!(rec::Bool; free::Bool = true, sync::Bool = false)
+    RECORD_MEMORY[] = rec
+    if !rec
+        free && free_records!(; sync)
+    end
+    return
+end
+
+record_memory() = RECORD_MEMORY[]
+
+function record!(x)
+    # @info "Recording $(typeof(x)) $(size(x))"
+    Base.lock(records -> records[_hash(x)] = x, MemoryRecords)
+    return
+end
+
+function free_records!(; sync::Bool = false)
+    Base.lock(MemoryRecords) do records
+        # @info "Freeing `$(length(records))` records"
+        for (k, x) in records
+            unsafe_free!(x)
+        end
+        empty!(records)
+    end
+    sync && AMDGPU.synchronize()
+    return
+end
+
+function remove_record!(x)
+    record_memory() || return
+
+    k = _hash(x)
+    Base.lock(MemoryRecords) do records
+        if k in records.keys
+            # @info "Removing record"
+            pop!(records, k)
+        end
+    end
+    return
+end
+
 mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     buf::DataRef{Managed{B}}
     dims::Dims{N}
@@ -21,6 +67,18 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
         xs = new{T, N, B}(buf, dims, offset)
         return finalizer(unsafe_free!, xs)
     end
+end
+
+function _hash(x::ROCArray)
+    # @info "_hash"
+    # @show x.buf.rc.obj.mem.ptr
+    # @show x.offset
+    # @show x.dims
+    r = Base.hash(x.buf.rc.obj.mem.ptr,
+        Base.hash(x.offset,
+            Base.hash(x.dims)))
+    # @show r
+    return r
 end
 
 GPUArrays.storage(a::ROCArray) = a.buf
