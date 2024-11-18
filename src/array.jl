@@ -8,8 +8,10 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     ) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
         data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
-        xs = new{T, N, B}(data, dims, 0)
-        return finalizer(unsafe_free!, xs)
+        x = new{T, N, B}(data, dims, 0)
+        x = finalizer(unsafe_free!, x)
+        RECORD_MEMORY[] && record!(x)
+        return x
     end
 
     function ROCArray{T, N}(
