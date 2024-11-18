@@ -258,10 +258,6 @@ end
 
 function pool_alloc(::Type{B}, bytesize) where B
     s = AMDGPU.stream()
-    # @info "[pool_alloc] $(Base.format_bytes(bytesize))"
-    # display(stacktrace()); println()
-    # println()
-    # println()
     Managed(B(bytesize; stream=s); stream=s)
 end
 
