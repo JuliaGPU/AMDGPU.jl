@@ -200,6 +200,34 @@ end
     end
 end
 
+@testset "gebrd!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A                             = rand(elty,m,n)
+        d_A                           = ROCArray(A)
+        d_A, d_D, d_E, d_tauq, d_taup = rocSOLVER.gebrd!(d_A)
+        h_A                           = collect(d_A)
+        h_D                           = collect(d_D)
+        h_E                           = collect(d_E)
+        h_tauq                        = collect(d_tauq)
+        h_taup                        = collect(d_taup)
+        A,d,e,q,p                     = LAPACK.gebrd!(A)
+        @test A ≈ h_A
+        @test d ≈ h_D
+        @test e[min(m,n)-1] ≈ h_E[min(m,n)-1]
+        @test q ≈ h_tauq
+        @test p ≈ h_taup
+    end
+end
+
+@testset "gesvd!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty,m,n)
+        d_A = ROCMatrix(A)
+        U, Σ, Vt = rocSOLVER.gesvd!('A', 'A', d_A)
+        @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
+    end
+end
+
 @testset "getrf_batched! -- getri_batched!" begin
     @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         bA = [rand(elty, m, m) for i in 1:n]

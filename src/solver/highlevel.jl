@@ -96,10 +96,10 @@ for (fname, elty) in (
 end
 
 for (fname, elty) in (
-    (:rocsolver_sormqr, Float32),
-    (:rocsolver_dormqr, Float64),
-    (:rocsolver_cunmqr, ComplexF32),
-    (:rocsolver_zunmqr, ComplexF64),
+    (:rocsolver_sormqr, :Float32),
+    (:rocsolver_dormqr, :Float64),
+    (:rocsolver_cunmqr, :ComplexF32),
+    (:rocsolver_zunmqr, :ComplexF64),
 )
     @eval begin
         function ormqr!(
@@ -137,10 +137,10 @@ for (fname, elty) in (
 end
 
 for (fname, elty) in (
-    (:rocsolver_sorgqr, Float32),
-    (:rocsolver_dorgqr, Float64),
-    (:rocsolver_cungqr, ComplexF32),
-    (:rocsolver_zungqr, ComplexF64),
+    (:rocsolver_sorgqr, :Float32),
+    (:rocsolver_dorgqr, :Float64),
+    (:rocsolver_cungqr, :ComplexF32),
+    (:rocsolver_zungqr, :ComplexF64),
 )
     @eval begin
         function orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty})
@@ -154,10 +154,10 @@ for (fname, elty) in (
 end
 
 for (fname, elty) in (
-    (:rocsolver_sgetrf, Float32),
-    (:rocsolver_dgetrf, Float64),
-    (:rocsolver_cgetrf, ComplexF32),
-    (:rocsolver_zgetrf, ComplexF64),
+    (:rocsolver_sgetrf, :Float32),
+    (:rocsolver_dgetrf, :Float64),
+    (:rocsolver_cgetrf, :ComplexF32),
+    (:rocsolver_zgetrf, :ComplexF64),
 )
     @eval begin
         function getrf!(A::ROCMatrix{$elty})
@@ -183,10 +183,10 @@ for (fname, elty) in (
 end
 
 for (fname, elty) in (
-    (:rocsolver_sgetrs, Float32),
-    (:rocsolver_dgetrs, Float64),
-    (:rocsolver_cgetrs, ComplexF32),
-    (:rocsolver_zgetrs, ComplexF64),
+    (:rocsolver_sgetrs, :Float32),
+    (:rocsolver_dgetrs, :Float64),
+    (:rocsolver_cgetrs, :ComplexF32),
+    (:rocsolver_zgetrs, :ComplexF64),
 )
     @eval begin
         function getrs!(
@@ -208,6 +208,164 @@ for (fname, elty) in (
 
             $fname(rocBLAS.handle(), trans, n, nrhs, A, lda, ipiv, B, ldb)
             B
+        end
+    end
+end
+
+for (fname, elty, relty) in ((:rocsolver_sgebrd, :Float32   , :Float32),
+                             (:rocsolver_dgebrd, :Float64   , :Float64),
+                             (:rocsolver_cgebrd, :ComplexF32, :Float32),
+                             (:rocsolver_zgebrd, :ComplexF64, :Float64))
+    @eval begin
+        function gebrd!(A:: ROCMatrix{$elty})
+            m, n = size(A)
+            lda  = max(1, stride(A, 2))
+            k    = min(m, n)
+            D    = ROCVector{$relty}(undef, k)
+            E    = ROCVector{$relty}(undef, k-1)
+            tauq = ROCVector{$elty}(undef, k)
+            taup = ROCVector{$elty}(undef, k)
+
+            $fname(rocBLAS.handle(), m, n, A, lda, D, E, tauq, taup)
+            A, D, E, tauq, taup
+        end
+    end
+end
+
+for (fname, elty, relty) in ((:rocsolver_sgesvd, :Float32, :Float32),
+                             (:rocsolver_dgesvd, :Float64, :Float64),
+                             (:rocsolver_cgesvd, :ComplexF32, :Float32),
+                             (:rocsolver_zgesvd, :ComplexF64, :Float64))
+    @eval begin
+        function gesvd!(jobu::Char,
+                        jobvt::Char,
+                        A::ROCMatrix{$elty})
+            m, n = size(A)
+            k = min(m, n)
+            lda = max(1, stride(A, 2))
+
+            U = if jobu === 'A'
+                ROCMatrix{$elty}(undef, m, m)
+            elseif jobu == 'S' || jobu === 'O'
+                ROCMatrix{$elty}(undef, m, k)
+            elseif jobu === 'N'
+                C_NULL
+            else
+                error("jobu must be one of 'A', 'S', 'O', or 'N'")
+            end
+            ldu = U == C_NULL ? 1 : max(1, stride(U, 2))
+
+            S = ROCVector{$relty}(undef, k)
+
+            Vt = if jobvt === 'A'
+                ROCMatrix{$elty}(undef, n, n)
+            elseif jobvt === 'S' || jobvt === 'O'
+                ROCMatrix{$elty}(undef, k, n)
+            elseif jobvt === 'N'
+                C_NULL
+            else
+                error("jobvt must be one of 'A', 'S', 'O', or 'N'")
+            end
+            ldvt = Vt == C_NULL ? 1 : max(1, stride(Vt, 2))
+
+            E = ROCVector{$relty}(undef, k-1)
+            devinfo = ROCArray{Cint}(undef, 1)
+            $fname(rocBLAS.handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt, E, 'I', devinfo)
+
+            info = AMDGPU.@allowscalar devinfo[1]
+            AMDGPU.unsafe_free!(devinfo)
+            chkargsok(BlasInt(info))
+
+            return U, S, Vt
+        end
+    end
+end
+
+for (jname, fname, elty, relty) in (
+    (:syevd!, :rocsolver_dsyevd, :Float64   , :Float64),
+    (:syevd!, :rocsolver_ssyevd, :Float32   , :Float32),
+    (:heevd!, :rocsolver_zheevd, :ComplexF64, :Float64),
+    (:heevd!, :rocsolver_cheevd, :ComplexF32, :Float32),
+)
+    @eval begin
+        function $jname(uplo::Char, A::ROCMatrix{$elty})
+            chkuplo(uplo)
+
+            n = size(A, 2)
+            lda = max(1, stride(A, 2))
+
+            D = ROCVector{$relty}(undef, n)
+            E = ROCVector{$relty}(undef, n)
+
+            dev_info = ROCVector{Cint}(undef, 1)
+
+            $fname(
+                rocBLAS.handle(),
+                rocblas_evect_original,
+                uplo,
+                n, A, lda,
+                D, E,
+                dev_info
+            )
+
+            info = AMDGPU.@allowscalar dev_info[1]
+            AMDGPU.unsafe_free!(dev_info)
+
+            AMDGPU.unsafe_free!(E)
+
+            D, A
+        end
+    end
+end
+
+for (fname, matrix_elty, vector_elty) in (
+    (:rocsolver_zgesvdj, :ComplexF64, :Float64),
+    (:rocsolver_cgesvdj, :ComplexF32, :Float32),
+    (:rocsolver_dgesvdj, :Float64, :Float64),
+    (:rocsolver_sgesvdj, :Float32, :Float32),
+)
+    @eval begin
+        function gesvdj!(A::ROCMatrix{$matrix_elty}, abstol::$vector_elty, max_sweeps::Cint)
+            m, n = size(A)
+            lda = max(1, stride(A, 2))
+            dev_residual = ROCVector{$vector_elty}(undef, 1)
+
+            dev_n_sweeps = ROCVector{Cint}(undef, 1)
+
+            S = ROCArray{$vector_elty}(undef, min(m, n))
+            U = ROCMatrix{$matrix_elty}(undef, (m, min(m, n)))
+            ldu = m
+            @assert stride(U, 2) == ldu
+            V = ROCMatrix{$matrix_elty}(undef, (min(m, n), n))
+            ldv = min(m, n)
+            @assert stride(V, 2) == ldv
+
+            dev_info = ROCVector{Cint}(undef, 1)
+
+            $fname(
+                rocBLAS.handle(),
+                rocblas_svect_singular,
+                rocblas_svect_singular,
+                m, n, A, lda,
+                abstol,
+                dev_residual,
+                max_sweeps,
+                dev_n_sweeps,
+                S,
+                U, ldu,
+                V, ldv,
+                dev_info
+            )
+            residual = AMDGPU.@allowscalar dev_residual[1]
+            AMDGPU.unsafe_free!(dev_residual)
+
+            n_sweeps = AMDGPU.@allowscalar dev_n_sweeps[1]
+            AMDGPU.unsafe_free!(dev_n_sweeps)
+
+            info = AMDGPU.@allowscalar dev_info[1]
+            AMDGPU.unsafe_free!(dev_info)
+
+            U, S, V', residual, n_sweeps, info
         end
     end
 end
@@ -428,126 +586,8 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         LinearAlgebra.LAPACK.getrs!(trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}, B::ROCVecOrMat{$elty}) = rocSOLVER.getrs!(trans, A, ipiv, B)
         LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::ROCMatrix{$elty}, tau::ROCVector{$elty}, C::ROCVecOrMat{$elty}) = rocSOLVER.ormqr!(side, trans, A, tau, C)
         LinearAlgebra.LAPACK.orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.orgqr!(A, tau)
-    end
-end
-
-for (fname, matrix_elty, vector_elty) in (
-    (:rocsolver_zgesvdj, :ComplexF64, :Float64),
-    (:rocsolver_cgesvdj, :ComplexF32, :Float32),
-    (:rocsolver_dgesvdj, :Float64, :Float64),
-    (:rocsolver_sgesvdj, :Float32, :Float32),
-)
-    @eval begin
-        function gesvdj!(A::ROCMatrix{$matrix_elty}, abstol::$vector_elty, max_sweeps::Cint)
-            m, n = size(A)
-            lda = max(1, stride(A, 2))
-            dev_residual = ROCVector{$vector_elty}(undef, 1)
-
-            dev_n_sweeps = ROCVector{Cint}(undef, 1)
-
-            S = ROCArray{$vector_elty}(undef, min(m, n))
-            U = ROCMatrix{$matrix_elty}(undef, (m, min(m, n)))
-            ldu = m
-            @assert stride(U, 2) == ldu
-            V = ROCMatrix{$matrix_elty}(undef, (min(m, n), n))
-            ldv = min(m, n)
-            @assert stride(V, 2) == ldv
-
-            dev_info = ROCVector{Cint}(undef, 1)
-
-            $fname(
-                rocBLAS.handle(),
-                rocblas_svect_singular,
-                rocblas_svect_singular,
-                m, n, A, lda,
-                abstol,
-                dev_residual,
-                max_sweeps,
-                dev_n_sweeps,
-                S,
-                U, ldu,
-                V, ldv,
-                dev_info
-            )
-            residual = AMDGPU.@allowscalar dev_residual[1]
-            AMDGPU.unsafe_free!(dev_residual)
-
-            n_sweeps = AMDGPU.@allowscalar dev_n_sweeps[1]
-            AMDGPU.unsafe_free!(dev_n_sweeps)
-
-            info = AMDGPU.@allowscalar dev_info[1]
-            AMDGPU.unsafe_free!(dev_info)
-
-            U, S, V', residual, n_sweeps, info
-        end
-    end
-end
-
-for (fname, elt) in (
-    (:rocsolver_dsyevd, :Float64),
-    (:rocsolver_ssyevd, :Float32),
-)
-    @eval begin
-        function syevd!(uplo::Char, A::ROCMatrix{$elt})
-            chkuplo(uplo)
-
-            n = size(A, 2)
-            lda = max(1, stride(A, 2))
-
-            D = ROCVector{$elt}(undef, n)
-            E = ROCVector{$elt}(undef, n)
-
-            dev_info = ROCVector{Cint}(undef, 1)
-
-            $fname(
-                rocBLAS.handle(),
-                rocblas_evect_original,
-                uplo,
-                n, A, lda,
-                D, E,
-                dev_info
-            )
-            info = AMDGPU.@allowscalar dev_info[1]
-            AMDGPU.unsafe_free!(dev_info)
-
-            AMDGPU.unsafe_free!(E)
-
-            D, A
-        end
-    end
-end
-
-for (fname, matrix_elty, vector_elty) in (
-    (:rocsolver_zheevd, :ComplexF64, :Float64),
-    (:rocsolver_cheevd, :ComplexF32, :Float32),
-)
-    @eval begin
-        function heevd!(uplo::Char, A::ROCMatrix{$matrix_elty})
-            chkuplo(uplo)
-
-            n = size(A, 2)
-            lda = max(1, stride(A, 2))
-
-            D = ROCVector{$vector_elty}(undef, n)
-            E = ROCVector{$vector_elty}(undef, n)
-
-            dev_info = ROCVector{Cint}(undef, 1)
-
-            $fname(
-                rocBLAS.handle(),
-                rocblas_evect_original,
-                uplo,
-                n, A, lda,
-                D, E,
-                dev_info
-            )
-            info = AMDGPU.@allowscalar dev_info[1]
-            AMDGPU.unsafe_free!(dev_info)
-
-            AMDGPU.unsafe_free!(E)
-
-            D, A
-        end
+        LinearAlgebra.LAPACK.gebrd!(A::ROCMatrix{$elty}) = rocSOLVER.gebrd!(A)
+        LinearAlgebra.LAPACK.gesvd!(jobu::Char, jobvt::Char, A::ROCMatrix{$elty}) = rocSOLVER.gesvd!(jobu, jobvt, A)
     end
 end
 
