@@ -15,18 +15,7 @@ import .rocBLAS: rocblas_int, rocblas_float_complex, rocblas_double_complex
 import .rocBLAS: rocblas_float, rocblas_diagonal, rocblas_layer_mode
 
 include("librocsolver.jl")
+include("base.jl")
 include("highlevel.jl")
-
-function version()
-    len_ref = Ref{Csize_t}()
-    rocsolver_get_version_string_size(len_ref)
-    len = len_ref[]
-
-    buf = Vector{Cchar}(undef, len)
-    rocsolver_get_version_string(buf, len)
-    str = unsafe_string(reinterpret(Cstring, pointer(buf)))
-
-    VersionNumber(join(split(str, '.')[1:3], '.'))
-end
 
 end
