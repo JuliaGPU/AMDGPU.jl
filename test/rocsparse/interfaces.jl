@@ -79,47 +79,20 @@
         LinearAlgebra.mul!(dc, f(dA), db, alpha, beta)
         @test c ≈ collect(dc)
 
-        A = A + transpose(A)
+        A = A + adjoint(A)
         dA = ROCSparseMatrixCSR(A)
 
-        @assert issymmetric(A)
-        LinearAlgebra.mul!(c, f(Symmetric(A)), b, alpha, beta)
-        LinearAlgebra.mul!(dc, f(Symmetric(dA)), db, alpha, beta)
-        @test c ≈ collect(dc)
-    end
-
-    @testset "$f(A)*b Complex{$elty}*$elty" for elty in (
-        Float32, Float64,
-    ), f in (
-        identity, transpose, adjoint,
-    )
-        n = 10
-        alpha = rand()
-        beta = rand()
-        A = sprand(Complex{elty}, n, n, rand())
-        b = rand(Complex{elty}, n)
-        c = rand(Complex{elty}, n)
-        alpha = beta = 1.0
-        c = zeros(Complex{elty}, n)
-
-        dA = ROCSparseMatrixCSR(A)
-        db = ROCArray(b)
-        dc = ROCArray(c)
-
-        # test with empty inputs
-        @test Array(dA * AMDGPU.zeros(Complex{elty}, n, 0)) == zeros(Complex{elty}, n, 0)
-
-        LinearAlgebra.mul!(c, f(A), b, alpha, beta)
-        LinearAlgebra.mul!(dc, f(dA), db, alpha, beta)
-        @test c ≈ collect(dc)
-
-        A = A + transpose(A)
-        dA = ROCSparseMatrixCSR(A)
-
-        @assert issymmetric(A)
-        LinearAlgebra.mul!(c, f(Symmetric(A)), b, alpha, beta)
-        LinearAlgebra.mul!(dc, f(Symmetric(dA)), db, alpha, beta)
-        @test c ≈ collect(dc)
+        if elty in (Float32, Float64)
+            @assert issymmetric(A)
+            LinearAlgebra.mul!(c, f(Symmetric(A)), b, alpha, beta)
+            LinearAlgebra.mul!(dc, f(Symmetric(dA)), db, alpha, beta)
+            @test c ≈ collect(dc)
+        else
+            @assert ishermitian(A)
+            LinearAlgebra.mul!(c, f(Hermitian(A)), b, alpha, beta)
+            LinearAlgebra.mul!(dc, f(Hermitian(dA)), db, alpha, beta)
+            @test c ≈ collect(dc)
+        end
     end
 
     @testset "$f(A)*$h(B) $elty" for elty in (
