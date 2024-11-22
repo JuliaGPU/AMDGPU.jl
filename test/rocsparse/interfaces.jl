@@ -79,15 +79,18 @@
         LinearAlgebra.mul!(dc, f(dA), db, alpha, beta)
         @test c ≈ collect(dc)
 
-        A = A + adjoint(A)
-        dA = ROCSparseMatrixCSR(A)
+        if f in (identity, transpose)
+            A = A + transpose(A)
+            dA = ROCSparseMatrixCSR(A)
 
-        if elty in (Float32, Float64)
             @assert issymmetric(A)
             LinearAlgebra.mul!(c, f(Symmetric(A)), b, alpha, beta)
             LinearAlgebra.mul!(dc, f(Symmetric(dA)), db, alpha, beta)
             @test c ≈ collect(dc)
         else
+            A = A + adjoint(A)
+            dA = ROCSparseMatrixCSR(A)
+
             @assert ishermitian(A)
             LinearAlgebra.mul!(c, f(Hermitian(A)), b, alpha, beta)
             LinearAlgebra.mul!(dc, f(Hermitian(dA)), db, alpha, beta)
