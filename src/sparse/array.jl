@@ -262,12 +262,31 @@ Base.eltype(g::ROCSparseMatrix{T}) where T = T
 
 ## sparse array interface
 
+SparseArrays.sparsevec(I::ROCArray{Ti}, V::ROCArray{Tv}, n::Integer) where {Ti,Tv} =
+    ROCSparseVector(I, V, n)
+
+function SparseArrays.findnz(S::T) where {T <: AbstractROCSparseMatrix}
+    S2 = ROCSparseMatrixCOO(S)
+    I = S2.rowInd
+    J = S2.colInd
+    V = S2.nzVal
+
+    # To make it compatible with the SparseArrays.jl version
+    idxs = sortperm(J)
+    I = I[idxs]
+    J = J[idxs]
+    V = V[idxs]
+
+    return (I, J, V)
+end
+
 SparseArrays.nnz(g::AbstractROCSparseArray) = g.nnz
 SparseArrays.nonzeros(g::AbstractROCSparseArray) = g.nzVal
 
 SparseArrays.nonzeroinds(g::AbstractROCSparseVector) = g.iPtr
 
 SparseArrays.rowvals(g::ROCSparseMatrixCSC) = g.rowVal
+SparseArrays.getcolptr(g::ROCSparseMatrixCSC) = g.colPtr
 
 LinearAlgebra.issymmetric(M::Union{ROCSparseMatrixCSC,ROCSparseMatrixCSR}) = false
 LinearAlgebra.ishermitian(M::Union{ROCSparseMatrixCSC,ROCSparseMatrixCSR}) = false

@@ -145,6 +145,14 @@ end
         AMDGPU.unsafe_free!(xd2)
         @test_throws ArgumentError pointer(xd2)
     end
+
+    @testset "Broadcasting different buffer types" begin
+        x = rand(Float32, 4, 16, 16)
+        xd = unsafe_wrap(ROCArray, pointer(x), size(x))
+        y = AMDGPU.zeros(Float32, 3, 16, 16)
+        y .= @view(xd[1:3, :, :])
+        @test Array(y) ≈ @view(x[1:3, :, :])
+    end
 end
 
 @testset "unsafe_free" begin
