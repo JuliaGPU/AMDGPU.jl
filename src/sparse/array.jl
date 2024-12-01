@@ -283,6 +283,7 @@ SparseArrays.nonzeros(g::AbstractROCSparseArray) = g.nzVal
 SparseArrays.nonzeroinds(g::AbstractROCSparseVector) = g.iPtr
 
 SparseArrays.rowvals(g::ROCSparseMatrixCSC) = g.rowVal
+SparseArrays.getcolptr(g::ROCSparseMatrixCSC) = g.colPtr
 
 LinearAlgebra.issymmetric(M::Union{ROCSparseMatrixCSC,ROCSparseMatrixCSR}) = false
 LinearAlgebra.ishermitian(M::Union{ROCSparseMatrixCSC,ROCSparseMatrixCSR}) = false
