@@ -262,6 +262,9 @@ Base.eltype(g::ROCSparseMatrix{T}) where T = T
 
 ## sparse array interface
 
+SparseArrays.sparsevec(I::ROCArray{Ti}, V::ROCArray{Tv}, n::Integer) where {Ti,Tv} =
+    ROCSparseVector(I, V, n)
+
 function SparseArrays.findnz(S::T) where {T <: AbstractROCSparseMatrix}
     S2 = ROCSparseMatrixCOO(S)
     I = S2.rowInd
