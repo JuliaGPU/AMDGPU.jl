@@ -209,7 +209,7 @@ end
         n = 35
         A = sprand(n, n, 0.2)
         d_A = ROCSparseMatrixCSC(A)
-        @test Array(getcolptr(d_A)) == getcolptr(A)
+        @test Array(SparseArrays.getcolptr(d_A)) == SparseArrays.getcolptr(A)
 
         i, j, v = findnz(A)
         d_i, d_j, d_v = findnz(d_A)
