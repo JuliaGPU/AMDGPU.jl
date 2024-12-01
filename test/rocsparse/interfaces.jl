@@ -203,3 +203,26 @@
         @test (dD - dA) isa typ
     end
 end
+
+@testset "SparseArrays.jl" begin
+    @testset "findnz" begin
+        n = 35
+        A = sprand(n, n, 0.2)
+        d_A = ROCSparseMatrixCSC(A)
+        @test Array(getcolptr(d_A)) == getcolptr(A)
+
+        i, j, v = findnz(A)
+        d_i, d_j, d_v = findnz(d_A)
+        @test Array(d_i) == i && Array(d_j) == j && Array(d_v) == v
+
+        i = unique(sort(rand(1:n, 10)))
+        vals = rand(length(i))
+        d_i = ROCArray(i)
+        d_vals = ROCArray(vals)
+        v = sparsevec(i, vals, n)
+        d_v = sparsevec(d_i, d_vals, n)
+        @test Array(d_v.iPtr) == v.nzind
+        @test Array(d_v.nzVal) == v.nzval
+        @test d_v.len == v.n
+    end
+end
