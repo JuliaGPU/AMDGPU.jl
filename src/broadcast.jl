@@ -9,7 +9,18 @@ BroadcastStyle(::Type{<:ROCArray{T, N, B}}) where {T, N, B} =
 BroadcastStyle(W::Type{<:AnyROCArray{T, N}}) where {T, N} =
     ROCArrayStyle{N, buftype(Adapt.unwrap_type(W))}()
 
-# TODO handle broadcast of different buffer types (use unified memory).
+# TODO use unified buffer once we support it.
+# Broadcast of two different buffers - choose `HIPBuffer`.
+BroadcastStyle(
+    ::ROCArrayStyle{N1, B1},
+    ::ROCArrayStyle{N2, B2},
+) where {N1,N2,B1,B2} = ROCArrayStyle{max(N1,N2), Mem.HIPBuffer}()
+
+# Different N, same buffer type.
+BroadcastStyle(
+    ::ROCArrayStyle{N1, B},
+    ::ROCArrayStyle{N2, B},
+) where {N1,N2,B} = ROCArrayStyle{max(N1,N2), B}()
 
 # Allocation of output arrays.
 function Base.similar(
