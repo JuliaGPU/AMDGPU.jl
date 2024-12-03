@@ -246,9 +246,9 @@ for (fname, elty, relty) in ((:rocsolver_sgesvd, :Float32, :Float32),
 
             U = if jobu === 'A'
                 ROCMatrix{$elty}(undef, m, m)
-            elseif jobu == 'S' || jobu === 'O'
+            elseif jobu === 'S'
                 ROCMatrix{$elty}(undef, m, k)
-            elseif jobu === 'N'
+            elseif jobu === 'N' || jobu === 'O'
                 C_NULL
             else
                 error("jobu must be one of 'A', 'S', 'O', or 'N'")
@@ -259,9 +259,9 @@ for (fname, elty, relty) in ((:rocsolver_sgesvd, :Float32, :Float32),
 
             Vt = if jobvt === 'A'
                 ROCMatrix{$elty}(undef, n, n)
-            elseif jobvt === 'S' || jobvt === 'O'
+            elseif jobvt === 'S'
                 ROCMatrix{$elty}(undef, k, n)
-            elseif jobvt === 'N'
+            elseif jobvt === 'N' || jobvt === 'O'
                 C_NULL
             else
                 error("jobvt must be one of 'A', 'S', 'O', or 'N'")
