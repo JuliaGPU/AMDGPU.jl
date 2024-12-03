@@ -38,10 +38,10 @@ get_conv_cache_type(::Type{miopenConvBwdDataAlgorithm_t}) = CONV_BWD_DATA_BENCHM
 get_conv_cache_type(::Type{miopenConvBwdWeightsAlgorithm_t}) = CONV_BWD_WEIGHT_BENCHMARK_CACHE
 
 function get_benchmark_cache(conv_type::C, conv_args) where C <: CONV_ALGOS
-    perf_results = lock(get_conv_cache_type(conv_type)) do cache
-        get(cache, conv_args, nothing)
-    end
-    isnothing(perf_results) && return nothing
+    cache = get_conv_cache_type(conv_type).payload
+    perf_results = get(cache, conv_args, nothing)
+    perf_results ≡ nothing && return nothing
+
     workspace = ROCArray{UInt8}(undef, perf_results.memory)
     perf_results, workspace
 end

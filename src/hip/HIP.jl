@@ -35,13 +35,18 @@ end
 const CONTEXTS = AMDGPU.LockedObject(Dict{HIPDevice,HIPContext}())
 
 function HIPContext(device::HIPDevice)
-    lock(CONTEXTS) do contexts
+    contexts = CONTEXTS.payload
+
+    ctx = get(contexts, device, nothing)
+    ctx ≡ nothing || return ctx
+
+    Base.@lock CONTEXTS.lock begin
         get!(contexts, device) do
-            context_ref = Ref{hipContext_t}()
-            hipCtxCreate(context_ref, Cuint(0), device.device)
-            context = HIPContext(context_ref[], true)
+            ctx_ref = Ref{hipContext_t}()
+            hipCtxCreate(ctx_ref, Cuint(0), device.device)
+            ctx = HIPContext(ctx_ref[], true)
             device!(device)
-            return context
+            return ctx
         end
     end
 end

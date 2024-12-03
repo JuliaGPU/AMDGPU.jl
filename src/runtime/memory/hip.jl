@@ -1,10 +1,15 @@
 # Device ID => HIPMemoryPool
-const MEMORY_POOLS = AMDGPU.LockedObject(
-    Dict{Int64, HIP.HIPMemoryPool}())
+const MEMORY_POOLS = AMDGPU.LockedObject(Dict{Int64, HIP.HIPMemoryPool}())
 
 function pool_create(dev::HIPDevice)
-    Base.lock(MEMORY_POOLS) do pools
-        get!(pools, HIP.device_id(dev)) do
+    mp = MEMORY_POOLS.payload
+    did = HIP.device_id(dev)
+
+    pool = get(mp, did, nothing)
+    pool ≡ nothing || return pool
+
+    Base.@lock MEMORY_POOLS.lock begin
+        get!(mp, HIP.device_id(dev)) do
             max_size::UInt64 = AMDGPU.hard_memory_limit()
             max_size = max_size != typemax(UInt64) ? max_size : UInt64(0)
 

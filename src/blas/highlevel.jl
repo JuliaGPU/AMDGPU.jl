@@ -90,6 +90,16 @@ end
 # BLAS 2
 #
 
+const ROCUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
+    <:Any,<:Union{<:ROCArray, Adjoint{<:Any, <:ROCArray}, Transpose{<:Any, <:ROCArray}}}
+const ROCLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
+    <:Any,<:Union{<:ROCArray, Adjoint{<:Any, <:ROCArray}, Transpose{<:Any, <:ROCArray}}}
+
+LinearAlgebra.istriu(::ROCUpperOrUnitUpperTriangular) = true
+LinearAlgebra.istril(::ROCUpperOrUnitUpperTriangular) = false
+LinearAlgebra.istriu(::ROCLowerOrUnitLowerTriangular) = false
+LinearAlgebra.istril(::ROCLowerOrUnitLowerTriangular) = true
+
 # multiplication
 LinearAlgebra.generic_trimatmul!(
     c::StridedROCVector{T}, uploc, isunitc, tfun::Function,
