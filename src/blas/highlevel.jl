@@ -90,6 +90,11 @@ end
 # BLAS 2
 #
 
+LinearAlgebra.istriu(M::UpperTriangular{T,S}) where {T<:ROCBLASFloat, S<:StridedROCMatrix} = true
+LinearAlgebra.istril(M::UpperTriangular{T,S}) where {T<:ROCBLASFloat, S<:StridedROCMatrix} = false
+LinearAlgebra.istriu(M::LowerTriangular{T,S}) where {T<:ROCBLASFloat, S<:StridedROCMatrix} = false
+LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:ROCBLASFloat, S<:StridedROCMatrix} = true
+
 # multiplication
 LinearAlgebra.generic_trimatmul!(
     c::StridedROCVector{T}, uploc, isunitc, tfun::Function,
