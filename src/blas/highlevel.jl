@@ -90,10 +90,15 @@ end
 # BLAS 2
 #
 
-LinearAlgebra.istriu(M::UpperTriangular{T,S}) where {T<:ROCBLASFloat, S<:StridedROCMatrix} = true
-LinearAlgebra.istril(M::UpperTriangular{T,S}) where {T<:ROCBLASFloat, S<:StridedROCMatrix} = false
-LinearAlgebra.istriu(M::LowerTriangular{T,S}) where {T<:ROCBLASFloat, S<:StridedROCMatrix} = false
-LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:ROCBLASFloat, S<:StridedROCMatrix} = true
+const ROCUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
+    <:Any,<:Union{<:ROCArray, Adjoint{<:Any, <:ROCArray}, Transpose{<:Any, <:ROCArray}}}
+const ROCLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
+    <:Any,<:Union{<:ROCArray, Adjoint{<:Any, <:ROCArray}, Transpose{<:Any, <:ROCArray}}}
+
+LinearAlgebra.istriu(::ROCUpperOrUnitUpperTriangular) = true
+LinearAlgebra.istril(::ROCUpperOrUnitUpperTriangular) = false
+LinearAlgebra.istriu(::ROCLowerOrUnitLowerTriangular) = false
+LinearAlgebra.istril(::ROCLowerOrUnitLowerTriangular) = true
 
 # multiplication
 LinearAlgebra.generic_trimatmul!(
