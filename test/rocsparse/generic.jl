@@ -1,3 +1,28 @@
+fmt = Dict(ROCSparseMatrixCSC => :csc,
+           ROCSparseMatrixCSR => :csr,
+           ROCSparseMatrixCOO => :coo)
+
+for SparseMatrixType in [ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO]
+    @testset "$SparseMatrixType -- densetosparse algo=$algo" for algo in [rocSPARSE.rocsparse_dense_to_sparse_alg_default]
+        @testset "densetosparse $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            A_sparse = sprand(T, 10, 20, 0.5)
+            A_dense = Matrix{T}(A_sparse)
+            dA_dense = ROCMatrix{T}(A_dense)
+            dA_sparse = rocSPARSE.densetosparse(dA_dense, fmt[SparseMatrixType], 'O', algo)
+            @test A_sparse ≈ collect(dA_sparse)
+        end
+    end
+    @testset "$SparseMatrixType -- sparsetodense algo=$algo" for algo in [rocSPARSE.rocsparse_sparse_to_dense_alg_default]
+        @testset "sparsetodense $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            A_dense = rand(T, 10, 20)
+            A_sparse = sparse(A_dense)
+            dA_sparse = SparseMatrixType(A_sparse)
+            dA_dense = rocSPARSE.sparsetodense(dA_sparse, 'O', algo)
+            @test A_dense ≈ collect(dA_dense)
+        end
+    end
+end
+
 @testset "gather! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
     X = sprand(T, 20, 0.5)
     dX = ROCSparseVector{T}(X)

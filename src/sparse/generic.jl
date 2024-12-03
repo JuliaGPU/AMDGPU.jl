@@ -2,6 +2,77 @@
 
 ## API functions
 
+function sparsetodense(A::Union{ROCSparseMatrixCSC{T},ROCSparseMatrixCSR{T},ROCSparseMatrixCOO{T}}, index::SparseChar,
+                       algo::rocsparse_sparse_to_dense_alg=rocsparse_sparse_to_dense_alg_default) where {T}
+    m,n = size(A)
+    B = ROCMatrix{T}(undef, m, n)
+    desc_sparse = ROCSparseMatrixDescriptor(A, index)
+    desc_dense = ROCDenseMatrixDescriptor(B)
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        rocsparse_sparse_to_dense(handle(), desc_sparse, desc_dense, out, C_NULL)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        buffer_size = sizeof(buffer)
+        rocsparse_sparse_to_dense(handle(), desc_sparse, desc_dense, algo, buffer_size, buffer)
+    end
+    return B
+end
+
+function densetosparse(A::ROCMatrix{T}, fmt::Symbol, index::SparseChar,
+                       algo::rocsparse_dense_to_sparse_alg=rocsparse_dense_to_sparse_alg_default) where {T}
+    m,n = size(A)
+    local rowPtr, colPtr, desc_sparse, B
+    if fmt == :coo
+        desc_sparse = ROCSparseMatrixDescriptor(ROCSparseMatrixCOO, T, Cint, m, n, index)
+    elseif fmt == :csr
+        rowPtr = ROCVector{Cint}(undef, m+1)
+        desc_sparse = ROCSparseMatrixDescriptor(ROCSparseMatrixCSR, rowPtr, T, Cint, m, n, index)
+    elseif fmt == :csc
+        colPtr = ROCVector{Cint}(undef, n+1)
+        desc_sparse = ROCSparseMatrixDescriptor(ROCSparseMatrixCSC, colPtr, T, Cint, m, n, index)
+    else
+        error("Format :$fmt not available, use :csc, :csr or :coo.")
+    end
+    desc_dense = ROCDenseMatrixDescriptor(A)
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        rocsparse_dense_to_sparse(handle(), desc_dense, desc_sparse, algo, out, C_NULL)
+        return out[]
+    end
+    with_workspace(bufferSize) do buffer
+        buffer_size = sizeof(buffer)
+        # Analysis
+        rocsparse_dense_to_sparse(handle(), desc_dense, desc_sparse, algo, C_NULL, buffer)
+        nnzB = Ref{Int64}()
+        rocsparse_spmat_get_size(desc_sparse, Ref{Int64}(), Ref{Int64}(), nnzB)
+        if fmt == :coo
+            rowInd = ROCVector{Cint}(undef, nnzB[])
+            colInd = ROCVector{Cint}(undef, nnzB[])
+            nzVal = ROCVector{T}(undef, nnzB[])
+            B = ROCSparseMatrixCOO{T, Cint}(rowInd, colInd, nzVal, (m,n))
+            rocsparse_coo_set_pointers(desc_sparse, B.rowInd, B.colInd, B.nzVal)
+        elseif fmt == :csr
+            colVal = ROCVector{Cint}(undef, nnzB[])
+            nzVal = ROCVector{T}(undef, nnzB[])
+            B = ROCSparseMatrixCSR{T, Cint}(rowPtr, colVal, nzVal, (m,n))
+            rocsparse_csr_set_pointers(desc_sparse, B.rowPtr, B.colVal, B.nzVal)
+        elseif fmt == :csc
+            rowVal = ROCVector{Cint}(undef, nnzB[])
+            nzVal = ROCVector{T}(undef, nnzB[])
+            B = ROCSparseMatrixCSC{T, Cint}(colPtr, rowVal, nzVal, (m,n))
+            rocsparse_csc_set_pointers(desc_sparse, B.colPtr, B.rowVal, B.nzVal)
+        else
+            error("Format :$fmt not available, use :csc, :csr or :coo.")
+        end
+        rocsparse_dense_to_sparse(handle(), desc_dense, desc_sparse, algo, buffer_size, buffer)
+    end
+    return B
+end
+
 function gather!(X::ROCSparseVector, Y::ROCVector, index::SparseChar)
     descX = ROCSparseVectorDescriptor(X, index)
     descY = ROCDenseVectorDescriptor(Y)
