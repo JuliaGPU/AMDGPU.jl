@@ -1,3 +1,70 @@
+@testset "gather! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    X = sprand(T, 20, 0.5)
+    dX = ROCSparseVector{T}(X)
+    Y = rand(T, 20)
+    dY = ROCVector{T}(Y)
+    rocSPARSE.gather!(dX, dY, 'O')
+    Z = copy(X)
+    for i = 1:nnz(X)
+        Z[X.nzind[i]] = Y[X.nzind[i]]
+    end
+    @test Z ≈ sparse(collect(dX))
+end
+
+@testset "scatter! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    X = sprand(T, 20, 0.5)
+    dX = ROCSparseVector{T}(X)
+    Y = rand(T, 20)
+    dY = ROCVector{T}(Y)
+    rocSPARSE.scatter!(dY, dX, 'O')
+    Z = copy(Y)
+    for i = 1:nnz(X)
+        Z[X.nzind[i]] = X.nzval[i]
+    end
+    @test Z ≈ collect(dY)
+end
+
+@testset "axpby! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    X = sprand(T, 20, 0.5)
+    dX = ROCSparseVector{T}(X)
+    Y = rand(T, 20)
+    dY = ROCVector{T}(Y)
+    alpha = rand(T)
+    beta = rand(T)
+    rocSPARSE.axpby!(alpha, dX, beta, dY, 'O')
+    @test alpha * X + beta * Y ≈ collect(dY)
+end
+
+@testset "rot! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    X = sprand(T, 20, 0.5)
+    dX = ROCSparseVector{T}(X)
+    Y = rand(T, 20)
+    dY = ROCVector{T}(Y)
+    c = rand(T)
+    s = rand(T)
+    rocSPARSE.rot!(dX, dY, c, s, 'O')
+    W = copy(X)
+    Z = copy(Y)
+    for i = 1:nnz(X)
+        W[X.nzind[i]] =  c * X.nzval[i] + s * Y[X.nzind[i]]
+        Z[X.nzind[i]] = -s * X.nzval[i] + c * Y[X.nzind[i]]
+    end
+    @test W ≈ collect(dX)
+    @test Z ≈ collect(dY)
+end
+
+@testset "vv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    for (transx, opx) in [('N', identity), ('C', conj)]
+        T <: Real && transx == 'C' && continue
+        X = sprand(T, 20, 0.5)
+        dX = ROCSparseVector{T}(X)
+        Y = rand(T, 20)
+        dY = ROCVector{T}(Y)
+        result = rocSPARSE.vv!(transx, dX, dY, 'O')
+        @test sum(opx(X[i]) * Y[i] for i=1:20) ≈ result
+    end
+end
+
 @testset "generic mv!" for T in (Float32, Float64, ComplexF32, ComplexF64)
     A = sprand(T, 10, 10, 0.1)
     x = rand(T, 10)

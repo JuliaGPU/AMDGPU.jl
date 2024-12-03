@@ -9,6 +9,45 @@ function gather!(X::ROCSparseVector, Y::ROCVector, index::SparseChar)
     X
 end
 
+function scatter!(Y::ROCVector, X::ROCSparseVector, index::SparseChar)
+    descX = ROCSparseVectorDescriptor(X, index)
+    descY = ROCDenseVectorDescriptor(Y)
+    rocsparse_scatter(handle(), descX, descY)
+    return Y
+end
+
+function axpby!(alpha::Number, X::ROCSparseVector{T}, beta::Number, Y::ROCVector{T}, index::SparseChar) where {T}
+    descX = ROCSparseVectorDescriptor(X, index)
+    descY = ROCDenseVectorDescriptor(Y)
+    rocsparse_axpby(handle(), Ref{T}(alpha), descX, Ref{T}(beta), descY)
+    return Y
+end
+
+function rot!(X::ROCSparseVector{T}, Y::ROCVector{T}, c::Number, s::Number, index::SparseChar) where {T}
+    descX = ROCSparseVectorDescriptor(X, index)
+    descY = ROCDenseVectorDescriptor(Y)
+    rocsparse_rot(handle(), Ref{T}(c), Ref{T}(s), descX, descY)
+    return X, Y
+end
+
+function vv!(transx::SparseChar, X::ROCSparseVector{T}, Y::DenseROCVector{T}, index::SparseChar) where {T}
+    descX = ROCSparseVectorDescriptor(X, index)
+    descY = ROCDenseVectorDescriptor(Y)
+    result = Ref{T}()
+
+    function bufferSize()
+        out = Ref{Csize_t}()
+        rocsparse_spvv(handle(), transx, descX, descY, result, T, out, C_NULL)
+        return out[]
+    end
+
+    with_workspace(bufferSize) do buffer
+        buffer_size = sizeof(buffer)
+        rocsparse_spvv(handle(), transx, descX, descY, result, T, buffer_size, buffer)
+    end
+    return result[]
+end
+
 function mv!(
     transa::SparseChar, alpha::Number, A::Union{ROCSparseMatrixCSR{T}, ROCSparseMatrixCSC{T}, ROCSparseMatrixCOO{T}},
     X::DenseROCVector{T}, beta::Number, Y::DenseROCVector{T}, index::SparseChar,

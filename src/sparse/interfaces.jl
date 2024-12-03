@@ -22,6 +22,12 @@ function mm_wrapper(
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
 end
 
+LinearAlgebra.dot(x::ROCSparseVector{T}, y::DenseROCVector{T}) where {T <: BlasReal} = vv!('N', x, y, 'O')
+LinearAlgebra.dot(x::DenseROCVector{T}, y::ROCSparseVector{T}) where {T <: BlasReal} = dot(y, x)
+
+LinearAlgebra.dot(x::ROCSparseVector{T}, y::DenseROCVector{T}) where {T <: BlasComplex} = vv!('C', x, y, 'O')
+LinearAlgebra.dot(x::DenseROCVector{T}, y::ROCSparseVector{T}) where {T <: BlasComplex} = conj(dot(y,x))
+
 # legacy methods with final MulAddMul argument
 LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::DenseROCVector{T}, _add::MulAddMul) where T <: BlasFloat =
     LinearAlgebra.generic_matvecmul!(C, tA, A, B, _add.alpha, _add.beta)
