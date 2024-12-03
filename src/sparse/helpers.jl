@@ -104,6 +104,33 @@ Base.unsafe_convert(::Type{rocsparse_dnmat_descr}, desc::ROCDenseMatrixDescripto
 mutable struct ROCSparseMatrixDescriptor
     handle::rocsparse_spmat_descr
 
+    function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCOO, IndexBase::Char; transposed::Bool=false)
+        desc_ref = Ref{rocsparse_spmat_descr}()
+        if transposed
+            rocsparse_create_coo_descr(
+                desc_ref, reverse(size(A))..., nnz(A),
+                A.colInd, A.rowInd, nonzeros(A),
+                eltype(A.colInd), IndexBase, eltype(nonzeros(A))
+            )
+        else
+            rocsparse_create_coo_descr(
+                desc_ref, size(A)..., nnz(A),
+                A.rowInd, A.colInd, nonzeros(A),
+                eltype(A.rowInd), IndexBase, eltype(nonzeros(A))
+            )
+        end
+        obj = new(desc_ref[])
+        return finalizer(rocsparse_destroy_spmat_descr, obj)
+    end
+
+    function ROCSparseMatrixDescriptor(::Type{ROCSparseMatrixCOO}, Tv::DataType, Ti::DataType, m::Integer, n::Integer, IndexBase::Char)
+        desc_ref = Ref{rocsparse_spmat_descr}()
+        rocsparse_create_coo_descr(desc_ref, m, n, Ti(0), C_NULL, C_NULL, C_NULL, Ti, IndexBase, Tv)
+        obj = new(desc_ref[])
+        finalizer(rocsparse_destroy_spmat_descr, obj)
+        return obj
+    end
+
     function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCSR, IndexBase::Char; transposed::Bool=false)
         desc_ref = Ref{rocsparse_spmat_descr}()
         if transposed
@@ -119,6 +146,14 @@ mutable struct ROCSparseMatrixDescriptor
         end
         obj = new(desc_ref[])
         return finalizer(rocsparse_destroy_spmat_descr, obj)
+    end
+
+    function ROCSparseMatrixDescriptor(::Type{ROCSparseMatrixCSR}, rowPtr::ROCVector, Tv::DataType, Ti::DataType, m::Integer, n::Integer, IndexBase::Char)
+        desc_ref = Ref{rocsparse_spmat_descr}()
+        rocsparse_create_csr_descr(desc_ref, m, n, Ti(0), rowPtr, C_NULL, C_NULL, Ti, Ti, IndexBase, Tv)
+        obj = new(desc_ref[])
+        finalizer(rocsparse_destroy_spmat_descr, obj)
+        return obj
     end
 
     function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCSC, IndexBase::Char; transposed::Bool=false)
@@ -138,23 +173,12 @@ mutable struct ROCSparseMatrixDescriptor
         return finalizer(rocsparse_destroy_spmat_descr, obj)
     end
 
-    function ROCSparseMatrixDescriptor(A::ROCSparseMatrixCOO, IndexBase::Char; transposed::Bool=false)
+    function ROCSparseMatrixDescriptor(::Type{ROCSparseMatrixCSC}, colPtr::ROCVector, Tv::DataType, Ti::DataType, m::Integer, n::Integer, IndexBase::Char)
         desc_ref = Ref{rocsparse_spmat_descr}()
-        if transposed
-            rocsparse_create_coo_descr(
-                desc_ref, reverse(size(A))..., nnz(A),
-                A.colInd, A.rowInd, nonzeros(A),
-                eltype(A.colInd), IndexBase, eltype(nonzeros(A))
-            )
-        else
-            rocsparse_create_coo_descr(
-                desc_ref, size(A)..., nnz(A),
-                A.rowInd, A.colInd, nonzeros(A),
-                eltype(A.rowInd), IndexBase, eltype(nonzeros(A))
-            )
-        end
+        rocsparse_create_csc_descr(desc_ref, m, n, Ti(0), colPtr, C_NULL, C_NULL, Ti, Ti, IndexBase, Tv)
         obj = new(desc_ref[])
-        return finalizer(rocsparse_destroy_spmat_descr, obj)
+        finalizer(rocsparse_destroy_spmat_descr, obj)
+        return obj
     end
 end
 
