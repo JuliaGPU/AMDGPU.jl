@@ -201,6 +201,15 @@ for (elty, felty) in ((:Int32, :Float32), (:Int64, :Float64), (:Int128, :Complex
     end
 end
 
+## ROCSparseVector to ROCVector
+ROCVector(x::ROCSparseVector{T}) where {T} = ROCVector{T}(x)
+
+function ROCVector{T}(sv::ROCSparseVector{T}) where {T}
+    n = length(sv)
+    dv = AMDGPU.zeros(T, n)
+    scatter!(dv, sv, 'O')
+end
+
 ## CSR to BSR and vice-versa
 
 for (fname,elty) in ((:rocsparse_scsr2bsr, :Float32),
@@ -400,7 +409,7 @@ for (elty, welty) in ((:Float16, :Float32), (:ComplexF16, :ComplexF32))
     end
 end
 
-function Base.copyto!(dest::Array{T, 2}, src::AbstractROCSparseMatrix{T}) where T
+function Base.copyto!(dest::Matrix{T}, src::AbstractROCSparseMatrix{T}) where T
     copyto!(dest, ROCMatrix{T}(src))
 end
 
