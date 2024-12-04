@@ -11,11 +11,13 @@ function sparsetodense(A::Union{ROCSparseMatrixCSC{T},ROCSparseMatrixCSR{T},ROCS
 
     function bufferSize()
         out = Ref{Csize_t}()
-        rocsparse_sparse_to_dense(handle(), desc_sparse, desc_dense, out, C_NULL)
+        rocsparse_sparse_to_dense(handle(), desc_sparse, desc_dense, algo, out, C_NULL)
         return out[]
     end
+
+    buffer_size = Ref{Csize_t}()
     with_workspace(bufferSize) do buffer
-        buffer_size = sizeof(buffer)
+        buffer_size[] = sizeof(buffer)
         rocsparse_sparse_to_dense(handle(), desc_sparse, desc_dense, algo, buffer_size, buffer)
     end
     return B
@@ -43,8 +45,10 @@ function densetosparse(A::ROCMatrix{T}, fmt::Symbol, index::SparseChar,
         rocsparse_dense_to_sparse(handle(), desc_dense, desc_sparse, algo, out, C_NULL)
         return out[]
     end
+
+    buffer_size = Ref{Csize_t}()
     with_workspace(bufferSize) do buffer
-        buffer_size = sizeof(buffer)
+        buffer_size[] = sizeof(buffer)
         # Analysis
         rocsparse_dense_to_sparse(handle(), desc_dense, desc_sparse, algo, C_NULL, buffer)
         nnzB = Ref{Int64}()
@@ -112,8 +116,9 @@ function vv!(transx::SparseChar, X::ROCSparseVector{T}, Y::DenseROCVector{T}, in
         return out[]
     end
 
+    buffer_size = Ref{Csize_t}()
     with_workspace(bufferSize) do buffer
-        buffer_size = sizeof(buffer)
+        buffer_size[] = sizeof(buffer)
         rocsparse_spvv(handle(), transx, descX, descY, result, T, buffer_size, buffer)
     end
     return result[]
