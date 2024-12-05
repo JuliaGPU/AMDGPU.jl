@@ -8,24 +8,24 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     ) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
 
-        cache_allocator = CACHE_ALLOC[]
-        x = if !(B <: Mem.HIPBuffer) || cache_allocator ≡ nothing
+        alloc_name = cache_alloc_name()
+        # Do not use caching allocator if it is not set or
+        # the buffer is not a device memory.
+        x = if !(B <: Mem.HIPBuffer) || alloc_name == :none
             data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
             x = new{T, N, B}(data, dims, 0)
         else
-            tmp = cache_alloc(cache_allocator, B, T, dims)
+            alloc = cache_alloc!(alloc_name)
+            tmp = alloc!(alloc, B, T, dims)
             if tmp ≡ nothing
-                @info "Cache miss"
+                # @info "Cache miss"
                 data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
                 tmp = new{T, N, B}(data, dims, 0)
-                add_busy!(cache_allocator, tmp)
+                add_busy!(alloc, tmp)
             end
             tmp::ROCArray{T, N, B}
         end
-
-        x = finalizer(unsafe_free!, x)
-        # RECORD_MEMORY[] && record!(x)
-        return x
+        return finalizer(unsafe_free!, x)
     end
 
     function ROCArray{T, N}(

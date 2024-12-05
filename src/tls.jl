@@ -2,14 +2,16 @@ mutable struct TaskLocalState
     device::HIPDevice
     context::HIPContext
     streams::Vector{Union{HIPStream,Nothing}}
+    cache_alloc_name::Symbol
 end
 
 function TaskLocalState(
     dev::HIPDevice = something(HIP.DEFAULT_DEVICE[], HIPDevice(1)),
     ctx::HIPContext = HIPContext(dev),
+    cache_alloc_name::Symbol = :none,
 )
     streams = Union{Nothing, HIPStream}[nothing for _ in 1:HIP.ndevices()]
-    TaskLocalState(dev, ctx, streams)
+    TaskLocalState(dev, ctx, streams, cache_alloc_name)
 end
 
 function Base.getproperty(state::TaskLocalState, field::Symbol)
@@ -25,6 +27,17 @@ task_local_state()::Union{Nothing, TaskLocalState} =
 
 task_local_state!(args...)::TaskLocalState =
     get!(() -> TaskLocalState(args...), task_local_storage(), :AMDGPU)
+
+Base.copy(state::TaskLocalState) = TaskLocalState(
+    state.device, state.context, copy(state.streams), state.cache_alloc_name)
+
+function Base.show(io::IO, state::TaskLocalState)
+    println(io, "TaskLocalState:")
+    println(io, "  Device: $(state.device)")
+    println(io, "  HIP Context: $(state.context)")
+    println(io, "  HIP Stream: $(state.stream)")
+    println(io, "  Cache Allocator: $(state.cache_alloc_name)")
+end
 
 """
     device()::HIPDevice
@@ -179,15 +192,10 @@ function priority!(f::Function, p::Symbol)
     end
 end
 
-Base.copy(state::TaskLocalState) = TaskLocalState(
-    state.device, state.context, copy(state.streams))
+cache_alloc_name()::Symbol = task_local_state!().cache_alloc_name
 
-function Base.show(io::IO, state::TaskLocalState)
-    println(io, "TaskLocalState:")
-    println(io, "  Device: $(state.device)")
-    println(io, "  HIP Context: $(state.context)")
-    println(io, "  HIP Stream: $(state.stream)")
-end
+cache_alloc_name!(name::Symbol)::Symbol =
+    task_local_state!().cache_alloc_name = name
 
 @inline function prepare_state(state = task_local_state!())
     hip_ctx = Ref{HIP.hipContext_t}()
@@ -195,14 +203,4 @@ end
     state.context.context != hip_ctx[] &&
         HIP.context!(state.context)
     return
-end
-
-function synchronize_rocm_tasks(ex)
-    quote
-        try
-            $(ex)
-        finally
-            $task_local_state() ≢ nothing && $device_synchronize()
-        end
-    end
 end
