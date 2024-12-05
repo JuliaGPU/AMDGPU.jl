@@ -15,10 +15,9 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
             data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
             x = new{T, N, B}(data, dims, 0)
         else
-            alloc = cache_alloc!(alloc_name)
+            alloc = cache_allocator!(alloc_name)
             tmp = alloc!(alloc, B, T, dims)
             if tmp ≡ nothing
-                # @info "Cache miss"
                 data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
                 tmp = new{T, N, B}(data, dims, 0)
                 add_busy!(alloc, tmp)
