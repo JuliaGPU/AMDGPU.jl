@@ -27,10 +27,8 @@ function main()
             "Exceptions" => "exceptions.md",
             "Profiling" => "profiling.md",
             "Memory" => "memory.md",
+            "Caching Memory Allocator" => "caching_allocator.md",
             "Host-Call" => "hostcall.md",
-            "Intrinsics" => [
-                "Execution Control" => "execution_control.md",
-            ],
             "Printing" => "printing.md",
             "Logging" => "logging.md",
             "API Reference" => "api.md"
