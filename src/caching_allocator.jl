@@ -48,11 +48,15 @@ function alloc!(
     free_pool = get_free_pool(alloc, uid)
     isempty(free_pool) && return nothing
 
-    # @info "Cache hit"
     busy_pool = get_busy_pool(alloc, uid)
-    x = pop!(free_pool)
-    # Array was manually freed via `unsafe_free!`.
-    x.buf.freed && return nothing
+    x = nothing
+    while !isempty(free_pool) && x ≡ nothing
+        tmp = pop!(free_pool)
+        # Array was manually freed via `unsafe_free!`.
+        tmp.buf.freed && continue
+        x = tmp
+    end
+    x ≡ nothing && return nothing
 
     push!(busy_pool, x)
     return x
