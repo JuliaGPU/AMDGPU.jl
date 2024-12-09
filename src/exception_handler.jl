@@ -40,9 +40,9 @@ struct ExceptionHolder
         n_str_buffers = 100
 
         exception_flag = Mem.HostBuffer(sizeof(Int32), HIP.hipHostAllocDefault)
-        gate = ROCArray(UInt64[0])
-        buffers_counter = ROCArray(Int32[0])
-        str_buffers_counter = ROCArray(Int32[0])
+        gate = with_no_caching(() -> ROCArray(UInt64[0]))
+        buffers_counter = with_no_caching(() -> ROCArray(Int32[0]))
+        str_buffers_counter = with_no_caching(() -> ROCArray(Int32[0]))
 
         errprintf_buffers = [
             Mem.HostBuffer(buf_len, HIP.hipHostAllocDefault)
@@ -51,8 +51,10 @@ struct ExceptionHolder
             Mem.HostBuffer(str_len, HIP.hipHostAllocDefault)
             for _ in 1:n_str_buffers]
 
-        errprintf_buffers_dev = ROCArray(Mem.device_ptr.(errprintf_buffers))
-        str_buffers_dev = ROCArray(Mem.device_ptr.(str_buffers))
+        errprintf_buffers_dev = with_no_caching(
+            () -> ROCArray(Mem.device_ptr.(errprintf_buffers)))
+        str_buffers_dev = with_no_caching(
+            () -> ROCArray(Mem.device_ptr.(str_buffers)))
 
         new(
             exception_flag, gate, buffers_counter, str_buffers_counter,
