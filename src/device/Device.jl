@@ -7,7 +7,6 @@ using ..LLVM.Interop
 import ..Adapt
 import Core: LLVMPtr
 import ..LinearAlgebra
-import UnsafeAtomicsLLVM
 
 import ..HSA
 import ..HIP
