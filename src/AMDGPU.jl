@@ -1,6 +1,7 @@
 module AMDGPU
 
 using Adapt
+using Base.ScopedValues
 using CEnum
 using GPUCompiler
 using GPUArrays
@@ -114,7 +115,6 @@ include("tls.jl")
 include("highlevel.jl")
 include("reflection.jl")
 include("array.jl")
-include("caching_allocator.jl")
 include("conversions.jl")
 include("broadcast.jl")
 include("exception_handler.jl")
@@ -153,6 +153,8 @@ end
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
+
+include("cache_allocator.jl")
 
 function __init__()
     # Used to shutdown hostcalls if any is running.

@@ -8,23 +8,23 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     ) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
 
-        alloc_name = cache_alloc_name()
+        name = CacheAllocatorName[]
         # Do not use caching allocator if it is not set or
         # the buffer is not a device memory.
-        x = if !(B <: Mem.HIPBuffer) || alloc_name == :none
+        x = if !(B <: Mem.HIPBuffer) || name == :none
             data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
             x = new{T, N, B}(data, dims, 0)
+            x = finalizer(unsafe_free!, x)
         else
-            alloc = cache_allocator!(alloc_name)
-            tmp = alloc!(alloc, B, T, dims)
-            if tmp ≡ nothing
+            cache = GPUArrays.named_cache_allocator!(ROCCacheAllocator, AMDGPU.device(), name)
+            x = GPUArrays.alloc!(cache, T, dims) do
                 data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
-                tmp = new{T, N, B}(data, dims, 0)
-                add_busy!(alloc, tmp)
+                x = new{T, N, B}(data, dims, 0)
+                x = finalizer(unsafe_free!, x)
+                return x
             end
-            tmp::ROCArray{T, N, B}
         end
-        return finalizer(unsafe_free!, x)
+        return x
     end
 
     function ROCArray{T, N}(
@@ -38,9 +38,7 @@ end
 
 GPUArrays.storage(a::ROCArray) = a.buf
 
-function GPUArrays.derive(
-    ::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int,
-) where {N, T}
+function GPUArrays.derive(::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int) where {N, T}
     ref = copy(x.buf)
     offset += (x.offset * Base.elsize(x)) ÷ sizeof(T)
     ROCArray{T, N}(ref, dims; offset)
