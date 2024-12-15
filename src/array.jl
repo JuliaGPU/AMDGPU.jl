@@ -14,14 +14,13 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
         x = if !(B <: Mem.HIPBuffer) || name == :none
             data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
             x = new{T, N, B}(data, dims, 0)
-            x = finalizer(unsafe_free!, x)
+            finalizer(unsafe_free!, x)
         else
             cache = GPUArrays.named_cache_allocator!(ROCCacheAllocator, AMDGPU.device(), name)
             x = GPUArrays.alloc!(cache, T, dims) do
                 data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
                 x = new{T, N, B}(data, dims, 0)
-                x = finalizer(unsafe_free!, x)
-                return x
+                finalizer(unsafe_free!, x)
             end
         end
         return x
