@@ -1,7 +1,6 @@
 module AMDGPU
 
 using Adapt
-using Base.ScopedValues
 using CEnum
 using GPUCompiler
 using GPUArrays
