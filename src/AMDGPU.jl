@@ -114,7 +114,6 @@ include("tls.jl")
 include("highlevel.jl")
 include("reflection.jl")
 include("array.jl")
-include("caching_allocator.jl")
 include("conversions.jl")
 include("broadcast.jl")
 include("exception_handler.jl")
@@ -139,20 +138,20 @@ include("random.jl")
 # Enable hardware FP atomics for +/- ops.
 const ROCIndexableRef{Indexable <: ROCDeviceArray} = Atomix.IndexableRef{Indexable}
 
-function Atomix.modify!(
-    ref::ROCIndexableRef, op::OP, x, ord,
-) where OP <: Union{typeof(+), typeof(-)}
+function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where {
+    OP <: Union{typeof(+), typeof(-)}
+}
     x = Atomix.asstorable(ref, x)
     ptr = Atomix.pointer(ref)
     root = Atomix.gcroot(ref)
-    GC.@preserve root begin
-        UnsafeAtomics.modify!(ptr, op, x, ord, Val(:agent))
-    end
+    GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, Val(:agent))
 end
 
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
+
+include("cache_allocator.jl")
 
 function __init__()
     # Used to shutdown hostcalls if any is running.
