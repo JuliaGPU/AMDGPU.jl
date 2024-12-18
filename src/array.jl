@@ -8,7 +8,9 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     ) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
         function _alloc_f()
-            data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
+            sz::Int64 = prod(dims) * sizeof(T)
+            @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(sz))"
+            data = DataRef(pool_free, pool_alloc(B, sz))
             finalizer(unsafe_free!, new{T, N, B}(data, dims, 0))
         end
 

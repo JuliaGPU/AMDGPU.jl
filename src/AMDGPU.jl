@@ -138,15 +138,13 @@ include("random.jl")
 # Enable hardware FP atomics for +/- ops.
 const ROCIndexableRef{Indexable <: ROCDeviceArray} = Atomix.IndexableRef{Indexable}
 
-function Atomix.modify!(
-    ref::ROCIndexableRef, op::OP, x, ord,
-) where OP <: Union{typeof(+), typeof(-)}
+function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where {
+    OP <: Union{typeof(+), typeof(-)}
+}
     x = Atomix.asstorable(ref, x)
     ptr = Atomix.pointer(ref)
     root = Atomix.gcroot(ref)
-    GC.@preserve root begin
-        UnsafeAtomics.modify!(ptr, op, x, ord, Val(:agent))
-    end
+    GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, Val(:agent))
 end
 
 include("ROCKernels.jl")
