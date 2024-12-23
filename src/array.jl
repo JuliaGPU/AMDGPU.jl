@@ -149,6 +149,8 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
+
+    @debug "[gpu -> cpu] T=$T, shape=$(size(dest))"
     stm = stream()
     Mem.download!(
         pointer(dest, d_offset),
@@ -166,6 +168,8 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
+
+    @debug "[cpu -> gpu] T=$T, shape=$(size(dest))"
     Mem.upload!(
         Mem.view(convert(Mem.AbstractAMDBuffer, dest.buf[]),
             (dest.offset + d_offset - 1) * sizeof(T)),
