@@ -44,3 +44,26 @@ end
     o2 = occursin("4×4 device array wrapper Adjoint", adj_repr)
     @test o1 || o2
 end
+
+@testset "reshape" begin
+    function kernel(array)
+        i = (workgroupIdx().x-1) * workgroupDim().x + workitemIdx().x
+        j = (workgroupIdx().y-1) * workgroupDim().y + workitemIdx().y
+
+        _array2d = reshape(array, 10, 10)
+        _array2d[i,j] = i + (j-1)*size(_array2d,1)
+
+        return
+    end
+
+    array = zeros(Int64, 100)
+    array_dev = ROCArray(array)
+
+    array2d = reshape(array, 10, 10)
+    for i in 1:size(array2d,1), j in 1:size(array2d,2)
+        array2d[i,j] = i + (j-1)*size(array2d,1)
+    end
+
+    @roc groupsize=(10, 10) kernel(array_dev)
+    @test array == Array(array_dev)
+end

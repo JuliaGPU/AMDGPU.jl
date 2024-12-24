@@ -133,3 +133,20 @@ end
         nothing
     end
 end
+
+## reshape
+
+function Base.reshape(a::ROCDeviceArray{T,M,A}, dims::NTuple{N,Int}) where {T,N,M,A}
+    if prod(dims) != length(a)
+        throw(nothing) # standing for: throw(DimensionMismatch("new dimensions (argument `dims`) must be consistent with array size (`size(a)`)"))
+    end
+    if N == M && dims == size(a)
+        return a
+    end
+    _derived_array(a, T, dims)
+end
+
+# create a derived device array (reinterpreted or reshaped) that's still a ROCDeviceArray
+@inline function _derived_array(a::ROCDeviceArray{<:Any,<:Any,A}, ::Type{T}, dims::Dims{N}) where {T, N, A}
+    return ROCDeviceArray{T,N,A}(dims, a.ptr)
+end
