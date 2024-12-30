@@ -2,16 +2,14 @@ mutable struct TaskLocalState
     device::HIPDevice
     context::HIPContext
     streams::Vector{Union{HIPStream,Nothing}}
-    cache_alloc_name::Symbol
 end
 
 function TaskLocalState(
     dev::HIPDevice = something(HIP.DEFAULT_DEVICE[], HIPDevice(1)),
     ctx::HIPContext = HIPContext(dev),
-    cache_alloc_name::Symbol = :none,
 )
     streams = Union{Nothing, HIPStream}[nothing for _ in 1:HIP.ndevices()]
-    TaskLocalState(dev, ctx, streams, cache_alloc_name)
+    TaskLocalState(dev, ctx, streams)
 end
 
 function Base.getproperty(state::TaskLocalState, field::Symbol)
@@ -29,14 +27,13 @@ task_local_state!(args...)::TaskLocalState =
     get!(() -> TaskLocalState(args...), task_local_storage(), :AMDGPU)
 
 Base.copy(state::TaskLocalState) = TaskLocalState(
-    state.device, state.context, copy(state.streams), state.cache_alloc_name)
+    state.device, state.context, copy(state.streams))
 
 function Base.show(io::IO, state::TaskLocalState)
     println(io, "TaskLocalState:")
     println(io, "  Device: $(state.device)")
     println(io, "  HIP Context: $(state.context)")
     println(io, "  HIP Stream: $(state.stream)")
-    println(io, "  Cache Allocator: $(state.cache_alloc_name)")
 end
 
 """
@@ -191,11 +188,6 @@ function priority!(f::Function, p::Symbol)
         swap && (state.streams[idx] = old_s;)
     end
 end
-
-cache_alloc_name()::Symbol = task_local_state!().cache_alloc_name
-
-cache_alloc_name!(name::Symbol)::Symbol =
-    task_local_state!().cache_alloc_name = name
 
 @inline function prepare_state(state = task_local_state!())
     hip_ctx = Ref{HIP.hipContext_t}()

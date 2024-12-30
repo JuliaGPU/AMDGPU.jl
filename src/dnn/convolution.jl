@@ -249,11 +249,3 @@ function ∇convolution_data(
     conv_args = ConvolutionArgs(∇x, w; handle=handle(), groups, padding, stride, dilation)
     ∇convolution_data!(∇x, TensorDescriptor(∇x), dy, dydesc, w, wdesc, cdesc, conv_args)
 end
-
-# Non-unicode stubs.
-
-convolution_bwd_weight!(args...; kwargs...) = ∇convolution_weight!(args...; kwargs...)
-convolution_bwd_weight(args...; kwargs...) = ∇convolution_weight(args...; kwargs...)
-
-convolution_bwd_data!(args...; kwargs...) = ∇convolution_data!(args...; kwargs...)
-convolution_bwd_data(args...; kwargs...) = ∇convolution_data(args...; kwargs...)
