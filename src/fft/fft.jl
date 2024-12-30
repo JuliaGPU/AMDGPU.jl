@@ -23,6 +23,8 @@ const ROCFFT_INVERSE = false
 # TODO: Real to Complex full not possible atm
 # For R2C -> cast array to Complex first
 
+# TODO tests that plan's handles are properly cached
+
 # K is flag for forward/inverse
 mutable struct cROCFFTPlan{T, K, inplace, N} <: ROCFFTPlan{T, K, inplace}
     handle::rocfft_plan
@@ -94,8 +96,7 @@ function update_stream!(plan::ROCFFTPlan)
     return
 end
 
-const xtypenames = (
-    "complex forward", "complex inverse", "real forward", "real inverse")
+const xtypenames = ("complex forward", "complex inverse", "real forward", "real inverse")
 
 function showfftdims(io, sz, T)
     if isempty(sz)
@@ -149,7 +150,7 @@ function plan_brfft(X::ROCArray{T,N}, d::Integer, region::Any) where {T <: rocff
     xtype = rocfft_transform_type_real_inverse
     ydims = collect(size(X))
     ydims[region[1]] = d
-    pp = get_plan(xtype, (ydims...,), T, inplace, region)
+    pp = get_plan(xtype, size(X), T, inplace, region)
     return rROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}(
         pp..., X, (ydims...,), xtype, region)
 end
@@ -189,7 +190,7 @@ end
 function plan_inv(p::rROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}) where {T<:rocfftComplexes,N,inplace}
     X = ROCArray{real(T)}(undef, p.osz)
     xtype = rocfft_transform_type_real_forward
-    pp = get_plan(xtype, p.osz, T, inplace, p.region)
+    pp = get_plan(xtype, p.sz, T, inplace, p.region)
     scale = normalization(X, p.region)
     ScaledPlan(
         rROCFFTPlan{real(T),ROCFFT_FORWARD,inplace,N}(
