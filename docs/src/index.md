@@ -67,7 +67,15 @@ Standard path:
 - Windows: `C:/Program Files/AMD/ROCm/<rocm-version>`
 
 If you have non-standard path for ROCm, set `ROCM_PATH=<path>`
-environment variable before launching Julia.
+environment variable before launching Julia. For example, if ROCm is installed
+in your Linux system root (e.g. on Fedora), set `ROCM_PATH=/usr/lib64/rocm/gfx11` or
+`ROCM_PATH=/usr/lib64/rocm/gfx1103`, depending on your GPU's architecture. You
+can query the architecture using the `amdgpu-arch` command. The `AMDGPU.versioninfo()`
+function prints the paths of any libraries found.
+
+Depending on your GPU model and the functionality you want to use, you may have
+to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION`
+variable to a compatible version.
 
 ## Extra Setup Details
 
