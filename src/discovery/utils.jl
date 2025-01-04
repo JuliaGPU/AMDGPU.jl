@@ -106,9 +106,6 @@ function find_rocm_library(libs::Vector, rocm_path::String, ext::String = dlext)
 end
 
 function find_rocm_library(lib::String, rocm_path::String, ext::String = dlext)
-    path = Libdl.find_library(lib)
-    isempty(path) || return Libdl.dlpath(path)
-
     libdir = joinpath(rocm_path, Sys.islinux() ? "lib" : "bin")
     if isdir(libdir)
         files = readdir(libdir)

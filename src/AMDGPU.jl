@@ -36,14 +36,7 @@ struct LockedObject{T}
     lock::ReentrantLock
     payload::T
 end
-
 LockedObject(payload) = LockedObject(ReentrantLock(), payload)
-
-function Base.lock(f, x::LockedObject)
-    Base.@lock x.lock begin
-        return f(x.payload)
-    end
-end
 
 # TODO simplify
 struct KernelState
@@ -173,7 +166,8 @@ function __init__()
         end
 
         if !isempty(libhsaruntime)
-            HSA.init() == HSA.STATUS_SUCCESS ?
+            status = HSA.init()
+            status == HSA.STATUS_SUCCESS ?
                 atexit(() -> HSA.shut_down()) :
                 @warn "HSA initialization failed with code $status"
         else
