@@ -104,7 +104,7 @@ function __init__()
         # - opaque pointer are enabled.
         from_artifact = (
             # Detect HIP version, which will influence what device libraries to use.
-            && (isempty(libhip) || Base.thisminor(_hip_runtime_version()) > v"5.4")
+            (isempty(libhip) || Base.thisminor(_hip_runtime_version()) > v"5.4")
             && !occursin("-opaque-pointers", get(ENV, "JULIA_LLVM_ARGS", "")))
         global libdevice_libs = get_device_libs(from_artifact; rocm_path)
 
