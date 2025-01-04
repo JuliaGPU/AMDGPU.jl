@@ -19,12 +19,8 @@
         Δ = AMDGPU.ones(T, size(y))
         ∇w = MIOpen.∇convolution_weight(Δ, x, w; padding, stride, dilation, groups)
         @test size(∇w) == size(w)
-        ∇w = MIOpen.convolution_bwd_weight(Δ, x, w; padding, stride, dilation, groups)
-        @test size(∇w) == size(w)
 
         ∇x = MIOpen.∇convolution_data(Δ, x, w; padding, stride, dilation, groups)
-        @test size(∇x) == size(x)
-        ∇x = MIOpen.convolution_bwd_data(Δ, x, w; padding, stride, dilation, groups)
         @test size(∇x) == size(x)
     end
 end
