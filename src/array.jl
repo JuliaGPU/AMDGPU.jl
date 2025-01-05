@@ -13,15 +13,16 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
             data = DataRef(pool_free, pool_alloc(B, sz))
             finalizer(unsafe_free!, new{T, N, B}(data, dims, 0))
         end
+        return _alloc_f()
 
-        name = GPUArrays.CacheAllocatorName[]
-        # Do not use caching allocator if it is not set or
-        # the buffer is not a device memory.
-        return if !(B <: Mem.HIPBuffer) || name == :none
-            _alloc_f()
-        else
-            GPUArrays.alloc!(_alloc_f, ROCBackend(), name, T, dims)::ROCArray{T, N, B}
-        end
+        # name = GPUArrays.CacheAllocatorName[]
+        # # Do not use caching allocator if it is not set or
+        # # the buffer is not a device memory.
+        # return if !(B <: Mem.HIPBuffer) || name == :none
+        #     _alloc_f()
+        # else
+        #     GPUArrays.alloc!(_alloc_f, ROCBackend(), name, T, dims)::ROCArray{T, N, B}
+        # end
     end
 
     function ROCArray{T, N}(
