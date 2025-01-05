@@ -65,8 +65,7 @@ function EnzymeRules.forward(
         end
 
     elseif EnzymeRules.needs_primal(config)
-        # TODO `uval` undefined?
-        fn.val(uval.val)::eltype(RT)
+        fn.val(x.val)::eltype(RT)
     else
         nothing
     end
