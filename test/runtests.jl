@@ -96,10 +96,7 @@ const TARGET_TESTS = isempty(ARGS) ?
     ARGS
 
 if "enzyme" in TARGET_TESTS
-    # Pkg.add(["EnzymeCore", "Enzyme"])
-    Pkg.develop(["EnzymeCore"])
-    # Pkg.develop(["Enzyme"])
-    Pkg.add(url="https://github.com/EnzymeAD/Enzyme.jl", rev="foramd")
+    Pkg.add(["EnzymeCore", "Enzyme"])
 end
 
 # Run tests in parallel.
