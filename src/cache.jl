@@ -55,9 +55,11 @@ end
 # put a handle in the cache, or destroy it if it doesn't fit
 function Base.push!(f::Function, cache::HandleCache{K, V}, key::K, handle::V) where {K, V}
     saved = Base.@lock cache.lock begin
-        if (key => handle) ∉ cache.active_handles
-            error("Trying to free active handle that is not managed by cache.\n $(display(cache.active_handles))")
-        end
+        (key => handle) ∉ cache.active_handles && error(
+            """Trying to free active handle that is not managed by cache.
+            - Key: $key
+            - Handle: $handle
+            """)
         delete!(cache.active_handles, key => handle)
 
         if haskey(cache.idle_handles, key)
