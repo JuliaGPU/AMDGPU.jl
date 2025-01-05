@@ -4,6 +4,8 @@ using AMDGPU
 using EnzymeCore, Enzyme
 using GPUCompiler
 
+Enzyme.Compiler.VERBOSE_ERRORS[] = true
+
 @testset "CompilerJob from backend" begin
     job = EnzymeCore.compiler_job_from_backend(
         ROCBackend(), typeof(() -> nothing), Tuple{})
