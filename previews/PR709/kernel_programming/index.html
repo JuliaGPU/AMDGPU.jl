@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Kernel Programming · AMDGPU.jl</title><meta name="title" content="Kernel Programming · AMDGPU.jl"/><meta property="og:title" content="Kernel Programming · AMDGPU.jl"/><meta property="twitter:title" content="Kernel Programming · AMDGPU.jl"/><meta name="description" content="Documentation for AMDGPU.jl."/><meta property="og:description" content="Documentation for AMDGPU.jl."/><meta property="twitter:description" content="Documentation for AMDGPU.jl."/><meta property="og:url" content="https://amdgpu.juliagpu.org/stable/kernel_programming/"/><meta property="twitter:url" content="https://amdgpu.juliagpu.org/stable/kernel_programming/"/><link rel="canonical" href="https://amdgpu.juliagpu.org/stable/kernel_programming/"/><script async src="https://www.googletagmanager.com/gtag/js?id=UA-154489943-2"></script><script>  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-154489943-2', {'page_path': location.pathname + location.search + location.hash});
+</script><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script><link href="../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../"><img src="../assets/logo.png" alt="AMDGPU.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../">AMDGPU.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../quickstart/">Quick Start</a></li><li><a class="tocitem" href="../devices/">Devices</a></li><li><a class="tocitem" href="../streams/">Streams</a></li><li class="is-active"><a class="tocitem" href>Kernel Programming</a><ul class="internal"><li><a class="tocitem" href="#Launch-Configuration"><span>Launch Configuration</span></a></li><li><a class="tocitem" href="#Atomics"><span>Atomics</span></a></li><li><a class="tocitem" href="#Device-Intrinsics"><span>Device Intrinsics</span></a></li></ul></li><li><a class="tocitem" href="../exceptions/">Exceptions</a></li><li><a class="tocitem" href="../profiling/">Profiling</a></li><li><a class="tocitem" href="../memory/">Memory</a></li><li><a class="tocitem" href="../hostcall/">Host-Call</a></li><li><a class="tocitem" href="../printing/">Printing</a></li><li><a class="tocitem" href="../logging/">Logging</a></li><li><a class="tocitem" href="../api/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Kernel Programming</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Kernel Programming</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaGPU/AMDGPU.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/master/docs/src/kernel_programming.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Kernel-Programming"><a class="docs-heading-anchor" href="#Kernel-Programming">Kernel Programming</a><a id="Kernel-Programming-1"></a><a class="docs-heading-anchor-permalink" href="#Kernel-Programming" title="Permalink"></a></h1><h2 id="Launch-Configuration"><a class="docs-heading-anchor" href="#Launch-Configuration">Launch Configuration</a><a id="Launch-Configuration-1"></a><a class="docs-heading-anchor-permalink" href="#Launch-Configuration" title="Permalink"></a></h2><p>While an almost arbitrarily large number of workitems can be executed per kernel launch, the hardware can only support executing a limited number of wavefronts at one time.</p><p>To alleviate this, the compiler calculates the &quot;occupancy&quot; of each compiled kernel (which is the number of wavefronts that can be simultaneously executing on the GPU), and passes this information to the hardware; the hardware then launches a limited number of wavefronts at once, based on the kernel&#39;s &quot;occupancy&quot; values.</p><p>The rest of the wavefronts are not launched until hardware resources become available, which means that a kernel with better occupancy will see more of its wavefronts executing simultaneously (which often leads to better performance). Suffice to say, it&#39;s important to know the occupancy of kernels if you want the best performance.</p><p>Like CUDA.jl, AMDGPU.jl has the ability to calculate kernel occupancy, with the <code>launch_configuration</code> function:</p><pre><code class="language-julia hljs">kernel = @roc launch=false mykernel(args...)
+occupancy = AMDGPU.launch_configuration(kernel)
+@show occupancy.gridsize
+@show occupancy.groupsize</code></pre><p>Specifically, <code>launch_configuration</code> calculates the occupancy of <code>mykernel(args...)</code>, and then calculates an optimal groupsize based on the occupancy. This value can then be used to select the groupsize for the kernel:</p><pre><code class="language-julia hljs">@roc groupsize=occupancy.groupsize mykernel(args...)</code></pre><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.@roc" href="#AMDGPU.@roc"><code>AMDGPU.@roc</code></a> — <span class="docstring-category">Macro</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">@roc [kwargs...] func(args...)</code></pre><p>High-level interface for launching kernels on GPU. Upon a first call it will be compiled, subsequent calls will re-use the compiled object.</p><p>Several keyword arguments are supported:</p><ul><li><code>launch::Bool = true</code>: whether to launch the kernel.   If <code>false</code>, then returns a compiled kernel which can be launched by   calling it and passing arguments.</li><li>Arguments that influence kernel compilation, see   <a href="#AMDGPU.Compiler.hipfunction"><code>AMDGPU.Compiler.hipfunction</code></a>.</li><li>Arguments that influence kernel launch, see <a href="#AMDGPU.Runtime.HIPKernel"><code>AMDGPU.Runtime.HIPKernel</code></a>.</li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/highlevel.jl#L97-L111">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Runtime.HIPKernel" href="#AMDGPU.Runtime.HIPKernel"><code>AMDGPU.Runtime.HIPKernel</code></a> — <span class="docstring-category">Type</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">(ker::HIPKernel)(args::Vararg{Any, N}; kwargs...)</code></pre><p>Launch compiled HIPKernel by passing arguments to it.</p><p>The following kwargs are supported:</p><ul><li><code>gridsize::ROCDim = 1</code>: Size of the grid.</li><li><code>groupsize::ROCDim = 1</code>:  Size of the workgroup.</li><li><code>shmem::Integer = 0</code>:   Amount of dynamically-allocated shared memory in bytes.</li><li><code>stream::HIP.HIPStream = AMDGPU.stream()</code>:   Stream on which to launch the kernel.</li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/runtime/hip-execution.jl#L1-L13">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Compiler.hipfunction" href="#AMDGPU.Compiler.hipfunction"><code>AMDGPU.Compiler.hipfunction</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">hipfunction(f::F, tt::TT = Tuple{}; kwargs...)</code></pre><p>Compile Julia function <code>f</code> to a HIP kernel given a tuple of argument&#39;s types <code>tt</code> that it accepts.</p><p>The following kwargs are supported:</p><ul><li><code>name::Union{String, Nothing} = nothing</code>:   A unique name to give a compiled kernel.</li><li><code>unsafe_fp_atomics::Bool = true</code>:   Whether to use &#39;unsafe&#39; floating-point atomics.   AMD GPU devices support fast atomic read-modify-write (RMW)   operations on floating-point values.   On single- or double-precision floating-point values this may generate   a hardware RMW instruction that is faster than emulating   the atomic operation using an atomic compare-and-swap (CAS) loop.</li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/compiler/codegen.jl#L136-L153">source</a></section></article><h2 id="Atomics"><a class="docs-heading-anchor" href="#Atomics">Atomics</a><a id="Atomics-1"></a><a class="docs-heading-anchor-permalink" href="#Atomics" title="Permalink"></a></h2><p>AMDGPU.jl relies on <a href="https://github.com/JuliaConcurrent/Atomix.jl">Atomix.jl</a> for atomics.</p><p>Example of a kernel that computes atomic max:</p><pre><code class="language-julia hljs">using AMDGPU
+
+function ker_atomic_max!(target, source, indices)
+    i = workitemIdx().x + (workgroupIdx().x - 0x1) * workgroupDim().x
+    idx = indices[i]
+    v = source[i]
+    AMDGPU.@atomic max(target[idx], v)
+    return
+end
+
+n, bins = 1024, 32
+source = ROCArray(rand(UInt32, n))
+indices = ROCArray(rand(1:bins, n))
+target = ROCArray(zeros(UInt32, bins))
+@roc groupsize=256 gridsize=4 ker_atomic_max!(target, source, indices)</code></pre><h2 id="Device-Intrinsics"><a class="docs-heading-anchor" href="#Device-Intrinsics">Device Intrinsics</a><a id="Device-Intrinsics-1"></a><a class="docs-heading-anchor-permalink" href="#Device-Intrinsics" title="Permalink"></a></h2><h3 id="Wavefront-Level-Primitives"><a class="docs-heading-anchor" href="#Wavefront-Level-Primitives">Wavefront-Level Primitives</a><a id="Wavefront-Level-Primitives-1"></a><a class="docs-heading-anchor-permalink" href="#Wavefront-Level-Primitives" title="Permalink"></a></h3><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.wavefrontsize" href="#AMDGPU.Device.wavefrontsize"><code>AMDGPU.Device.wavefrontsize</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">wavefrontsize()::Cuint</code></pre><p>Get the wavefront size of the device that executes current kernel.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L79-L83">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.activelane" href="#AMDGPU.Device.activelane"><code>AMDGPU.Device.activelane</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">activelane()::Cuint</code></pre><p>Get id of the current lane within a wavefront/warp.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i = AMDGPU.Device.activelane()
+           x[i + 1] = i
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Cint}(undef, 1, 8);
+
+julia&gt; @roc groupsize=8 ker!(x);
+
+julia&gt; Array(x)
+1×8 Matrix{Int32}:
+ 0  1  2  3  4  5  6  7</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L86-L107">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.ballot" href="#AMDGPU.Device.ballot"><code>AMDGPU.Device.ballot</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">ballot(predicate::Bool)::UInt64</code></pre><p>Return a value whose <code>N</code>th bit is set if and only if <code>predicate</code> evaluates to <code>true</code> for the <code>N</code>th lane and the lane is active.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           x[1] = AMDGPU.Device.ballot(true)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Culong}(undef, 1);
+
+julia&gt; @roc groupsize=32 ker!(x);
+
+julia&gt; x
+1-element ROCArray{UInt64, 1, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 0x00000000ffffffff</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L110-L131">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.ballot_sync" href="#AMDGPU.Device.ballot_sync"><code>AMDGPU.Device.ballot_sync</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">ballot_sync(mask::UInt64, predicate::Bool)::UInt64</code></pre><p>Evaluate <code>predicate</code> for all non-exited threads in <code>mask</code> and return an integer whose Nth bit is set if and only if <code>predicate</code> is <code>true</code> for the Nth thread of the wavefront and the Nth thread is active.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i = AMDGPU.Device.activelane()
+           if i % 2 == 0
+               mask = 0x0000000055555555 # Only even threads.
+               x[1] = AMDGPU.Device.ballot_sync(mask, true)
+           end
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{UInt64}(undef, 1);
+
+julia&gt; @roc groupsize=32 ker!(x);
+
+julia&gt; bitstring(Array(x)[1])
+&quot;0000000000000000000000000000000001010101010101010101010101010101&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront_sync.jl#L16-L41">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.activemask" href="#AMDGPU.Device.activemask"><code>AMDGPU.Device.activemask</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">activemask()::UInt64</code></pre><p>Get the mask of all active lanes in a warp.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L140-L144">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.bpermute" href="#AMDGPU.Device.bpermute"><code>AMDGPU.Device.bpermute</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">bpermute(addr::Integer, val::Cint)::Cint</code></pre><p>Read data stored in <code>val</code> from the lane VGPR (vector general purpose register) given by <code>addr</code>.</p><p>The permute instruction moves data between lanes but still uses the notion of byte addressing, as do other LDS instructions. Hence, the value in the <code>addr</code> VGPR should be <code>desired_lane_id * 4</code>, since VGPR values are 4 bytes wide.</p><p>Example below shifts all values in the wavefront by 1 to the &quot;left&quot;.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i::Cint = AMDGPU.Device.activelane()
+           # `addr` points to the next immediate lane.
+           addr = ((i + 1) % 8) * 4 # VGPRs are 4 bytes wide
+           # Read data from the next immediate lane.
+           x[i + 1] = AMDGPU.Device.bpermute(addr, i)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Cint}(undef, 1, 8);
+
+julia&gt; @roc groupsize=8 ker!(x);
+
+julia&gt; x
+1×8 ROCArray{Int32, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  2  3  4  5  6  7  0</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L147-L179">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.permute" href="#AMDGPU.Device.permute"><code>AMDGPU.Device.permute</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">permute(addr::Integer, val::Cint)::Cint</code></pre><p>Put data stored in <code>val</code> to the lane VGPR (vector general purpose register) given by <code>addr</code>.</p><p>Example below shifts all values in the wavefront by 1 to the &quot;right&quot;.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i::Cint = AMDGPU.Device.activelane()
+           # `addr` points to the next immediate lane.
+           addr = ((i + 1) % 8) * 4 # VGPRs are 4 bytes wide
+           # Put data into the next immediate lane.
+           x[i + 1] = AMDGPU.Device.permute(addr, i)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Cint}(undef, 1, 8);
+
+julia&gt; @roc groupsize=8 ker!(x);
+
+julia&gt; x
+1×8 ROCArray{Int32, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 7  0  1  2  3  4  5  6</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L183-L210">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.shfl" href="#AMDGPU.Device.shfl"><code>AMDGPU.Device.shfl</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">shfl(val, lane, width = wavefrontsize())</code></pre><p>Read data stored in <code>val</code> from a <code>lane</code> (this is a more high-level op than <a href="#AMDGPU.Device.bpermute"><code>bpermute</code></a>).</p><p>If <code>lane</code> is outside the range <code>[0:width - 1]</code>, the value returned corresponds to the value held by the <code>lane modulo width</code> (within the same subsection).</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i::UInt32 = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl(i, i + 1)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{UInt32}(undef, 1, 8);
+
+julia&gt; @roc groupsize=8 ker!(x);
+
+julia&gt; Int.(x)
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  2  3  4  5  6  7  0</code></pre><p>If <code>width</code> is less than wavefront size then each subsection of the wavefront behaves as a separate entity with a starting logical lane ID of 0.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i::UInt32 = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl(i, i + 1, 4) # &lt;-- Notice width = 4.
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{UInt32}(undef, 1, 8);
+
+julia&gt; @roc groupsize=8 ker!(x);
+
+julia&gt; Int.(x)
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  2  3  0  5  6  7  4</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L264-L309">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.shfl_sync" href="#AMDGPU.Device.shfl_sync"><code>AMDGPU.Device.shfl_sync</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">shfl_sync(mask::UInt64, val, lane, width = wavefrontsize())</code></pre><p>Synchronize threads according to a <code>mask</code> and read data stored in <code>val</code> from a <code>lane</code> ID.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront_sync.jl#L103-L108">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.shfl_up" href="#AMDGPU.Device.shfl_up"><code>AMDGPU.Device.shfl_up</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">shfl_up(val, δ, width = wavefrontsize())</code></pre><p>Same as <a href="#AMDGPU.Device.shfl"><code>shfl</code></a>, but instead of specifying lane ID, accepts <code>δ</code> that is subtracted from the current lane ID. I.e. read from a lane with lower ID relative to the caller.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl_up(i, 1)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Int}(undef, 1, 8);
+
+julia&gt; @roc groupsize=8 ker!(x);
+
+julia&gt; x
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 0  0  1  2  3  4  5  6</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L312-L335">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.shfl_up_sync" href="#AMDGPU.Device.shfl_up_sync"><code>AMDGPU.Device.shfl_up_sync</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">shfl_up_sync(mask::UInt64, val, δ, width = wavefrontsize())</code></pre><p>Synchronize threads according to a <code>mask</code> and read data stored in <code>val</code> from a <code>lane</code> with lower ID relative to the caller.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront_sync.jl#L114-L119">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.shfl_down" href="#AMDGPU.Device.shfl_down"><code>AMDGPU.Device.shfl_down</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">shfl_down(val, δ, width = wavefrontsize())</code></pre><p>Same as <a href="#AMDGPU.Device.shfl"><code>shfl</code></a>, but instead of specifying lane ID, accepts <code>δ</code> that is added to the current lane ID. I.e. read from a lane with higher ID relative to the caller.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl_down(i, 1, 8)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Int}(undef, 1, 8);
+
+julia&gt; @roc groupsize=8 ker!(x);
+
+julia&gt; x
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  2  3  4  5  6  7  7</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L338-L361">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.shfl_down_sync" href="#AMDGPU.Device.shfl_down_sync"><code>AMDGPU.Device.shfl_down_sync</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">shfl_down_sync(mask::UInt64, val, δ, width = wavefrontsize())</code></pre><p>Synchronize threads according to a <code>mask</code> and read data stored in <code>val</code> from a <code>lane</code> with higher ID relative to the caller.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront_sync.jl#L125-L130">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.shfl_xor" href="#AMDGPU.Device.shfl_xor"><code>AMDGPU.Device.shfl_xor</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">shfl_xor(val, lane_mask, width = wavefrontsize())</code></pre><p>Same as <a href="#AMDGPU.Device.shfl"><code>shfl</code></a>, but instead of specifying lane ID, performs bitwise XOR of the caller&#39;s lane ID with the <code>lane_mask</code>.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i = AMDGPU.Device.activelane()
+           x[i + 1] = AMDGPU.Device.shfl_xor(i, 1)
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Int}(undef, 1, 8);
+
+julia&gt; @roc groupsize=8 ker!(x);
+
+julia&gt; x
+1×8 ROCArray{Int64, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1  0  3  2  5  4  7  6</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront.jl#L365-L387">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.shfl_xor_sync" href="#AMDGPU.Device.shfl_xor_sync"><code>AMDGPU.Device.shfl_xor_sync</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">shfl_xor_sync(mask::UInt64, val, lane_mask, width = wavefrontsize())</code></pre><p>Synchronize threads according to a <code>mask</code> and read data stored in <code>val</code> from a lane according to a bitwise XOR of the caller&#39;s lane ID with the <code>lane_mask</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront_sync.jl#L136-L142">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.any_sync" href="#AMDGPU.Device.any_sync"><code>AMDGPU.Device.any_sync</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">any_sync(mask::UInt64, predicate::Bool)::Bool</code></pre><p>Evaluate <code>predicate</code> for all non-exited threads in <code>mask</code> and return non-zero if and only if <code>predicate</code> evaluates to non-zero for any of them.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i = AMDGPU.Device.activelane()
+           if i % 2 == 0
+               mask = 0x0000000055555555 # Only even threads.
+               x[1] = AMDGPU.Device.any_sync(mask, i == 0)
+           end
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Bool}(undef, 1);
+
+julia&gt; @roc groupsize=32 ker!(x);
+
+julia&gt; x
+1-element ROCArray{Bool, 1, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront_sync.jl#L47-L72">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="AMDGPU.Device.all_sync" href="#AMDGPU.Device.all_sync"><code>AMDGPU.Device.all_sync</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">all_sync(mask::UInt64, predicate::Bool)::Bool</code></pre><p>Evaluate <code>predicate</code> for all non-exited threads in <code>mask</code> and return non-zero if and only if <code>predicate</code> evaluates to non-zero for all of them.</p><pre><code class="language-julia-repl hljs">julia&gt; function ker!(x)
+           i = AMDGPU.Device.activelane()
+           if i % 2 == 0
+               mask = 0x0000000055555555 # Only even threads.
+               x[1] = AMDGPU.Device.all_sync(mask, true)
+           end
+           return
+       end
+ker! (generic function with 1 method)
+
+julia&gt; x = ROCArray{Bool}(undef, 1);
+
+julia&gt; @roc groupsize=32 ker!(x);
+
+julia&gt; x
+1-element ROCArray{Bool, 1, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 1</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaGPU/AMDGPU.jl/blob/ade95fc318f1f83c9b2b0fcda3ffbbe5c8d106e8/src/device/gcn/wavefront_sync.jl#L75-L100">source</a></section></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../streams/">« Streams</a><a class="docs-footer-nextpage" href="../exceptions/">Exceptions »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.0 on <span class="colophon-date" title="Monday 6 January 2025 00:55">Monday 6 January 2025</span>. Using Julia version 1.10.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
