@@ -8,7 +8,6 @@ import AMDGPU.Device: @device_override
 import Adapt
 import KernelAbstractions as KA
 import LLVM
-import UnsafeAtomicsLLVM
 
 using StaticArraysCore: MArray
 

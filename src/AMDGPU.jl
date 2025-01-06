@@ -11,7 +11,6 @@ using Printf
 
 import AcceleratedKernels as AK
 import UnsafeAtomics
-import UnsafeAtomicsLLVM
 import Atomix
 import Atomix: @atomic, @atomicswap, @atomicreplace
 import Core: LLVMPtr
@@ -130,14 +129,12 @@ include("random.jl")
 
 # Enable hardware FP atomics for +/- ops.
 const ROCIndexableRef{Indexable <: ROCDeviceArray} = Atomix.IndexableRef{Indexable}
-
-function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where {
-    OP <: Union{typeof(+), typeof(-)}
-}
+const agent = UnsafeAtomics.Internal.LLVMSyncScope{:agent}()
+function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where OP <: Union{typeof(+), typeof(-)}
     x = Atomix.asstorable(ref, x)
     ptr = Atomix.pointer(ref)
     root = Atomix.gcroot(ref)
-    GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, Val(:agent))
+    GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, agent)
 end
 
 include("ROCKernels.jl")

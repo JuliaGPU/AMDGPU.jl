@@ -13,8 +13,8 @@ exception_flag() = kernel_state().exception_flag
 function err_buffer!()
     st = kernel_state()
     counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.buffers_counter)
-    idx, _ = UnsafeAtomicsLLVM.Internal.atomic_pointermodify(
-        counter_ptr, +, Int32(1), Val{:acquire_release}())
+    idx, _ = UnsafeAtomics.atomic_pointermodify(
+        counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
     idx += Int32(1)
     idx > st.n_buffers && return reinterpret(LLVMPtr{UInt64, AS.Global}, 0)
 
@@ -25,8 +25,8 @@ end
 function err_str_buffer!()
     st = kernel_state()
     counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.str_buffers_counter)
-    idx, _ = UnsafeAtomicsLLVM.Internal.atomic_pointermodify(
-        counter_ptr, +, Int32(1), Val{:acquire_release}())
+    idx, _ = UnsafeAtomics.atomic_pointermodify(
+        counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
     idx += Int32(1)
     idx > st.n_str_buffers && return reinterpret(LLVMPtr{UInt8, AS.Global}, 0)
 
