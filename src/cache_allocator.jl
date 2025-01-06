@@ -1,5 +1,5 @@
-const ROCCacheAllocator = GPUArrays.PerDeviceCacheAllocator(ROCArray; free_immediately=false)
+const ROCCacheAllocator = GPUArrays.AllocCache.PerDeviceCacheAllocator(ROCArray; free_immediately=false)
 
-GPUArrays.cache_allocator(::ROCBackend) = ROCCacheAllocator
+GPUArrays.AllocCache.cache_allocator(::Type{<: ROCArray}) = ROCCacheAllocator
 
-GPUArrays.device(::ROCBackend) = AMDGPU.device()
+GPUArrays.AllocCache.device(::Type{<: ROCArray}) = AMDGPU.device()
