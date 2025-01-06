@@ -15,8 +15,6 @@ function AMDGPU.unsafe_free!(plan::ROCFFTPlan)
     rocfft_execution_info_destroy(plan.execution_info)
 end
 
-# TODO mul overrides?
-
 const ROCFFT_FORWARD = true
 const ROCFFT_INVERSE = false
 
@@ -33,12 +31,17 @@ mutable struct cROCFFTPlan{T, K, inplace, N} <: ROCFFTPlan{T, K, inplace}
     osz::NTuple{N, Int} # Julia size of output array
     xtype::rocfft_transform_type
     region::Any
-    pinv::ScaledPlan # required by AbstractFFTs API
+    # These two fields are used in the dtor as a key for HandleCache.
+    input_sz_as_key::Bool
+    key_T::Type
+    # required by AbstractFFTs API
+    pinv::ScaledPlan
 
     function cROCFFTPlan{T,K,inplace,N}(
         handle::rocfft_plan, workarea::ROCVector{Int8},
         X::ROCArray{T,N}, sizey::Tuple,
         xtype::rocfft_transform_type, region,
+        input_sz_as_key::Bool, key_T::Type,
     ) where {T,inplace,N,K}
         info_ref = Ref{rocfft_execution_info}()
         rocfft_execution_info_create(info_ref)
@@ -50,7 +53,7 @@ mutable struct cROCFFTPlan{T, K, inplace, N} <: ROCFFTPlan{T, K, inplace}
         if length(workarea) > 0
             rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
         end
-        p = new(handle, stream, workarea, info, size(X), sizey, xtype, region)
+        p = new(handle, stream, workarea, info, size(X), sizey, xtype, region, input_sz_as_key, key_T)
         return finalizer(AMDGPU.unsafe_free!, p)
     end
 end
@@ -64,11 +67,16 @@ mutable struct rROCFFTPlan{T,K,inplace,N} <: ROCFFTPlan{T,K,inplace}
     osz::NTuple{N,Int} # Julia size of output array
     xtype::rocfft_transform_type
     region::Any
-    pinv::ScaledPlan # required by AbstractFFTs API
+    # These two fields are used in the dtor as a key for HandleCache.
+    input_sz_as_key::Bool
+    key_T::Type
+    # required by AbstractFFTs API
+    pinv::ScaledPlan
 
     function rROCFFTPlan{T,K,inplace,N}(
         handle::rocfft_plan, workarea::ROCVector{Int8}, X::ROCArray{T,N},
         sizey::Tuple, xtype::rocfft_transform_type, region,
+        input_sz_as_key::Bool, key_T::Type,
     ) where {T,inplace,N,K}
         info_ref = Ref{rocfft_execution_info}()
         rocfft_execution_info_create(info_ref)
@@ -79,7 +87,7 @@ mutable struct rROCFFTPlan{T,K,inplace,N} <: ROCFFTPlan{T,K,inplace}
         if length(workarea) > 0
             rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
         end
-        p = new(handle, stream, workarea, info, size(X), sizey, xtype, region)
+        p = new(handle, stream, workarea, info, size(X), sizey, xtype, region, input_sz_as_key, key_T)
         return finalizer(unsafe_free!, p)
     end
 end
@@ -94,8 +102,7 @@ function update_stream!(plan::ROCFFTPlan)
     return
 end
 
-const xtypenames = (
-    "complex forward", "complex inverse", "real forward", "real inverse")
+const xtypenames = ("complex forward", "complex inverse", "real forward", "real inverse")
 
 function showfftdims(io, sz, T)
     if isempty(sz)
@@ -124,13 +131,11 @@ for (f, xtype, inplace, forward) in (
     (:plan_fft, :rocfft_transform_type_complex_forward, :false, :true),
     (:plan_bfft, :rocfft_transform_type_complex_inverse, :false, :false),
 )
-    @eval begin
-        function $f(X::ROCArray{T, N}, region) where {T <: rocfftComplexes, N}
-            _inplace = $(inplace)
-            _xtype = $(xtype)
-            pp = get_plan(_xtype, size(X), T, _inplace, region)
-            return cROCFFTPlan{T, $forward, _inplace, N}(pp..., X, size(X), _xtype, region)
-        end
+    @eval function $f(X::ROCArray{T, N}, region) where {T <: rocfftComplexes, N}
+        _inplace = $(inplace)
+        _xtype = $(xtype)
+        pp = get_plan(_xtype, size(X), T, _inplace, region)
+        return cROCFFTPlan{T, $forward, _inplace, N}(pp..., X, size(X), _xtype, region, false, T)
     end
 end
 
@@ -140,8 +145,7 @@ function plan_rfft(X::ROCArray{T,N}, region) where {T<:rocfftReals,N}
     pp = get_plan(xtype, size(X), T, inplace, region)
     ydims = collect(size(X))
     ydims[region[1]] = div(ydims[region[1]],2) + 1
-    return rROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}(
-        pp..., X, (ydims...,), xtype, region)
+    return rROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}(pp..., X, (ydims...,), xtype, region, true, T)
 end
 
 function plan_brfft(X::ROCArray{T,N}, d::Integer, region::Any) where {T <: rocfftComplexes, N}
@@ -150,8 +154,7 @@ function plan_brfft(X::ROCArray{T,N}, d::Integer, region::Any) where {T <: rocff
     ydims = collect(size(X))
     ydims[region[1]] = d
     pp = get_plan(xtype, (ydims...,), T, inplace, region)
-    return rROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}(
-        pp..., X, (ydims...,), xtype, region)
+    return rROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}(pp..., X, (ydims...,), xtype, region, false, T)
 end
 
 # FIXME: plan_inv methods allocate needlessly (to provide type parameters and normalization function)
@@ -161,7 +164,7 @@ function plan_inv(p::cROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}) where {T<:rocfftCo
     xtype = rocfft_transform_type_complex_inverse
     pp = get_plan(xtype, p.sz, T, inplace, p.region)
     ScaledPlan(
-        cROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}(pp..., X, p.sz, xtype, p.region),
+        cROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}(pp..., X, p.sz, xtype, p.region, false, T),
         normalization(X, p.region))
 end
 
@@ -170,7 +173,7 @@ function plan_inv(p::cROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}) where {T<:rocfftCo
     xtype = rocfft_transform_type_complex_forward
     pp = get_plan(xtype, p.sz, T, inplace, p.region)
     ScaledPlan(
-        cROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}(pp..., X, p.sz, xtype, p.region),
+        cROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}(pp..., X, p.sz, xtype, p.region, false, T),
         normalization(X, p.region))
 end
 
@@ -181,8 +184,7 @@ function plan_inv(p::rROCFFTPlan{T,ROCFFT_FORWARD,inplace,N}) where {T<:rocfftRe
     pp = get_plan(xtype, p.sz, T, inplace, p.region)
     scale = normalization(Y, p.region)
     ScaledPlan(
-        rROCFFTPlan{complex(T),ROCFFT_INVERSE,inplace,N}(
-            pp..., X, p.sz, xtype, p.region),
+        rROCFFTPlan{complex(T),ROCFFT_INVERSE,inplace,N}(pp..., X, p.sz, xtype, p.region, false, T),
         scale)
 end
 
@@ -192,8 +194,7 @@ function plan_inv(p::rROCFFTPlan{T,ROCFFT_INVERSE,inplace,N}) where {T<:rocfftCo
     pp = get_plan(xtype, p.osz, T, inplace, p.region)
     scale = normalization(X, p.region)
     ScaledPlan(
-        rROCFFTPlan{real(T),ROCFFT_FORWARD,inplace,N}(
-            pp..., X, p.sz, xtype, p.region),
+        rROCFFTPlan{real(T),ROCFFT_FORWARD,inplace,N}(pp..., X, p.sz, xtype, p.region, true, T),
         scale)
 end
 

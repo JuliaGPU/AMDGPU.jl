@@ -52,6 +52,18 @@ function _hip_runtime_version()
 end
 
 function __init__()
+    global libhsaruntime = ""
+    global lld_path = ""
+    global lld_artifact = ""
+    global libhip = ""
+    global libdevice_libs = ""
+    global librocblas = ""
+    global librocsparse = ""
+    global librocsolver = ""
+    global librocrand = ""
+    global librocfft = ""
+    global libMIOpen_path = ""
+
     if Sys.islinux() && isdir("/sys/class/kfd/kfd/topology/nodes/")
         for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
             node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
@@ -69,11 +81,9 @@ function __init__()
     lib_prefix = Sys.islinux() ? "lib" : ""
 
     try
-        global libhsaruntime = if Sys.islinux()
-            get_library("libhsa-runtime64"; rocm_path, ext="so.1")
-        else
+        global libhsaruntime = Sys.islinux() ?
+            get_library("libhsa-runtime64"; rocm_path, ext="so.1") :
             ""
-        end
 
         # Linker.
         lld_path = get_ld_lld(rocm_path; from_artifact=false,
@@ -88,18 +98,16 @@ function __init__()
         global lld_artifact = lld_artifact
 
         # HIP.
-        global libhip = get_library(
-            Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
+        global libhip = get_library(Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
 
-        # Check if opaque pointers are enabled and turn off artifacts.
-        llvm_args = get(ENV, "JULIA_LLVM_ARGS", "")
-        enabled_opaque_pointers = occursin("-opaque-pointers", llvm_args)
+        # Turn off artifacts for device libraries if:
+        # - Julia 1.12+;
+        # - opaque pointer are enabled.
         from_artifact = (
+            VERSION < v"1.12"
             # Detect HIP version, which will influence what device libraries to use.
-            (isempty(libhip) || Base.thisminor(_hip_runtime_version()) > v"5.4")
-            && !enabled_opaque_pointers)
-
-        # If ROCm 5.5+ - use artifact device libraries.
+            && (isempty(libhip) || Base.thisminor(_hip_runtime_version()) > v"5.4")
+            && !occursin("-opaque-pointers", get(ENV, "JULIA_LLVM_ARGS", "")))
         global libdevice_libs = get_device_libs(from_artifact; rocm_path)
 
         # HIP-based libraries.

@@ -47,10 +47,11 @@ function get_benchmark_cache(conv_type::C, conv_args) where C <: CONV_ALGOS
 end
 
 function set_benchmark_cache!(conv_type::C, conv_args, perf_results) where C <: CONV_ALGOS
-    lock(get_conv_cache_type(conv_type)) do cache
-        cache[conv_args] = perf_results
+    cache = get_conv_cache_type(conv_type)
+    Base.@lock cache.lock begin
+        cache.payload[conv_args] = perf_results
     end
-    nothing
+    return
 end
 
 get_workspace_size_func(::Type{miopenConvFwdAlgorithm_t}) = miopenConvolutionForwardGetWorkSpaceSize
@@ -249,11 +250,3 @@ function ∇convolution_data(
     conv_args = ConvolutionArgs(∇x, w; handle=handle(), groups, padding, stride, dilation)
     ∇convolution_data!(∇x, TensorDescriptor(∇x), dy, dydesc, w, wdesc, cdesc, conv_args)
 end
-
-# Non-unicode stubs.
-
-convolution_bwd_weight!(args...; kwargs...) = ∇convolution_weight!(args...; kwargs...)
-convolution_bwd_weight(args...; kwargs...) = ∇convolution_weight(args...; kwargs...)
-
-convolution_bwd_data!(args...; kwargs...) = ∇convolution_data!(args...; kwargs...)
-convolution_bwd_data(args...; kwargs...) = ∇convolution_data(args...; kwargs...)

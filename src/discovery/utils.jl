@@ -106,16 +106,12 @@ function find_rocm_library(libs::Vector, rocm_path::String, ext::String = dlext)
 end
 
 function find_rocm_library(lib::String, rocm_path::String, ext::String = dlext)
-    path = Libdl.find_library(lib)
-    isempty(path) || return Libdl.dlpath(path)
-
     libdir = joinpath(rocm_path, Sys.islinux() ? "lib" : "bin")
-    if isdir(libdir)
-        files = readdir(libdir)
-        for file in files
-            matched = startswith(basename(file), lib * ".$ext")
-            matched && return joinpath(libdir, file)
-        end
+    isdir(libdir) || return ""
+
+    for file in readdir(libdir)
+        matched = startswith(basename(file), lib * ".$ext")
+        matched && return joinpath(libdir, file)
     end
     return ""
 end
@@ -124,20 +120,19 @@ function find_ld_lld(rocm_path::String)
     lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
     for subdir in (joinpath("llvm", "bin"), "bin")
         exp_ld_path = joinpath(rocm_path, subdir, lld_name)
-        if ispath(exp_ld_path)
-            try
-                tmpfile = tempname(;cleanup=false)
-                run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
-                vstr = read(tmpfile, String)
-                rm(tmpfile)
-                vstr = replace(vstr, "AMD " => "")
-                vstr_splits = split(vstr, ' ')
-                if VersionNumber(vstr_splits[2]) >= v"6.0.0"
-                    return exp_ld_path
-                end
-            catch
-                @debug "bindeps: Failed running ld.lld in $exp_ld_path"
+        ispath(exp_ld_path) || contiune
+        try
+            tmpfile = tempname(;cleanup=false)
+            run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
+            vstr = read(tmpfile, String)
+            rm(tmpfile)
+            vstr = replace(vstr, "AMD " => "")
+            vstr_splits = split(vstr, ' ')
+            if VersionNumber(vstr_splits[2]) >= v"6.0.0"
+                return exp_ld_path
             end
+        catch
+            @warn "bindeps: Failed running ld.lld in $exp_ld_path"
         end
     end
     return ""

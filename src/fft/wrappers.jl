@@ -1,30 +1,25 @@
 # Key: context (device), fft type (fwd, inv), xdims, x eltype, inplace or not, region.
 const HandleCacheKey = Tuple{HIPContext, rocfft_transform_type, Dims, Type, Bool, Any}
-# Value: plan, worksize.
+# Value: (plan, worksize).
 const HandleCacheValue = Tuple{rocfft_plan, Int}
 const IDLE_HANDLES = HandleCache{HandleCacheKey, HandleCacheValue}()
 
-function get_plan(args...)
+function get_plan(xtype, sz, T, inplace, region)
     rocfft_setup_once()
-    handle, worksize = pop!(IDLE_HANDLES, (AMDGPU.context(), args...)) do
-        create_plan(args...)
-    end
-    workarea = ROCVector{Int8}(undef, worksize)
-    return handle, workarea
+    reg = (region...,)
+    key = (AMDGPU.context(), xtype, sz, T, inplace, reg)
+    handle, worksize = pop!(() -> create_plan(xtype, sz, T, inplace, reg),
+        IDLE_HANDLES, key)
+    return handle, ROCVector{Int8}(undef, worksize)
 end
 
 function release_plan!(plan)
+    sz = plan.input_sz_as_key ? plan.sz : plan.osz
     key = (
-        AMDGPU.context(), plan.xtype, plan.sz,
-        eltype(plan), is_inplace(plan), plan.region)
+        AMDGPU.context(), plan.xtype, sz,
+        plan.key_T, is_inplace(plan), (plan.region...,))
     value = (plan.handle, length(plan.workarea))
-    push!(IDLE_HANDLES, key, value) do
-        destroy_plan!(plan)
-    end
-end
-
-function destroy_plan!(plan)
-    rocfft_plan_destroy(plan.handle)
+    push!(() -> rocfft_plan_destroy(plan.handle), IDLE_HANDLES, key, value)
 end
 
 function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)

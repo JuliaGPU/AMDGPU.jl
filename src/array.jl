@@ -7,24 +7,22 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
         ::UndefInitializer, dims::Dims{N},
     ) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
-
-        alloc_name = cache_alloc_name()
-        # Do not use caching allocator if it is not set or
-        # the buffer is not a device memory.
-        x = if !(B <: Mem.HIPBuffer) || alloc_name == :none
-            data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
-            x = new{T, N, B}(data, dims, 0)
-        else
-            alloc = cache_allocator!(alloc_name)
-            tmp = alloc!(alloc, B, T, dims)
-            if tmp ≡ nothing
-                data = DataRef(pool_free, pool_alloc(B, prod(dims) * sizeof(T)))
-                tmp = new{T, N, B}(data, dims, 0)
-                add_busy!(alloc, tmp)
-            end
-            tmp::ROCArray{T, N, B}
+        function _alloc_f()
+            sz::Int64 = prod(dims) * sizeof(T)
+            @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(sz))"
+            data = DataRef(pool_free, pool_alloc(B, sz))
+            finalizer(unsafe_free!, new{T, N, B}(data, dims, 0))
         end
-        return finalizer(unsafe_free!, x)
+        return _alloc_f()
+
+        # name = GPUArrays.CacheAllocatorName[]
+        # # Do not use caching allocator if it is not set or
+        # # the buffer is not a device memory.
+        # return if !(B <: Mem.HIPBuffer) || name == :none
+        #     _alloc_f()
+        # else
+        #     GPUArrays.alloc!(_alloc_f, ROCBackend(), name, T, dims)::ROCArray{T, N, B}
+        # end
     end
 
     function ROCArray{T, N}(
@@ -38,9 +36,7 @@ end
 
 GPUArrays.storage(a::ROCArray) = a.buf
 
-function GPUArrays.derive(
-    ::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int,
-) where {N, T}
+function GPUArrays.derive(::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int) where {N, T}
     ref = copy(x.buf)
     offset += (x.offset * Base.elsize(x)) ÷ sizeof(T)
     ROCArray{T, N}(ref, dims; offset)
@@ -154,6 +150,8 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
+
+    @debug "[gpu -> cpu] T=$T, shape=$(size(dest))"
     stm = stream()
     Mem.download!(
         pointer(dest, d_offset),
@@ -171,6 +169,8 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
+
+    @debug "[cpu -> gpu] T=$T, shape=$(size(dest))"
     Mem.upload!(
         Mem.view(convert(Mem.AbstractAMDBuffer, dest.buf[]),
             (dest.offset + d_offset - 1) * sizeof(T)),

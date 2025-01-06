@@ -2,75 +2,86 @@
 # Copied from CUDA.jl/lib/utils/cache.jl
 
 # TODO:
-# - keep track of the (estimated?) size of cache contents
-# - clean the caches when memory is needed. this will require registering the destructor
-#   upfront, so that it can set the environment (e.g. switch to the appropriate context).
-#   alternatively, register the `unsafe_free!`` methods with the pool instead of the cache.
+# - store ctor/dtor in cache
+# - clean cache when under memory pressure
 
 export HandleCache
 
-struct HandleCache{K,V}
-    active_handles::Set{Pair{K,V}}      # for debugging, and to prevent handle finalization
-    idle_handles::Dict{K,Vector{V}}
-    lock::ReentrantLock
+struct HandleCache{K, V}
+    active_handles::Set{Pair{K, V}}
+    idle_handles::Dict{K, Vector{V}}
+    lock::Base.ThreadSynchronizer
+    # TODO when finalizers are run on their own tasks use reentrant lock
 
     max_entries::Int
 
-    function HandleCache{K,V}(max_entries::Int=32) where {K,V}
-        return new{K,V}(Set{Pair{K,V}}(), Dict{K,Vector{V}}(), ReentrantLock(), max_entries)
+    function HandleCache{K, V}(max_entries::Int = 32) where {K, V}
+        new{K,V}(
+            Set{Pair{K, V}}(),
+            Dict{K, Vector{V}}(),
+            Base.ThreadSynchronizer(),
+            max_entries)
     end
 end
 
 # remove a handle from the cache, or create a new one
-function Base.pop!(f::Function, cache::HandleCache{K,V}, key) where {K,V}
-    function check_cache(f::Function=()->nothing)
-        lock(cache.lock) do
-            handle = if !haskey(cache.idle_handles, key) || isempty(cache.idle_handles[key])
-                f()
-            else
-                pop!(cache.idle_handles[key])
-            end
-
-            if handle !== nothing
-                push!(cache.active_handles, key=>handle)
-            end
-
-            return handle
+function Base.pop!(f::Function, cache::HandleCache{K, V}, key) where {K, V}
+    # Check cache.
+    handle, n_active_handles = Base.@lock cache.lock begin
+        if haskey(cache.idle_handles, key) && !isempty(cache.idle_handles[key])
+            pop!(cache.idle_handles[key]), length(cache.active_handles)
+        else
+            nothing, length(cache.active_handles)
         end
     end
 
-    handle = check_cache()
-
-    if handle === nothing
-        # if we didn't find anything, perform a quick GC collection to free up old handles.
+    # If didn't find anything, but lots of active handles - try to free some.
+    if handle ≡ nothing && n_active_handles > cache.max_entries
         GC.gc(false)
-
-        handle = check_cache(f)
+        Base.@lock cache.lock begin
+            if haskey(cache.idle_handles, key) && !isempty(cache.idle_handles[key])
+                handle = pop!(cache.idle_handles[key])
+            end
+        end
     end
 
+    # If still nothing, create a new handle.
+    handle ≡ nothing && (handle = f();)
+
+    Base.@lock cache.lock push!(cache.active_handles, key => handle)
     return handle::V
 end
 
 # put a handle in the cache, or destroy it if it doesn't fit
-function Base.push!(f::Function, cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
-    lock(cache.lock) do
-        delete!(cache.active_handles, key=>handle)
+function Base.push!(f::Function, cache::HandleCache{K, V}, key::K, handle::V) where {K, V}
+    saved = Base.@lock cache.lock begin
+        (key => handle) ∉ cache.active_handles && error(
+            """Trying to free active handle that is not managed by cache.
+            - Key: $key
+            - Handle: $handle
+            """)
+        delete!(cache.active_handles, key => handle)
 
         if haskey(cache.idle_handles, key)
             if length(cache.idle_handles[key]) > cache.max_entries
-                f()
+                false
             else
                 push!(cache.idle_handles[key], handle)
+                true
             end
         else
             cache.idle_handles[key] = [handle]
+            true
         end
     end
+
+    saved || f()
+    return
 end
 
 # shorthand version to put a handle back without having to remember the key
-function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
-    lock(cache.lock) do
+function Base.push!(f::Function, cache::HandleCache{K, V}, handle::V) where {K, V}
+    key = Base.@lock cache.lock begin
         key = nothing
         for entry in cache.active_handles
             if entry[2] == handle
@@ -78,11 +89,12 @@ function Base.push!(f::Function, cache::HandleCache{K,V}, handle::V) where {K,V}
                 break
             end
         end
-        if key === nothing
-            error("Attempt to cache handle $handle that was not created by the handle cache")
-        end
-        push!(f, cache, key, handle)
+
+        key ≡ nothing && error(
+            "Attempt to cache handle $handle that was not created by the handle cache")
+        key
     end
+    push!(f, cache, key, handle)
 end
 
 # Copied from CUDA.jl/lib/cublas/CUBLAS.jl
