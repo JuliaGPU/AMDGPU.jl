@@ -1,4 +1,4 @@
-const ROCCacheAllocator = GPUArrays.AllocCache.PerDeviceCacheAllocator(ROCArray; free_immediately=false)
+const ROCCacheAllocator = GPUArrays.AllocCache.PerDeviceCacheAllocator(ROCArray)
 
 GPUArrays.AllocCache.cache_allocator(::Type{<: ROCArray}) = ROCCacheAllocator
 
