@@ -4,6 +4,7 @@ using Adapt
 using CEnum
 using GPUCompiler
 using GPUArrays
+using GPUArrays: allowscalar
 using Libdl
 using LLVM, LLVM.Interop
 using Preferences
@@ -115,8 +116,6 @@ include("kernels/indexing.jl")
 include("kernels/accumulate.jl")
 include("kernels/sorting.jl")
 include("kernels/reverse.jl")
-
-allowscalar(x::Bool) = GPUArrays.allowscalar(x)
 
 include(joinpath("blas", "rocBLAS.jl"))
 include(joinpath("solver", "rocSOLVER.jl"))
