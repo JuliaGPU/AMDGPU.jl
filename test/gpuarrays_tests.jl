@@ -84,3 +84,6 @@ end
 @testitem "gpuarrays - uniformscaling" setup=[TSGPUArrays] begin
     gpuarrays_test("uniformscaling")
 end
+@testitem "gpuarrays - alloc cache" setup=[TSGPUArrays] begin
+    gpuarrays_test("alloc cache")
+end
