@@ -1,4 +1,4 @@
-module EnzymeCoreExt
+module AMDGPUEnzymeCoreExt
 
 using AMDGPU
 using EnzymeCore

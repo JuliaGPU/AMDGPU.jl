@@ -38,7 +38,7 @@ EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 
 [extensions]
 AMDGPUChainRulesCoreExt = "ChainRulesCore"
-EnzymeCoreExt = "EnzymeCore"
+AMDGPUEnzymeCoreExt = "EnzymeCore"
 
 [compat]
 AbstractFFTs = "1.0"
