@@ -34,14 +34,10 @@ UnsafeAtomics = "013be700-e6cd-48c3-b4a1-df204f14c38f"
 
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-
-[extensions]
-AMDGPUChainRulesCoreExt = "ChainRulesCore"
-
-[weakdeps]
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 
 [extensions]
+AMDGPUChainRulesCoreExt = "ChainRulesCore"
 EnzymeCoreExt = "EnzymeCore"
 
 [compat]
