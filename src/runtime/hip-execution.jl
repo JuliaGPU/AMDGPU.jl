@@ -115,10 +115,11 @@ end
 
 function launch(
     fun::HIP.HIPFunction, args::Vararg{Any, N};
-    gridsize::ROCDim = 1, groupsize::ROCDim = 1,
+    gridsize = 1, groupsize = 1,
     shmem::Integer = 0, stream::HIP.HIPStream,
 ) where N
-    gd, bd = ROCDim3(gridsize), ROCDim3(groupsize)
+    gd = gridsize isa ROCDim3 ? gridsize : ROCDim3(gridsize)
+    bd = groupsize isa ROCDim3 ? groupsize : ROCDim3(groupsize)
     pack_arguments(args...) do kernel_params
         HIP.hipModuleLaunchKernel(
             fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,
