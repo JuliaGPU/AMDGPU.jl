@@ -212,7 +212,7 @@ function EnzymeRules.augmented_primal(
         kernel(config, fn.val.f, subtape_cc, kernel_args...;
             groupsize, gridsize, kwargs...)
     end
-    return AugmentedReturn{Nothing, Nothing, ROCArray}(nothing, nothing, subtape)
+    return EnzymeRules.AugmentedReturn{Nothing, Nothing, ROCArray}(nothing, nothing, subtape)
 end
 
 end
