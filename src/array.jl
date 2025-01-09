@@ -5,11 +5,11 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
 
     function ROCArray{T, N, B}(::UndefInitializer, dims::Dims{N}) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        return GPUArrays.cached_alloc((ROCArray, AMDGPU.device(), T, B, dims)) do
-            sz::Int64 = prod(dims) * sizeof(T)
+        sz::Int64 = prod(dims) * sizeof(T)
+        return GPUArrays.cached_alloc((ROCArray, AMDGPU.device(), T, B, sz)) do
             @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(sz))"
             data = DataRef(pool_free, pool_alloc(B, sz))
-            return finalizer(unsafe_free!, new{T, N, B}(data, sz, 0))
+            return finalizer(unsafe_free!, new{T, N, B}(data, dims, 0))
         end::ROCArray{T, N, B}
     end
 
