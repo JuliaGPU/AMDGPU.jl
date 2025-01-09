@@ -140,8 +140,6 @@ include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
 
-# include("cache_allocator.jl")
-
 function __init__()
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)
