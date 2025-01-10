@@ -1,57 +1,3 @@
-function detect_projects()
-    amdgpu_project = normpath(joinpath(@__DIR__, "..", ".."))
-    current_project = Base.ACTIVE_PROJECT[]
-    julia_project = if Base.JLOptions().project != C_NULL
-        unsafe_string(Base.JLOptions().project)
-    elseif current_project !== nothing
-        current_project
-    else
-        amdgpu_project
-    end
-    return (;amdgpu_project, current_project, julia_project)
-end
-
-julia_exeflags(projects = detect_projects()) = String[
-    "--startup-file=no",
-    "--project=$(projects.julia_project)",
-    "--threads=$(Threads.nthreads())"]
-
-function julia_cmd_projects(jl_str)
-    projects = detect_projects()
-
-    cmd = Base.julia_cmd()
-    append!(cmd.exec, julia_exeflags(projects))
-
-    (;amdgpu_project, current_project, julia_project) = projects
-
-    if current_project !== nothing
-    current_project = replace(current_project, "\\" => "/")
-        jl_str = "push!(LOAD_PATH, \"$current_project\");" * jl_str
-    else
-        # If Julia is using global project, instantiate `julia_project`.
-        # Otherwise, we'll fail to discover artifacts.
-        jl_str = "import Pkg; Pkg.instantiate(;io=devnull); " * jl_str
-    end
-    amdgpu_project = replace(amdgpu_project, "\\" => "/")
-    jl_str = "push!(LOAD_PATH, \"$amdgpu_project\");" * jl_str
-    append!(cmd.exec, ("-e", jl_str))
-    return cmd
-end
-
-function safe_exec(str)
-    cmd = julia_cmd_projects(str)
-    success = false
-    res_str, err_str = mktemp() do path, _
-        p = run(pipeline(cmd; stdout=path, stderr="$path.err"); wait=false)
-        wait(p)
-        success = p.exitcode == 0
-        res_str = strip(String(read(path)))
-        err_str = strip(String(read("$path.err")))
-        res_str, err_str
-    end
-    return success, res_str
-end
-
 """
 Find root ROCm directory.
 """
@@ -78,7 +24,7 @@ function find_roc_path()::String
     return ""
 end
 
-function find_device_libs(rocm_path::String)
+function find_device_libs(rocm_path::String)::String
     env_dir = get(ENV, "ROCM_PATH", "")
     if isdir(env_dir)
         path = joinpath(env_dir, "amdgcn", "bitcode")
@@ -97,7 +43,7 @@ function find_device_libs(rocm_path::String)
     return ""
 end
 
-function find_rocm_library(libs::Vector, rocm_path::String, ext::String = dlext)
+function find_rocm_library(libs::Vector; rocm_path::String, ext::String = dlext)::String
     for lib in libs
         path = find_rocm_library(lib, rocm_path, ext)
         isempty(path) || return path
@@ -105,18 +51,19 @@ function find_rocm_library(libs::Vector, rocm_path::String, ext::String = dlext)
     return ""
 end
 
-function find_rocm_library(lib::String, rocm_path::String, ext::String = dlext)
+function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext)::String
     libdir = joinpath(rocm_path, Sys.islinux() ? "lib" : "bin")
     isdir(libdir) || return ""
 
-    for file in readdir(libdir)
-        matched = startswith(basename(file), lib * ".$ext")
-        matched && return joinpath(libdir, file)
+    for file in readdir(libdir; join=true)
+        fname = basename(file)
+        matched = startswith(fname, lib) && endswith(fname, ext)
+        matched && return file
     end
     return ""
 end
 
-function find_ld_lld(rocm_path::String)
+function find_ld_lld(rocm_path::String)::String
     lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
     for subdir in (joinpath("llvm", "bin"), "bin")
         exp_ld_path = joinpath(rocm_path, subdir, lld_name)
