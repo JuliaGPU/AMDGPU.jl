@@ -120,7 +120,7 @@ function find_ld_lld(rocm_path::String)
     lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
     for subdir in (joinpath("llvm", "bin"), "bin")
         exp_ld_path = joinpath(rocm_path, subdir, lld_name)
-        ispath(exp_ld_path) || contiune
+        ispath(exp_ld_path) || continue
         try
             tmpfile = tempname(;cleanup=false)
             run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
