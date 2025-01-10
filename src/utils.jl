@@ -114,18 +114,6 @@ function print_build_diagnostics()
     run(`id`)
 end
 
-function getinfo(::Type{String}, object, query)::String
-    value = Base.zeros(UInt8, 64)
-    getinfo(object, query, value) |> Runtime.check
-    return rstrip(String(value), '\0')
-end
-
-function getinfo(::Type{T}, object, query)::T where T
-    value = Ref{T}()
-    getinfo(object, query, value) |> Runtime.check
-    return value[]
-end
-
 function check end
 
 macro check(f)
