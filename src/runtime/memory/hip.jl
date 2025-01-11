@@ -69,6 +69,8 @@ function HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int)
     HIPBuffer(s.device, s.ctx, ptr, bytesize, false)
 end
 
+Base.sizeof(b::HIPBuffer) = UInt64(b.bytesize)
+
 Base.convert(::Type{Ptr{T}}, buf::HIPBuffer) where T = convert(Ptr{T}, buf.ptr)
 
 function view(buf::HIPBuffer, bytesize::Int)
@@ -136,6 +138,8 @@ function HostBuffer(
     dev_ptr = get_device_ptr(ptr)
     HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, sz, false)
 end
+
+Base.sizeof(b::HostBuffer) = UInt64(b.bytesize)
 
 function view(buf::HostBuffer, bytesize::Int)
     bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
