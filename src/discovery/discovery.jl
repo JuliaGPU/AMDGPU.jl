@@ -1,5 +1,10 @@
 module ROCmDiscovery
 
+export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
+export librocblas, librocsparse, librocsolver
+export librocrand, librocfft, libMIOpen_path
+
+using LLD_jll
 using ROCmDeviceLibs_jll
 using Preferences
 using Libdl
@@ -12,18 +17,11 @@ function get_artifact_library(pkg::Symbol, libname::Symbol)::String
     return res
 end
 
-function get_library(libname::String; rocm_path::String, ext::String = dlext)
-    find_rocm_library(libname, rocm_path, ext)
-end
-
-function get_ld_lld(rocm_path::String;
-    from_artifact::Bool, artifact_library::Symbol, artifact_field::Symbol,
-)
-    if from_artifact
-        get_artifact_library(artifact_library, artifact_field)
-    else
-        find_ld_lld(rocm_path)
-    end
+function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
+    lld_path = find_ld_lld(rocm_path)
+    isempty(lld_path) || return (lld_path, false)
+    LLD_jll.is_available() || return (lld_path, false)
+    return (LLD_jll.lld_path, true)
 end
 
 function get_device_libs(from_artifact::Bool; rocm_path::String)
@@ -33,11 +31,6 @@ function get_device_libs(from_artifact::Bool; rocm_path::String)
         find_device_libs(rocm_path)
     end
 end
-
-export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
-export librocblas, librocsparse, librocsolver
-export librocrand, librocfft, libMIOpen_path
-export julia_exeflags
 
 function _hip_runtime_version()
     v_ref = Ref{Cint}()
@@ -82,23 +75,16 @@ function __init__()
 
     try
         global libhsaruntime = Sys.islinux() ?
-            get_library("libhsa-runtime64"; rocm_path, ext="so.1") :
+            find_rocm_library("libhsa-runtime64"; rocm_path, ext="so.1") :
             ""
 
         # Linker.
-        lld_path = get_ld_lld(rocm_path; from_artifact=false,
-            artifact_library=:LLD_jll, artifact_field=:lld_path)
-        lld_artifact = false
-        if isempty(lld_path)
-            lld_path = get_ld_lld(rocm_path; from_artifact=true,
-                artifact_library=:LLD_jll, artifact_field=:lld_path)
-            lld_artifact = true
-        end
+        lld_path, lld_artifact = get_ld_lld(rocm_path)
         global lld_path = lld_path
         global lld_artifact = lld_artifact
 
         # HIP.
-        global libhip = get_library(Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
+        global libhip = find_rocm_library(Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
 
         # Turn off artifacts for device libraries if:
         # - Julia 1.12+;
@@ -111,12 +97,12 @@ function __init__()
         global libdevice_libs = get_device_libs(from_artifact; rocm_path)
 
         # HIP-based libraries.
-        global librocblas = get_library(lib_prefix * "rocblas"; rocm_path)
-        global librocsparse = get_library(lib_prefix * "rocsparse"; rocm_path)
-        global librocsolver = get_library(lib_prefix * "rocsolver"; rocm_path)
-        global librocrand = get_library(lib_prefix * "rocrand"; rocm_path)
-        global librocfft = get_library(lib_prefix * "rocfft"; rocm_path)
-        global libMIOpen_path = get_library(lib_prefix * "MIOpen"; rocm_path)
+        global librocblas = find_rocm_library(lib_prefix * "rocblas"; rocm_path)
+        global librocsparse = find_rocm_library(lib_prefix * "rocsparse"; rocm_path)
+        global librocsolver = find_rocm_library(lib_prefix * "rocsolver"; rocm_path)
+        global librocrand = find_rocm_library(lib_prefix * "rocrand"; rocm_path)
+        global librocfft = find_rocm_library(lib_prefix * "rocfft"; rocm_path)
+        global libMIOpen_path = find_rocm_library(lib_prefix * "MIOpen"; rocm_path)
     catch err
         @error """ROCm discovery failed!
         Discovered ROCm path: $rocm_path.

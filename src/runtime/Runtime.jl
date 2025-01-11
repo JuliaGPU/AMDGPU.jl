@@ -9,7 +9,7 @@ import Preferences: @load_preference, @set_preferences!
 import ..HSA
 import ..HIP
 import ..AMDGPU
-import ..AMDGPU: getinfo, LockedObject
+import ..AMDGPU: LockedObject
 import .HIP: HIPDevice
 
 struct Adaptor end
