@@ -217,6 +217,8 @@ function synchronize(m::Managed)
     return
 end
 
+Base.sizeof(m::Managed) = sizeof(m.mem)
+
 function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T, M}
     strm = AMDGPU.stream()
 
