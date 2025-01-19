@@ -42,7 +42,7 @@ AMDGPUEnzymeCoreExt = "EnzymeCore"
 
 [compat]
 AbstractFFTs = "1.0"
-AcceleratedKernels = "0.2"
+AcceleratedKernels = "0.3"
 Adapt = "4"
 Atomix = "1"
 CEnum = "0.4, 0.5"

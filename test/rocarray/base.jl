@@ -162,7 +162,7 @@ end
 end
 
 @testset "accumulate" begin
-    for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384 + 1)
+    @testset "N=$n" for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384 + 1)
         x = rand(n)
         xd = ROCArray(x)
         init = rand()
@@ -171,7 +171,7 @@ end
     end
 
     # Multidimensional.
-    for (sizes, dims) in (
+    @testset "Sizes: $sizes, dims: $dims" for (sizes, dims) in (
         (2,) => 2,
         (3, 4, 5) => 2,
         (1, 70, 50, 20) => 3,
