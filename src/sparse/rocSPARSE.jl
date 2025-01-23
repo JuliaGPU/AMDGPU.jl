@@ -40,6 +40,15 @@ lib_state() = library_state(
 handle() = lib_state().handle
 stream() = lib_state().stream
 
+function version()
+    ver = Ref{Cint}()
+    rocsparse_get_version(handle(), ver)
+    major = ver[] ÷ 100000
+    minor = (ver[] ÷ 100) % 1000
+    patch = ver[] % 100
+    return VersionNumber(major, minor, patch)
+end
+
 include("array.jl")
 include("util.jl")
 include("types.jl")

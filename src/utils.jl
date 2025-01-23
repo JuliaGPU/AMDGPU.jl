@@ -9,7 +9,7 @@ function versioninfo()
         _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
         _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
-        _status(functional(:rocsparse))   "rocSPARSE"        "-"                                 _libpath(librocsparse);
+        _status(functional(:rocsparse))   "rocSPARSE"        _ver(:rocsparse, rocSPARSE.version) _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
         _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
