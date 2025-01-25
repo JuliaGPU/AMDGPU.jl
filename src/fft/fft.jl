@@ -216,7 +216,7 @@ function plan_inv(p::rROCFFTPlan{T,ROCFFT_INVERSE,inplace,N,R,B}) where {T<:rocf
     pp = get_plan(xtype, p.osz, T, inplace, p.region)
     scale = normalization(X, p.region)
     ScaledPlan(
-        rROCFFTPlan{real(T),ROCFFT_FORWARD,inplace,N,R,B}(pp..., X, p.sz, xtype, p.region, P.buffer, true, T),
+        rROCFFTPlan{real(T),ROCFFT_FORWARD,inplace,N,R,B}(pp..., X, p.sz, xtype, p.region, p.buffer, true, T),
         scale)
 end
 
@@ -299,15 +299,15 @@ end
 function Base.:(*)(p::rROCFFTPlan{T,ROCFFT_FORWARD,false,N}, x::ROCArray{T,N}) where {T<:rocfftReals,N}
     @assert p.xtype == rocfft_transform_type_real_forward
     y = ROCArray{complex(T)}(undef, p.osz)
-    # Out-of-place complex-to-real FFT will always overwrite input x.
-    # We copy the input x in an auxiliary buffer.
-    z = p.buffer
-    copyto!(z, x)
-    mul!(y, p, z)
+    mul!(y, p, x)
 end
 
 function Base.:(*)(p::rROCFFTPlan{T,ROCFFT_INVERSE,false,N}, x::ROCArray{T,N}) where {T<:rocfftComplexes,N}
     @assert p.xtype == rocfft_transform_type_real_inverse
     y = ROCArray{real(T)}(undef, p.osz)
-    mul!(y, p, x)
+    # Out-of-place complex-to-real FFT will always overwrite input x.
+    # We copy the input x in an auxiliary buffer.
+    z = p.buffer
+    copyto!(z, x)
+    mul!(y, p, z)
 end
