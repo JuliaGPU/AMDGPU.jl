@@ -272,7 +272,7 @@ function unsafe_execute!(
 end
 
 function LinearAlgebra.mul!(y::ROCArray{Ty}, p::ROCFFTPlan{T,K,false}, x::ROCArray{T}) where {T,Ty,K}
-    if T<:Real
+    if T<:Complex
         # Out-of-place complex-to-real FFT will always overwrite input x.
         # We copy the input x in an auxiliary buffer.
         z = p.buffer
