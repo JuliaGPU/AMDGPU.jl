@@ -78,7 +78,7 @@ mutable struct rROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T,K,inplace}
     # required by AbstractFFTs API
     pinv::ScaledPlan
 
-    function rROCFFTPlan{T,K,inplace,N}(
+    function rROCFFTPlan{T,K,inplace,N,R,B}(
         handle::rocfft_plan, workarea::ROCVector{Int8}, X::ROCArray{T,N},
         sizey::Tuple, xtype::rocfft_transform_type, region::NTuple{R,Int},
         buffer::B, input_sz_as_key::Bool, key_T::Type,
