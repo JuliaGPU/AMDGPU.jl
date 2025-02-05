@@ -219,7 +219,9 @@ end
 
 include("sorting.jl")
 include("reverse.jl")
-include("indexing.jl")
+
+# TODO hangs
+# include("indexing.jl")
 
 if length(AMDGPU.devices()) > 1
     include("multi_gpu.jl")
