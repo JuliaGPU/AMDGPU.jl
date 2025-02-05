@@ -57,11 +57,10 @@ end
 """
     wfred(op::Function, val::T) where T -> T
 
-Performs a wavefront-wide reduction on `val` in each lane, and returns the
-result. A limited subset of functions are available to be passed as `op`. When
-`op` is one of `(+, max, min, &, |, ⊻)`, `T` may be
-`<:Union{Cint, Clong, Cuint, Culong}`. When `op` is one of `(+, max, min)`,
-`T` may also be `<:Union{Float32, Float64}`.
+Performs a wavefront-wide reduction on `val` in each lane, and returns the result.
+A limited subset of functions are available to be passed as `op`.
+When `op` is one of `(+, max, min, &, |, ⊻)`, `T` may be `<:Union{Cint, Clong, Cuint, Culong}`.
+When `op` is one of `(+, max, min)`, `T` may also be `<:Union{Float32, Float64}`.
 """
 wfred
 
@@ -69,10 +68,9 @@ wfred
     wfscan(op::Function, val::T) where T -> T
 
 Performs a wavefront-wide scan on `val` in each lane, and returns the
-result. A limited subset of functions are available to be passed as `op`. When
-`op` is one of `(+, max, min, &, |, ⊻)`, `T` may be
-`<:Union{Cint, Clong, Cuint, Culong}`. When `op` is one of `(+, max, min)`,
-`T` may also be `<:Union{Float32, Float64}`.
+result. A limited subset of functions are available to be passed as `op`.
+When `op` is one of `(+, max, min, &, |, ⊻)`, `T` may be `<:Union{Cint, Clong, Cuint, Culong}`.
+When `op` is one of `(+, max, min)`, `T` may also be `<:Union{Float32, Float64}`.
 """
 wfscan
 
