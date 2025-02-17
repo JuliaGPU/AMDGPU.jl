@@ -11,7 +11,8 @@ import ..AMDGPU
 import ..AMDGPU.libhip
 import .AMDGPU: @check, check
 
-include("call.jl")
+import GPUToolbox: @gcsafe_ccall
+
 include("libhip_common.jl")
 include("error.jl")
 include("libhip.jl")
