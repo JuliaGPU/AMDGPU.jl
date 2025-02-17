@@ -20,10 +20,13 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     p = plan_fft(dX)
     dY = p * dX
     @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
+    @test X ≈ collect(dX)
 
+    Y = collect(dY)
     pinv = plan_ifft(dY)
     dZ = pinv * dY
     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
+    @test Y ≈ collect(dY)
 
     pinv2 = inv(p)
     dZ = pinv2 * dY
@@ -174,10 +177,12 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     dY = p * dX
     Y = collect(dY)
     @test isapprox(Y, fftw_X; rtol=MYRTOL, atol=MYATOL)
+    @test X ≈ collect(dX)
 
     pinv = plan_irfft(dY, size(X, 1))
     dZ = pinv * dY
     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
+    @test Y ≈ collect(dY)
 
     pinv2 = inv(p)
     dZ = pinv2 * dY
@@ -195,10 +200,13 @@ function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
     p = plan_rfft(dX, region)
     dY = p * dX
     @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
+    @test X ≈ collect(dX)
 
+    Y = collect(dY)
     pinv = plan_irfft(dY, size(X, region[1]), region)
     dZ = pinv * dY
     @test isapprox(collect(dZ), X; rtol=MYRTOL, atol=MYATOL)
+    @test Y ≈ collect(dY)
 end
 
 function fftwrapper(X::AbstractArray{T}) where {T <: Real}
