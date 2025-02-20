@@ -168,9 +168,9 @@ end
 
 # Reduction.
 
-@device_override @inline KA.__supports_warp_reduction() = true
+@device_override @inline KA.supports_warp_reduction() = true
 
-@device_override @inline function KA.__shfl_down(val, offset)
+function KA.shfl_down(val, offset)
     AMDGPU.Device.shfl_down(val, offset)
 end
 
