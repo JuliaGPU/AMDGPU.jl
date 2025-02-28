@@ -170,6 +170,8 @@ end
 
 @device_override @inline KA.supports_warp_reduction() = true
 
+KA.supports_warp_reduction(::ROCBackend) = true
+
 function KA.shfl_down(val, offset)
     AMDGPU.Device.shfl_down(val, offset)
 end
