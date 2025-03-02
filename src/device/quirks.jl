@@ -88,3 +88,7 @@ end
     end
     return v
 end
+
+# TODO remove once we support strings/exceptions.
+@device_override Base._throw_dmrs(n, str, dims) =
+    @print_and_throw "Dimensions mismatch when reshaping. New dimensions must be consistent with array size\n"

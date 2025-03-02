@@ -67,3 +67,16 @@ end
     @roc groupsize=(10, 10) kernel(array_dev)
     @test array == Array(array_dev)
 end
+
+@testset "reshape view" begin
+    function kernel!(A)
+        i = workitemIdx().x
+        B = reshape(view(A, :, i), (size(A, 1),))
+        @inbounds B[1] = 9.0
+        return
+    end
+
+    A = ROCArray{Float64}(undef, 1, 4)
+    @roc groupsize=4 kernel!(A)
+    @test all(Array(A) .≈ 9.0)
+end
