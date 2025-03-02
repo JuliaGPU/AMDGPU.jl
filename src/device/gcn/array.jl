@@ -59,8 +59,6 @@ ROCDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = 
 ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(Int.(dims), p)
 ROCDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
 
-# getters
-
 Base.pointer(a::ROCDeviceArray) = a.ptr
 Base.pointer(a::ROCDeviceArray, i::Integer) =
     pointer(a) + (i - 1) * Base.elsize(a) # TODO use _memory_offset(a, i)
@@ -70,11 +68,11 @@ Base.size(g::ROCDeviceArray) = g.dims
 Base.sizeof(x::ROCDeviceArray) = Base.elsize(x) * length(x)
 Base.length(g::ROCDeviceArray) = g.len
 
-# conversions
-
 Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
 
 # indexing
+
+Base.IndexStyle(::Type{<:ROCDeviceArray}) = Base.IndexLinear()
 
 @generated function alignment(::ROCDeviceArray{T}) where T
     Base.datatype_alignment(T)
@@ -93,7 +91,8 @@ end
     return A
 end
 
-Base.IndexStyle(::Type{<:ROCDeviceArray}) = Base.IndexLinear()
+# Preserve index type (avoid extending to 64-bit).
+Base.to_index(::ROCDeviceArray, i::Integer) = i
 
 # comparisons
 
@@ -119,14 +118,7 @@ Base.show(io::IO, a::S) where S<:AnyROCDeviceArray =
 
 Base.show(io::IO, mime::MIME"text/plain", a::S) where S<:AnyROCDeviceArray = show(io, a)
 
-@inline function Base.unsafe_view(A::ROCDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
-    ptr = pointer(A) + (I[1].start - 1) * sizeof(T)
-    len = I[1].stop - I[1].start + 1
-
-    return ROCDeviceArray(len, ptr)
-end
-
-@inline function Base.iterate(A::ROCDeviceArray, i=1)
+@inline function Base.iterate(A::ROCDeviceArray, i = 1)
     if (i % UInt) - 1 < length(A)
         (@inbounds A[i], i + 1)
     else
