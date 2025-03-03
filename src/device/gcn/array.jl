@@ -91,9 +91,6 @@ end
     return A
 end
 
-# Preserve index type (avoid extending to 64-bit).
-Base.to_index(::ROCDeviceArray, i::Integer) = i
-
 # comparisons
 
 Base.isequal(a1::R1, a2::R2) where {R1<:ROCDeviceArray,R2<:ROCDeviceArray} =
