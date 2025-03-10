@@ -17,7 +17,7 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     fftw_X = fft(X)
 
     dX = ROCArray(X)
-    p = plan_fft(dX)
+    p = @inferred plan_fft(dX)
     dY = p * dX
     @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
     @test X ≈ collect(dX)
@@ -37,7 +37,7 @@ function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     fftw_X = fft(X)
 
     dX = ROCArray(X)
-    p = plan_fft!(dX)
+    p = @inferred plan_fft!(dX)
     p * dX
     @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
@@ -50,7 +50,7 @@ function batched(X::AbstractArray{T,N}, region) where {T <: Complex,N}
     fftw_X = fft(X, region)
 
     dX = ROCArray(X)
-    p = plan_fft!(dX, region)
+    p = @inferred plan_fft!(dX, region)
     p * dX
     @test isapprox(collect(dX), fftw_X; rtol=MYRTOL, atol=MYATOL)
 
@@ -173,7 +173,7 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     fftw_X = rfft(X)
     dX = ROCArray(X)
 
-    p = plan_rfft(dX)
+    p = @inferred plan_rfft(dX)
     dY = p * dX
     Y = collect(dY)
     @test isapprox(Y, fftw_X; rtol=MYRTOL, atol=MYATOL)
@@ -197,7 +197,7 @@ function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
     fftw_X = rfft(X,region)
     dX = ROCArray(X)
 
-    p = plan_rfft(dX, region)
+    p = @inferred plan_rfft(dX, region)
     dY = p * dX
     @test isapprox(collect(dY), fftw_X; rtol=MYRTOL, atol=MYATOL)
     @test X ≈ collect(dX)
