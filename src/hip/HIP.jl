@@ -1,6 +1,5 @@
 module HIP
-export HIPError
-export devices, device_synchronize, default_stream
+export HIPError, devices, device_synchronize, default_stream
 
 using CEnum
 

@@ -154,7 +154,18 @@ function maybe_collect(; blocking::Bool = false)
         if max_size == typemax(UInt64)
             dev = device()
             pool = Mem.pool_create(dev)
-            max_size = free() + stats.live +
+            free_mem = try
+                free()
+            catch e
+                if e isa HIPError
+                    @warn "Failed to query amount of `free()` memory. Disabling eager GC."
+                    EAGER_GC[] = false
+                    return
+                else
+                    rethrow(e)
+                end
+            end
+            max_size = free_mem + stats.live +
                 (HIP.reserved_memory(pool) - HIP.used_memory(pool))
         end
 
