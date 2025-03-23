@@ -98,7 +98,7 @@ function attribute(dev::HIPDevice, attr)
     v[]
 end
 
-function ndevices()
+function ndevices()::Int
     count_ref = Ref{Cint}()
     hipGetDeviceCount(count_ref)
     count_ref[]
