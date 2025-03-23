@@ -4,8 +4,8 @@
 
 Returns the numerical device ID for `device` or for the current `AMDGPU.device()`.
 """
-device_id() = device().device_id
-device_id(device::HIPDevice) = device.device_id
+device_id()::Int = device().device_id
+device_id(device::HIPDevice)::Int = device.device_id
 
 """
     device_id!(idx::Integer)
