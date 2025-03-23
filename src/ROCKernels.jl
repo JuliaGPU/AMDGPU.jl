@@ -14,7 +14,7 @@ using StaticArraysCore: MArray
 struct ROCBackend <: KA.GPU end
 
 KA.device(::ROCBackend) = AMDGPU.device_id()
-KA.device!(::ROCBackend, id) = AMDGPU.device_id!(id)
+KA.device!(::ROCBackend, id::Int) = AMDGPU.device_id!(id)
 
 Adapt.adapt_storage(::ROCBackend, a::Array) = Adapt.adapt(AMDGPU.ROCArray, a)
 Adapt.adapt_storage(::ROCBackend, a::AMDGPU.ROCArray) = a
