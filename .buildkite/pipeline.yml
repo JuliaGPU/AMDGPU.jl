@@ -35,7 +35,7 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: "julia --project -e 'using Pkg; Pkg.update()'"
-    timeout_in_minutes: 180
+    timeout_in_minutes: 30
     env:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
@@ -55,7 +55,7 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: "julia --project -e 'using Pkg; Pkg.update()'"
-    timeout_in_minutes: 180
+    timeout_in_minutes: 30
     env:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
@@ -75,7 +75,7 @@ steps:
   #     rocmgpu: "*"
   #   if: build.message !~ /\[skip tests\]/
   #   command: "julia --project -e 'using Pkg; Pkg.update()'"
-  #   timeout_in_minutes: 180
+  #   timeout_in_minutes: 30
   #   env:
   #     JULIA_LLVM_ARGS: "-opaque-pointers"
   #     JULIA_NUM_THREADS: 4
@@ -95,7 +95,7 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: "julia --project -e 'using Pkg; Pkg.update()'"
-    timeout_in_minutes: 180
+    timeout_in_minutes: 30
     env:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
