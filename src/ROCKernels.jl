@@ -13,8 +13,13 @@ using StaticArraysCore: MArray
 
 struct ROCBackend <: KA.GPU end
 
+KA.ndevices(::ROCBackend) = AMDGPU.HIP.ndevices()
 KA.device(::ROCBackend) = AMDGPU.device_id()
-KA.device!(::ROCBackend, id::Int) = AMDGPU.device_id!(id)
+function KA.device!(kab::ROCBackend, id::Int)
+    (0 < id <= KA.ndevices(kab)) || throw(ArgumentError("Device id $id out of bounds."))
+    AMDGPU.device_id!(id)
+    return
+end
 
 Adapt.adapt_storage(::ROCBackend, a::Array) = Adapt.adapt(AMDGPU.ROCArray, a)
 Adapt.adapt_storage(::ROCBackend, a::AMDGPU.ROCArray) = a
