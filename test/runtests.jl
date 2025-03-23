@@ -99,9 +99,8 @@ if "enzyme" in TARGET_TESTS
     Pkg.add(["EnzymeCore", "Enzyme"])
 end
 
-# Run tests in parallel.
-np = set_jobs ? jobs : (Sys.CPU_THREADS ÷ 2)
-# Limit to 2 workers, otherwise unfortunate things happen.
+# Configure number of test workers.
+np = set_jobs ? jobs : Sys.CPU_THREADS
 np = clamp(np, 1, 4)
 np = min(np, length(TARGET_TESTS))
 
