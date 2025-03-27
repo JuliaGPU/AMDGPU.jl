@@ -212,6 +212,61 @@ for (fname, elty) in (
     end
 end
 
+for (fname, elty) in (
+    (:rocsolver_sgeblttrf_npvt, :Float32),
+    (:rocsolver_dgeblttrf_npvt, :Float64),
+    (:rocsolver_cgeblttrf_npvt, :ComplexF32),
+    (:rocsolver_zgeblttrf_npvt, :ComplexF64),
+)
+    @eval begin
+        function geblttrf!(A::ROCArray{$elty,3}, B::ROCArray{$elty,3}, C::ROCArray{$elty,3})
+            mA, nA, nblocksA = size(A)
+            mB, nB, nblocksB = size(B)
+            mC, nC, nblocksC = size(C)
+            (mA == nA == mB == nB == mC == nC) || throw(DimensionMismatch("The first two dimensions of A, B and C must match"))
+            (nblocksA == nblocksB - 1 == nblocksC) || throw(DimensionMismatch("Inconsistency for the last dimension of A, B and C"))
+
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+            ldc = max(1, stride(C, 2))
+
+            devinfo = ROCArray{Cint}(undef, 1)
+            $fname(rocBLAS.handle(), mB, nblocksB, A, lda, B, ldb, C, ldc, devinfo)
+            info = AMDGPU.@allowscalar devinfo[1]
+            AMDGPU.unsafe_free!(devinfo)
+            chkargsok(BlasInt(info))
+            B, C
+        end
+    end
+end
+
+for (fname, elty) in (
+    (:rocsolver_sgeblttrs_npvt, :Float32),
+    (:rocsolver_dgeblttrs_npvt, :Float64),
+    (:rocsolver_cgeblttrs_npvt, :ComplexF32),
+    (:rocsolver_zgeblttrs_npvt, :ComplexF64),
+)
+    @eval begin
+        function geblttrs!(A::ROCArray{$elty,3}, B::ROCArray{$elty,3}, C::ROCArray{$elty,3}, X::ROCArray{$elty,3})
+            mA, nA, nblocksA = size(A)
+            mB, nB, nblocksB = size(B)
+            mC, nC, nblocksC = size(C)
+            mX, nblocksX, nrhs = size(X)
+            (mA == nA == mB == nB == mC == nC) || throw(DimensionMismatch("The first two dimensions of A, B and C must match"))
+            (mX == mA) || throw(DimensionMismatch("The first dimension of X is inconsistent with first two dimensions of A, B and C"))
+            (nblocksA == nblocksB - 1 == nblocksX - 1 == nblocksC) || throw(DimensionMismatch("Inconsistency for the number of blocks in A, B, C and X"))
+
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+            ldc = max(1, stride(C, 2))
+            ldx = max(1, stride(X, 2))
+
+            $fname(rocBLAS.handle(), mB, nblocksB, nrhs, A, lda, B, ldb, C, ldc, X, ldx)
+            X
+        end
+    end
+end
+
 for (fname, elty, relty) in ((:rocsolver_sgebrd, :Float32   , :Float32),
                              (:rocsolver_dgebrd, :Float64   , :Float64),
                              (:rocsolver_cgebrd, :ComplexF32, :Float32),

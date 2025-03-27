@@ -200,6 +200,80 @@ end
     end
 end
 
+@testset "geblttrf! -- geblttrs!" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "n = $n" for n in (1, ) # 8, 16)
+            nblocks = 5
+            nrhs = 1
+            p = n * nblocks
+            A = rand(elty, n, n, nblocks-1)
+            B = rand(elty, n, n, nblocks)
+            C = rand(elty, n, n, nblocks-1)
+            R = rand(elty, n, nblocks, nrhs)
+
+            M = zeros(elty, p, p)
+            RHS = zeros(elty, p, nrhs)
+            for k in 1:nblocks
+                offset = (k-1)*n
+                for i = 1:n
+                    for j = 1:n
+                        M[offset+i,offset+j] = B[i,j,k]
+                        if k < nblocks
+                            M[offset+n+i,offset+j] = A[i,j,k]
+                            M[offset+i,offset+n+j] = C[i,j,k]
+                        end
+                    end
+                    for j = 1:nrhs
+                        RHS[offset+i,j] = R[i,k,j]
+                    end
+                end
+            end
+
+            d_A = ROCArray(A)
+            d_B = ROCArray(B)
+            d_C = ROCArray(C)
+            d_R = ROCArray(R)
+            rocSOLVER.geblttrf!(d_A, d_B, d_C)
+
+            L = zeros(elty, p, p)
+            U = zeros(elty, p, p)
+            B2 = collect(d_B)
+            C2 = collect(d_C)
+            for k in 1:nblocks
+                offset = (k-1)*n
+                for i = 1:n
+                    for j = 1:n
+                        if i == j
+                            U[offset+i,offset+j] = one(elty)
+                        end
+                        L[offset+i,offset+j] = B2[j,i,k]
+                        if k < nblocks
+                            L[offset+n+i,offset+j] = A[i,j,k]
+                            U[offset+i,offset+n+j] = C2[j,i,k]
+                        end
+
+                    end
+                end
+            end
+            N = L * U
+            @test N ≈ M
+
+            X = N \ RHS
+            Y = similar(R)
+            for k in 1:nblocks
+                for i = 1:n
+                    for j = 1:nrhs
+                        l = (k-1)*n + i
+                        Y[i, k, j] = X[l,j]
+                    end
+                end
+            end
+            rocSOLVER.geblttrs!(d_A, d_B, d_C, d_R)
+            @test Y ≈ collect(d_R)
+        end
+    end
+end
+
 @testset "gebrd!" begin
     @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A                             = rand(elty,m,n)
