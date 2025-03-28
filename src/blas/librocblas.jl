@@ -44,10 +44,6 @@ struct rocblas_bf8
     data::UInt8
 end
 
-mutable struct ihipStream_t end
-
-const hipStream_t = Ptr{ihipStream_t}
-
 mutable struct rocblas_device_malloc_base end
 
 const rocblas_int = Int32

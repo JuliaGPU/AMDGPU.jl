@@ -18,7 +18,6 @@ import .HIP: HIPContext, HIPStream, hipStream_t
 const SparseChar = Char
 
 # core library
-include("librocsparse_common.jl")
 include("error.jl")
 include("librocsparse.jl")
 include("librocsparse_deprecated.jl")
