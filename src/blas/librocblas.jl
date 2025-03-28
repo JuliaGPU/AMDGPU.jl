@@ -4,10 +4,6 @@ mutable struct _rocblas_handle end
 
 const rocblas_handle = Ptr{_rocblas_handle}
 
-mutable struct ihipEvent_t end
-
-const hipEvent_t = Ptr{ihipEvent_t}
-
 @cenum rocblas_status_::UInt32 begin
     rocblas_status_success = 0
     rocblas_status_invalid_handle = 1
