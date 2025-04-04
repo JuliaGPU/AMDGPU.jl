@@ -90,7 +90,7 @@ function __init__()
         # - Julia 1.12+;
         # - opaque pointer are enabled.
         from_artifact = (
-            VERSION < v"1.12"
+            VERSION < v"1.12-"
             # Detect HIP version, which will influence what device libraries to use.
             && (isempty(libhip) || Base.thisminor(_hip_runtime_version()) > v"5.4")
             && !occursin("-opaque-pointers", get(ENV, "JULIA_LLVM_ARGS", "")))
