@@ -29,3 +29,15 @@ function LinearAlgebra.opnorm(A::ROCSparseMatrixCSR, p::Real=2)
 end
 
 LinearAlgebra.opnorm(A::ROCSparseMatrixCSC, p::Real=2) = opnorm(ROCSparseMatrixCSR(A), p)
+
+# work around upstream breakage from JuliaLang/julia#55547
+@static if VERSION >= v"1.11.2"
+    const ROCSparseUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
+        <:Any,<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}}
+    const ROCSparseLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
+        <:Any,<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}}
+    LinearAlgebra.istriu(::ROCSparseUpperOrUnitUpperTriangular) = true
+    LinearAlgebra.istril(::ROCSparseUpperOrUnitUpperTriangular) = false
+    LinearAlgebra.istriu(::ROCSparseLowerOrUnitLowerTriangular) = false
+    LinearAlgebra.istril(::ROCSparseLowerOrUnitLowerTriangular) = true
+end

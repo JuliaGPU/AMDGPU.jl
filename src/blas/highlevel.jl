@@ -90,6 +90,8 @@ end
 # BLAS 2
 #
 
+# work around upstream breakage from JuliaLang/julia#55547
+@static if VERSION >= v"1.11.2"
 const ROCUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
     <:Any,<:Union{<:ROCArray, Adjoint{<:Any, <:ROCArray}, Transpose{<:Any, <:ROCArray}}}
 const ROCLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
@@ -99,6 +101,7 @@ LinearAlgebra.istriu(::ROCUpperOrUnitUpperTriangular) = true
 LinearAlgebra.istril(::ROCUpperOrUnitUpperTriangular) = false
 LinearAlgebra.istriu(::ROCLowerOrUnitLowerTriangular) = false
 LinearAlgebra.istril(::ROCLowerOrUnitLowerTriangular) = true
+end
 
 # multiplication
 LinearAlgebra.generic_trimatmul!(
