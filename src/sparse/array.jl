@@ -293,10 +293,10 @@ LinearAlgebra.ishermitian(M::Union{ROCSparseMatrixCSC,ROCSparseMatrixCSR}) = fal
 LinearAlgebra.issymmetric(M::Symmetric{ROCSparseMatrixCSC}) = true
 LinearAlgebra.ishermitian(M::Hermitian{ROCSparseMatrixCSC}) = true
 
-LinearAlgebra.istriu(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractROCSparseMatrix} = true
-LinearAlgebra.istril(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractROCSparseMatrix} = false
-LinearAlgebra.istriu(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractROCSparseMatrix} = false
-LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractROCSparseMatrix} = true
+LinearAlgebra.istriu(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}} = true
+LinearAlgebra.istril(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}} = false
+LinearAlgebra.istriu(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}} = false
+LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}} = true
 
 Hermitian{T}(Mat::ROCSparseMatrix{T}) where T = Hermitian{T,typeof(Mat)}(Mat,'U')
 
