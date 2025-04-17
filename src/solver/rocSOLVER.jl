@@ -1,5 +1,7 @@
 module rocSOLVER
 
+using CEnum: @cenum
+
 using LinearAlgebra
 using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ
 using LinearAlgebra: BlasInt, BlasReal, BlasComplex, checksquare
