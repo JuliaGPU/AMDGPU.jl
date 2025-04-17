@@ -5,26 +5,33 @@ using Clang, Clang.Generators
 using JuliaFormatter
 
 include_dir = normpath("/opt/rocm/include")
-
-rocsolver_dir  = joinpath(include_dir, "rocsolver")
+rocblas_dir = joinpath(include_dir, "rocblas", "internal")
+rocsolver_dir = joinpath(include_dir, "rocsolver")
 options = load_options("rocsolver/rocsolver-generator.toml")
 
 args = get_default_args()
-push!(args, "-I$include_dir")
+push!(args, "-I$rocsolver_dir", "-I$rocblas_dir", "-DROCSOLVER_EXPORT")
 
-headers = [
+headers_rocsolver = [
     joinpath(rocsolver_dir, header)
     for header in readdir(rocsolver_dir)
     if endswith(header, ".h")
 ]
 
-ctx = create_context(headers, args, options)
+headers_rocblas = [
+    joinpath(rocblas_dir, header)
+    for header in readdir(rocblas_dir)
+    if endswith(header, ".h")
+]
+
+ctx = create_context(headers_rocsolver ∪
+ headers_rocblas, args, options)
 build!(ctx, BUILDSTAGE_NO_PRINTING)
 
 # Only keep the wrapped headers because the dependencies are already wrapped with other headers.
 replace!(get_nodes(ctx.dag)) do node
     path = Clang.get_filename(node.cursor)
-    should_wrap = any(headers) do header
+    should_wrap = any(headers_rocsolver) do header
         occursin(header, path)
     end
     if !should_wrap

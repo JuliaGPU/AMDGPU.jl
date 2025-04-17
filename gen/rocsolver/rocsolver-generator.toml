@@ -2,6 +2,7 @@
 library_name = "librocsolver"
 output_file_path = "./librocsolver.jl"
 export_symbol_prefixes = []
+print_using_CEnum = false
 
 [codegen]
 use_ccall_macro = true
