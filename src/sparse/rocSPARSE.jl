@@ -11,9 +11,11 @@ using ..AMDGPU
 using ..AMDGPU: @allowscalar
 using ..AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
 
-import AMDGPU: librocsparse, HandleCache, HIP, library_state
+import AMDGPU: librocsparse, HandleCache, HIP, library_state, ROCVector
 import AMDGPU.Device: ROCDeviceVector
 import .HIP: HIPContext, HIPStream, hipStream_t
+
+import SparseArrays: SparseVector, SparseMatrixCSC
 
 const SparseChar = Char
 

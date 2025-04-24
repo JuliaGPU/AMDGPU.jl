@@ -62,6 +62,27 @@ steps:
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
+  - label: "Julia 1.12"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "1.12-nightly"
+      - JuliaCI/julia-test#v1:
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+    agents:
+      queue: "juliagpu"
+      rocm: "*"
+      rocmgpu: "*"
+    if: build.message !~ /\[skip tests\]/
+    command: "julia --project -e 'using Pkg; Pkg.update()'"
+    timeout_in_minutes: 30
+    env:
+      JULIA_NUM_THREADS: 4
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+    soft_fail: true
+
   # - label: "Julia 1.11 opaque pointers"
   #   plugins:
   #     - JuliaCI/julia#v1:

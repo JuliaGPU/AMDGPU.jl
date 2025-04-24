@@ -81,9 +81,16 @@ const fntypes = Dict{Type,Symbol}(
 import ExprTools
 
 macro device_override(ex)
-    esc(quote
-        $Base.Experimental.@overlay(AMDGPU.method_table, $ex)
-    end)
+    ex = macroexpand(__module__, ex)
+    if VERSION >= v"1.12.0-DEV.745" || v"1.11-rc1" <= VERSION < v"1.12-"
+        esc(quote
+            Base.Experimental.@consistent_overlay(AMDGPU.method_table, $ex)
+        end)
+    else
+        esc(quote
+            Base.Experimental.@overlay(AMDGPU.method_table, $ex)
+        end)
+    end
 end
 
 macro device_function(ex)
@@ -97,6 +104,6 @@ macro device_function(ex)
 
     esc(quote
         $(ExprTools.combinedef(def))
-        @device_override $ex
+        Base.Experimental.@overlay(AMDGPU.method_table, $ex)
     end)
 end
