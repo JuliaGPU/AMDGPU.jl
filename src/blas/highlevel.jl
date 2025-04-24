@@ -154,6 +154,18 @@ end
 #
 # BLAS 3
 #
+
+if VERSION >= v"1.12-"
+    # Otherwise dispatches onto:
+    # https://github.com/JuliaLang/LinearAlgebra.jl/blob/4e7c3f40316a956119ac419a97c4b8aad7a17e6c/src/matmul.jl#L490
+    for blas_flag in (LinearAlgebra.BlasFlag.SyrkHerkGemm, LinearAlgebra.BlasFlag.SymmHemmGeneric)
+        @eval LinearAlgebra.generic_matmatmul_wrapper!(
+            C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat, B::StridedROCVecOrMat,
+            alpha::Number, beta::Number, ::$blas_flag) =
+            LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
+    end
+end
+
 # legacy method
 LinearAlgebra.generic_matmatmul!(
     C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat,
@@ -164,8 +176,6 @@ function LinearAlgebra.generic_matmatmul!(
     C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat,
     B::StridedROCVecOrMat, alpha::Number, beta::Number,
 )
-    Core.println(">>> generic_matmatmul!")
-    T = eltype(C)
     mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
     mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
 
@@ -180,6 +190,7 @@ function LinearAlgebra.generic_matmatmul!(
         return LinearAlgebra.rmul!(C, 0)
     end
 
+    T = eltype(C)
     if alpha isa Union{Bool, T} && beta isa Union{Bool, T}
         α, β = T(alpha), T(beta)
 
@@ -217,7 +228,8 @@ LinearAlgebra.generic_mattrimul!(
     isunitc, one(T), B, A, C)
 
 const AdjOrTransOrROCMatrix{T} = Union{
-    StridedROCMatrix{T}, AdjOrTrans{<: T, <: StridedROCMatrix}}
+    StridedROCMatrix{T},
+    AdjOrTrans{<: T, <: StridedROCMatrix}}
 
 function LinearAlgebra.generic_trimatmul!(
     C::StridedROCMatrix{T}, uplocA, isunitcA,
