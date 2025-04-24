@@ -1,5 +1,25 @@
 export ROCSPARSEError
 
+@cenum rocsparse_status_::UInt32 begin
+    rocsparse_status_success = 0
+    rocsparse_status_invalid_handle = 1
+    rocsparse_status_not_implemented = 2
+    rocsparse_status_invalid_pointer = 3
+    rocsparse_status_invalid_size = 4
+    rocsparse_status_memory_error = 5
+    rocsparse_status_internal_error = 6
+    rocsparse_status_invalid_value = 7
+    rocsparse_status_arch_mismatch = 8
+    rocsparse_status_zero_pivot = 9
+    rocsparse_status_not_initialized = 10
+    rocsparse_status_type_mismatch = 11
+    rocsparse_status_requires_sorted_storage = 12
+    rocsparse_status_thrown_exception = 13
+    rocsparse_status_continue = 14
+end
+
+const rocsparse_status = rocsparse_status_
+
 struct ROCSPARSEError <: Exception
     code::rocsparse_status
 end

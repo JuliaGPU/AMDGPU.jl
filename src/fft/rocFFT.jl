@@ -23,8 +23,15 @@ include("util.jl")
 include("wrappers.jl")
 include("fft.jl")
 
-version() = VersionNumber(
-    rocfft_version_major, rocfft_version_minor, rocfft_version_patch)
+function rocfft_get_version_string()
+    vec = zeros(UInt8, 64)
+    rocfft_get_version_string(vec, 64)
+    return unsafe_string(reinterpret(Cstring, pointer(vec)))
+end
+
+function version()
+    VersionNumber(join(split(rocfft_get_version_string(), '.')[1:3], '.'))
+end
 
 const INITIALIZED = Threads.Atomic{Int64}(0)
 

@@ -20,7 +20,6 @@ import SparseArrays: SparseVector, SparseMatrixCSC
 const SparseChar = Char
 
 # core library
-include("librocsparse_common.jl")
 include("error.jl")
 include("librocsparse.jl")
 include("librocsparse_deprecated.jl")
