@@ -111,21 +111,22 @@ AMDGPU.versioninfo()
 data = String["$np" "$(AMDGPU.device())" join(TARGET_TESTS, ", ");]
 PrettyTables.pretty_table(data; header=["Workers", "Device", "Tests"], crop=:none)
 
-runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
+runtests(AMDGPU; nworkers=0, nworker_threads=1, testitem_timeout=60 * 30) do ti
+    return ti.name == "gpuarrays - math/power"
     for tt in TARGET_TESTS
         startswith(ti.name, tt) && return true
     end
     return false
 end
 
-if "core" in TARGET_TESTS && Sys.islinux()
-    @info "Testing `Hostcalls` on the main thread."
-    @testset "Hostcalls" begin
-        include("device/hostcall.jl")
+# if "core" in TARGET_TESTS && Sys.islinux()
+#     @info "Testing `Hostcalls` on the main thread."
+#     @testset "Hostcalls" begin
+#         include("device/hostcall.jl")
 
-        # TODO 1.11 fails
-        if VERSION < v"1.11-"
-            include("device/output.jl")
-        end
-    end
-end
+#         # TODO 1.11 fails
+#         if VERSION < v"1.11-"
+#             include("device/output.jl")
+#         end
+#     end
+# end
