@@ -1,4 +1,4 @@
-using Base.Broadcast: BroadcastStyle, Broadcasted
+import Base.Broadcast: BroadcastStyle, Broadcasted
 
 struct ROCArrayStyle{N, B} <: AbstractGPUArrayStyle{N} end
 ROCArrayStyle{M, B}(::Val{N}) where {N, M, B} = ROCArrayStyle{N, B}()

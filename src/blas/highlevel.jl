@@ -159,10 +159,12 @@ LinearAlgebra.generic_matmatmul!(
     C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat,
     B::StridedROCVecOrMat, _add::MulAddMul,
 ) = LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
+
 function LinearAlgebra.generic_matmatmul!(
     C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat,
     B::StridedROCVecOrMat, alpha::Number, beta::Number,
 )
+    Core.println(">>> generic_matmatmul!")
     T = eltype(C)
     mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
     mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
@@ -285,7 +287,7 @@ end
 
 Base.Array(D::Diagonal{T, <: ROCArray{T}}) where T = Diagonal(Array(D.diag))
 
-ROCArray(D::Diagonal{T, <: Vector{T}}) where T = Diagonal(ROCArray(D.diag))
+AMDGPU.ROCArray(D::Diagonal{T, <: Vector{T}}) where T = Diagonal(ROCArray(D.diag))
 
 function LinearAlgebra.inv(D::Diagonal{T, <: ROCArray{T}}) where T
     Di = map(inv, D.diag)
