@@ -4,8 +4,6 @@ import ..AMDGPU.Adapt: WrappedArray
 
 export ROCDeviceArray, ROCDeviceVector, ROCDeviceMatrix
 
-# construction
-
 """
     ROCDeviceArray(dims, ptr)
     ROCDeviceArray{T}(dims, ptr)
@@ -37,13 +35,12 @@ struct ROCDeviceArray{T,N,A} <: DenseArray{T,N}
     end
 end
 
-const ROCDeviceVector = ROCDeviceArray{T,1,A} where {T,A}
-const ROCDeviceMatrix = ROCDeviceArray{T,2,A} where {T,A}
+ROCDeviceVector = ROCDeviceArray{T,1,A} where {T,A}
+ROCDeviceMatrix = ROCDeviceArray{T,2,A} where {T,A}
 
-# anything that's (secretly) backed by a ROCDeviceArray
-const AnyROCDeviceArray{T,N,A} = Union{ROCDeviceArray{T,N,A}, WrappedArray{T,N,ROCDeviceArray,ROCDeviceArray{T,N,A}}}
-const AnyROCDeviceVector{T,A} = AnyROCDeviceArray{T,1,A}
-const AnyROCDeviceMatrix{T,A} = AnyROCDeviceArray{T,2,A}
+AnyROCDeviceArray{T,N,A} = Union{ROCDeviceArray{T,N,A}, WrappedArray{T,N,ROCDeviceArray,ROCDeviceArray{T,N,A}}}
+AnyROCDeviceVector{T,A} = AnyROCDeviceArray{T,1,A}
+AnyROCDeviceMatrix{T,A} = AnyROCDeviceArray{T,2,A}
 
 # outer constructors, non-parameterized
 ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
@@ -75,9 +72,7 @@ Base.length(g::ROCDeviceArray) = g.len
 
 Base.IndexStyle(::Type{<:ROCDeviceArray}) = Base.IndexLinear()
 
-@generated function alignment(::ROCDeviceArray{T}) where T
-    Base.datatype_alignment(T)
-end
+@generated alignment(::ROCDeviceArray{T}) where T = Base.datatype_alignment(T)
 
 @device_function @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
@@ -89,8 +84,6 @@ end
     Base.unsafe_store!(pointer(A), x, index, Val(alignment(A)))
     return A
 end
-
-# comparisons
 
 Base.isequal(a1::R1, a2::R2) where {R1<:ROCDeviceArray,R2<:ROCDeviceArray} =
     R1 == R2 && a1.dims == a2.dims && a1.ptr == a2.ptr
