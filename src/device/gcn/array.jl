@@ -59,16 +59,17 @@ ROCDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = 
 ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(Int.(dims), p)
 ROCDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
 
-Base.pointer(a::ROCDeviceArray) = a.ptr
-Base.pointer(a::ROCDeviceArray, i::Integer) =
-    pointer(a) + (i - 1) * Base.elsize(a) # TODO use _memory_offset(a, i)
+Base.pointer(a::ROCDeviceArray{T, <: Any, A}) where {T, A} =
+    Base.unsafe_convert(LLVMPtr{T, A}, a)
+@inline Base.pointer(a::ROCDeviceArray{T, <: Any, A}, i::Integer) where {T, A} =
+    Base.unsafe_convert(LLVMPtr{T, A}, a) + Base._memory_offset(a, i)
+
+Base.unsafe_convert(::Type{LLVMPtr{T, A}}, a::ROCDeviceArray{T, <: Any, A}) where {T, A} = a.ptr
 
 Base.elsize(::Type{<:ROCDeviceArray{T}}) where {T} = sizeof(T)
 Base.size(g::ROCDeviceArray) = g.dims
 Base.sizeof(x::ROCDeviceArray) = Base.elsize(x) * length(x)
 Base.length(g::ROCDeviceArray) = g.len
-
-Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::ROCDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
 
 # indexing
 
@@ -80,14 +81,12 @@ end
 
 @device_function @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
-    align = alignment(A)
-    Base.unsafe_load(pointer(A), index, Val(align))::T
+    Base.unsafe_load(pointer(A), index, Val(alignment(A)))::T
 end
 
 @device_function @inline function Base.setindex!(A::ROCDeviceArray{T}, x, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
-    align = alignment(A)
-    Base.unsafe_store!(pointer(A), x, index, Val(align))
+    Base.unsafe_store!(pointer(A), x, index, Val(alignment(A)))
     return A
 end
 
