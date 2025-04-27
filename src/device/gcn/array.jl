@@ -72,7 +72,9 @@ Base.length(g::ROCDeviceArray) = g.len
 
 Base.IndexStyle(::Type{<:ROCDeviceArray}) = Base.IndexLinear()
 
-@generated alignment(::ROCDeviceArray{T}) where T = Base.datatype_alignment(T)
+@generated function alignment(::ROCDeviceArray{T}) where T
+    Base.datatype_alignment(T)
+end
 
 @device_function @inline function Base.getindex(A::ROCDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
