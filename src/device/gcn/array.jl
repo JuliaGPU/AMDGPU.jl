@@ -35,12 +35,12 @@ struct ROCDeviceArray{T,N,A} <: DenseArray{T,N}
     end
 end
 
-ROCDeviceVector = ROCDeviceArray{T,1,A} where {T,A}
-ROCDeviceMatrix = ROCDeviceArray{T,2,A} where {T,A}
+const ROCDeviceVector = ROCDeviceArray{T,1,A} where {T,A}
+const ROCDeviceMatrix = ROCDeviceArray{T,2,A} where {T,A}
 
-AnyROCDeviceArray{T,N,A} = Union{ROCDeviceArray{T,N,A}, WrappedArray{T,N,ROCDeviceArray,ROCDeviceArray{T,N,A}}}
-AnyROCDeviceVector{T,A} = AnyROCDeviceArray{T,1,A}
-AnyROCDeviceMatrix{T,A} = AnyROCDeviceArray{T,2,A}
+const AnyROCDeviceArray{T,N,A} = Union{ROCDeviceArray{T,N,A}, WrappedArray{T,N,ROCDeviceArray,ROCDeviceArray{T,N,A}}}
+const AnyROCDeviceVector{T,A} = AnyROCDeviceArray{T,1,A}
+const AnyROCDeviceMatrix{T,A} = AnyROCDeviceArray{T,2,A}
 
 # outer constructors, non-parameterized
 ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
