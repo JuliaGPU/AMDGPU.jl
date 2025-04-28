@@ -24,6 +24,7 @@
 - Julia 1.10+.
 - ROCm 5.3+, which means only GPUs that are supported by these versions will work.
 - 64-bit Linux and Windows are supported, see [requirements](https://amdgpu.juliagpu.org/dev/#Installation) section in the docs.
+- MI300X requires Julia 1.12+.
 
 For Julia 1.11 set `JULIA_LLVM_ARGS="-opaque-pointers"` to enable opaque pointers and use system-wide device libraries, instead of patched from artifacts.
 
