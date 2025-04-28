@@ -14,10 +14,6 @@ if Sys.iswindows()
     # Also launches malloc hostcall for some reason...
     push!(skip_tests, "Private")
 end
-# TODO same issue as with device/synchronization.jl tests - LLVM 19 intrinsics in devlibs.
-if !(VERSION < v"1.12-")
-    push!(skip_tests, "Convert")
-end
 
 Testsuite.testsuite(
     ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
