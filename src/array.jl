@@ -301,3 +301,11 @@ end
 
 Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
+
+if VERSION ≥ v"1.12-"
+    # TODO is this OK to do this?
+    # Use type inference for x^p instead of `promote` which does `x * x`.
+    function Base.to_power_type(x::AnyROCArray)
+        convert(Base._return_type(*, Tuple{typeof(x), typeof(x)}), x)
+    end
+end

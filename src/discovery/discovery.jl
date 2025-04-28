@@ -82,18 +82,10 @@ function __init__()
         lld_path, lld_artifact = get_ld_lld(rocm_path)
         global lld_path = lld_path
         global lld_artifact = lld_artifact
-
-        # HIP.
         global libhip = find_rocm_library(Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
 
-        # Turn off artifacts for device libraries if:
-        # - Julia 1.12+;
-        # - opaque pointer are enabled.
-        from_artifact = (
-            VERSION < v"1.12-"
-            # Detect HIP version, which will influence what device libraries to use.
-            && (isempty(libhip) || Base.thisminor(_hip_runtime_version()) > v"5.4")
-            && !occursin("-opaque-pointers", get(ENV, "JULIA_LLVM_ARGS", "")))
+        # Always load artifact device libraries.
+        from_artifact = true
         global libdevice_libs = get_device_libs(from_artifact; rocm_path)
 
         # HIP-based libraries.

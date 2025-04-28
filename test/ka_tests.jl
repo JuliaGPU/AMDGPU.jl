@@ -14,6 +14,7 @@ if Sys.iswindows()
     # Also launches malloc hostcall for some reason...
     push!(skip_tests, "Private")
 end
+
 Testsuite.testsuite(
     ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
     skip_tests=Set(skip_tests))

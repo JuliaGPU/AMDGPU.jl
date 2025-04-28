@@ -323,3 +323,10 @@ function _rdiv!(B::ROCArray, A::ROCArray, D::Diagonal)
     B .= A * inv(D)
     return B
 end
+
+if VERSION ≥ v"1.12-"
+    # Otherwise, dispatches to:
+    # https://github.com/JuliaLang/LinearAlgebra.jl/blob/4e7c3f40316a956119ac419a97c4b8aad7a17e6c/src/generic.jl#L2092
+    LinearAlgebra.copytrito!(B::Matrix{T}, A::ROCMatrix{T}, uplo::AbstractChar) where {T <: ROCBLASFloat} = 
+        invoke(LinearAlgebra.copytrito!, Tuple{AbstractMatrix, AbstractMatrix, AbstractChar}, B, A, uplo)
+end
