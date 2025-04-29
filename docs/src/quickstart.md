@@ -23,8 +23,8 @@ julia> b = fill(2.0, n);
 julia> c = a .+ b;
 ```
 
-To do the same computation on the GPU, we first need to copy
-the host arrays to the device and then simply add them together element-wise:
+To do the same computation on the GPU, we first need to copy the
+host arrays to the device and then simply add them together element-wise:
 
 ```jldoctest simple-example
 julia> a_d = ROCArray(a);
