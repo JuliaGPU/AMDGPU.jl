@@ -32,7 +32,7 @@ function main()
             "Home" => "index.md",
             "Tutorials" => [
                 "Quick Start" => "tutorials/index.md",
-                "Profiling" => "api/profiling.md",
+                "Profiling" => "tutorials/profiling.md",
             ],
             "API" => [
                 "Devices" => "api/index.md",

@@ -1,3 +1,5 @@
+# Profiling
+
 ## rocprof
 
 [rocprofv2](https://github.com/ROCm/rocprofiler?tab=readme-ov-file#rocprofiler-v2)

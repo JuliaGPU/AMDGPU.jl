@@ -62,9 +62,11 @@ using Pkg
 Pkg.test("AMDGPU")
 ```
 
-## Quickstart
+## Example
 
-```julia
+Element-wise addition via high-level interface & low-level kernel:
+
+```@example vadd
 using AMDGPU
 
 function vadd!(c, a, b)
