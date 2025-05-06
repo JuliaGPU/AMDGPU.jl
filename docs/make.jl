@@ -32,17 +32,16 @@ function main()
             "Home" => "index.md",
             "Tutorials" => [
                 "Quick Start" => "tutorials/index.md",
+                "Profiling" => "api/profiling.md",
             ],
             "API" => [
                 "Devices" => "api/index.md",
                 "Streams" => "api/streams.md",
                 "Kernel Programming" => "api/kernel_programming.md",
                 "Exceptions" => "api/exceptions.md",
-                "Profiling" => "api/profiling.md",
                 "Memory" => "api/memory.md",
                 "Host-Call" => "api/hostcall.md",
                 "Printing" => "api/printing.md",
-                "Logging" => "api/logging.md",
                 "Intrinsics" => "api/intrinsics.md",
             ],
         ],
