@@ -6,9 +6,6 @@ layout: home
 hero:
   name: "AMDGPU.jl"
   text: "Programming AMD GPUs with Julia"
-  image:
-    src: /assets/logo.png
-    alt: AMDGPU.jl
   actions:
     - theme: brand
       text: Tutorials
@@ -19,6 +16,9 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/JuliaGPU/AMDGPU.jl
+  image:
+    src: /logo.png
+    alt: AMDGPU.jl
 ---
 ```
 
