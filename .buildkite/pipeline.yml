@@ -27,7 +27,7 @@ steps:
       rocm: "*"
       rocmgpu: "gfx1100"
     if: build.message !~ /\[skip docs\]/
-    timeout_in_minutes: 10
+    timeout_in_minutes: 60
 
   # - label: "Julia 1.10"
   #   plugins:
