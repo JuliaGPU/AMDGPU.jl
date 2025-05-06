@@ -2,8 +2,6 @@ using AMDGPU
 using Documenter
 using DocumenterVitepress
 
-# const dst = "https://amdgpu.juliagpu.org/stable/"
-
 const deploy_url = "https://amdgpu.juliagpu.org/"
 const repo = "https://github.com/JuliaGPU/AMDGPU.jl"
 
@@ -23,13 +21,6 @@ function main()
     makedocs(;
         modules=[AMDGPU],
         sitename="AMDGPU.jl",
-        # format=Documenter.HTML(
-        #     # Use clean URLs on CI
-        #     prettyurls = ci,
-        #     canonical = dst,
-        #     assets = ["assets/favicon.ico"],
-        #     analytics = "UA-154489943-2",
-        # ),
         format=DocumenterVitepress.MarkdownVitepress(;
             repo,
             deploy_url,
