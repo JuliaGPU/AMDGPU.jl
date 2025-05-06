@@ -1,36 +1,49 @@
 using AMDGPU
 using Documenter
+using DocumenterVitepress
 
-const dst = "https://amdgpu.juliagpu.org/stable/"
+const deploy_url = "https://amdgpu.juliagpu.org/"
+const repo = "https://github.com/JuliaGPU/AMDGPU.jl"
 
 function main()
     ci = get(ENV, "CI", "") == "true"
-
-    @info "Generating Documenter site"
     DocMeta.setdocmeta!(AMDGPU, :DocTestSetup, :(using AMDGPU); recursive=true)
+
+    deploy_config = Documenter.auto_detect_deploy_system()
+    deploy_decision = Documenter.deploy_folder(
+        deploy_config;
+        repo,
+        devbranch="master",
+        devurl="dev",
+        push_preview=true,
+    )
+
     makedocs(;
         modules=[AMDGPU],
         sitename="AMDGPU.jl",
-        format=Documenter.HTML(
-            # Use clean URLs on CI
-            prettyurls = ci,
-            canonical = dst,
-            assets = ["assets/favicon.ico"],
-            analytics = "UA-154489943-2",
+        format=DocumenterVitepress.MarkdownVitepress(;
+            repo,
+            deploy_url,
+            devbranch="master",
+            devurl="dev",
+            deploy_decision,
         ),
         pages=[
             "Home" => "index.md",
-            "Quick Start" => "quickstart.md",
-            "Devices" => "devices.md",
-            "Streams" => "streams.md",
-            "Kernel Programming" => "kernel_programming.md",
-            "Exceptions" => "exceptions.md",
-            "Profiling" => "profiling.md",
-            "Memory" => "memory.md",
-            "Host-Call" => "hostcall.md",
-            "Printing" => "printing.md",
-            "Logging" => "logging.md",
-            "API Reference" => "api.md"
+            "Tutorials" => [
+                "Quick Start" => "tutorials/index.md",
+                "Profiling" => "tutorials/profiling.md",
+            ],
+            "API" => [
+                "Devices" => "api/index.md",
+                "Streams" => "api/streams.md",
+                "Kernel Programming" => "api/kernel_programming.md",
+                "Exceptions" => "api/exceptions.md",
+                "Memory" => "api/memory.md",
+                "Host-Call" => "api/hostcall.md",
+                "Printing" => "api/printing.md",
+                "Intrinsics" => "api/intrinsics.md",
+            ],
         ],
         doctest=true,
         warnonly=[:missing_docs],
@@ -43,5 +56,4 @@ function main()
         )
     end
 end
-
 isinteractive() || main()

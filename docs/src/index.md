@@ -1,16 +1,28 @@
-# Programming AMD GPUs with Julia
+```@raw html
+---
+# https://vitepress.dev/reference/default-theme-home-page
+layout: home
 
-Julia support for programming AMD GPUs is currently provided by the
-[AMDGPU.jl](https://github.com/JuliaGPU/AMDGPU.jl) package.
-This package contains everything necessary to program for AMD GPUs in Julia, including:
+hero:
+  name: "AMDGPU.jl"
+  text: "Programming AMD GPUs with Julia"
+  actions:
+    - theme: brand
+      text: Tutorials
+      link: /tutorials
+    - theme: alt
+      text: API
+      link: /api
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/JuliaGPU/AMDGPU.jl
+  image:
+    src: /logo.png
+    alt: AMDGPU.jl
+---
+```
 
-* An interface for compiling and running kernels written in Julia through LLVM's AMDGPU backend.
-* An interface for working with the HIP runtime API,
-    necessary for launching compiled kernels and controlling the GPU.
-* An array type implementing the [GPUArrays.jl](https://github.com/JuliaGPU/GPUArrays.jl)
-    interface, providing high-level array operations.
-
-## Installation
+## Install
 
 Simply add the AMDGPU.jl package to your Julia environment:
 
@@ -18,6 +30,29 @@ Simply add the AMDGPU.jl package to your Julia environment:
 using Pkg
 Pkg.add("AMDGPU")
 ```
+
+## Requirements
+
+- Julia 1.10+:
+- MI300X requires Julia 1.12+.
+- 64-bit Linux or Windows.
+- ROCm 6.0+.
+
+### Required software
+
+|Linux|Windows|
+|:---:|:---:|
+|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html)|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)|
+|-|[AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software)|
+
+::: info
+
+On Windows AMD Software: Adrenalin Edition contains HIP library itself,
+while ROCm provides support for other functionality.
+
+:::
+
+## Test
 
 To ensure that everything works, you can run the test suite:
 
@@ -27,120 +62,28 @@ using Pkg
 Pkg.test("AMDGPU")
 ```
 
-## Requirements
+## Example
 
-- Julia **1.9 or higher** (Navi 3 requires Julia 1.10+).
-- **64-bit** Linux or Windows.
-- Minimal supported ROCm version is **5.3**.
-- Required software:
+Element-wise addition via high-level interface & low-level kernel:
 
-|Linux|Windows|
-|:---:|:---:|
-|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html)|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)|
-|-|[AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software)|
+```@example vadd
+using AMDGPU
 
-On Windows AMD Software: Adrenalin Edition contains HIP library itself,
-while ROCm provides support for other functionality.
+function vadd!(c, a, b)
+   i = workitemIdx().x + (workgroupIdx().x - 1) * workgroupDim().x
+   if i ≤ length(a)
+       c[i] = a[i] + b[i]
+   end
+   return
+end
 
-## Windows OS missing functionality
+a = AMDGPU.ones(Int, 1024)
+b = AMDGPU.ones(Int, 1024)
+c = AMDGPU.zeros(Int, 1024)
 
-Windows **does not** yet support [Hostcall](@ref), which means that
-some of the functionality does not work, like:
+groupsize = 256
+gridsize = cld(length(c), groupsize)
+@roc groupsize=groupsize gridsize=gridsize vadd!(c, a, b)
 
-- device printing;
-- dynamic memory allocation (from kernels).
-
-These hostcalls are sometimes launched when AMDGPU detects that a
-kernel might throw an exception, specifically during conversions, like:
-`Int32(1f0)`.
-
-To avoid this, use 'unsafe' conversion option:
-`unsafe_trunc(Int32, 1f0)`.
-
-## ROCm system libraries
-
-AMDGPU.jl looks into standard directories
-and uses `Libdl.find_library` to find ROCm libraries.
-
-Standard path:
-- Linux: `/opt/rocm`
-- Windows: `C:/Program Files/AMD/ROCm/<rocm-version>`
-
-If you have non-standard path for ROCm, set `ROCM_PATH=<path>`
-environment variable before launching Julia. For example, if ROCm is installed
-in your Linux system root (e.g. on Fedora), set `ROCM_PATH=/usr/lib64/rocm/gfx11` or
-`ROCM_PATH=/usr/lib64/rocm/gfx1103`, depending on your GPU's architecture. You
-can query the architecture using the `amdgpu-arch` command. The `AMDGPU.versioninfo()`
-function prints the paths of any libraries found.
-
-Depending on your GPU model and the functionality you want to use, you may have
-to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION`
-variable to a compatible version.
-
-## Extra Setup Details
-
-List of additional steps that may be needed to take to ensure everything is working:
-
-- Make sure your user is in the same group as `/dev/kfd`, other than `root`.
-
-    For example, it might be the `render` group:
-
-    ```
-    crw-rw----   1 root   render  234,   0 Aug  5 11:43 kfd
-    ```
-
-    In this case, you can add yourself to it:
-
-    ```
-    sudo usermod -aG render username
-    ```
-
-- ROCm libraries should be in the standard library locations, or in your `LD_LIBRARY_PATH`.
-
-- If you get an error message along the lines of `GLIB_CXX_... not found`,
-    it's possible that the C++ runtime used to build the ROCm stack
-    and the one used by Julia are different.
-    If you built the ROCm stack yourself this is very likely the case
-    since Julia normally ships with its own C++ runtime.
-
-    For more information, check out this [GitHub issue](https://github.com/JuliaLang/julia/issues/34276).
-    A quick fix is to use the `LD_PRELOAD` environment variable to make Julia use the system C++ runtime library, for example:
-
-    ```
-    LD_PRELOAD=/usr/lib/libstdc++.so julia
-    ```
-
-    Alternatively, you can build Julia from source as described
-    [here](https://github.com/JuliaLang/julia/blob/master/doc/build/build.md).
-    To quickly debug this issue start Julia and try to load a ROCm library:
-
-    ```
-    using Libdl
-    Libdl.dlopen("/opt/rocm/hsa/lib/libhsa-runtime64.so.1")
-    ```
-
-Once all of this is setup properly, you should be able to do `using AMDGPU`
-successfully.
-
-See the [Quick Start](@ref) documentation for an introduction to using AMDGPU.jl.
-
-## Preferences
-
-AMDGPU.jl supports setting
-[preferences](https://github.com/JuliaPackaging/Preferences.jl).
-Template of `LocalPreferences.toml` with all options:
-
-```toml
-[AMDGPU]
-# If `true` (default), eagerly run GC to keep the pool from growing too big.
-# GC is triggered during new allocatoins or synchronization points.
-eager_gc = false
-# Use non-blocking synchronization for all `AMDGPU.synchronize()` calls.
-nonblocking_synchronization = true
-# Memory limit specifies maximum amount of memory in percentages
-# a current Julia process can use.
-# Default is "none", which does not apply any limitation.
-hard_memory_limit = "none"
-# Notice a space between the value and percentage sign.
-# hard_memory_limit = "80 %"
+@assert (a .+ b) ≈ c
 ```

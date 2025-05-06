@@ -8,5 +8,7 @@
 
 docs/build
 docs/Manifest.toml
+docs/package-lock.json
+docs/node_modules
 Manifest*.toml
 LocalPreferences.toml

@@ -1,3 +1,5 @@
+# Profiling
+
 ## rocprof
 
 [rocprofv2](https://github.com/ROCm/rocprofiler?tab=readme-ov-file#rocprofiler-v2)
@@ -43,7 +45,7 @@ using [Perfetto UI](https://ui.perfetto.dev/).
 
 |Zoomed out|Zoomed in|
 |:---:|:---:|
-|![image](./assets/profiling-1.png)|![image](./assets/profiling-4.png)|
+|![image](../assets/profiling-1.png)|![image](../assets/profiling-4.png)|
 
 Here we can clearly see that host synchronization after each kernel dispatch
 causes poor device occupancy (empty spaces between kernel dispatches).
@@ -65,7 +67,7 @@ wall duration is lower.
 
 |Zoomed out|Zoomed in|
 |:---:|:---:|
-|![image](./assets/profiling-2.png)|![image](./assets/profiling-3.png)|
+|![image](../assets/profiling-2.png)|![image](../assets/profiling-3.png)|
 
 ## Debugging
 

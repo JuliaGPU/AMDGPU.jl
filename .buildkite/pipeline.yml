@@ -3,7 +3,14 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: "1.10"
+      - sv-oss/node-n#v0.1.2:
+          node-version: v20
     command: |
+      echo "Instantiate NPM"
+      cd docs/
+      npm i
+      cd ..
+
       julia --project -e '
         println("--- :julia: Instantiating project")
         using Pkg
@@ -20,7 +27,7 @@ steps:
       rocm: "*"
       rocmgpu: "*"
     if: build.message !~ /\[skip docs\]/
-    timeout_in_minutes: 10
+    timeout_in_minutes: 20
 
   - label: "Julia 1.10"
     plugins:
