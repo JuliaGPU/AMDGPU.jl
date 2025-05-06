@@ -15,6 +15,8 @@ function main()
     deploy_decision = Documenter.deploy_folder(
         deploy_config;
         repo,
+        devbranch="master",
+        devurl="dev",
         push_preview=true,
     )
 
@@ -31,6 +33,8 @@ function main()
         format=DocumenterVitepress.MarkdownVitepress(;
             repo,
             deploy_url,
+            devbranch="master",
+            devurl="dev",
             deploy_decision,
         ),
         pages=[
