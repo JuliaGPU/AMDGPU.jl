@@ -2,11 +2,23 @@ using AMDGPU
 using Documenter
 using DocumenterVitepress
 
-const dst = "https://amdgpu.juliagpu.org/stable/"
+# const dst = "https://amdgpu.juliagpu.org/stable/"
+
+const deploy_url = "https://amdgpu.juliagpu.org/"
+const repo = "https://github.com/JuliaGPU/AMDGPU.jl"
 
 function main()
     ci = get(ENV, "CI", "") == "true"
     DocMeta.setdocmeta!(AMDGPU, :DocTestSetup, :(using AMDGPU); recursive=true)
+
+    deploy_config = Documenter.auto_detect_deploy_system()
+    deploy_decision = Documenter.deploy_folder(
+        deploy_config;
+        repo,
+        devbranch="master",
+        devurl="dev",
+        push_preview=true,
+    )
 
     makedocs(;
         modules=[AMDGPU],
@@ -18,8 +30,12 @@ function main()
         #     assets = ["assets/favicon.ico"],
         #     analytics = "UA-154489943-2",
         # ),
-        format=DocumenterVitepress.MarkdownVitepress(
-            repo="https://github.com/JuliaGPU/AMDGPU.jl",
+        format=DocumenterVitepress.MarkdownVitepress(;
+            repo,
+            deploy_url,
+            devbranch="master",
+            devurl="dev",
+            deploy_decision,
         ),
         pages=[
             "Home" => "index.md",
@@ -49,7 +65,6 @@ function main()
             push_preview=true,
             target="build",
             branch="gh-pages",
-            deploy_url="https://amdgpu.juliagpu.org/",
         )
     end
 end
