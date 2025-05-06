@@ -15,8 +15,6 @@ function main()
     deploy_decision = Documenter.deploy_folder(
         deploy_config;
         repo,
-        devbranch="master",
-        devurl="dev",
         push_preview=true,
     )
 
@@ -33,8 +31,6 @@ function main()
         format=DocumenterVitepress.MarkdownVitepress(;
             repo,
             deploy_url,
-            devbranch="master",
-            devurl="dev",
             deploy_decision,
         ),
         pages=[
@@ -63,8 +59,6 @@ function main()
         deploydocs(;
             repo="github.com/JuliaGPU/AMDGPU.jl.git",
             push_preview=true,
-            target="build",
-            branch="gh-pages",
         )
     end
 end
