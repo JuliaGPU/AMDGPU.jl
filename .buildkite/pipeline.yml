@@ -25,7 +25,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx1100"
+      rocmgpu: "*"
     if: build.message !~ /\[skip docs\]/
     timeout_in_minutes: 20
 
