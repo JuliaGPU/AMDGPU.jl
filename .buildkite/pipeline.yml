@@ -3,7 +3,16 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: "1.10"
+      - sv-oss/node-n#v0.1.2:
+          node-version: v20
     command: |
+      export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+
+      echo "Instantiate NPM"
+      cd docs/
+      npm i
+      cd ..
+
       julia --project -e '
         println("--- :julia: Instantiating project")
         using Pkg
