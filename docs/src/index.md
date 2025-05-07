@@ -9,10 +9,10 @@ hero:
   actions:
     - theme: brand
       text: Tutorials
-      link: /tutorials
+      link: /tutorials/quickstart
     - theme: alt
       text: API
-      link: /api
+      link: /api/devices
     - theme: alt
       text: View on GitHub
       link: https://github.com/JuliaGPU/AMDGPU.jl
