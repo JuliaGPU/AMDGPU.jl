@@ -6,7 +6,7 @@ end
 
 # Quick Start
 
-## Simple example
+## Element-wise addition via array interface
 
 As a simple example, let's add two vectors both on CPU and GPU
 and make sure that the results are the same:
@@ -42,7 +42,7 @@ julia> Array(c_d) ≈ c
 true
 ```
 
-## Kernel example
+## Element-wise addition via kernel
 
 Alternatively, we can perform the same computation by writing our custom
 GPU kernel:
@@ -64,6 +64,19 @@ A kernel is compiled upon its first launch.
 Subsequent launches re-use it, without recompilation.
 Let's launch a kernel, but first clear-out the memory of the resulting vector `cd`.
 
+::: info Kernels should return nothing
+
+Notice how we explicitly specify that this function does not return a value
+by adding the `return` statement.
+This is necessary for all GPU kernels and we can enforce it by adding a `return`,
+`return nothing`, or even `nothing` at the end of the kernel.
+If this statement is omitted, Julia will attempt to return the value
+of the last evaluated expression, in this case a `Float64`,
+which will cause a compilation failure as kernels cannot return values.
+
+:::
+
+
 ```jldoctest simple-example
 julia> fill!(c_d, 0.0);
 
@@ -81,33 +94,28 @@ The easiest way to launch a GPU kernel is with the `@roc` macro,
 specifying `groupsize` and `gridsize` to cover full array,
 and calling it like a regular function.
 
+::: info Asynchronous kernels
+
 Keep in mind that kernel launches are asynchronous,
 meaning that you need to synchronize before you can use the result
 (e.g. with [`AMDGPU.synchronize`](@ref)).
 However, GPU <-> CPU transfers synchronize implicitly.
 
+:::
+
 The grid is the domain over which the *entire* kernel executes over.
 The grid will be split into multiple workgroups by hardware automatically,
 and the kernel does not complete until all workgroups complete.
 
-Like OpenCL, AMDGPU has the concept of "workitems", "workgroups", and the "grid".
-A workitem is a single thread of execution, capable of performing arithmentic
-operations.
+AMDGPU has the concept of "workitems", "workgroups", and the "grid".
+A workitem is a single thread of execution, capable of performing arithmentic operations.
 Workitems are grouped into "wavefronts" ("warps" in CUDA) which
 share the same compute unit, and execute the same instructions simulatenously.
+
 The workgroup is a logical unit of compute supported by hardware
 which comprises multiple wavefronts, which shares resources
 (specifically local memory) and can be efficiently synchronized.
-A workgroup may be executed by one or multiple hardware compute units,
-making it often the only dimension of importance for smaller kernel launches.
-
-Notice how we explicitly specify that this function does not return a value
-by adding the `return` statement.
-This is necessary for all GPU kernels and we can enforce it by adding a `return`,
-`return nothing`, or even `nothing` at the end of the kernel.
-If this statement is omitted, Julia will attempt to return the value
-of the last evaluated expression, in this case a `Float64`,
-which will cause a compilation failure as kernels cannot return values.
+A workgroup may be executed by one or multiple hardware compute units.
 
 ## Naming conventions
 
@@ -115,9 +123,7 @@ Throughout this example we use terms like "work group" and "work item".
 These terms are used by the Khronos consortium and their APIs
 including OpenCL and Vulkan, as well as the HSA foundation.
 
-NVIDIA, on the other hand, uses some different terms in their CUDA API,
-which might be confusing to some users porting their kernels from CUDA to AMDGPU.
-
+NVIDIA, on the other hand, uses some different terms in their CUDA API.
 As a quick summary, here is a mapping of the most common terms:
 
 | AMDGPU | CUDA |

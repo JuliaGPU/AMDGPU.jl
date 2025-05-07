@@ -45,7 +45,7 @@ Pkg.add("AMDGPU")
 |[ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html)|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)|
 |-|[AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software)|
 
-::: info
+::: info Note
 
 On Windows AMD Software: Adrenalin Edition contains HIP library itself,
 while ROCm provides support for other functionality.
