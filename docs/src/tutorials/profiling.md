@@ -36,6 +36,8 @@ end
 main(2^24)
 ```
 
+### Profiling problematic code
+
 ```bash
 ENABLE_JITPROFILING=1 rocprofv2 --plugin perfetto --hip-trace --hsa-trace --kernel-trace -o prof julia ./profile.jl
 ```
@@ -43,12 +45,12 @@ ENABLE_JITPROFILING=1 rocprofv2 --plugin perfetto --hip-trace --hsa-trace --kern
 This will produce `prof_output.pftrace` file which can be visualized
 using [Perfetto UI](https://ui.perfetto.dev/).
 
-|Zoomed out|Zoomed in|
-|:---:|:---:|
-|![image](../assets/profiling-1.png)|![image](../assets/profiling-4.png)|
+![image](../assets/profile_1.png)
 
 Here we can clearly see that host synchronization after each kernel dispatch
 causes poor device occupancy (empty spaces between kernel dispatches).
+
+### Profiling fixed code
 
 We can fix this by moving synchronization outside the loop so that it happens only once.
 
@@ -65,9 +67,7 @@ Running profiling again and visualizing results we now see that
 kernel launches are adjacent to each other and that the average
 wall duration is lower.
 
-|Zoomed out|Zoomed in|
-|:---:|:---:|
-|![image](../assets/profiling-2.png)|![image](../assets/profiling-3.png)|
+![image](../assets/profile_2.png)
 
 ## Debugging
 
