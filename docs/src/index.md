@@ -8,7 +8,7 @@ hero:
   text: "Programming AMD GPUs with Julia"
   actions:
     - theme: brand
-      text: Tutorials
+      text: Getting Started
       link: /tutorials/quickstart
     - theme: alt
       text: API

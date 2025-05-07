@@ -36,6 +36,8 @@ end
 main(2^24)
 ```
 
+### Profiling problematic code
+
 ```bash
 ENABLE_JITPROFILING=1 rocprofv2 --plugin perfetto --hip-trace --hsa-trace --kernel-trace -o prof julia ./profile.jl
 ```
@@ -47,6 +49,8 @@ using [Perfetto UI](https://ui.perfetto.dev/).
 
 Here we can clearly see that host synchronization after each kernel dispatch
 causes poor device occupancy (empty spaces between kernel dispatches).
+
+### Profiling fixed code
 
 We can fix this by moving synchronization outside the loop so that it happens only once.
 
