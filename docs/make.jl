@@ -31,11 +31,11 @@ function main()
         pages=[
             "Home" => "index.md",
             "Tutorials" => [
-                "Quick Start" => "tutorials/index.md",
+                "Quick Start" => "tutorials/quickstart.md",
                 "Profiling" => "tutorials/profiling.md",
             ],
             "API" => [
-                "Devices" => "api/index.md",
+                "Devices" => "api/devices.md",
                 "Streams" => "api/streams.md",
                 "Kernel Programming" => "api/kernel_programming.md",
                 "Exceptions" => "api/exceptions.md",

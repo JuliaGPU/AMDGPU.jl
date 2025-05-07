@@ -9,10 +9,10 @@ hero:
   actions:
     - theme: brand
       text: Tutorials
-      link: /tutorials
+      link: /tutorials/quickstart
     - theme: alt
       text: API
-      link: /api
+      link: /api/devices
     - theme: alt
       text: View on GitHub
       link: https://github.com/JuliaGPU/AMDGPU.jl
@@ -45,7 +45,7 @@ Pkg.add("AMDGPU")
 |[ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html)|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)|
 |-|[AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software)|
 
-::: info
+::: info Note
 
 On Windows AMD Software: Adrenalin Edition contains HIP library itself,
 while ROCm provides support for other functionality.
