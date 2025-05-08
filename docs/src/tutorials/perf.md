@@ -12,7 +12,7 @@ end
 Julia relies on Garbage-Collection (GC) for memory management, because of that
 it will not free `ROCArrays` immediately as they are no longer used.
 
-In a tight loops with lots of GPU allocations this will put a lot of pressure on the
+In tight loops with lots of GPU allocations this will put a lot of pressure on the
 allocator and may interfere with other programs that use that GPU.
 
 Using [caching allocator](https://juliagpu.github.io/GPUArrays.jl/dev/interface/#Caching-Allocator) gives users a precise control of GPU memory,
