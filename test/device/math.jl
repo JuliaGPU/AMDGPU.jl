@@ -19,8 +19,8 @@ end
 
 @testset "Fast min/max" begin
     function ker!(x)
-        x[1] = @fastmath max(x[1], eltype(x))
-        x[2] = @fastmath min(x[2], eltype(x))
+        x[1] = @fastmath max(x[1], zero(eltype(x)))
+        x[2] = @fastmath min(x[2], zero(eltype(x)))
         return
     end
 
