@@ -52,7 +52,7 @@ capturing the original value of the variable that caused it.
 These are usually related to float-to-integer conversion, so functions like
 `Int(1.0), ceil(Int, 1.0), floor(Int, 1.0)` will cause it.
 
-This will perform dynamic memory allocation & launch a `Hostcall` for that,
+This will perform dynamic memory allocation and launch a `Hostcall` for that,
 which will sit in the background thread until kernel finishes execution and the user synchronizes the `stream`.
 Having a hostcall unnecessarily slows execution down and you can avoid that by using
 "GPU-friendly" version of the function.
