@@ -19,13 +19,6 @@
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://amdgpu.juliagpu.org/dev
 
-## Requirements
-
-- Julia 1.10+.
-- ROCm 5.3+, which means only GPUs that are supported by these versions will work.
-- 64-bit Linux and Windows are supported, see [requirements](https://amdgpu.juliagpu.org/dev/#Installation) section in the docs.
-- **MI300X** requires Julia 1.12+.
-
 ## Quick start
 
 AMDGPU.jl can be installed with the Julia package manager.
