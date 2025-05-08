@@ -54,7 +54,7 @@ These are usually related to float-to-integer conversion, so functions like
 
 This will perform dynamic memory allocation & launch a `Hostcall` for that,
 which will sit in the background thread until kernel finishes execution & user synchronizes the `stream`.
-Having a hostcall unnecessarily slows things down and you can avoid that by using
+Having a hostcall unnecessarily slows execution down and you can avoid that by using
 "GPU-friendly" version of the function.
 
 ::: info
