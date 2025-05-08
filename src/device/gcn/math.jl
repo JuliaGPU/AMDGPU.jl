@@ -88,6 +88,14 @@ for jltype in (Float64, Float32, Float16)
         ret = ccall($("extern __ocml_sincospi_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ref{$jltype}), x, ref)
         return (ret, ref[])
     end
+
+    # TODO remove once we drop support for 1.12.
+    # Fixes https://github.com/JuliaGPU/AMDGPU.jl/issues/756
+    # TL;DR: Julia 1.12 moved to llvm.minimum/maximum & AMDGPU supports it since LLVM 19.
+    if v"1.12-" ≤ VERSION < v"1.13-"
+        @eval @device_override FastMath.max_fast(x::$jltype, y::$jltype) = Base.max(x, y)
+        @eval @device_override FastMath.min_fast(x::$jltype, y::$jltype) = Base.min(x, y)
+    end
 end
 
 @device_override @inline function Base.:(^)(x::Float32, y::Int64)
