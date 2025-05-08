@@ -54,6 +54,8 @@ function synchronize(stm::HIPStream = stream();
         AMDGPU.Device.remove_perdevice_hostcall!(stm.device, gbl)
         # Free buffers.
         AMDGPU.Device.free!(hc[1])
+
+        @info "Stopped global hostcall: `$gbl`."
     end
     return
 end

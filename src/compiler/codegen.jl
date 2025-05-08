@@ -209,7 +209,7 @@ function hipcompile(@nospecialize(job::CompilerJob))
         - Source: $(job.source)
         - Hostcalls: $(global_hostcalls)
 
-        Use `AMDGPU.synchronize(; stop_hostcalls=false)` to synchronize and stop them.
+        Use `AMDGPU.synchronize(; stop_hostcalls=true)` to synchronize and stop them.
         Otherwise, performance might degrade if they keep running in the background.
         """
     end
