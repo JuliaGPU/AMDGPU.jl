@@ -16,8 +16,11 @@ steps:
         using Pkg
         Pkg.instantiate()
         Pkg.build()
+
         Pkg.activate("docs")
+        Pkg.develop(".")
         Pkg.instantiate()
+
         push!(LOAD_PATH, @__DIR__)
 
         println("+++ :julia: Building documentation")
