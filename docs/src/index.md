@@ -87,3 +87,24 @@ gridsize = cld(length(c), groupsize)
 
 @assert (a .+ b) ≈ c
 ```
+
+## Questions and Contributions
+
+Usage questions can be posted on the
+[Julia Discourse forum](https://discourse.julialang.org/c/domain/gpu)
+under the GPU domain and/or in the `#gpu` channel of the
+[Julia Slack](https://julialang.org/community/).
+
+Contributions are very welcome, as are feature requests and suggestions.
+Please open an [issue](https://github.com/JuliaGPU/AMDGPU.jl/issues) if you encounter any problems.
+
+## Acknowledgment
+
+AMDGPU.jl would not have been possible without the work by Tim Besard and
+contributors to [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) and
+[LLVM.jl](https://github.com/maleadt/LLVM.jl).
+
+## License
+
+AMDGPU.jl is licensed under the
+[MIT License](https://github.com/JuliaGPU/AMDGPU.jl/blob/master/LICENSE.md).
