@@ -79,13 +79,12 @@ julia> x = ROCArray(Float32[1.1f0]);
 julia> y = ROCArray(zeros(Int, 1));
 
 julia> @roc bad_kernel!(y, x);
-┌ Warning: Global hostcalls detected!
+┌ Info: Global hostcalls detected!
 │ - Source: MethodInstance for bad_kernel!(::AMDGPU.Device.ROCDeviceVector{Int64, 1}, ::AMDGPU.Device.ROCDeviceVector{Float32, 1})
 │ - Hostcalls: [:malloc_hostcall]
 │
 │ Use `AMDGPU.synchronize(; stop_hostcalls=true)` to synchronize and stop them.
-│ Otherwise, performance might degrade if they keep running in the background.
-└ @ AMDGPU.Compiler ~/.julia/dev/AMDGPU/src/compiler/codegen.jl:208
+└ Otherwise, performance might degrade if they keep running in the background.
 
 julia> y
 1-element ROCArray{Int64, 1, AMDGPU.Runtime.Mem.HIPBuffer}:

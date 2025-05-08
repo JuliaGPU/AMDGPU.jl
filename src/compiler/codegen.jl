@@ -205,7 +205,7 @@ function hipcompile(@nospecialize(job::CompilerJob))
         push!(global_hostcalls, gbl_name)
     end
     if !isempty(global_hostcalls)
-        @warn """Global hostcalls detected!
+        @info """Global hostcalls detected!
         - Source: $(job.source)
         - Hostcalls: $(global_hostcalls)
 
