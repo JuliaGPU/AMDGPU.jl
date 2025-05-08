@@ -18,7 +18,7 @@ steps:
         Pkg.build()
 
         Pkg.activate("docs")
-        Pkg.develop(".")
+        Pkg.add(; path=".")
         Pkg.instantiate()
 
         push!(LOAD_PATH, @__DIR__)
