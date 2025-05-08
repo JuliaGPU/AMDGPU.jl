@@ -16,3 +16,19 @@ using Base.FastMath
         end
     end
 end
+
+@testset "Fast min/max" begin
+    function ker!(x)
+        x[1] = @fastmath max(x[1], zero(eltype(x)))
+        x[2] = @fastmath min(x[2], zero(eltype(x)))
+        return
+    end
+
+    for T in (Float16, Float32, Float64)
+        x = ROCArray(ones(T, 2))
+        @roc ker!(x)
+        xh = Array(x)
+        @test xh[1] ≈ 1
+        @test xh[2] ≈ 0
+    end
+end
