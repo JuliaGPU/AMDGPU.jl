@@ -30,7 +30,9 @@ const LAUNCH_BLOCKING::Ref{Bool} = Ref{Bool}(false)
 export @roc, roc, rocconvert
 export HIPDevice, has_rocm_gpu
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
-export DenseROCArray, DenseROCVector, DenseROCMatrix, StridedROCMatrix
+export DenseROCArray, DenseROCVector, DenseROCMatrix, DenseROCVecOrMat,
+       StridedROCArray, StridedROCVector, StridedROCMatrix, StridedROCVecOrMat,
+       AnyROCArray, AnyROCVector, AnyROCMatrix, AnyROCVecOrMat
 
 struct LockedObject{T}
     lock::ReentrantLock
