@@ -784,14 +784,6 @@ function rocprofiler_plugin_write_record(record)
     @ccall librocprofiler64v2.rocprofiler_plugin_write_record(record::rocprofiler_record_tracer_t)::Cint
 end
 
-const ROCPROFILER_EXPORT_DECORATOR = identity
-
-const ROCPROFILER_EXPORT = ROCPROFILER_EXPORT_DECORATOR(ROCPROFILER_CALL)
-
-const ROCPROFILER_IMPORT = ROCPROFILER_IMPORT_DECORATOR(ROCPROFILER_CALL)
-
-const ROCPROFILER_API = ROCPROFILER_IMPORT
-
 const ROCPROFILER_VERSION_MAJOR = 9
 
 const ROCPROFILER_VERSION_MINOR = 0
