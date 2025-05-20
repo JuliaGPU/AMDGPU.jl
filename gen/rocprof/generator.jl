@@ -2,16 +2,17 @@ using Clang.Generators
 using JuliaFormatter
 
 include_dir = normpath("/opt/rocm/include")
-rocfft_dir  = joinpath(include_dir, "rocprofiler/v2")
+rocprof_dir  = joinpath(include_dir, "rocprofiler-sdk")
 options = load_options("rocprof/rocprof-generator.toml")
 
 args = get_default_args()
 push!(args, "-I$include_dir")
 
 headers = [
-    joinpath(rocfft_dir, header)
-    for header in readdir(rocfft_dir)
-    if endswith(header, ".h")
+    joinpath(rocprof_dir, header)
+    # for header in readdir(rocprof_dir)
+    # if endswith(header, ".h")
+    for header in ("rocprofiler.h",)
 ]
 
 ctx = create_context(headers, args, options)
