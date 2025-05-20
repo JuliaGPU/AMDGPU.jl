@@ -2,7 +2,7 @@ module ROCmDiscovery
 
 export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
 export librocblas, librocsparse, librocsolver
-export librocrand, librocfft, libMIOpen_path
+export librocrand, librocfft, libMIOpen_path, librocprofiler64v2
 
 using LLD_jll
 using ROCmDeviceLibs_jll
