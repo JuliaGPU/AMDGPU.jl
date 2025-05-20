@@ -1,5 +1,5 @@
 [general]
-library_name = "librocprofiler64v2"
+library_name = "librocprofiler-sdk-tool"
 output_file_path = "./librocprof.jl"
 export_symbol_prefixes = []
 
