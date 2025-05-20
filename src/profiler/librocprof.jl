@@ -1,9 +1,5 @@
 using CEnum
 
-const ROCPROFILER_EXPORT_DECORATOR = identity
-const ROCPROFILER_IMPORT_DECORATOR = identity
-const ROCPROFILER_CALL = identity
-
 # no prototype is found for this function at rocprofiler.h:264:26, please use with caution
 function rocprofiler_version_major()
     @ccall librocprofiler64v2.rocprofiler_version_major()::UInt32
@@ -257,6 +253,7 @@ struct rocprofiler_record_profiler_t
     timestamps::rocprofiler_record_header_timestamp_t
     counters::Ptr{rocprofiler_record_counter_instance_t}
     counters_count::rocprofiler_record_counters_instances_count_t
+    xcc_index::UInt32
     kernel_properties::rocprofiler_kernel_properties_t
     thread_id::rocprofiler_thread_id_t
     queue_idx::rocprofiler_queue_index_t
@@ -289,10 +286,12 @@ end
 struct rocprofiler_intercepted_codeobj_t
     filepath::Ptr{Cchar}
     base_address::UInt64
+    mem_size::UInt64
     data::Ptr{Cchar}
-    size::UInt64
+    data_size::UInt64
     clock_start::rocprofiler_timestamp_t
     clock_end::rocprofiler_timestamp_t
+    att_marker_id::UInt32
 end
 
 @cenum rocprofiler_codeobj_capture_mode_t::UInt32 begin
@@ -553,7 +552,7 @@ function Base.getproperty(x::Ptr{rocprofiler_filter_property_t}, f::Symbol)
     f === :hip_functions_names && return Ptr{Ptr{rocprofiler_hip_function_name_t}}(x + 8)
     f === :hsa_functions_names && return Ptr{Ptr{rocprofiler_hsa_function_name_t}}(x + 8)
     f === :range && return Ptr{NTuple{2,UInt32}}(x + 8)
-    f === :dispatch_ids && return Ptr{Ptr{UInt64}}(x + 8)
+    f === :dispatch_ids && return Ptr{Ptr{Cvoid}}(x + 8)
     f === :data_count && return Ptr{UInt64}(x + 16)
     return getfield(x, f)
 end
