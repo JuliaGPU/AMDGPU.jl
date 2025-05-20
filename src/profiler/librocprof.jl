@@ -784,7 +784,7 @@ function rocprofiler_plugin_write_record(record)
     @ccall librocprofiler64v2.rocprofiler_plugin_write_record(record::rocprofiler_record_tracer_t)::Cint
 end
 
-# Skipping MacroDefinition: ROCPROFILER_EXPORT_DECORATOR __attribute__ ( ( visibility ( "default" ) ) )
+const ROCPROFILER_EXPORT_DECORATOR = identity
 
 const ROCPROFILER_EXPORT = ROCPROFILER_EXPORT_DECORATOR(ROCPROFILER_CALL)
 
