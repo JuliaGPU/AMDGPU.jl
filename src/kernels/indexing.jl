@@ -9,7 +9,7 @@ function Base.findall(bools::AnyROCArray{Bool})
     I = keytype(bools)
     indices = cumsum(reshape(bools, prod(size(bools))))
 
-    n = @allowscalar indices[end]
+    n = isempty(indices) ? 0 : @allowscalar indices[end]
     ys = ROCArray{I}(undef, n)
 
     if n > 0
