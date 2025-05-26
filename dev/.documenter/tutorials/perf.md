@@ -117,7 +117,7 @@ InteractiveUtils.@code_llvm unsafe_trunc(Int, 1.0)
 
 ```
 ;  @ float.jl:336 within `unsafe_trunc`
-define i64 @julia_unsafe_trunc_7070(double %0) #0 {
+define i64 @julia_unsafe_trunc_6483(double %0) #0 {
 top:
   %1 = fptosi double %0 to i64
   %2 = freeze i64 %1
@@ -136,7 +136,7 @@ InteractiveUtils.@code_llvm Int(1.0)
 
 ```
 ;  @ float.jl:908 within `Int64`
-define i64 @julia_Int64_7072(double %0) #0 {
+define i64 @julia_Int64_6485(double %0) #0 {
 top:
   %gcframe10 = alloca [6 x {}*], align 16
   %gcframe10.sub = getelementptr inbounds [6 x {}*], [6 x {}*]* %gcframe10, i64 0, i64 0
@@ -198,17 +198,17 @@ L16:                                              ; preds = %L8, %top
   %box = call noalias nonnull dereferenceable(16) {}* @ijl_gc_pool_alloc(i8* %ptls_load1213, i32 752, i32 16) #9
   %21 = bitcast {}* %box to i64*
   %22 = getelementptr inbounds i64, i64* %21, i64 -1
-  store atomic i64 132116674523392, i64* %22 unordered, align 8
+  store atomic i64 135580498538752, i64* %22 unordered, align 8
   %23 = bitcast {}* %box to double*
   store double %0, double* %23, align 8
   %24 = getelementptr inbounds [6 x {}*], [6 x {}*]* %gcframe10, i64 0, i64 5
   store {}* %box, {}** %24, align 8
-  call void @j_InexactError_7074([3 x {}*]* noalias nocapture noundef nonnull sret([3 x {}*]) %19, {}* inttoptr (i64 132116833240512 to {}*), {}* readonly inttoptr (i64 132116674524192 to {}*), {}* nonnull readonly %box)
+  call void @j_InexactError_6487([3 x {}*]* noalias nocapture noundef nonnull sret([3 x {}*]) %19, {}* inttoptr (i64 135580657255872 to {}*), {}* readonly inttoptr (i64 135580498539552 to {}*), {}* nonnull readonly %box)
   %ptls_load81415 = load i8*, i8** %20, align 8
   %box3 = call noalias nonnull dereferenceable(32) {}* @ijl_gc_pool_alloc(i8* %ptls_load81415, i32 800, i32 32) #9
   %25 = bitcast {}* %box3 to i64*
   %26 = getelementptr inbounds i64, i64* %25, i64 -1
-  store atomic i64 132116643587440, i64* %26 unordered, align 8
+  store atomic i64 135580467602800, i64* %26 unordered, align 8
   %27 = bitcast {}* %box3 to i8*
   %28 = bitcast {}** %18 to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 8 dereferenceable(24) %27, i8* noundef nonnull align 16 dereferenceable(24) %28, i64 24, i1 false)
