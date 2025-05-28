@@ -64,18 +64,10 @@ A kernel is compiled upon its first launch.
 Subsequent launches re-use it, without recompilation.
 Let's launch a kernel, but first clear-out the memory of the resulting vector `cd`.
 
-::: info Kernels should return nothing
-
-Notice how we explicitly specify that this function does not return a value
-by adding the `return` statement.
-This is necessary for all GPU kernels and we can enforce it by adding a `return`,
-`return nothing`, or even `nothing` at the end of the kernel.
-If this statement is omitted, Julia will attempt to return the value
-of the last evaluated expression, in this case a `Float64`,
-which will cause a compilation failure as kernels cannot return values.
-
-:::
-
+!!! info "Kernels should return nothing"
+    Notice how we explicitly specify that this function does not return a value by adding the `return` statement.
+    This is necessary for all GPU kernels and we can enforce it by adding a `return`, `return nothing`, or even `nothing` at the end of the kernel.
+    If this statement is omitted, Julia will attempt to return the value of the last evaluated expression, in this case a `Float64`, which will cause a compilation failure as kernels cannot return values.
 
 ```jldoctest simple-example
 julia> fill!(c_d, 0.0);
@@ -94,14 +86,11 @@ The easiest way to launch a GPU kernel is with the `@roc` macro,
 specifying `groupsize` and `gridsize` to cover full array,
 and calling it like a regular function.
 
-::: info Asynchronous kernels
-
-Keep in mind that kernel launches are asynchronous,
-meaning that you need to synchronize before you can use the result
-(e.g. with [`AMDGPU.synchronize`](@ref)).
-However, GPU <-> CPU transfers synchronize implicitly.
-
-:::
+!!! info "Asynchronous kernels"
+    Keep in mind that kernel launches are asynchronous, meaning that
+    you need to synchronize before you can use the result (e.g. with
+    [`AMDGPU.synchronize`](@ref)). However, GPU <-> CPU transfers
+    synchronize implicitly.
 
 The grid is the domain over which the *entire* kernel executes over.
 The grid will be split into multiple workgroups by hardware automatically,

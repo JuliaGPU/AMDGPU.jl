@@ -1,4 +1,4 @@
-#api/ Printing
+# Printing
 
 Writing GPU kernels can be a difficult endeavor, owing to the fact that the
 LLVM GPU backends turn serial code into parallel code automatically.

@@ -33,10 +33,10 @@ Pkg.add("AMDGPU")
 
 ## Requirements
 
-- Julia 1.10+:
-- MI300X requires Julia 1.12+.
-- 64-bit Linux or Windows.
-- ROCm 6.0+.
+- Julia 1.10+
+- MI300X requires Julia 1.12+
+- 64-bit Linux or Windows
+- ROCm 6.0+
 
 ### Required software
 
@@ -45,12 +45,8 @@ Pkg.add("AMDGPU")
 |[ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html)|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)|
 |-|[AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software)|
 
-::: info Note
-
-On Windows AMD Software: Adrenalin Edition contains HIP library itself,
-while ROCm provides support for other functionality.
-
-:::
+!!! note "On Windows AMD Software"
+    Adrenalin Edition contains HIP library itself, while ROCm provides support for other functionality.
 
 ## Test
 

@@ -1,4 +1,5 @@
-# AMDGPU API Reference
+# Intrinsics
+API Reference
 
 ## Indexing
 
