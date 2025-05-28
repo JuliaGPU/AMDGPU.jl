@@ -57,11 +57,8 @@ which will sit in the background thread until kernel finishes execution and the 
 Having a hostcall unnecessarily slows execution down and you can avoid that by using
 "GPU-friendly" version of the function.
 
-::: info
-
-Hostcalls should be used mostly for debugging. When performance matters, they should be avoided.
-
-:::
+!!! info "Hostcalls"
+    Hostcalls should be used mostly for debugging. When performance matters, they should be avoided.
 
 For example, let's see how we may deal with `ceil(Int, x)` and convert it to GPU-friendly version.
 
