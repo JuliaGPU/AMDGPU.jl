@@ -12,8 +12,14 @@ assignees: ''
 1. Does ROCm works for you outside of Julia, e.g. C/C++/Python?
 
 2. Post output of `rocminfo`.
+```
+# paste the output of `rocminfo` here
+```
 
 3. Post output of `AMDGPU.versioninfo()` if possible.
+```
+# paste the output of `AMDGPU.versioninfo()` here
+```
 
 ## Reproducing the bug
 
