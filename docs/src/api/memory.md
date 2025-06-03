@@ -122,7 +122,8 @@ RC_elem = Array(RC)[1]
 Like C, AMDGPU.jl provides the `memset!` and `memcpy!` intrinsics, which are
 useful for setting a memory region to a value, or copying one region to
 another, respectively.
-Check `test/device/memory.jl` for examples of their usage.
+Check [test/device/memory.jl](https://github.com/JuliaGPU/AMDGPU.jl/blob/master/test/device/memory.jl)
+for examples of their usage.
 
 ## Wrapping in `ROCArray`
 

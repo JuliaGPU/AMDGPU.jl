@@ -51,9 +51,11 @@ function main()
     )
     if ci
         @info "Deploying to GitHub"
-        deploydocs(;
+        DocumenterVitepress.deploydocs(;
             repo="github.com/JuliaGPU/AMDGPU.jl.git",
             push_preview=true,
+            target="build",
+            devbranch="master",
         )
     end
 end
