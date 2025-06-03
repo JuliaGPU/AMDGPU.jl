@@ -115,14 +115,14 @@ InteractiveUtils.@code_llvm unsafe_trunc(Int, 1.0)
 ```
 
 
-```ansi
-[90m;  @ float.jl:336 within `unsafe_trunc`[39m
-[95mdefine[39m [36mi64[39m [93m@julia_unsafe_trunc_6478[39m[33m([39m[36mdouble[39m [0m%0[33m)[39m [0m#0 [33m{[39m
-[91mtop:[39m
-  [0m%1 [0m= [96m[1mfptosi[22m[39m [36mdouble[39m [0m%0 [95mto[39m [36mi64[39m
-  [0m%2 [0m= [96m[1mfreeze[22m[39m [36mi64[39m [0m%1
-  [96m[1mret[22m[39m [36mi64[39m [0m%2
-[33m}[39m
+```
+;  @ float.jl:336 within `unsafe_trunc`
+define i64 @julia_unsafe_trunc_6476(double %0) #0 {
+top:
+  %1 = fptosi double %0 to i64
+  %2 = freeze i64 %1
+  ret i64 %2
+}
 ```
 
 
@@ -134,87 +134,87 @@ InteractiveUtils.@code_llvm Int(1.0)
 ```
 
 
-```ansi
-[90m;  @ float.jl:908 within `Int64`[39m
-[95mdefine[39m [36mi64[39m [93m@julia_Int64_6501[39m[33m([39m[36mdouble[39m [0m%0[33m)[39m [0m#0 [33m{[39m
-[91mtop:[39m
-  [0m%gcframe10 [0m= [96m[1malloca[22m[39m [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m, [95malign[39m [33m16[39m
-  [0m%gcframe10.sub [0m= [96m[1mgetelementptr[22m[39m [95minbounds[39m [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m, [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m* [0m%gcframe10[0m, [36mi64[39m [33m0[39m[0m, [36mi64[39m [33m0[39m
-  [0m%1 [0m= [96m[1mbitcast[22m[39m [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m* [0m%gcframe10 [95mto[39m [36mi8[39m[0m*
-  [96m[1mcall[22m[39m [36mvoid[39m [93m@llvm.memset.p0i8.i64[39m[33m([39m[36mi8[39m[0m* [95malign[39m [33m16[39m [0m%1[0m, [36mi8[39m [33m0[39m[0m, [36mi64[39m [33m48[39m[0m, [36mi1[39m [95mtrue[39m[33m)[39m
-  [0m%thread_ptr [0m= [95mcall[39m [36mi8[39m[0m* [95masm[39m [0m"movq %fs:0, $0"[0m, [0m"=r"[33m([39m[33m)[39m [0m#12
-  [0m%tls_ppgcstack [0m= [96m[1mgetelementptr[22m[39m [36mi8[39m[0m, [36mi8[39m[0m* [0m%thread_ptr[0m, [36mi64[39m [33m-8[39m
-  [0m%2 [0m= [96m[1mbitcast[22m[39m [36mi8[39m[0m* [0m%tls_ppgcstack [95mto[39m [33m{[39m[33m}[39m[0m****
-  [0m%tls_pgcstack [0m= [96m[1mload[22m[39m [33m{[39m[33m}[39m[0m***[0m, [33m{[39m[33m}[39m[0m**** [0m%2[0m, [95malign[39m [33m8[39m
-[90m;  @ float.jl:909 within `Int64`[39m
-[90m; ┌ @ float.jl:537 within `<=`[39m
-   [0m%3 [0m= [96m[1mbitcast[22m[39m [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m* [0m%gcframe10 [95mto[39m [36mi64[39m[0m*
-   [96m[1mstore[22m[39m [36mi64[39m [33m16[39m[0m, [36mi64[39m[0m* [0m%3[0m, [95malign[39m [33m16[39m
-   [0m%4 [0m= [96m[1mgetelementptr[22m[39m [95minbounds[39m [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m, [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m* [0m%gcframe10[0m, [36mi64[39m [33m0[39m[0m, [36mi64[39m [33m1[39m
-   [0m%5 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m** [0m%4 [95mto[39m [33m{[39m[33m}[39m[0m***
-   [0m%6 [0m= [96m[1mload[22m[39m [33m{[39m[33m}[39m[0m**[0m, [33m{[39m[33m}[39m[0m*** [0m%tls_pgcstack[0m, [95malign[39m [33m8[39m
-   [96m[1mstore[22m[39m [33m{[39m[33m}[39m[0m** [0m%6[0m, [33m{[39m[33m}[39m[0m*** [0m%5[0m, [95malign[39m [33m8[39m
-   [0m%7 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m*** [0m%tls_pgcstack [95mto[39m [33m{[39m[33m}[39m[0m***
-   [96m[1mstore[22m[39m [33m{[39m[33m}[39m[0m** [0m%gcframe10.sub[0m, [33m{[39m[33m}[39m[0m*** [0m%7[0m, [95malign[39m [33m8[39m
-   [0m%8 [0m= [96m[1mfcmp[22m[39m [96m[1mult[22m[39m [36mdouble[39m [0m%0[0m, [33m0xC3E0000000000000[39m
-[90m; └[39m
-  [0m%9 [0m= [96m[1mfcmp[22m[39m [96m[1muge[22m[39m [36mdouble[39m [0m%0[0m, [33m0x43E0000000000000[39m
-  [0m%10 [0m= [96m[1mor[22m[39m [36mi1[39m [0m%8[0m, [0m%9
-  [96m[1mbr[22m[39m [36mi1[39m [0m%10[0m, [36mlabel[39m [91m%L16[39m[0m, [36mlabel[39m [91m%L8[39m
+```
+;  @ float.jl:908 within `Int64`
+define i64 @julia_Int64_6478(double %0) #0 {
+top:
+  %gcframe10 = alloca [6 x {}*], align 16
+  %gcframe10.sub = getelementptr inbounds [6 x {}*], [6 x {}*]* %gcframe10, i64 0, i64 0
+  %1 = bitcast [6 x {}*]* %gcframe10 to i8*
+  call void @llvm.memset.p0i8.i64(i8* align 16 %1, i8 0, i64 48, i1 true)
+  %thread_ptr = call i8* asm "movq %fs:0, $0", "=r"() #12
+  %tls_ppgcstack = getelementptr i8, i8* %thread_ptr, i64 -8
+  %2 = bitcast i8* %tls_ppgcstack to {}****
+  %tls_pgcstack = load {}***, {}**** %2, align 8
+;  @ float.jl:909 within `Int64`
+; ┌ @ float.jl:537 within `<=`
+   %3 = bitcast [6 x {}*]* %gcframe10 to i64*
+   store i64 16, i64* %3, align 16
+   %4 = getelementptr inbounds [6 x {}*], [6 x {}*]* %gcframe10, i64 0, i64 1
+   %5 = bitcast {}** %4 to {}***
+   %6 = load {}**, {}*** %tls_pgcstack, align 8
+   store {}** %6, {}*** %5, align 8
+   %7 = bitcast {}*** %tls_pgcstack to {}***
+   store {}** %gcframe10.sub, {}*** %7, align 8
+   %8 = fcmp ult double %0, 0xC3E0000000000000
+; └
+  %9 = fcmp uge double %0, 0x43E0000000000000
+  %10 = or i1 %8, %9
+  br i1 %10, label %L16, label %L8
 
-[91mL8:[39m                                               [90m; preds = %top[39m
-[90m; ┌ @ floatfuncs.jl:45 within `isinteger`[39m
-[90m; │┌ @ floatfuncs.jl:153 within `trunc`[39m
-[90m; ││┌ @ floatfuncs.jl:153 within `#trunc#806`[39m
-[90m; │││┌ @ float.jl:393 within `round`[39m
-      [0m%11 [0m= [96m[1mcall[22m[39m [36mdouble[39m [93m@llvm.trunc.f64[39m[33m([39m[36mdouble[39m [0m%0[33m)[39m
-[90m; │└└└[39m
-[90m; │┌ @ float.jl:410 within `-`[39m
-    [0m%12 [0m= [96m[1mfsub[22m[39m [36mdouble[39m [0m%0[0m, [0m%11
-[90m; │└[39m
-[90m; │┌ @ float.jl:572 within `==` @ float.jl:534[39m
-    [0m%13 [0m= [96m[1mfcmp[22m[39m [96m[1mune[22m[39m [36mdouble[39m [0m%12[0m, [33m0.000000e+00[39m
-[90m; └└[39m
-  [96m[1mbr[22m[39m [36mi1[39m [0m%13[0m, [36mlabel[39m [91m%L16[39m[0m, [36mlabel[39m [91m%L14[39m
+L8:                                               ; preds = %top
+; ┌ @ floatfuncs.jl:45 within `isinteger`
+; │┌ @ floatfuncs.jl:153 within `trunc`
+; ││┌ @ floatfuncs.jl:153 within `#trunc#806`
+; │││┌ @ float.jl:393 within `round`
+      %11 = call double @llvm.trunc.f64(double %0)
+; │└└└
+; │┌ @ float.jl:410 within `-`
+    %12 = fsub double %0, %11
+; │└
+; │┌ @ float.jl:572 within `==` @ float.jl:534
+    %13 = fcmp une double %12, 0.000000e+00
+; └└
+  br i1 %13, label %L16, label %L14
 
-[91mL14:[39m                                              [90m; preds = %L8[39m
-[90m;  @ float.jl:910 within `Int64`[39m
-[90m; ┌ @ float.jl:336 within `unsafe_trunc`[39m
-   [0m%14 [0m= [96m[1mfptosi[22m[39m [36mdouble[39m [0m%0 [95mto[39m [36mi64[39m
-   [0m%15 [0m= [96m[1mfreeze[22m[39m [36mi64[39m [0m%14
-   [0m%16 [0m= [96m[1mload[22m[39m [33m{[39m[33m}[39m[0m*[0m, [33m{[39m[33m}[39m[0m** [0m%4[0m, [95malign[39m [33m8[39m
-   [0m%17 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m*** [0m%tls_pgcstack [95mto[39m [33m{[39m[33m}[39m[0m**
-   [96m[1mstore[22m[39m [33m{[39m[33m}[39m[0m* [0m%16[0m, [33m{[39m[33m}[39m[0m** [0m%17[0m, [95malign[39m [33m8[39m
-[90m; └[39m
-  [96m[1mret[22m[39m [36mi64[39m [0m%15
+L14:                                              ; preds = %L8
+;  @ float.jl:910 within `Int64`
+; ┌ @ float.jl:336 within `unsafe_trunc`
+   %14 = fptosi double %0 to i64
+   %15 = freeze i64 %14
+   %16 = load {}*, {}** %4, align 8
+   %17 = bitcast {}*** %tls_pgcstack to {}**
+   store {}* %16, {}** %17, align 8
+; └
+  ret i64 %15
 
-[91mL16:[39m                                              [90m; preds = %L8, %top[39m
-  [0m%18 [0m= [96m[1mgetelementptr[22m[39m [95minbounds[39m [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m, [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m* [0m%gcframe10[0m, [36mi64[39m [33m0[39m[0m, [36mi64[39m [33m2[39m
-  [0m%19 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m** [0m%18 [95mto[39m [33m[[39m[33m3[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m*
-[90m;  @ float.jl:912 within `Int64`[39m
-  [0m%ptls_field11 [0m= [96m[1mgetelementptr[22m[39m [95minbounds[39m [33m{[39m[33m}[39m[0m**[0m, [33m{[39m[33m}[39m[0m*** [0m%tls_pgcstack[0m, [36mi64[39m [33m2[39m
-  [0m%20 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m*** [0m%ptls_field11 [95mto[39m [36mi8[39m[0m**
-  [0m%ptls_load1213 [0m= [96m[1mload[22m[39m [36mi8[39m[0m*[0m, [36mi8[39m[0m** [0m%20[0m, [95malign[39m [33m8[39m
-  [0m%box [0m= [96m[1mcall[22m[39m [95mnoalias[39m [95mnonnull[39m [95mdereferenceable[39m[33m([39m[33m16[39m[33m)[39m [33m{[39m[33m}[39m[0m* [93m@ijl_gc_pool_alloc[39m[33m([39m[36mi8[39m[0m* [0m%ptls_load1213[0m, [36mi32[39m [33m752[39m[0m, [36mi32[39m [33m16[39m[33m)[39m [0m#9
-  [0m%21 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m* [0m%box [95mto[39m [36mi64[39m[0m*
-  [0m%22 [0m= [96m[1mgetelementptr[22m[39m [95minbounds[39m [36mi64[39m[0m, [36mi64[39m[0m* [0m%21[0m, [36mi64[39m [33m-1[39m
-  [96m[1mstore[22m[39m [95matomic[39m [36mi64[39m [33m134619096953088[39m[0m, [36mi64[39m[0m* [0m%22 [95munordered[39m[0m, [95malign[39m [33m8[39m
-  [0m%23 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m* [0m%box [95mto[39m [36mdouble[39m[0m*
-  [96m[1mstore[22m[39m [36mdouble[39m [0m%0[0m, [36mdouble[39m[0m* [0m%23[0m, [95malign[39m [33m8[39m
-  [0m%24 [0m= [96m[1mgetelementptr[22m[39m [95minbounds[39m [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m, [33m[[39m[33m6[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m* [0m%gcframe10[0m, [36mi64[39m [33m0[39m[0m, [36mi64[39m [33m5[39m
-  [96m[1mstore[22m[39m [33m{[39m[33m}[39m[0m* [0m%box[0m, [33m{[39m[33m}[39m[0m** [0m%24[0m, [95malign[39m [33m8[39m
-  [96m[1mcall[22m[39m [36mvoid[39m [93m@j_InexactError_6503[39m[33m([39m[33m[[39m[33m3[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[0m* [95mnoalias[39m [95mnocapture[39m [95mnoundef[39m [95mnonnull[39m [95msret[39m[33m([39m[33m[[39m[33m3[39m [0mx [33m{[39m[33m}[39m[0m*[33m][39m[33m)[39m [0m%19[0m, [33m{[39m[33m}[39m[0m* [95minttoptr[39m [33m([39m[36mi64[39m [33m134619255670208[39m [95mto[39m [33m{[39m[33m}[39m[0m*[33m)[39m[0m, [33m{[39m[33m}[39m[0m* [95mreadonly[39m [95minttoptr[39m [33m([39m[36mi64[39m [33m134619096953888[39m [95mto[39m [33m{[39m[33m}[39m[0m*[33m)[39m[0m, [33m{[39m[33m}[39m[0m* [95mnonnull[39m [95mreadonly[39m [0m%box[33m)[39m
-  [0m%ptls_load81415 [0m= [96m[1mload[22m[39m [36mi8[39m[0m*[0m, [36mi8[39m[0m** [0m%20[0m, [95malign[39m [33m8[39m
-  [0m%box3 [0m= [96m[1mcall[22m[39m [95mnoalias[39m [95mnonnull[39m [95mdereferenceable[39m[33m([39m[33m32[39m[33m)[39m [33m{[39m[33m}[39m[0m* [93m@ijl_gc_pool_alloc[39m[33m([39m[36mi8[39m[0m* [0m%ptls_load81415[0m, [36mi32[39m [33m800[39m[0m, [36mi32[39m [33m32[39m[33m)[39m [0m#9
-  [0m%25 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m* [0m%box3 [95mto[39m [36mi64[39m[0m*
-  [0m%26 [0m= [96m[1mgetelementptr[22m[39m [95minbounds[39m [36mi64[39m[0m, [36mi64[39m[0m* [0m%25[0m, [36mi64[39m [33m-1[39m
-  [96m[1mstore[22m[39m [95matomic[39m [36mi64[39m [33m134619066017136[39m[0m, [36mi64[39m[0m* [0m%26 [95munordered[39m[0m, [95malign[39m [33m8[39m
-  [0m%27 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m* [0m%box3 [95mto[39m [36mi8[39m[0m*
-  [0m%28 [0m= [96m[1mbitcast[22m[39m [33m{[39m[33m}[39m[0m** [0m%18 [95mto[39m [36mi8[39m[0m*
-  [96m[1mcall[22m[39m [36mvoid[39m [93m@llvm.memcpy.p0i8.p0i8.i64[39m[33m([39m[36mi8[39m[0m* [95mnoundef[39m [95mnonnull[39m [95malign[39m [33m8[39m [95mdereferenceable[39m[33m([39m[33m24[39m[33m)[39m [0m%27[0m, [36mi8[39m[0m* [95mnoundef[39m [95mnonnull[39m [95malign[39m [33m16[39m [95mdereferenceable[39m[33m([39m[33m24[39m[33m)[39m [0m%28[0m, [36mi64[39m [33m24[39m[0m, [36mi1[39m [95mfalse[39m[33m)[39m
-  [96m[1mcall[22m[39m [36mvoid[39m [93m@ijl_throw[39m[33m([39m[33m{[39m[33m}[39m[0m* [0m%box3[33m)[39m
-  [96m[1munreachable[22m[39m
-[33m}[39m
+L16:                                              ; preds = %L8, %top
+  %18 = getelementptr inbounds [6 x {}*], [6 x {}*]* %gcframe10, i64 0, i64 2
+  %19 = bitcast {}** %18 to [3 x {}*]*
+;  @ float.jl:912 within `Int64`
+  %ptls_field11 = getelementptr inbounds {}**, {}*** %tls_pgcstack, i64 2
+  %20 = bitcast {}*** %ptls_field11 to i8**
+  %ptls_load1213 = load i8*, i8** %20, align 8
+  %box = call noalias nonnull dereferenceable(16) {}* @ijl_gc_pool_alloc(i8* %ptls_load1213, i32 752, i32 16) #9
+  %21 = bitcast {}* %box to i64*
+  %22 = getelementptr inbounds i64, i64* %21, i64 -1
+  store atomic i64 134696202940672, i64* %22 unordered, align 8
+  %23 = bitcast {}* %box to double*
+  store double %0, double* %23, align 8
+  %24 = getelementptr inbounds [6 x {}*], [6 x {}*]* %gcframe10, i64 0, i64 5
+  store {}* %box, {}** %24, align 8
+  call void @j_InexactError_6480([3 x {}*]* noalias nocapture noundef nonnull sret([3 x {}*]) %19, {}* inttoptr (i64 134696361657792 to {}*), {}* readonly inttoptr (i64 134696202941472 to {}*), {}* nonnull readonly %box)
+  %ptls_load81415 = load i8*, i8** %20, align 8
+  %box3 = call noalias nonnull dereferenceable(32) {}* @ijl_gc_pool_alloc(i8* %ptls_load81415, i32 800, i32 32) #9
+  %25 = bitcast {}* %box3 to i64*
+  %26 = getelementptr inbounds i64, i64* %25, i64 -1
+  store atomic i64 134696172004720, i64* %26 unordered, align 8
+  %27 = bitcast {}* %box3 to i8*
+  %28 = bitcast {}** %18 to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* noundef nonnull align 8 dereferenceable(24) %27, i8* noundef nonnull align 16 dereferenceable(24) %28, i64 24, i1 false)
+  call void @ijl_throw({}* %box3)
+  unreachable
+}
 ```
 
 
