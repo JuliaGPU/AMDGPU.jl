@@ -5,4 +5,4 @@ GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 
 [compat]
 Documenter = "1"
-DocumenterVitepress = "0.2.4"
+DocumenterVitepress = "0.2.5"
