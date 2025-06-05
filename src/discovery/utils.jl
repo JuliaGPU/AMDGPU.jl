@@ -53,8 +53,10 @@ end
 
 function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext)::String
     libdir = joinpath(rocm_path, Sys.islinux() ? "lib" : "bin")
-    isdir(libdir) || return ""
-
+    if !isdir(libdir)
+        libdir = rocm_path # Fedora installs rocm libraries to /usr/lib64
+        isdir(libdir) || return ""
+    end
     for file in readdir(libdir; join=true)
         fname = basename(file)
         matched = startswith(fname, lib) && endswith(fname, ext)
