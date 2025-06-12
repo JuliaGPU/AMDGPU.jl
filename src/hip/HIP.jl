@@ -103,6 +103,8 @@ function memcpy(dst, src, sz, kind, stream::HIPStream)
 end
 
 function __init__()
+    hipInit(Cuint(0))
+
     global old_nonblock_sync = if AMDGPU.functional(:hip)
         runtime_version() < v"5.4"
     else
