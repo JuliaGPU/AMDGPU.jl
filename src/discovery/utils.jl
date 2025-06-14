@@ -7,6 +7,7 @@ function find_roc_path()::String
 
     if Sys.islinux()
         isdir("/opt/rocm") && return "/opt/rocm" # shim for Ubuntu rocm packages.
+        isdir("/usr/lib64/rocm") && return "/usr/lib64/rocm" # for Fedora
     elseif Sys.iswindows()
         disk_dir = dirname(dirname(homedir())) # Disk C root directory.
         rocm_dir = joinpath(disk_dir, "Program Files", "AMD", "ROCm")
@@ -40,6 +41,9 @@ function find_device_libs(rocm_path::String)::String
     # Try the canonical location.
     canonical_dir = joinpath(rocm_path, "amdgcn", "bitcode")
     isdir(canonical_dir) && return canonical_dir
+
+    fedora_dir = joinpath(rocm_path, "llvm", "lib", "clang", string(Base.libllvm_version.major), "amdgcn", "bitcode")
+    isdir(fedora_dir) && return fedora_dir
     return ""
 end
 
@@ -53,7 +57,12 @@ end
 
 function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext)::String
     libdir = joinpath(rocm_path, Sys.islinux() ? "lib" : "bin")
-    isdir(libdir) || return ""
+    if !isdir(libdir)
+        rocm_path == "/usr/lib64/rocm" || return ""
+        # Fedora does not put ROCm libs into rocm_path
+        libdir = "/usr/lib64"
+        ext = r"\.so(\.\d+)?"
+    end
 
     for file in readdir(libdir; join=true)
         fname = basename(file)
