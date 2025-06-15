@@ -53,7 +53,7 @@ Pkg.add("AMDGPU")
     Fedora provides its own ROCM packages.
     ```
     sudo dnf install rocminfo rccl-devel rocblas-devel rocfft-devel rocsparse-devel rocsolver-devel rocrand-devel roctracer-devel miopen-devel rocm-hip-devel
-```
+    ```
 However, the libraries are not installed in the usual location (under 
 `/opt/rocm`) so for `AMDGPU` to find them you must set an environment variable.
 ```
