@@ -58,7 +58,7 @@ Pkg.add("AMDGPU")
     `/opt/rocm`) so for `AMDGPU` to find them you must set an environment variable.
     ```
     export ROCM_PATH=/usr/lib64
-```
+    ```
 
 ## Test
 
