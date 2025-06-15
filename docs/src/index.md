@@ -48,6 +48,18 @@ Pkg.add("AMDGPU")
 !!! note "On Windows AMD Software"
     Adrenalin Edition contains HIP library itself, while ROCm provides support for other functionality.
 
+!!! note "On Fedora ROCm packages"
+    Although not included in the AMD's list of supported Linux distributions,
+    Fedora provides its own ROCM packages.
+    ```
+    sudo dnf install rocminfo rccl-devel rocblas-devel rocfft-devel rocsparse-devel rocsolver-devel rocrand-devel roctracer-devel miopen-devel rocm-hip-devel
+    ```
+    However, the libraries are not installed in the usual location (under 
+    `/opt/rocm`) so for `AMDGPU` to find them you must set an environment variable.
+    ```
+    export ROCM_PATH=/usr/lib64
+    ```
+
 ## Test
 
 To ensure that everything works, you can run the test suite:
