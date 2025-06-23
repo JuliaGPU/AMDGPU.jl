@@ -166,7 +166,12 @@ end
 
 # Other.
 
+# x-ref:
+# - https://github.com/llvm/llvm-project/blob/5c22793eadd8758d589eafd1cbbb2897ab8b3c8b/libclc/opencl/lib/amdgcn/synchronization/barrier.cl#L11
+# - https://github.com/llvm/llvm-project/blob/714b2fdf3a385e5b9a95c435f56b1696ec3ec9e8/libclc/opencl/lib/amdgcn/mem_fence/fence.cl#L28
 @device_override @inline function KA.__synchronize()
+    # XXX(vchuravy): Determine semantics, but agreement sofar is LOCAL_MEM barrier 
+    ccall("llvm.amdgcn.s.waitcnt", llvmcall, Cvoid, (Cint,), 0xff) # memory barrier
     AMDGPU.Device.sync_workgroup()
 end
 
