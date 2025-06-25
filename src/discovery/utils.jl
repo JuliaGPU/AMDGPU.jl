@@ -6,7 +6,9 @@ function find_roc_path()::String
     isdir(env_dir) && return env_dir
 
     if Sys.islinux()
-        isdir("/opt/rocm") && return "/opt/rocm" # shim for Ubuntu rocm packages.
+#        isdir("/opt/rocm") && return "/opt/rocm" # shim for Ubuntu rocm packages.
+        rocm_path = read(`hipconfig --rocmpath`, String)
+        isdir(rocm_path) && return rocm_path
     elseif Sys.iswindows()
         disk_dir = dirname(dirname(homedir())) # Disk C root directory.
         rocm_dir = joinpath(disk_dir, "Program Files", "AMD", "ROCm")
@@ -53,8 +55,10 @@ end
 
 function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext)::String
     libdir = joinpath(rocm_path, Sys.islinux() ? "lib" : "bin")
-    isdir(libdir) || return ""
-
+    if !isdir(libdir)
+        libdir = rocm_path # Fedora installs rocm libraries to /usr/lib64
+        isdir(libdir) || return ""
+    end
     for file in readdir(libdir; join=true)
         fname = basename(file)
         matched = startswith(fname, lib) && endswith(fname, ext)
