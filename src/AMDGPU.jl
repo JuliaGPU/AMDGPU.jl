@@ -82,6 +82,10 @@ include("memory.jl")
 
 Base.Experimental.@MethodTable(method_table)
 
+#needs to be before Device since sync uses this
+const syncscope_agent = UnsafeAtomics.Internal.LLVMSyncScope{:agent}()
+const syncscope_workgroup = UnsafeAtomics.Internal.LLVMSyncScope{:workgroup}()
+
 # Device sources must load _before_ the compiler infrastructure,
 # because of generated functions.
 include("device/Device.jl")
@@ -128,12 +132,11 @@ include("random.jl")
 
 # Enable hardware FP atomics for +/- ops.
 const ROCIndexableRef{Indexable <: ROCDeviceArray} = Atomix.IndexableRef{Indexable}
-const agent = UnsafeAtomics.Internal.LLVMSyncScope{:agent}()
 function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where OP <: Union{typeof(+), typeof(-)}
     x = Atomix.asstorable(ref, x)
     ptr = Atomix.pointer(ref)
     root = Atomix.gcroot(ref)
-    GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, agent)
+    GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, syncscope_agent)
 end
 
 include("ROCKernels.jl")
