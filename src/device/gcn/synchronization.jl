@@ -1,10 +1,33 @@
+
+for ord in UnsafeAtomics.Internal.orderings
+    for sync in (AMDGPU.syncscope_agent, AMDGPU.syncscope_workgroup)
+        @eval function UnsafeAtomics.fence(::$(typeof(ord)), ::$(typeof(sync)))
+            Base.llvmcall(
+                    $("""
+                    define void @fence() #0 {
+                    entry:
+                        fence $sync $ord
+                        ret void
+                    }
+                    attributes #0 = { alwaysinline }
+                    """, "fence"), Nothing, Tuple{})
+        end
+    end
+end
+
 """
     sync_workgroup()
 
-Waits until all wavefronts in a workgroup have reached this call.
+Waits until all wavefronts in a workgroup have reached this call and that their memory accesses are visible to other threads in the workgroup.
 """
-@inline sync_workgroup() =
+@inline function sync_workgroup()
+    # This needs a fence as well since the barrier has no memory semantics.
+    # It's unclear which fence/how many fences are needed. To be safest we follow HIP's
+    # https://github.com/ROCm/llvm-project/blob/69549e0c2a54a526f90783f43b969871d9d3e41c/amd/device-libs/opencl/src/workgroup/wgbarrier.cl#L8-L38
+    UnsafeAtomics.fence(UnsafeAtomics.seq_cst, AMDGPU.syncscope_workgroup)
     ccall("llvm.amdgcn.s.barrier", llvmcall, Cvoid, ())
+    UnsafeAtomics.fence(UnsafeAtomics.seq_cst, AMDGPU.syncscope_workgroup)
+end
 
 """
     sync_workgroup_count(predicate::Cint)::Cint

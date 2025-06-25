@@ -14,6 +14,7 @@ import ..Runtime
 import ..Mem
 import ..AMDGPU
 import .AMDGPU: method_table
+import ..UnsafeAtomics
 
 include("addrspaces.jl")
 include("globals.jl")
