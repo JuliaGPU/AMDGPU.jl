@@ -145,6 +145,9 @@ include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
 
+include("profiler/profiler.jl")
+
+
 function __init__()
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)

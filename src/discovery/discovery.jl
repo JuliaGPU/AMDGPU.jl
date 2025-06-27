@@ -2,7 +2,7 @@ module ROCmDiscovery
 
 export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
 export librocblas, librocsparse, librocsolver
-export librocrand, librocfft, libMIOpen_path
+export librocrand, librocfft, libMIOpen_path, librocprofiler_sdk_tool
 
 using LLD_jll
 using ROCmDeviceLibs_jll
@@ -56,6 +56,7 @@ function __init__()
     global librocrand = ""
     global librocfft = ""
     global libMIOpen_path = ""
+    global librocprofiler_sdk_tool = ""
 
     if Sys.islinux() && isdir("/sys/class/kfd/kfd/topology/nodes/")
         for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
@@ -95,6 +96,7 @@ function __init__()
         global librocrand = find_rocm_library(lib_prefix * "rocrand"; rocm_path)
         global librocfft = find_rocm_library(lib_prefix * "rocfft"; rocm_path)
         global libMIOpen_path = find_rocm_library(lib_prefix * "MIOpen"; rocm_path)
+        global librocprofiler_sdk_tool = find_rocm_library(lib_prefix * "rocprofiler-sdk-tool"; rocm_path)
     catch err
         @error """ROCm discovery failed!
         Discovered ROCm path: $rocm_path.
