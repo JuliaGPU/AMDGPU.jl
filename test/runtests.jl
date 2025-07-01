@@ -122,10 +122,6 @@ if "core" in TARGET_TESTS && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")
-
-        # TODO 1.11 fails
-        if VERSION < v"1.11-"
-            include("device/output.jl")
-        end
+        include("device/output.jl")
     end
 end
