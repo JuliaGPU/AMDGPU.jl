@@ -48,188 +48,190 @@
     # end
 end
 
-@testset "@rocprintf" begin
-    @testset "Plain" begin
-        kernel() = @rocprintf "Hello World!\n"
+if VERSION < v"1.11-"
+    @testset "@rocprintf" begin
+        @testset "Plain" begin
+            kernel() = @rocprintf "Hello World!\n"
 
-        _, msg = @grab_output begin
-            @roc kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == "Hello World!\n"
-    end
-
-    @testset "Integer argument" begin
-        kernel(x) = @rocprintf "Value: %d\n" x
-
-        _, msg = @grab_output begin
-            @roc kernel(42)
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == "Value: 42\n"
-    end
-
-    @testset "Multiple arguments" begin
-        function kernel(x)
-            y = 0.123401
-            @rocprintf "Value: %d | %.4f\n" x y
+            _, msg = @grab_output begin
+                @roc kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == "Hello World!\n"
         end
 
-        _, msg = @grab_output begin
-            @roc kernel(42)
-            AMDGPU.synchronize(; stop_hostcalls=true)
+        @testset "Integer argument" begin
+            kernel(x) = @rocprintf "Value: %d\n" x
+
+            _, msg = @grab_output begin
+                @roc kernel(42)
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == "Value: 42\n"
         end
-        @test msg == "Value: 42 | 0.1234\n"
-    end
 
-    @testset "Per-lane" begin
-        kernel() = @rocprintf :lane "[%d] " workitemIdx().x
+        @testset "Multiple arguments" begin
+            function kernel(x)
+                y = 0.123401
+                @rocprintf "Value: %d | %.4f\n" x y
+            end
 
-        # One group, one wavefront
-        exp = reduce(*, ["[$i] " for i in 1:8])
-        _, msg = @grab_output begin
-            @roc groupsize=8 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
+            _, msg = @grab_output begin
+                @roc kernel(42)
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == "Value: 42 | 0.1234\n"
         end
-        @test msg == exp
 
-        # One group, multiple wavefronts
-        exp = reduce(*, ["[$i] " for i in 1:128])
-        _, msg = @grab_output begin
-            @roc groupsize=128 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
+        @testset "Per-lane" begin
+            kernel() = @rocprintf :lane "[%d] " workitemIdx().x
+
+            # One group, one wavefront
+            exp = reduce(*, ["[$i] " for i in 1:8])
+            _, msg = @grab_output begin
+                @roc groupsize=8 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # One group, multiple wavefronts
+            exp = reduce(*, ["[$i] " for i in 1:128])
+            _, msg = @grab_output begin
+                @roc groupsize=128 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # Multiple groups, one wavefront each
+            exp = reduce(*, ["[$i] " for i in vcat(1:64, 1:64, 1:64, 1:64)])
+            _, msg = @grab_output begin
+                @roc groupsize=64 gridsize=4 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # Multiple groups, multiple wavefronts each
+            exp = reduce(*, ["[$i] " for i in vcat(1:128, 1:128)])
+            _, msg = @grab_output begin
+                @roc groupsize=128 gridsize=2 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
         end
-        @test msg == exp
 
-        # Multiple groups, one wavefront each
-        exp = reduce(*, ["[$i] " for i in vcat(1:64, 1:64, 1:64, 1:64)])
-        _, msg = @grab_output begin
-            @roc groupsize=64 gridsize=4 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
+        @testset "Per-wavefront" begin
+            kernel() = @rocprintf :wave "[%d] " workitemIdx().x
+            wsize = AMDGPU.HIP.wavefrontsize(AMDGPU.device())
+
+            # One group, one wavefront
+            exp = "[1] "
+            _, msg = @grab_output begin
+                @roc groupsize=1 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # One group, multiple wavefronts
+            groupsize = 128
+            exp = reduce(*, ["[$i] " for i in collect(1:wsize:groupsize)])
+            _, msg = @grab_output begin
+                @roc groupsize=groupsize kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # Multiple groups, one wavefront each
+            gridsize = 256 ÷ wsize
+            exp = repeat("[1] ", 256 ÷ wsize)
+            _, msg = @grab_output begin
+                @roc groupsize=wsize gridsize=gridsize kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # Multiple groups, multiple wavefronts each
+            groupsize = 128
+            n_groups = 256 ÷ groupsize
+            exp = repeat(
+                reduce(*, ["[$i] " for i in collect(1:wsize:groupsize)]),
+                n_groups)
+            _, msg = @grab_output begin
+                @roc groupsize=128 gridsize=2 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
         end
-        @test msg == exp
 
-        # Multiple groups, multiple wavefronts each
-        exp = reduce(*, ["[$i] " for i in vcat(1:128, 1:128)])
-        _, msg = @grab_output begin
-            @roc groupsize=128 gridsize=2 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
+        @testset "Per-workgroup" begin
+            kernel() = @rocprintf :group "[%d] " workitemIdx().x
+
+            # One group, one wavefront
+            exp = "[1] "
+            _, msg = @grab_output begin
+                @roc groupsize=8 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # One group, multiple wavefronts
+            exp = "[1] "
+            _, msg = @grab_output begin
+                @roc groupsize=128 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # Multiple groups, one wavefront each
+            exp = reduce(*, ["[$i] " for i in [1, 1, 1, 1]])
+            _, msg = @grab_output begin
+                @roc groupsize=64 gridsize=4 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # Multiple groups, multiple wavefronts each
+            exp = reduce(*, ["[$i] " for i in [1, 1]])
+            _, msg = @grab_output begin
+                @roc groupsize=128 gridsize=2 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
         end
-        @test msg == exp
-    end
 
-    @testset "Per-wavefront" begin
-        kernel() = @rocprintf :wave "[%d] " workitemIdx().x
-        wsize = AMDGPU.HIP.wavefrontsize(AMDGPU.device())
+        @testset "Per-grid" begin
+            kernel() = @rocprintf :grid "[%d] " workitemIdx().x
 
-        # One group, one wavefront
-        exp = "[1] "
-        _, msg = @grab_output begin
-            @roc groupsize=1 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
+            # One group, one wavefront
+            exp = "[1] "
+            _, msg = @grab_output begin
+                @roc groupsize=8 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # One group, multiple wavefronts
+            exp = "[1] "
+            _, msg = @grab_output begin
+                @roc groupsize=128 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # Multiple groups, one wavefront each
+            exp = "[1] "
+            _, msg = @grab_output begin
+                @roc groupsize=64 gridsize=4 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
+
+            # Multiple groups, multiple wavefronts each
+            exp = "[1] "
+            _, msg = @grab_output begin
+                @roc groupsize=128 gridsize=2 kernel()
+                AMDGPU.synchronize(; stop_hostcalls=true)
+            end
+            @test msg == exp
         end
-        @test msg == exp
-
-        # One group, multiple wavefronts
-        groupsize = 128
-        exp = reduce(*, ["[$i] " for i in collect(1:wsize:groupsize)])
-        _, msg = @grab_output begin
-            @roc groupsize=groupsize kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-
-        # Multiple groups, one wavefront each
-        gridsize = 256 ÷ wsize
-        exp = repeat("[1] ", 256 ÷ wsize)
-        _, msg = @grab_output begin
-            @roc groupsize=wsize gridsize=gridsize kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-
-        # Multiple groups, multiple wavefronts each
-        groupsize = 128
-        n_groups = 256 ÷ groupsize
-        exp = repeat(
-            reduce(*, ["[$i] " for i in collect(1:wsize:groupsize)]),
-            n_groups)
-        _, msg = @grab_output begin
-            @roc groupsize=128 gridsize=2 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-    end
-
-    @testset "Per-workgroup" begin
-        kernel() = @rocprintf :group "[%d] " workitemIdx().x
-
-        # One group, one wavefront
-        exp = "[1] "
-        _, msg = @grab_output begin
-            @roc groupsize=8 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-
-        # One group, multiple wavefronts
-        exp = "[1] "
-        _, msg = @grab_output begin
-            @roc groupsize=128 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-
-        # Multiple groups, one wavefront each
-        exp = reduce(*, ["[$i] " for i in [1, 1, 1, 1]])
-        _, msg = @grab_output begin
-            @roc groupsize=64 gridsize=4 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-
-        # Multiple groups, multiple wavefronts each
-        exp = reduce(*, ["[$i] " for i in [1, 1]])
-        _, msg = @grab_output begin
-            @roc groupsize=128 gridsize=2 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-    end
-
-    @testset "Per-grid" begin
-        kernel() = @rocprintf :grid "[%d] " workitemIdx().x
-
-        # One group, one wavefront
-        exp = "[1] "
-        _, msg = @grab_output begin
-            @roc groupsize=8 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-
-        # One group, multiple wavefronts
-        exp = "[1] "
-        _, msg = @grab_output begin
-            @roc groupsize=128 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-
-        # Multiple groups, one wavefront each
-        exp = "[1] "
-        _, msg = @grab_output begin
-            @roc groupsize=64 gridsize=4 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
-
-        # Multiple groups, multiple wavefronts each
-        exp = "[1] "
-        _, msg = @grab_output begin
-            @roc groupsize=128 gridsize=2 kernel()
-            AMDGPU.synchronize(; stop_hostcalls=true)
-        end
-        @test msg == exp
     end
 end

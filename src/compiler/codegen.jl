@@ -37,7 +37,7 @@ function GPUCompiler.link_libraries!(
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
 
-    # Detect global hostcalls here, before optimizations & cleanup occurrs.
+    # Detect global hostcalls here, before optimizations & cleanup occur.
     _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
 
     # Link only if there are undefined functions.

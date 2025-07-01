@@ -122,7 +122,6 @@ if "core" in TARGET_TESTS && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")
-
         include("device/output.jl")
     end
 end
