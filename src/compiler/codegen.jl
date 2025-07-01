@@ -39,7 +39,6 @@ function GPUCompiler.link_libraries!(
 
     # Detect global hostcalls here, before optimizations & cleanup occur.
     _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
-    @show LLVM.name.(collect(LLVM.globals(mod)))
 
     # Link only if there are undefined functions.
     # Everything else was loaded in `finish_module!` stage.
@@ -223,8 +222,6 @@ function hipcompile(@nospecialize(job::CompilerJob))
         Otherwise, performance might degrade if they keep running in the background.
         """
     end
-
-    @show LLVM.name.(collect(LLVM.globals(meta.ir)))
 
     entry = LLVM.name(meta.entry)
     extinit_globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
