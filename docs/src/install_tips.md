@@ -35,6 +35,10 @@ Depending on your GPU model and the functionality you want to use, you may have
 to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION`
 variable to a compatible version.
 
+You may also have more than one type of GPU, for example a dedicated AMD GPU and an integrated one.
+In that case use `rocminfo` to find which device they are and setting `HIP_VISIBLE_DEVICES` to the specific device you want to use.
+Otherwise the runtime may crash if it sees two different architectures.
+
 ## Extra Setup Details
 
 List of additional steps that may be needed to take to ensure everything is working:
