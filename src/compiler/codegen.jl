@@ -16,6 +16,8 @@ const _hip_compiler_cache = Dict{HIP.HIPDevice, Dict{Any, HIP.HIPFunction}}()
 
 # hash(fun, hash(f, hash(tt))) => HIPKernel
 const _kernel_instances = Dict{UInt, Runtime.HIPKernel}()
+# UInt (hash(job)) => Vector{Symbol} (global hostcall names)
+const _global_hostcalls = Dict{UInt, Vector{Symbol}}()
 
 function compiler_cache(dev::HIP.HIPDevice)
     get!(() -> Dict{UInt, Any}(), _hip_compiler_cache, dev)
@@ -34,6 +36,10 @@ function GPUCompiler.link_libraries!(
     invoke(GPUCompiler.link_libraries!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
         job, mod, undefined_fns)
+
+    # Detect global hostcalls here, before optimizations & cleanup occurrs.
+    _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
+
     # Link only if there are undefined functions.
     # Everything else was loaded in `finish_module!` stage.
     link_device_libs!(
@@ -189,21 +195,24 @@ function create_executable(obj)
     return bin
 end
 
+function find_global_hostcalls(mod::LLVM.Module)
+    global_hostcall_names = (
+        :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
+
+    global_hostcalls = Symbol[]
+    for gbl in LLVM.globals(mod), gbl_name in global_hostcall_names
+        occursin("__$gbl_name", LLVM.name(gbl)) || continue
+        push!(global_hostcalls, gbl_name)
+    end
+    return global_hostcalls
+end
+
 function hipcompile(@nospecialize(job::CompilerJob))
     obj, meta = JuliaContext() do ctx
         GPUCompiler.compile(:obj, job)
     end
 
-    entry = LLVM.name(meta.entry)
-    globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
-
-    global_hostcall_names = (
-        :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
-    global_hostcalls = Symbol[]
-    for gbl in LLVM.globals(meta.ir), gbl_name in global_hostcall_names
-        occursin("__$gbl_name", LLVM.name(gbl)) || continue
-        push!(global_hostcalls, gbl_name)
-    end
+    global_hostcalls = pop!(_global_hostcalls, hash(job))
     if !isempty(global_hostcalls)
         @info """Global hostcalls detected!
         - Source: $(job.source)
@@ -214,11 +223,13 @@ function hipcompile(@nospecialize(job::CompilerJob))
         """
     end
 
-    if !isempty(globals)
+    entry = LLVM.name(meta.entry)
+    extinit_globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+    if !isempty(extinit_globals)
         @warn """
         HIP backend does not support setting extinit globals.
         But kernel `$entry` has following:
-        $globals
+        $extinit_globals
 
         Compilation will likely fail.
         """
