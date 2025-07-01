@@ -1,6 +1,6 @@
 # use amdhip as query for a valid rocm_path
 function check_rocm_path(path::String)
-    libname = (Sys.islinux() ? "libamdhip64" : "amdhip64") * "."*dlext
+    libname = (Sys.islinux() ? "libamdhip64" : "amdhip64") * "." * dlext
     path2 = path
     isfile(joinpath(path2, libname)) && @goto success
     path2 = joinpath(path, "lib")
@@ -12,14 +12,10 @@ function check_rocm_path(path::String)
     return ""
     @label success
     @assert isdir(path2)
-    rel_libdir = relpath(path2, path)
     return path2
 end
 
-
-"""
-Find root ROCm directory.
-"""
+# Find root ROCm directory.
 function find_roc_path()::String
     env_dir = get(ENV, "ROCM_PATH", "")
     isdir(env_dir) && check_rocm_path(env_dir) != "" && return env_dir
@@ -52,7 +48,7 @@ function find_roc_path()::String
     return ""
 end
 
-# use
+# use hip.bc as query for a valid device libs dir
 function check_device_libs(path::String)
     if isdir(path)
         file_path = joinpath(path, "hip" * ".bc")
