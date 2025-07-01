@@ -111,12 +111,12 @@ AMDGPU.versioninfo()
 data = String["$np" "$(AMDGPU.device())" join(TARGET_TESTS, ", ");]
 PrettyTables.pretty_table(data; header=["Workers", "Device", "Tests"], crop=:none)
 
-# runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
-#     for tt in TARGET_TESTS
-#         startswith(ti.name, tt) && return true
-#     end
-#     return false
-# end
+runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
+    for tt in TARGET_TESTS
+        startswith(ti.name, tt) && return true
+    end
+    return false
+end
 
 if "core" in TARGET_TESTS && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
