@@ -131,14 +131,12 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
         args = []
         while true
             # Read argument type
-            T_ptr = Ptr{UInt64}(unsafe_load(ptr))
+            T_id = unsafe_load(ptr)::UInt64
             ptr += sizeof(UInt64)
-            if UInt64(T_ptr) == 0
-                # Terminator
-                break
-            end
-            T = unsafe_pointer_to_objref(T_ptr)
+            T_id == 0 && break # Terminator.
+
             # Read argument.
+            T = _printf_type_from_id(Val(T_id))
             arg = unsafe_load(reinterpret(Ptr{T}, ptr))
             push!(args, arg)
             ptr += sizeof(arg)
@@ -158,12 +156,19 @@ function _rocprintf_fmt(ptr::LLVMPtr{UInt64, AS.Global}, fmt_ptr, fmt_len::Int64
     return ptr
 end
 
-function _pointer_from_type(::Type{T}) where T
-    UInt64(pointer_from_objref(T))
+for (id, T) in enumerate((
+    Int16, Int32, Int64,
+    UInt16, UInt32, UInt64,
+    Float16, Float32, Float64,
+))
+    @eval @inline _printf_type_id(::Type{$T}) = Val{UInt64($id)}()
+    @eval @inline _printf_type_from_id(::Val{UInt64($id)}) = $T
 end
 
+@inline _from_val(::Val{V}) where V = V
+
 function _rocprintf_arg(ptr::LLVMPtr{UInt64, AS.Global}, arg::T) where T
-    unsafe_store!(ptr, _pointer_from_type(T))
+    unsafe_store!(ptr, _from_val(_printf_type_id(T)))
     ptr += sizeof(UInt64)
 
     unsafe_store!(reinterpret(LLVMPtr{T, AS.Global}, ptr), arg)
