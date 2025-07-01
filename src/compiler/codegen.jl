@@ -42,6 +42,8 @@ function GPUCompiler.link_libraries!(
         only_undefined=true)
 end
 
+const _global_hostcalls = IdDict{LLVM.Module, Vector{Symbol}}()
+
 function GPUCompiler.finish_module!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
@@ -95,6 +97,15 @@ function GPUCompiler.finish_module!(
                 push!(attrs, inline_attr)
         end
     end
+
+    global_hostcall_names = (
+        :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
+    global_hostcalls = Symbol[]
+    for gbl in LLVM.globals(mod), gbl_name in global_hostcall_names
+        occursin("__$gbl_name", LLVM.name(gbl)) || continue
+        push!(global_hostcalls, gbl_name)
+    end
+    _global_hostcalls[mod] = global_hostcalls
 
     return entry
 end
@@ -197,13 +208,7 @@ function hipcompile(@nospecialize(job::CompilerJob))
     entry = LLVM.name(meta.entry)
     globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
 
-    global_hostcall_names = (
-        :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
-    global_hostcalls = Symbol[]
-    for gbl in LLVM.globals(meta.ir), gbl_name in global_hostcall_names
-        occursin("__$gbl_name", LLVM.name(gbl)) || continue
-        push!(global_hostcalls, gbl_name)
-    end
+    global_hostcalls = _global_hostcalls[meta.ir]
     if !isempty(global_hostcalls)
         @info """Global hostcalls detected!
         - Source: $(job.source)
