@@ -44,18 +44,20 @@ function _hip_runtime_version()
     VersionNumber(major, minor, patch)
 end
 
+global rel_libdir::String = ""
+global libhsaruntime::String = ""
+global lld_path::String = ""
+global lld_artifact::Bool = false
+global libhip::String = ""
+global libdevice_libs::String = ""
+global librocblas::String = ""
+global librocsparse::String = ""
+global librocsolver::String = ""
+global librocrand::String = ""
+global librocfft::String = ""
+global libMIOpen_path::String = ""
+
 function __init__()
-    global libhsaruntime = ""
-    global lld_path = ""
-    global lld_artifact = ""
-    global libhip = ""
-    global libdevice_libs = ""
-    global librocblas = ""
-    global librocsparse = ""
-    global librocsolver = ""
-    global librocrand = ""
-    global librocfft = ""
-    global libMIOpen_path = ""
 
     if Sys.islinux() && isdir("/sys/class/kfd/kfd/topology/nodes/")
         for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
