@@ -17,18 +17,15 @@ To avoid this, use 'unsafe' conversion option:
 
 ## ROCm system libraries
 
-AMDGPU.jl looks into standard directories
-and uses `Libdl.find_library` to find ROCm libraries.
+On Linux, AMDGPU.jl queries the location of ROCm libraries through `rocminfo` by default.
+If not successful or on Windows, the following standard directories are searched:
 
-Standard path:
-- Linux: `/opt/rocm`
+Standard paths:
+- Linux: `/opt/rocm`, `/usr`
 - Windows: `C:/Program Files/AMD/ROCm/<rocm-version>`
 
 If you have non-standard path for ROCm, set `ROCM_PATH=<path>`
-environment variable before launching Julia. For example, if ROCm is installed
-in your Linux system root (e.g. on Fedora), set `ROCM_PATH=/usr/lib64/rocm/gfx11` or
-`ROCM_PATH=/usr/lib64/rocm/gfx1103`, depending on your GPU's architecture. You
-can query the architecture using the `amdgpu-arch` command. The `AMDGPU.versioninfo()`
+environment variable before launching Julia. The `AMDGPU.versioninfo()`
 function prints the paths of any libraries found.
 
 Depending on your GPU model and the functionality you want to use, you may have
