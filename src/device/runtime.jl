@@ -13,8 +13,7 @@ exception_flag() = kernel_state().exception_flag
 function err_buffer!()
     st = kernel_state()
     counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.buffers_counter)
-    idx, _ = UnsafeAtomics.atomic_pointermodify(
-        counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
+    idx, _ = UnsafeAtomics.modify!(counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
     idx += Int32(1)
     idx > st.n_buffers && return reinterpret(LLVMPtr{UInt64, AS.Global}, 0)
 
@@ -25,8 +24,7 @@ end
 function err_str_buffer!()
     st = kernel_state()
     counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.str_buffers_counter)
-    idx, _ = UnsafeAtomics.atomic_pointermodify(
-        counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
+    idx, _ = UnsafeAtomics.modify!(counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
     idx += Int32(1)
     idx > st.n_str_buffers && return reinterpret(LLVMPtr{UInt8, AS.Global}, 0)
 
@@ -131,36 +129,36 @@ function err_device_string_to_host(str::Ptr{Cchar})
 end
 
 function report_oom(sz::Csize_t)
-    # @errprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+    @errprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
     return
 end
 
 function report_exception(ex::Ptr{Cchar})
-    # ex_str = err_device_string_to_host(ex)
-    # @errprintf("""
-    #     ERROR: a %s was thrown during kernel execution.
-    #            Run Julia on debug level 2 for device stack traces.
-    #     """, ex_str)
+    ex_str = err_device_string_to_host(ex)
+    @errprintf("""
+        ERROR: a %s was thrown during kernel execution.
+               Run Julia on debug level 2 for device stack traces.
+        """, ex_str)
     return
 end
 
 function report_exception_name(ex::Ptr{Cchar})
-    # ex_str = err_device_string_to_host(ex)
-    # @errprintf("""
-    #     ERROR: a %s was thrown during kernel execution.
-    #     Stacktrace:
-    #     """, ex_str)
+    ex_str = err_device_string_to_host(ex)
+    @errprintf("""
+        ERROR: a %s was thrown during kernel execution.
+        Stacktrace:
+        """, ex_str)
     return
 end
 
 function report_exception_frame(
     idx::Cint, func::Ptr{Cchar}, file::Ptr{Cchar}, line::Cint,
 )
-    # func_str = err_device_string_to_host(func)
-    # file_str = err_device_string_to_host(file)
-    # @errprintf("""
-    #  [%i] %s
-    #    @ %s:%i
-    # """, idx, func_str, file_str, line)
+    func_str = err_device_string_to_host(func)
+    file_str = err_device_string_to_host(file)
+    @errprintf("""
+     [%i] %s
+       @ %s:%i
+    """, idx, func_str, file_str, line)
     return
 end

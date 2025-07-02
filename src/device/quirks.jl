@@ -4,7 +4,7 @@ macro print_and_throw(description)
     quote
         # FIXME
         # all functions that take part in exception reporting are not inlined
-        # @errprintf($description)
+        @errprintf($description)
         throw(nothing)
     end
 end

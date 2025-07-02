@@ -160,6 +160,7 @@ for (id, T) in enumerate((
     Int16, Int32, Int64,
     UInt16, UInt32, UInt64,
     Float16, Float32, Float64,
+    Cstring,
 ))
     @eval @inline _printf_type_id(::Type{$T}) = Val{UInt64($id)}()
     @eval @inline _printf_type_from_id(::Val{UInt64($id)}) = $T
@@ -329,8 +330,7 @@ macro rocprintf(args...)
     ex
 end
 
-@inline _to_linear(w, h, i, j, k) =
-    i + w * (j - 1 + ((k - 1) * h))
+@inline _to_linear(w, h, i, j, k) = i + w * (j - 1 + ((k - 1) * h))
 
 macro ⊡(exec_ex)
     @gensym x y z value
