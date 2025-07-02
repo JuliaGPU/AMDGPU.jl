@@ -32,7 +32,7 @@ end
 end
 
 @testset "Batchnorm" begin
-    include("activations.jl")
+    include("batchnorm.jl")
 end
 
 end
