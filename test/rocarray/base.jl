@@ -126,6 +126,18 @@ end
 
         # Can use in HIP libraries.
         @test Array(xd * xd) ≈ Array(x * x)
+
+        # symbols and tuples thereof
+        let a = ROCArray([:a])
+            b = unsafe_wrap(ROCArray, pointer(a), 1; lock=false)
+            @test typeof(b) <: ROCArray{Symbol,1}
+            @test size(b) == (1,)
+        end
+        let a = ROCArray([(:a,:b)])
+            b = unsafe_wrap(ROCArray, pointer(a), 1; lock=false)
+            @test typeof(b) <: ROCArray{Tuple{Symbol,Symbol},1}
+            @test size(b) == (1,)
+        end
     end
 
     @testset "Multiple wraps of the same array" begin
@@ -215,6 +227,20 @@ end
     dsource, dindices, dtarget = ROCArray.((source, indices, target))
     @roc groupsize=256 gridsize=4 ker_atomic_max!(dtarget, dsource, dindices)
     @test Array(dtarget) == target
+end
+
+@testset "symbols" begin
+    function pass_symbol(x, name)
+        i = name == :var ? 1 : 2
+        x[i] = true
+        return nothing
+    end
+    x = ROCArray([false, false])
+    @roc pass_symbol(x, :var)
+    @test Array(x) == [true, false]
+    @roc pass_symbol(x, :not_var)
+    @test Array(x) == [true, true]
+    end
 end
 
 include("sorting.jl")
