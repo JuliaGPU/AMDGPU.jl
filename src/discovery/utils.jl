@@ -18,7 +18,10 @@ end
 # Find root ROCm directory.
 function find_roc_path()::String
     env_dir = get(ENV, "ROCM_PATH", "")
-    isdir(env_dir) && check_rocm_path(env_dir) != "" && return check_rocm_path(env_dir)
+    if isdir(env_dir)
+    	rocm_path = check_rocm_path(env_dir)
+    	rocm_path != "" && return rocm_path
+    end
 
     if Sys.islinux()
         hipconfig = Sys.which("hipconfig")
