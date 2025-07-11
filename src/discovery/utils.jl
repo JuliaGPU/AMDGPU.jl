@@ -15,7 +15,7 @@ function check_rocm_path(path::String)
     return path2
 end
 
-# Find root ROCm directory.
+# Find libdir of ROCm directory.
 function find_roc_path()::String
     env_dir = get(ENV, "ROCM_PATH", "")
     if isdir(env_dir)
