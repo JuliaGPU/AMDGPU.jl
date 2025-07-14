@@ -98,7 +98,7 @@ function __init__()
         global librocrand = find_rocm_library(lib_prefix * "rocrand"; rocm_path)
         global librocfft = find_rocm_library(lib_prefix * "rocfft"; rocm_path)
         global libMIOpen_path = find_rocm_library(lib_prefix * "MIOpen"; rocm_path)
-        global librocprofiler_sdk_tool = find_rocm_library(lib_prefix * "rocprofiler-sdk-tool"; rocm_path)
+        global librocprofiler_sdk_tool = @show find_rocm_library(lib_prefix * "rocprofiler-sdk-tool"; rocm_path = "/home/simeon/Documents/rocm/TheRock/output-linux-portable/build/profiler/rocprofiler-sdk/build/lib/rocprofiler-sdk/")
     catch err
         @error """ROCm discovery failed!
         Discovered ROCm path: $rocm_path.

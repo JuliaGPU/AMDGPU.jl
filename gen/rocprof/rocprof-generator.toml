@@ -1,7 +1,37 @@
 [general]
-library_name = "librocprofiler-sdk-tool"
+library_name = "librocprofiler_sdk_tool"
 output_file_path = "./librocprof.jl"
 export_symbol_prefixes = []
+output_ignorelist = [
+    "ROCPROFILER_PUBLIC_API",
+    "ROCPROFILER_HIDDEN_API",
+    "ROCPROFILER_EXPORT_DECORATOR",
+    "ROCPROFILER_EXPORT",
+    "ROCPROFILER_IMPORT",
+    "ROCPROFILER_API",
+    "ROCPROFILER_SDK_DEPRECATED_WARNINGS",
+    "ROCPROFILER_SDK_EXPERIMENTAL_WARNINGS",
+    "ROCPROFILER_SDK_EXPERIMENTAL_MESSAGE",
+    "ROCPROFILER_CONTEXT_NONE",
+
+    "__HOST_DEVICE__",
+
+    "hipCpuDeviceId",
+    "hipInvalidDeviceId",
+
+    "HSA_API_EXPORT",
+    "HSA_API_IMPORT",
+    "HSA_API",
+
+    "ROCTX_PUBLIC_API",
+    "ROCTX_HIDDEN_API",
+    "ROCTX_EXPORT_DECORATOR",
+    "ROCTX_EXPORT",
+    "ROCTX_IMPORT",
+    "ROCTX_API",
+
+    "ompt_data_none",
+]
 
 [codegen]
 use_ccall_macro = true
