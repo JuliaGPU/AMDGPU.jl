@@ -5,8 +5,8 @@ struct ExceptionInfo
     status::Int32
     output_lock::Int32
 
-    thread::@NamedTuple{x::Int32, y::Int32, z::Int32}
-    block::@NamedTuple{x::Int32, y::Int32, z::Int32}
+    thread::@NamedTuple{x::UInt32, y::UInt32, z::UInt32}
+    block::@NamedTuple{x::UInt32, y::UInt32, z::UInt32}
 
     subtype::Ptr{UInt8}
     reason::Ptr{UInt8}
@@ -15,8 +15,8 @@ struct ExceptionInfo
 
     ExceptionInfo() = new(
         Int32(0), Int32(0),
-        (; x=Int32(0), y=Int32(0), z=Int32(0)),
-        (; x=Int32(0), y=Int32(0), z=Int32(0)),
+        (; x=UInt32(0), y=UInt32(0), z=UInt32(0)),
+        (; x=UInt32(0), y=UInt32(0), z=UInt32(0)),
         C_NULL, C_NULL, Csize_t(0), Csize_t(0))
 end
 
@@ -29,34 +29,36 @@ end
         reinterpret(LLVMPtr{Int32, AS.Generic}, ei + sizeof(Int32))
     elseif field == :thread
         offset = 2 * sizeof(Int32)
-        unsafe_load(convert(Ptr{@NamedTuple{x::Int32, y::Int32, z::Int32}}, ei + offset))
+        unsafe_load(convert(Ptr{@NamedTuple{x::UInt32, y::UInt32, z::UInt32}}, ei + offset))
     elseif field == :block
-        offset = 2 * sizeof(Int32) + sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32})
-        unsafe_load(convert(Ptr{@NamedTuple{x::Int32, y::Int32, z::Int32}}, ei + offset))
+        offset = 2 * sizeof(Int32) + sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32})
+        unsafe_load(convert(Ptr{@NamedTuple{x::UInt32, y::UInt32, z::UInt32}}, ei + offset))
     elseif field == :subtype
         offset =
             2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32})
+            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32})
         unsafe_load(convert(Ptr{Ptr{UInt8}}, ei + offset))
     elseif field == :reason
         offset =
             2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32}) +
+            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
             sizeof(Ptr{UInt8})
         unsafe_load(convert(Ptr{Ptr{UInt8}}, ei + offset))
     elseif field == :subtype_length
         offset =
             2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32}) +
+            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
             2 * sizeof(Ptr{UInt8})
-        unsafe_load(convert(Ptr{Int32}, ei + offset))
+        unsafe_load(convert(Ptr{Csize_t}, ei + offset))
     elseif field == :reason_length
         offset =
             2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32}) +
+            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
             2 * sizeof(Ptr{UInt8}) +
             sizeof(Csize_t)
-        unsafe_load(convert(Ptr{Int32}, ei + offset))
+        unsafe_load(convert(Ptr{Csize_t}, ei + offset))
+    else
+        getfield(ei, field)
     end
 end
 
@@ -67,34 +69,36 @@ end
         unsafe_store!(convert(Ptr{Int32}, ei + sizeof(Int32)), value)
     elseif field == :thread
         offset = 2 * sizeof(Int32)
-        unsafe_store!(convert(Ptr{@NamedTuple{x::Int32, y::Int32, z::Int32}}, ei + offset), value)
+        unsafe_store!(convert(Ptr{@NamedTuple{x::UInt32, y::UInt32, z::UInt32}}, ei + offset), value)
     elseif field == :block
-        offset = 2 * sizeof(Int32) + sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32})
-        unsafe_store!(convert(Ptr{@NamedTuple{x::Int32, y::Int32, z::Int32}}, ei + offset), value)
+        offset = 2 * sizeof(Int32) + sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32})
+        unsafe_store!(convert(Ptr{@NamedTuple{x::UInt32, y::UInt32, z::UInt32}}, ei + offset), value)
     elseif field == :subtype
         offset =
             2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32})
+            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32})
         unsafe_store!(convert(Ptr{Ptr{UInt8}}, ei + offset), value)
     elseif field == :reason
         offset =
             2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32}) +
+            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
             sizeof(Ptr{UInt8})
         unsafe_store!(convert(Ptr{Ptr{UInt8}}, ei + offset), value)
     elseif field == :subtype_length
         offset =
             2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32}) +
+            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
             2 * sizeof(Ptr{UInt8})
-        unsafe_store!(convert(Ptr{Int32}, ei + offset), value)
+        unsafe_store!(convert(Ptr{Csize_t}, ei + offset), value)
     elseif field == :reason_length
         offset =
             2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::Int32, y::Int32, z::Int32}) +
+            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
             2 * sizeof(Ptr{UInt8}) +
             sizeof(Csize_t)
-        unsafe_store!(convert(Ptr{Int32}, ei + offset), value)
+        unsafe_store!(convert(Ptr{Csize_t}, ei + offset), value)
+    else
+        setfield!(ei, field, value)
     end
 end
 
