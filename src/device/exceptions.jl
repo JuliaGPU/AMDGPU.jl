@@ -140,7 +140,6 @@ macro gpu_throw(subtype, reason)
             ei.reason = reinterpret(Ptr{UInt8}, reason_ptr)
             ei.reason_length = string_length(reason_ptr)
         end
-
         throw(nothing)
     end
 end

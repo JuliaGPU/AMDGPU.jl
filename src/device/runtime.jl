@@ -1,5 +1,4 @@
 using Core: LLVMPtr
-# ROCm-specific runtime libraries
 
 ## GPU runtime library
 
@@ -8,31 +7,31 @@ GPUCompiler.reset_runtime()
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
 
-exception_flag() = kernel_state().exception_flag
+# exception_flag() = kernel_state().exception_flag
 
-function err_buffer!()
-    st = kernel_state()
-    counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.buffers_counter)
-    idx, _ = UnsafeAtomics.atomic_pointermodify(
-        counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
-    idx += Int32(1)
-    idx > st.n_buffers && return reinterpret(LLVMPtr{UInt64, AS.Global}, 0)
+# function err_buffer!()
+#     st = kernel_state()
+#     counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.buffers_counter)
+#     idx, _ = UnsafeAtomics.atomic_pointermodify(
+#         counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
+#     idx += Int32(1)
+#     idx > st.n_buffers && return reinterpret(LLVMPtr{UInt64, AS.Global}, 0)
 
-    buf = unsafe_load(st.buffers, idx)
-    reinterpret(LLVMPtr{UInt64, AS.Global}, buf)
-end
+#     buf = unsafe_load(st.buffers, idx)
+#     reinterpret(LLVMPtr{UInt64, AS.Global}, buf)
+# end
 
-function err_str_buffer!()
-    st = kernel_state()
-    counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.str_buffers_counter)
-    idx, _ = UnsafeAtomics.atomic_pointermodify(
-        counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
-    idx += Int32(1)
-    idx > st.n_str_buffers && return reinterpret(LLVMPtr{UInt8, AS.Global}, 0)
+# function err_str_buffer!()
+#     st = kernel_state()
+#     counter_ptr = reinterpret(LLVMPtr{Int32, AS.Global}, st.str_buffers_counter)
+#     idx, _ = UnsafeAtomics.atomic_pointermodify(
+#         counter_ptr, +, Int32(1), UnsafeAtomics.acquire_release)
+#     idx += Int32(1)
+#     idx > st.n_str_buffers && return reinterpret(LLVMPtr{UInt8, AS.Global}, 0)
 
-    buf = unsafe_load(kernel_state().string_buffers, idx)
-    reinterpret(LLVMPtr{UInt8, AS.Global}, buf)
-end
+#     buf = unsafe_load(kernel_state().string_buffers, idx)
+#     reinterpret(LLVMPtr{UInt8, AS.Global}, buf)
+# end
 
 @generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
     @dispose ctx=Context() begin
@@ -61,11 +60,11 @@ end
     end
 end
 
-function gate!(value::UInt64)::Bool
-    gate_ptr = reinterpret(LLVMPtr{UInt64, AS.Global}, kernel_state().gate)
-    old_value = llvm_atomic_cas(gate_ptr, UInt64(0), value)
-    ifelse(iszero(old_value), true, value == old_value)
-end
+# function gate!(value::UInt64)::Bool
+#     gate_ptr = reinterpret(LLVMPtr{UInt64, AS.Global}, kernel_state().gate)
+#     old_value = llvm_atomic_cas(gate_ptr, UInt64(0), value)
+#     ifelse(iszero(old_value), true, value == old_value)
+# end
 
 function output_context()
     ptr = convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
@@ -111,36 +110,26 @@ end
 
 function signal_exception()
     ei = kernel_state().exception_info
+    # Lock in case it was not locked before, to get workitem and workgroup info.
+    lock_output!(ei)
     ei.status = Int32(1)
-
-    # if lock_output!(ei)
-    #     subtype_ptr = @strptr("subtype")
-    #     ei.subtype = reinterpret(Ptr{UInt8}, subtype_ptr)
-    #     ei.subtype_length = string_length(subtype_ptr)
-
-    #     reason_ptr = @strptr("reason")
-    #     ei.reason = reinterpret(Ptr{UInt8}, reason_ptr)
-    #     ei.reason_length = string_length(reason_ptr)
-    # end
-
-    # Without endpgm we'll get hardware exception.
-    endpgm()
+    endpgm() # Without endpgm we'll get hardware exception.
     return
 end
 
-function err_device_string_to_host(str::Ptr{Cchar})
-    host_str = reinterpret(LLVMPtr{UInt8, AS.Global}, C_NULL)
-    @⊡ host_str = err_str_buffer!()
-    reinterpret(UInt64, host_str) == 0 && return reinterpret(Cstring, 0)
+# function err_device_string_to_host(str::Ptr{Cchar})
+#     host_str = reinterpret(LLVMPtr{UInt8, AS.Global}, C_NULL)
+#     @⊡ host_str = err_str_buffer!()
+#     reinterpret(UInt64, host_str) == 0 && return reinterpret(Cstring, 0)
 
-    str_ptr = reinterpret(LLVMPtr{UInt8, AS.Global}, str)
-    str_len = string_length(str_ptr)
+#     str_ptr = reinterpret(LLVMPtr{UInt8, AS.Global}, str)
+#     str_len = string_length(str_ptr)
 
-    # Copy `ex` to allocated memory & null termination.
-    memcpy!(host_str, str_ptr, str_len)
-    unsafe_store!(host_str + str_len, UInt8(0))
-    return reinterpret(Cstring, host_str)
-end
+#     # Copy `ex` to allocated memory & null termination.
+#     memcpy!(host_str, str_ptr, str_len)
+#     unsafe_store!(host_str + str_len, UInt8(0))
+#     return reinterpret(Cstring, host_str)
+# end
 
 function report_oom(sz::Csize_t)
     # @errprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)

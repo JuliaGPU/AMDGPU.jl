@@ -32,8 +32,8 @@ end
     @gpu_throw "InexactError" "Inexact conversion"
 
 # abstractarray.jl
-@noinline _throw_boundserror() = @gpu_throw "BoundsError" "Out-of-bounds array access"
-@device_override @inline Base.throw_boundserror(A, I) = _throw_boundserror()
+@device_override Base.throw_boundserror(A, I) =
+    @gpu_throw "BoundsError" "Out-of-bounds array access"
 
 # trig.jl
 @device_override Base.Math.sincos_domain_error(x) =
