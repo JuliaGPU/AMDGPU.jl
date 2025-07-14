@@ -110,7 +110,19 @@ function free_hc()
 end
 
 function signal_exception()
-    unsafe_store!(exception_flag(), Int32(1))
+    ei = kernel_state().exception_info
+    ei.status = Int32(1)
+
+    # if lock_output!(ei)
+    #     subtype_ptr = @strptr("subtype")
+    #     ei.subtype = reinterpret(Ptr{UInt8}, subtype_ptr)
+    #     ei.subtype_length = string_length(subtype_ptr)
+
+    #     reason_ptr = @strptr("reason")
+    #     ei.reason = reinterpret(Ptr{UInt8}, reason_ptr)
+    #     ei.reason_length = string_length(reason_ptr)
+    # end
+
     # Without endpgm we'll get hardware exception.
     endpgm()
     return

@@ -40,27 +40,6 @@ struct LockedObject{T}
 end
 LockedObject(payload) = LockedObject(ReentrantLock(), payload)
 
-# TODO simplify
-struct KernelState
-    # Exception reporting buffers.
-    exception_flag::Ptr{Int32}
-    gate::Ptr{UInt64}
-    buffers_counter::Ptr{Int32}
-    str_buffers_counter::Ptr{Int32}
-    buffers::Ptr{Ptr{Cvoid}}
-    string_buffers::Ptr{Ptr{Cvoid}}
-    n_buffers::Int32
-    n_str_buffers::Int32
-
-    # Malloc/free hostcalls.
-    malloc_hc::Ptr{Cvoid}
-    free_hc::Ptr{Cvoid}
-
-    # Print hostcalls.
-    output_context::Ptr{Cvoid}
-    printf_output_context::Ptr{Cvoid}
-end
-
 # Load binary dependencies.
 include("discovery/discovery.jl")
 using .ROCmDiscovery
@@ -104,6 +83,14 @@ export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
 export @rocprint, @rocprintln, @rocprintf
 export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
+
+struct KernelState
+    exception_info::Ptr{Device.ExceptionInfo}
+    malloc_hc::Ptr{Cvoid}
+    free_hc::Ptr{Cvoid}
+    output_context::Ptr{Cvoid}
+    printf_output_context::Ptr{Cvoid}
+end
 
 include("compiler/Compiler.jl")
 import .Compiler

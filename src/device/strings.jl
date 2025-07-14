@@ -1,5 +1,24 @@
 ## Device-side string utilities
 
+@inline @generated function alloc_string(::Val{sym}) where sym
+    str = String(sym)
+
+    @dispose ctx=Context() begin
+        T_pint8 = LLVM.PointerType(LLVM.Int8Type(), AS.Global)
+        llvm_f, _ = create_function(T_pint8)
+
+        @dispose builder=IRBuilder() begin
+            entry = BasicBlock(llvm_f, "entry")
+            position!(builder, entry)
+
+            str_ptr = globalstring_ptr!(builder, str)
+            ptr = addrspacecast!(builder, str_ptr, T_pint8)
+            ret!(builder, ptr)
+        end
+        call_function(llvm_f, LLVMPtr{UInt8, AS.Global})
+    end
+end
+
 @generated function string_length(ex::Union{Ptr,LLVMPtr})
     @dispose ctx=Context() begin
         T_ex = convert(LLVMType, ex)
@@ -43,4 +62,9 @@
         end
         call_function(llvm_f, Csize_t, Tuple{ex}, :ex)
     end
+end
+
+macro strptr(str::String)
+    sym = Val(Symbol(str))
+    return :(alloc_string($sym))
 end

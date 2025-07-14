@@ -65,24 +65,48 @@ end
 # hash(dev::HIPDevice) => ExceptionHolder
 const GLOBAL_EXCEPTION_HOLDER = Dict{UInt, ExceptionHolder}()
 
-function exception_holder(dev::HIPDevice)
-    # TODO lock using RT_LOCK
-    get!(() -> ExceptionHolder(), GLOBAL_EXCEPTION_HOLDER, hash(dev))
+const GLOBAL_EXCEPTION_INFO = Dict{UInt, Mem.HostBuffer}()
+
+# TODO RT_LOCK?
+function exception_info(dev::HIPDevice)
+    get!(
+        () -> Device.alloc_exception_info(),
+        GLOBAL_EXCEPTION_INFO, hash(dev))
 end
 
 function has_exception(dev::HIPDevice)::Bool
-    ex = exception_holder(dev)
-    ptr = convert(Ptr{Int}, ex.exception_flag)
-    unsafe_load(ptr) != 0
+    ei = exception_info(dev)
+    # sptr = convert(Ptr{Device.ExceptionInfo}, Mem.device_ptr(ei)).reason
+    # @show unsafe_string(reinterpret(Cstring, sptr))
+    return convert(Ptr{Device.ExceptionInfo}, Mem.device_ptr(ei)).status != 0
 end
 
 function reset_exception_holder!(dev::HIPDevice)
-    ex = exception_holder(dev)
-    ptr = convert(Ptr{Int}, ex.exception_flag)
-    unsafe_store!(ptr, 0)
+    ei = exception_info(dev)
+    new_ei = Device.ExceptionInfo()
+    unsafe_store!(convert(Ptr{Device.ExceptionInfo}, Mem.device_ptr(ei)), new_ei)
+    return
+end
 
-    fill!(ex.buffers_counter, 0)
-    fill!(ex.str_buffers_counter, 0)
+function device_str_to_host(str_ptr, str_length)
+    str_length == 0 && return ""
+
+    buf = Vector{UInt8}(undef, str_length)
+    HSA.memory_copy(
+        convert(Ptr{Cvoid}, pointer(buf)),
+        convert(Ptr{Cvoid}, str_ptr), str_length) |> Runtime.check
+    return String(buf)
+end
+
+function get_exception_info_string(dev::HIPDevice)
+    ei = exception_info(dev)
+    ei_ptr = convert(Ptr{Device.ExceptionInfo}, Mem.device_ptr(ei))
+    @show ei_ptr.output_lock
+
+    subtype = device_str_to_host(ei_ptr.subtype, ei_ptr.subtype_length)
+    reason = device_str_to_host(ei_ptr.reason, ei_ptr.reason_length)
+    @show subtype
+    @show reason
     return
 end
 
@@ -117,11 +141,13 @@ end
 
 function throw_if_exception(dev::HIPDevice)
     has_exception(dev) || return
+    get_exception_info_string(dev)
+    error("GPU Kernel Exception")
 
-    exception_str = get_exception_string(dev)
-    exception_str = isempty(exception_str) ? "" : "\n$exception_str"
-    reset_exception_holder!(dev)
-    error("GPU Kernel Exception$exception_str")
+    # exception_str = get_exception_string(dev)
+    # exception_str = isempty(exception_str) ? "" : "\n$exception_str"
+    # reset_exception_holder!(dev)
+    # error("GPU Kernel Exception$exception_str")
 end
 
 function KernelState(dev::HIPDevice, global_hostcalls::Vector{Symbol})
@@ -138,24 +164,11 @@ function KernelState(dev::HIPDevice, global_hostcalls::Vector{Symbol})
         Compiler.create_printf_output_context!() :
         C_NULL
 
-    ex = exception_holder(dev)
+    ei = exception_info(dev)
     KernelState(
-        # Exception reporting buffers.
-        Mem.device_ptr(ex.exception_flag),
-        pointer(ex.gate),
-        pointer(ex.buffers_counter),
-        pointer(ex.str_buffers_counter),
-
-        pointer(ex.errprintf_buffers_dev),
-        pointer(ex.string_buffers_dev),
-        Int32(length(ex.errprintf_buffers_dev)),
-        Int32(length(ex.string_buffers_dev)),
-
-        # Malloc/free hostcall pointer.
+        Mem.device_ptr(ei),
         malloc_ptr,
         free_ptr,
-
-        # Print hostcalls.
         print_ptr,
         printf_ptr,
     )
