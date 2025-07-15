@@ -159,11 +159,11 @@ Example below shifts all values in the wavefront by 1 to the "left".
 
 ```jldoctest
 julia> function ker!(x)
-           i::Cint = AMDGPU.Device.activelane()
+           i::Cint = unsafe_trunc(Cint, AMDGPU.Device.activelane())
            # `addr` points to the next immediate lane.
-           addr = ((i + 1) % 8) * 4 # VGPRs are 4 bytes wide
+           addr::Cint = ((i + 0x1) % 0x8) * 0x4 # VGPRs are 4 bytes wide
            # Read data from the next immediate lane.
-           x[i + 1] = AMDGPU.Device.bpermute(addr, i)
+           x[i + 0x1] = AMDGPU.Device.bpermute(addr, i)
            return
        end
 ker! (generic function with 1 method)
@@ -266,7 +266,7 @@ function shfl_xor(val::Cint, lane_mask::Cint, width::Cuint = wavefrontsize())
 end
 
 """
-    shfl(val, lane, width = wavefrontsize())
+    shfl(val, lane::Cint, width::Cuint = wavefrontsize())
 
 Read data stored in `val` from a `lane`
 (this is a more high-level op than [`bpermute`](@ref)).
@@ -276,8 +276,8 @@ to the value held by the `lane modulo width` (within the same subsection).
 
 ```jldoctest
 julia> function ker!(x)
-           i::UInt32 = AMDGPU.Device.activelane()
-           x[i + 1] = AMDGPU.Device.shfl(i, i + 1)
+           i::Cint = unsafe_trunc(Cint, AMDGPU.Device.activelane())
+           x[i + 0x1] = AMDGPU.Device.shfl(i, i + 0x1)
            return
        end
 ker! (generic function with 1 method)
@@ -296,8 +296,9 @@ behaves as a separate entity with a starting logical lane ID of 0.
 
 ```jldoctest
 julia> function ker!(x)
-           i::UInt32 = AMDGPU.Device.activelane()
-           x[i + 1] = AMDGPU.Device.shfl(i, i + 1, 4) # <-- Notice width = 4.
+           i::Cint = unsafe_trunc(Cint, AMDGPU.Device.activelane())
+           ws::Cuint = 0x4 # <-- Notice width = 4.
+           x[i + 0x1] = AMDGPU.Device.shfl(i, i + 0x1, ws)
            return
        end
 ker! (generic function with 1 method)
@@ -314,7 +315,7 @@ julia> Int.(x)
 shfl(val, lane::Cint, width::Cuint = wavefrontsize()) = _shfl(x -> shfl(x, lane, width), val)
 
 """
-    shfl_up(val, δ, width = wavefrontsize())
+    shfl_up(val, δ::Cint, width::Cuint = wavefrontsize())
 
 Same as [`shfl`](@ref), but instead of specifying lane ID,
 accepts `δ` that is subtracted from the current lane ID.
@@ -322,8 +323,8 @@ I.e. read from a lane with lower ID relative to the caller.
 
 ```jldoctest
 julia> function ker!(x)
-           i = AMDGPU.Device.activelane()
-           x[i + 1] = AMDGPU.Device.shfl_up(i, 1)
+           i::Cint = unsafe_trunc(Cint, AMDGPU.Device.activelane())
+           x[i + 0x1] = AMDGPU.Device.shfl_up(i, Cint(0x1))
            return
        end
 ker! (generic function with 1 method)
@@ -348,8 +349,9 @@ I.e. read from a lane with higher ID relative to the caller.
 
 ```jldoctest
 julia> function ker!(x)
-           i = AMDGPU.Device.activelane()
-           x[i + 1] = AMDGPU.Device.shfl_down(i, 1, 8)
+           i::Cint = unsafe_trunc(Cint, AMDGPU.Device.activelane())
+           ws::Cuint = Cuint(0x8)
+           x[i + 0x1] = AMDGPU.Device.shfl_down(i, Cint(0x1), ws)
            return
        end
 ker! (generic function with 1 method)
@@ -367,15 +369,15 @@ shfl_down(val, δ::Cint, width::Cuint = wavefrontsize()) =
     _shfl(x -> shfl_down(x, δ, width), val)
 
 """
-    shfl_xor(val, lane_mask, width = wavefrontsize())
+    shfl_xor(val, lane_mask::Cint, width::Cuint = wavefrontsize())
 
 Same as [`shfl`](@ref), but instead of specifying lane ID,
 performs bitwise XOR of the caller's lane ID with the `lane_mask`.
 
 ```jldoctest
 julia> function ker!(x)
-           i = AMDGPU.Device.activelane()
-           x[i + 1] = AMDGPU.Device.shfl_xor(i, 1)
+           i::Cint = unsafe_trunc(Cint, AMDGPU.Device.activelane())
+           x[i + 0x1] = AMDGPU.Device.shfl_xor(i, Cint(0x1))
            return
        end
 ker! (generic function with 1 method)

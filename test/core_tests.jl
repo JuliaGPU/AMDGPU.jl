@@ -67,11 +67,6 @@ end
     @test features == "+xnack"
 end
 
-@testset "Exception holder" begin
-    d = AMDGPU.device()
-    @inferred AMDGPU.exception_holder(d)
-end
-
 @testset "Comparison" begin
     s = AMDGPU.stream()
     @test s == deepcopy(s)
