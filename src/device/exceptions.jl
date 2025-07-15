@@ -81,14 +81,15 @@ function alloc_exception_info()
 end
 
 @inline function lock_output!(ei::Ptr{ExceptionInfo})
-    if llvm_atomic_cas(ei.output_lock_ptr, zero(Int32), one(Int32)) == zero(Int32)
+    # if llvm_atomic_cas(ei.output_lock_ptr, zero(Int32), one(Int32)) == zero(Int32)
+    if llvm_atomic_cas(ei.output_lock_ptr, Int32(0x0), Int32(0x1)) == Int32(0x0)
         # Take the lock & write thread info.
         ei.thread = workitemIdx()
         ei.block = workgroupIdx()
         sync_workgroup()
         return true
     elseif (
-        ei.output_lock == one(Int32) &&
+        ei.output_lock == Int32(0x1) &&
         ei.thread == workitemIdx() &&
         ei.block == workgroupIdx()
     )
@@ -104,9 +105,9 @@ macro gpu_throw(reason)
     quote
         ei = kernel_state().exception_info
         if lock_output!(ei)
-            reason_ptr = @strptr $reason
+            reason_ptr, reason_length = @strptr $reason
             ei.reason = reason_ptr
-            ei.reason_length = string_length(reason_ptr)
+            ei.reason_length = reason_length
         end
         throw(nothing)
     end

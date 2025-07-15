@@ -63,7 +63,9 @@ end
     end
 end
 
+strlen(::Val{S}) where S = length(String(S))
+
 macro strptr(str::String)
     sym = Val(Symbol(str))
-    return :(alloc_string($sym))
+    return :(alloc_string($sym), strlen($sym))
 end
