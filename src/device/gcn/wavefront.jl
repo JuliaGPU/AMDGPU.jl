@@ -177,7 +177,7 @@ julia> x
  1  2  3  4  5  6  7  0
 ```
 """
-bpermute(addr::Integer, val::Cint)::Cint = ccall(
+bpermute(addr::Cint, val::Cint)::Cint = ccall(
     "llvm.amdgcn.ds.bpermute", llvmcall, Cint, (Cint, Cint), addr, val)
 
 """
@@ -233,31 +233,35 @@ _shfl(op, x::Float64) = reinterpret(Float64, _shfl(op, reinterpret(UInt64, x)))
 _shfl(op, x::Bool) = op(Cint(x)) % Bool
 _shfl(op, x::Complex) = Complex(_shfl(op, real(x)), _shfl(op, imag(x)))
 
-function shfl(val::Cint, lane, width = wavefrontsize())
-    self::Cint = activelane()
-    index::Cint = (lane & (width - 0x1)) + (self & ~(width - 0x1))
+function shfl(val::Cint, lane::Cint, width::Cuint = wavefrontsize())
+    ws::Cint = unsafe_trunc(Cint, width)
+    self::Cint = unsafe_trunc(Cint, activelane())
+    index::Cint = (lane & (ws - 0x1)) + (self & ~(ws - 0x1))
     bpermute(index << 0x2, val)
 end
 
-function shfl_up(val::Cint, δ, width = wavefrontsize())
-    self::Cint = activelane()
-    index::Cint = self - Cint(δ)
+function shfl_up(val::Cint, δ::Cint, width::Cuint = wavefrontsize())
+    ws::Cint = unsafe_trunc(Cint, width)
+    self::Cint = unsafe_trunc(Cint, activelane())
+    index::Cint = self - δ
     # Check if `index` is lower than `self` partitioned by `width`.
-    index = ifelse(index < (self & ~(width - 0x1)), self, index)
+    index = ifelse(index < (self & ~(ws - 0x1)), self, index)
     bpermute(index << 0x2, val)
 end
 
-function shfl_down(val::Cint, δ, width = wavefrontsize())
-    self::Cint = activelane()
-    index::Cint = self + Cint(δ)
-    index = ifelse((self & (width - 0x1)) + δ ≥ width, self, index)
+function shfl_down(val::Cint, δ::Cint, width::Cuint = wavefrontsize())
+    ws::Cint = unsafe_trunc(Cint, width)
+    self::Cint = unsafe_trunc(Cint, activelane())
+    index::Cint = self + δ
+    index = ifelse((self & (ws - 0x1)) + δ ≥ ws, self, index)
     bpermute(index << 0x2, val)
 end
 
-function shfl_xor(val::Cint, lane_mask, width = wavefrontsize())
-    self::Cint = activelane()
-    index::Cint = self ⊻ Cint(lane_mask)
-    index = ifelse(index ≥ (self + width) & ~(width - 0x1), self, index)
+function shfl_xor(val::Cint, lane_mask::Cint, width::Cuint = wavefrontsize())
+    ws::Cint = unsafe_trunc(Cint, width)
+    self::Cint = unsafe_trunc(Cint, activelane())
+    index::Cint = self ⊻ lane_mask
+    index = ifelse(index ≥ (self + ws) & ~(ws - 0x1), self, index)
     bpermute(index << 0x2, val)
 end
 
@@ -307,7 +311,7 @@ julia> Int.(x)
  1  2  3  0  5  6  7  4
 ```
 """
-shfl(val, lane, width = wavefrontsize()) = _shfl(x -> shfl(x, lane, width), val)
+shfl(val, lane::Cint, width::Cuint = wavefrontsize()) = _shfl(x -> shfl(x, lane, width), val)
 
 """
     shfl_up(val, δ, width = wavefrontsize())
@@ -333,7 +337,7 @@ julia> x
  0  0  1  2  3  4  5  6
 ```
 """
-shfl_up(val, δ, width = wavefrontsize()) = _shfl(x -> shfl_up(x, δ, width), val)
+shfl_up(val, δ::Cint, width::Cuint = wavefrontsize()) = _shfl(x -> shfl_up(x, δ, width), val)
 
 """
     shfl_down(val, δ, width = wavefrontsize())
@@ -359,7 +363,7 @@ julia> x
  1  2  3  4  5  6  7  7
 ```
 """
-shfl_down(val, δ, width = wavefrontsize()) =
+shfl_down(val, δ::Cint, width::Cuint = wavefrontsize()) =
     _shfl(x -> shfl_down(x, δ, width), val)
 
 """
@@ -385,7 +389,7 @@ julia> x
  1  0  3  2  5  4  7  6
 ```
 """
-shfl_xor(val, lane_mask, width = wavefrontsize()) =
+shfl_xor(val, lane_mask::Cint, width::Cuint = wavefrontsize()) =
     _shfl(x -> shfl_xor(x, lane_mask, width), val)
 
 readfirstlane(val::Cint)::Cint = ccall(

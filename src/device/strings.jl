@@ -2,7 +2,6 @@
 
 @inline @generated function alloc_string(::Val{sym}) where sym
     str = String(sym)
-
     @dispose ctx=Context() begin
         T_pint8 = LLVM.PointerType(LLVM.Int8Type(), AS.Global)
         llvm_f, _ = create_function(T_pint8)
@@ -60,7 +59,7 @@ end
             position!(builder, done)
             ret!(builder, offset)
         end
-        call_function(llvm_f, Csize_t, Tuple{ex}, :ex)
+        call_function(llvm_f, Int64, Tuple{ex}, :ex)
     end
 end
 

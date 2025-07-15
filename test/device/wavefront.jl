@@ -1,25 +1,25 @@
 @testset "Wavefront Shuffle" begin
-    ws = AMDGPU.HIP.wavefrontsize(AMDGPU.device())
+    ws::Cuint = AMDGPU.HIP.wavefrontsize(AMDGPU.device())
 
     # Shift values between lanes by 1 to the left in a wavefront.
-    function ker_shfl!(x, ::Type{T}, ws) where T
-        i = AMDGPU.Device.activelane()
-        x[i + 1] = AMDGPU.Device.shfl(T(i), i + 1, ws)
+    function ker_shfl!(x, ::Type{T}, ws::Cuint) where T
+        i = unsafe_trunc(Cint, AMDGPU.Device.activelane())
+        x[i + 0x1] = AMDGPU.Device.shfl(T(i), i + 0x1, ws)
         return
     end
 
     # Same as above, but fill both high and low bits.
-    function ker_shfl_composed!(x, ::Type{T}, ws) where T
-        i = AMDGPU.Device.activelane()
+    function ker_shfl_composed!(x, ::Type{T}, ws::Cuint) where T
+        i = unsafe_trunc(Cint, AMDGPU.Device.activelane())
         v = T(i) << (sizeof(T) * 4) | T(i)
-        x[i + 1] = AMDGPU.Device.shfl(v, i + 1, ws)
+        x[i + 0x1] = AMDGPU.Device.shfl(v, i + 0x1, ws)
         return
     end
 
     # Same as the first kernel, but instead test for even lane id.
-    function ker_shfl_bool!(x, ws)
-        i = AMDGPU.Device.activelane()
-        x[i + 1] = AMDGPU.Device.shfl(i % 2 == 0, i + 1, ws)
+    function ker_shfl_bool!(x, ws::Cuint)
+        i = unsafe_trunc(Cint, AMDGPU.Device.activelane())
+        x[i + 0x1] = AMDGPU.Device.shfl(i % 2 == 0, i + 0x1, ws)
         return
     end
 
