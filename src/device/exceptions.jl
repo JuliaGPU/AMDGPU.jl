@@ -8,17 +8,14 @@ struct ExceptionInfo
     thread::@NamedTuple{x::UInt32, y::UInt32, z::UInt32}
     block::@NamedTuple{x::UInt32, y::UInt32, z::UInt32}
 
-    subtype::LLVMPtr{UInt8, AS.Global}
     reason::LLVMPtr{UInt8, AS.Global}
-    subtype_length::Int64
     reason_length::Int64
 
     ExceptionInfo() = new(
         Int32(0), Int32(0),
         (; x=UInt32(0), y=UInt32(0), z=UInt32(0)),
         (; x=UInt32(0), y=UInt32(0), z=UInt32(0)),
-        LLVMPtr{UInt8, AS.Global}(),
-        LLVMPtr{UInt8, AS.Global}(), 0, 0)
+        LLVMPtr{UInt8, AS.Global}(), 0)
 end
 
 @inline function Base.getproperty(ei::Ptr{ExceptionInfo}, field::Symbol)
@@ -34,29 +31,16 @@ end
     elseif field == :block
         offset = 2 * sizeof(Int32) + sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32})
         unsafe_load(convert(Ptr{@NamedTuple{x::UInt32, y::UInt32, z::UInt32}}, ei + offset))
-    elseif field == :subtype
+    elseif field == :reason
         offset =
             2 * sizeof(Int32) +
             2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32})
         unsafe_load(convert(Ptr{LLVMPtr{UInt8, AS.Global}}, ei + offset))
-    elseif field == :reason
-        offset =
-            2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
-            sizeof(LLVMPtr{UInt8, AS.Global})
-        unsafe_load(convert(Ptr{LLVMPtr{UInt8, AS.Global}}, ei + offset))
-    elseif field == :subtype_length
-        offset =
-            2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
-            2 * sizeof(LLVMPtr{UInt8, AS.Global})
-        unsafe_load(convert(Ptr{Int64}, ei + offset))
     elseif field == :reason_length
         offset =
             2 * sizeof(Int32) +
             2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
-            2 * sizeof(LLVMPtr{UInt8, AS.Global}) +
-            sizeof(Int64)
+            sizeof(LLVMPtr{UInt8, AS.Global})
         unsafe_load(convert(Ptr{Int64}, ei + offset))
     else
         getfield(ei, field)
@@ -74,29 +58,16 @@ end
     elseif field == :block
         offset = 2 * sizeof(Int32) + sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32})
         unsafe_store!(convert(Ptr{@NamedTuple{x::UInt32, y::UInt32, z::UInt32}}, ei + offset), value)
-    elseif field == :subtype
+    elseif field == :reason
         offset =
             2 * sizeof(Int32) +
             2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32})
         unsafe_store!(convert(Ptr{LLVMPtr{UInt8, AS.Global}}, ei + offset), value)
-    elseif field == :reason
-        offset =
-            2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
-            sizeof(LLVMPtr{UInt8, AS.Global})
-        unsafe_store!(convert(Ptr{LLVMPtr{UInt8, AS.Global}}, ei + offset), value)
-    elseif field == :subtype_length
-        offset =
-            2 * sizeof(Int32) +
-            2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
-            2 * sizeof(LLVMPtr{UInt8, AS.Global})
-        unsafe_store!(convert(Ptr{Int64}, ei + offset), value)
     elseif field == :reason_length
         offset =
             2 * sizeof(Int32) +
             2 * sizeof(@NamedTuple{x::UInt32, y::UInt32, z::UInt32}) +
-            2 * sizeof(LLVMPtr{UInt8, AS.Global}) +
-            sizeof(Int64)
+            sizeof(LLVMPtr{UInt8, AS.Global})
         unsafe_store!(convert(Ptr{Int64}, ei + offset), value)
     else
         setfield!(ei, field, value)
@@ -129,14 +100,10 @@ end
     end
 end
 
-macro gpu_throw(subtype, reason)
+macro gpu_throw(reason)
     quote
         ei = kernel_state().exception_info
         if lock_output!(ei)
-            subtype_ptr = @strptr $subtype
-            ei.subtype = subtype_ptr
-            ei.subtype_length = string_length(subtype_ptr)
-
             reason_ptr = @strptr $reason
             ei.reason = reason_ptr
             ei.reason_length = string_length(reason_ptr)

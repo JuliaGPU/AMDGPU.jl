@@ -30,16 +30,14 @@ end
 
 function get_exception_info_string(dev::HIPDevice)
     ei = exception_info(dev)
-    subtype = device_str_to_host(ei.subtype, ei.subtype_length)
     reason = device_str_to_host(ei.reason, ei.reason_length)
 
     workitemIdx = ei.thread
     workgroupIdx = ei.block
 
-    isempty(subtype) && (subtype = "Unknown error";)
     isempty(reason) && (reason = "Unknown reason";)
     return """GPU Kernel Exception:
-    $subtype: $reason
+    $reason
     workitemIdx: $workitemIdx
     workgroupIdx: $workgroupIdx"""
 end
