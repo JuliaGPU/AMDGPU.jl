@@ -94,21 +94,6 @@ macro ROCDynamicLocalArray(T, dims, zeroinit=true, offset=0)
     end
 end
 
-@inline @generated function alloc_string(::Val{str}) where str
-    @dispose ctx=Context() begin
-        T_pint8 = LLVM.PointerType(LLVM.Int8Type(), AS.Global)
-        llvm_f, _ = create_function(T_pint8)
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-            str_ptr = globalstring_ptr!(builder, String(str))
-            ptr = addrspacecast!(builder, str_ptr, T_pint8)
-            ret!(builder, ptr)
-        end
-        call_function(llvm_f, LLVMPtr{UInt8,AS.Global})
-    end
-end
-
 # TODO: Support various types of len
 @inline @generated function memcpy!(dest_ptr::LLVMPtr{UInt8,DestAS}, src_ptr::LLVMPtr{UInt8,SrcAS}, len::LT) where {DestAS,SrcAS,LT<:Union{Int64,UInt64}}
     @dispose ctx=Context() begin

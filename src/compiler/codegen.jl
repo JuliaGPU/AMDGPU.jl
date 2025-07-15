@@ -213,6 +213,9 @@ function hipcompile(@nospecialize(job::CompilerJob))
     end
 
     global_hostcalls = pop!(_global_hostcalls, hash(job))
+    # Late global hostcalls detection.
+    append!(global_hostcalls, find_global_hostcalls(meta.ir))
+
     if !isempty(global_hostcalls)
         @info """Global hostcalls detected!
         - Source: $(job.source)
