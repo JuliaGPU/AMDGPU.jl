@@ -56,7 +56,7 @@ global librocsolver::String = ""
 global librocrand::String = ""
 global librocfft::String = ""
 global libMIOpen_path::String = ""
-global librocprofiler_sdk_tool = ""
+global librocprofiler_sdk_tool::String = ""
 
 function __init__()
 
@@ -98,7 +98,7 @@ function __init__()
         global librocrand = find_rocm_library(lib_prefix * "rocrand"; rocm_path)
         global librocfft = find_rocm_library(lib_prefix * "rocfft"; rocm_path)
         global libMIOpen_path = find_rocm_library(lib_prefix * "MIOpen"; rocm_path)
-        global librocprofiler_sdk_tool = @show find_rocm_library(lib_prefix * "rocprofiler-sdk-tool"; rocm_path = "/home/simeon/Documents/rocm/TheRock/output-linux-portable/build/profiler/rocprofiler-sdk/build/lib/rocprofiler-sdk/")
+        global librocprofiler_sdk_tool = "/home/simeon/Documents/rocm/TheRock/output-linux-portable/build/profiler/rocprofiler-sdk/dist/lib/rocprofiler-sdk/librocprofiler-sdk-tool.so"
     catch err
         @error """ROCm discovery failed!
         Discovered ROCm path: $rocm_path.

@@ -1,5 +1,6 @@
 module Profiler
-    import AMDGPU: librocprofiler_sdk_tool
+    using AMDGPU: AMDGPU, librocprofiler_sdk_tool, @check
+
     const ROCPROFILER_UINT64_C = UInt64
     const ROCPROFILER_CONTEXT_NONE = typemax(UInt64)
     const hipCpuDeviceId = Cint(-1)
@@ -10,5 +11,26 @@ module Profiler
 
     include("librocprof.jl")
 
-    version() = VersionNumber(ROCPROFILER_VERSION_MAJOR, ROCPROFILER_VERSION_MINOR, ROCPROFILER_VERSION_PATCH)
+    function version()
+        major, minor, patch = Ref{UInt32}(), Ref{UInt32}(), Ref{UInt32}()
+        @check rocprofiler_get_version(major, minor, patch)
+        return VersionNumber(major[], minor[], patch[])
+    end
+
+    struct rocProfilerException <: Exception
+        status::rocprofiler_status_t
+    end
+
+    function Base.showerror(io::IO, exception::rocProfilerException)
+        print(io, """
+        MIOpenException:
+        - status: $(exception.status)
+        """)
+    end
+
+    function AMDGPU.check(status::rocprofiler_status_t)
+        if status != ROCPROFILER_STATUS_SUCCESS
+            throw(rocProfilerException(status))
+        end
+    end
 end
