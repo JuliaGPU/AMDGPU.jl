@@ -43,7 +43,6 @@ end
 
         @roc kernel(RA, RB, hc)
         @test_throws ErrorException AMDGPU.synchronize(; stop_hostcalls=true)
-        AMDGPU.reset_exception_holder!(AMDGPU.device())
 
         @test Array(RB)[1] == 0f0
         @test dref[] == false
