@@ -10,6 +10,7 @@ function check_rocm_path(path::String)
     path2 = joinpath(path, "lib64")
     isfile(joinpath(path2, libname)) && @goto success
     return ""
+
     @label success
     @assert isdir(path2)
     return path2
@@ -19,8 +20,8 @@ end
 function find_roc_path()::String
     env_dir = get(ENV, "ROCM_PATH", "")
     if isdir(env_dir)
-    	rocm_path = check_rocm_path(env_dir)
-    	rocm_path != "" && return rocm_path
+        rocm_path = check_rocm_path(env_dir)
+        rocm_path != "" && return rocm_path
     end
 
     if Sys.islinux()
@@ -110,7 +111,7 @@ end
 
 function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext)::String
     libdir = joinpath(rocm_path, rel_libdir)
-    @assert isdir(libdir)
+    isdir(libdir) || return ""
     for file in readdir(libdir; join=true)
         fname = basename(file)
         matched = startswith(fname, lib) && contains(fname, ext)
@@ -124,10 +125,10 @@ function find_ld_lld(rocm_path::String)::String
 
     dirs = (joinpath(rocm_path,"llvm", "bin"), joinpath(rocm_path,"bin"))
     hipconfig = Sys.which("hipconfig")
-     if !isnothing(hipconfig)
+    if !isnothing(hipconfig)
         clang_path = read(`$hipconfig --hipclangpath`, String)
         dirs = (dirs ..., clang_path)
-     end
+    end
     for dir in dirs
         exp_ld_path = joinpath(dir, lld_name)
         ispath(exp_ld_path) || continue
