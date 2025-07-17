@@ -125,23 +125,12 @@ function nonblocking_synchronize(stream::HIPStream)
     return
 end
 
-function nonblocking_synchronize_old(stream::HIPStream)
-    while true
-        yield()
-        isdone(stream) && return
-    end
-end
-
 wait(stream::HIPStream) = hipStreamSynchronize(stream)
 
 function synchronize(stream::HIPStream; blocking::Bool = false)
     if use_nonblocking_synchronize && !blocking
         if !_low_latency_synchronize(stream)
-            if old_nonblock_sync
-                nonblocking_synchronize_old(stream)
-            else
-                nonblocking_synchronize(stream)
-            end
+            nonblocking_synchronize(stream)
             AMDGPU.maybe_collect(; blocking=true)
         end
     else
