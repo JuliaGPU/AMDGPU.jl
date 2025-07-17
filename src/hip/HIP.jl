@@ -85,9 +85,9 @@ Blocks until all kernels on all streams have completed.
 Uses currently active device.
 """
 function device_synchronize()
-    AMDGPU.maybe_collect(; blocking=true)
     hipDeviceSynchronize()
     AMDGPU.synchronize() # To trigger any Julia-kernel exception.
+    AMDGPU.maybe_collect(; blocking=true)
     return
 end
 
@@ -100,14 +100,6 @@ function memcpy(dst, src, sz, kind, stream::HIPStream)
     sz == 0 && return
     HIP.hipMemcpyWithStream(dst, src, sz, kind, stream)
     return
-end
-
-function __init__()
-    global old_nonblock_sync = if AMDGPU.functional(:hip)
-        runtime_version() < v"5.4"
-    else
-        false
-    end
 end
 
 end

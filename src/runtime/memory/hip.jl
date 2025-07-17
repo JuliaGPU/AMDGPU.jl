@@ -132,9 +132,11 @@ function HostBuffer(
 end
 
 function HostBuffer(
-    ptr::Ptr{Cvoid}, sz::Integer; stream::HIP.HIPStream = AMDGPU.stream(),
+    ptr::Ptr{Cvoid}, sz::Integer;
+    stream::HIP.HIPStream = AMDGPU.stream(),
+    register::Bool = true,
 )
-    HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped)
+    pin(ptr, sz)
     dev_ptr = get_device_ptr(ptr)
     HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, sz, false)
 end
@@ -181,7 +183,7 @@ function free(buf::HostBuffer; kwargs...)
     if buf.own
         HIP.hipHostFree(buf)
     else
-        is_pinned(buf.dev_ptr) && HIP.check(HIP.hipHostUnregister(buf.ptr))
+        unpin(buf.ptr)
     end
     return
 end
@@ -193,27 +195,44 @@ function get_device_ptr(ptr::Ptr{Cvoid})
     ptr_ref[]
 end
 
+function pin(ptr, sz)
+    ptr == C_NULL && error("Cannot pin `NULL` pointer.")
+
+    memtype = attributes(ptr).memoryType
+    if memtype == HIP.hipMemoryTypeUnregistered
+        HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped)
+    elseif memtype == HIP.hipMemoryTypeHost
+        # Already pinned.
+    else
+        error("Cannot pin pointer with memory type `$memtype`.")
+    end
+    return
+end
+
+function unpin(ptr)
+    ptr == C_NULL && error("Cannot unpin `NULL` pointer.")
+
+    memtype = attributes(ptr).memoryType
+    if memtype == HIP.hipMemoryTypeUnregistered
+        # Already unpinned.
+    elseif memtype == HIP.hipMemoryTypeHost
+        HIP.hipHostUnregister(ptr)
+    else
+        error("Cannot unpin pointer with memory type `$memtype`.")
+    end
+    return
+end
+
 function is_pinned(ptr)
     ptr == C_NULL && return false
-
-    st, data = attributes(ptr)
-    if st == HIP.hipErrorInvalidValue
-        return false
-    elseif st == HIP.hipSuccess
-        # TODO one we support only ROCm 6+ drop if/else.
-        if HIP.runtime_version() > v"6-"
-            return data.memoryType == HIP.hipMemoryTypeHostV2
-        else
-            return data.memoryType == HIP.hipMemoryTypeHost
-        end
-    end
-    st
+    data = attributes(ptr)
+    return data.memoryType == HIP.hipMemoryTypeHost
 end
 
 function attributes(ptr)
     data = Ref{HIP.hipPointerAttribute_t}()
-    st = HIP.hipPointerGetAttributes(data, ptr)
-    st, data[]
+    HIP.hipPointerGetAttributes(data, ptr)
+    return data[]
 end
 
 """
