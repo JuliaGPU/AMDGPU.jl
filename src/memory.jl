@@ -134,7 +134,7 @@ function account!(stats::MemoryStats, bytes::Integer)
     Base.@atomic stats.live += bytes
 end
 
-const EAGER_GC::Ref{Bool} = Ref{Bool}(@load_preference("eager_gc", true))
+const EAGER_GC::Ref{Bool} = Ref{Bool}(@load_preference("eager_gc", false))
 
 function eager_gc!(flag::Bool)
     global EAGER_GC[] = flag
