@@ -115,7 +115,7 @@ end
     @testset "Wrap device array" begin
         x = AMDGPU.rand(Float32, 4, 4)
         xhost = Array(x)
-        xd = unsafe_wrap(ROCArray, pointer(x), size(x); lock=false)
+        xd = unsafe_wrap(ROCArray, pointer(x), size(x))
 
         xd .+= 1f0
         @test Array(x) ≈ Array(xd) ≈ xhost .+ 1f0
@@ -132,8 +132,8 @@ end
         x = zeros(Float32, 16)
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x))) == false
 
-        xd1 = unsafe_wrap(ROCArray, pointer(x), size(x))
-        xd2 = unsafe_wrap(ROCArray, pointer(x), size(x))
+        xd1 = unsafe_wrap(ROCArray, pointer(x), size(x); own=true)
+        xd2 = unsafe_wrap(ROCArray, pointer(x), size(x); own=true)
 
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd1))) == true
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == true

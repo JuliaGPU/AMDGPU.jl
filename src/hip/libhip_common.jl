@@ -11,21 +11,12 @@ const HIP_LAUNCH_PARAM_END = Ptr{Cvoid}(3)
 end
 
 @cenum hipMemoryType begin
-    hipMemoryTypeHost
-    hipMemoryTypeDevice
-    hipMemoryTypeArray
-    hipMemoryTypeUnified
-    hipMemoryTypeManaged
-end
-
-# TODO use this once we support ROCm 6+ only.
-@cenum hipMemoryTypeV2 begin
-    hipMemoryTypeUnregisteredV2 = 0
-    hipMemoryTypeHostV2 = 1
-    hipMemoryTypeDeviceV2 = 2
-    hipMemoryTypeManagedV2 = 3
-    hipMemoryTypeArrayV2 = 10
-    hipMemoryTypeUnifiedV2 = 11
+    hipMemoryTypeUnregistered = 0
+    hipMemoryTypeHost = 1
+    hipMemoryTypeDevice = 2
+    hipMemoryTypeManaged = 3
+    hipMemoryTypeArray = 10
+    hipMemoryTypeUnified = 11
 end
 
 @cenum hiprtcResult::UInt32 begin

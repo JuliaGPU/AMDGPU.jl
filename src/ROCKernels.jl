@@ -51,6 +51,11 @@ function KA.copyto!(::ROCBackend, A, B)
     return
 end
 
+function KA.pagelock!(::ROCBackend, x::Array)
+    AMDGPU.Mem.pin(pointer(x), sizeof(x))
+    return
+end
+
 function KA.launch_config(kernel::KA.Kernel{ROCBackend}, ndrange, workgroupsize)
     if ndrange isa Integer
         ndrange = (ndrange,)

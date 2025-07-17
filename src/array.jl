@@ -186,17 +186,29 @@ function Base.copy(X::ROCArray{T}) where T
     Xnew
 end
 
-# TODO docs
 function Base.unsafe_wrap(
     ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
-    lock::Bool = true,
+    own::Bool = false,
 ) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
+
+    memtype = Mem.attributes(ptr).memoryType
+    B = if memtype == HIP.hipMemoryTypeUnregistered
+        Mem.HostBuffer
+    elseif memtype == HIP.hipMemoryTypeHost
+        Mem.HostBuffer
+    elseif memtype == HIP.hipMemoryTypeDevice
+        Mem.HIPBuffer
+    else
+        error("Unsupported memory type `$memtype` for pointer.")
+    end
+
     sz = prod(dims) * sizeof(T)
-    buf = lock ?
-        Mem.HostBuffer(Ptr{Cvoid}(ptr), sz) :
-        Mem.HIPBuffer(Ptr{Cvoid}(ptr), sz)
-    ROCArray{T, N}(DataRef(pool_free, Managed(buf)), dims)
+    buf = B(Ptr{Cvoid}(ptr), sz)
+
+    ROCArray{T, N}(DataRef(
+        own ? pool_free : Returns(nothing),
+        Managed(buf)), dims)
 end
 
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
@@ -301,10 +313,3 @@ end
 
 Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
-
-if v"1.12.0-beta1" ≤ VERSION < v"1.12.0-rc1"
-    # Use type inference for x^p instead of `promote` which does `x * x`.
-    function Base.to_power_type(x::AnyROCArray)
-        convert(Base._return_type(*, Tuple{typeof(x), typeof(x)}), x)
-    end
-end
