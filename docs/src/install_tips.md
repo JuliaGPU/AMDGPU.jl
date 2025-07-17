@@ -91,10 +91,10 @@ Template of `LocalPreferences.toml` with all options:
 
 ```toml
 [AMDGPU]
-# If `true` (default), eagerly run GC to keep the pool from growing too big.
+# If `true` (default is `false`), eagerly run GC to keep the pool from growing too big.
 # GC is triggered during new allocatoins or synchronization points.
-eager_gc = false
-# Use non-blocking synchronization for all `AMDGPU.synchronize()` calls.
+eager_gc = true
+# Use non-blocking synchronization for all `AMDGPU.synchronize()` calls (default is `true`).
 nonblocking_synchronization = true
 # Memory limit specifies maximum amount of memory in percentages
 # a current Julia process can use.
