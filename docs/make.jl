@@ -34,6 +34,7 @@ function main()
                 "Quick Start" => "tutorials/quickstart.md",
                 "Performance Tips" => "tutorials/perf.md",
                 "Profiling" => "tutorials/profiling.md",
+                "Installation Tips" => "install_tips.md",
             ],
             "API" => [
                 "Devices" => "api/devices.md",

@@ -1,20 +1,5 @@
 # Installation Info
 
-## Windows OS missing functionality
-
-Windows **does not** yet support [Hostcall](@ref), which means that
-some of the functionality does not work, like:
-
-- device printing;
-- dynamic memory allocation (from kernels).
-
-These hostcalls are sometimes launched when AMDGPU detects that a
-kernel might throw an exception, specifically during conversions, like:
-`Int32(1f0)`.
-
-To avoid this, use 'unsafe' conversion option:
-`unsafe_trunc(Int32, 1f0)`.
-
 ## ROCm system libraries
 
 On Linux, AMDGPU.jl queries the location of ROCm libraries through `rocminfo` by default.
@@ -104,10 +89,30 @@ hard_memory_limit = "none"
 # hard_memory_limit = "80 %"
 ```
 
+## Windows OS missing functionality
+
+Windows **does not** yet support [Hostcall](@ref), which means that
+some of the functionality does not work, like:
+
+- device printing;
+- dynamic memory allocation (from kernels).
+
+These hostcalls are sometimes launched when AMDGPU detects that a
+kernel might throw an exception, specifically during conversions, like:
+`Int32(1f0)`.
+
+To avoid this, use 'unsafe' conversion option:
+`unsafe_trunc(Int32, 1f0)`.
+
 ## Frequently-Asked-Questions
 
 ### Archlinux
 
-For the last few ROCM releases we have seen folks run into issue with the distro-provided builds of ROCM and associated tools. [#770](https://github.com/JuliaGPU/AMDGPU.jl/issues/770), [#696](https://github.com/JuliaGPU/AMDGPU.jl/issues/696), [#767](https://github.com/JuliaGPU/AMDGPU.jl/issues/767)
+For the last few ROCM releases we have seen folks run into
+issue with the distro-provided builds of ROCM and associated tools.
+[#770](https://github.com/JuliaGPU/AMDGPU.jl/issues/770),
+[#696](https://github.com/JuliaGPU/AMDGPU.jl/issues/696),
+[#767](https://github.com/JuliaGPU/AMDGPU.jl/issues/767)
 
-Some users have reported success with using the [`opencl-amd-dev`](https://aur.archlinux.org/packages/opencl-amd-dev) AUR package. 
+Some users have reported success with using the
+[`opencl-amd-dev`](https://aur.archlinux.org/packages/opencl-amd-dev) AUR package.
