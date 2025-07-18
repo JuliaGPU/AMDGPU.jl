@@ -84,16 +84,16 @@ function vadd_simd!(c::AbstractVector{T}, a, b, ::Val{tile_size}) where {T, tile
     return
 end
 
-n = 1024;
-tile_size = Val(4);
+n = 1024
+tile_size = Val(4)
 
-a = ROCArray(ones(Int, n));
-b = ROCArray(ones(Int, n));
-c = ROCArray(zeros(Int, n));
+a = ROCArray(ones(Int, n))
+b = ROCArray(ones(Int, n))
+c = ROCArray(zeros(Int, n))
 
-groupsize = 256;
-gridsize = cld(length(c), groupsize);
-@roc groupsize=groupsize gridsize=gridsize vadd_simd!(c, a, b, tile_size);
+groupsize = 256
+gridsize = cld(length(c), groupsize)
+@roc groupsize=groupsize gridsize=gridsize vadd_simd!(c, a, b, tile_size)
 @assert c == (a .+ b)
 ```
 
