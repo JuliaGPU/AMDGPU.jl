@@ -63,7 +63,7 @@ end
     end
 end
 
-strlen(::Val{S}) where S = length(String(S))
+@inline strlen(::Val{S}) where S = length(String(S))
 
 macro strptr(str::String)
     sym = Val(Symbol(str))

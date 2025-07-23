@@ -2,6 +2,7 @@
 
 using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
+using StaticArrays
 import LinearAlgebra
 
 include("device/array.jl")
