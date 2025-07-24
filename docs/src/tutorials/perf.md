@@ -85,15 +85,15 @@ function vadd_simd!(c::AbstractVector{T}, a, b, ::Val{tile_size}) where {T, tile
 end
 
 n = 1024
-tile_size = Val(4)
+tile_size = 4
 
 a = ROCArray(ones(Int, n))
 b = ROCArray(ones(Int, n))
 c = ROCArray(zeros(Int, n))
 
 groupsize = 256
-gridsize = cld(length(c), groupsize)
-@roc groupsize=groupsize gridsize=gridsize vadd_simd!(c, a, b, tile_size)
+gridsize = cld(n ÷ tile_size, groupsize)
+@roc groupsize=groupsize gridsize=gridsize vadd_simd!(c, a, b, Val(tile_size))
 @assert c == (a .+ b)
 ```
 
@@ -101,5 +101,5 @@ Examining LLVM IR, we can see vectorized `load <4 x i64>`, `add <4 x i64>`
 and `store <4 x i64>` instructions:
 
 ```@example vadd-simd
-AMDGPU.@device_code_llvm @roc launch=false vadd_simd!(c, a, b, tile_size);
+AMDGPU.@device_code_llvm @roc launch=false vadd_simd!(c, a, b, Val(tile_size));
 ```

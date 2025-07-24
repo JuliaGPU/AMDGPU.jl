@@ -204,11 +204,9 @@ function Base.unsafe_wrap(
     end
 
     sz = prod(dims) * sizeof(T)
-    buf = B(Ptr{Cvoid}(ptr), sz)
-
-    ROCArray{T, N}(DataRef(
-        own ? pool_free : Returns(nothing),
-        Managed(buf)), dims)
+    buf = B(Ptr{Cvoid}(ptr), sz; own)
+    dref = DataRef(own ? pool_free : Returns(nothing), Managed(buf))
+    return ROCArray{T, N}(dref, dims)
 end
 
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
