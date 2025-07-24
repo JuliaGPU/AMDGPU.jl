@@ -152,8 +152,9 @@ end
         xd2 = unsafe_wrap(ROCArray, pointer(x), size(x); own=true)
 
         AMDGPU.unsafe_free!(xd1)
-        @test_throws ArgumentError AMDGPU.unsafe_free!(xd2)
-        @test_throws ArgumentError AMDGPU.unsafe_free!(x)
+        AMDGPU.synchronize()
+        @test_throws AMDGPU.HIP.HIPError AMDGPU.unsafe_free!(xd2)
+        @test_throws AMDGPU.HIP.HIPError AMDGPU.unsafe_free!(x)
     end
 
     @testset "Broadcasting different buffer types" begin
