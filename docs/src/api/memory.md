@@ -1,3 +1,10 @@
+```@meta
+DocTestSetup = quote
+    using AMDGPU
+    using GPUArrays
+end
+```
+
 # Memory Allocation and Intrinsics
 
 ## Memory Varieties
@@ -129,39 +136,49 @@ for examples of their usage.
 
 You can wrap host array to be accessible (pinned) on the device with:
 
-```julia
-x = rand(Float32, 4, 4)
-xd = unsafe_wrap(ROCArray, pointer(x), size(x))
+```jldoctest unsafe_wrap
+julia> x = zeros(Float32, 4, 4);
 
-# Pointer to `xd` is a device-mapped pointer, not host pointer.
-@show pointer(xd) == xd.buf.dev_ptr
-@show pointer(xd) == xd.buf.ptr
+julia> xd = unsafe_wrap(ROCArray, pointer(x), size(x));
 
-# Can be used in kernels, host array `x` is also updated.
-xd .+= 1f0
+julia> pointer(xd) == xd.buf[].mem.dev_ptr # Pointer to `xd` is a device-mapped pointer, not host pointer.
+true
 
-# Can be used with HIP libraries.
-xd * xd
+julia> xd .+= 1f0 # Can be used in kernels, host array `x` is also updated.
+4×4 ROCArray{Float32, 2, AMDGPU.Runtime.Mem.HostBuffer}:
+ 1.0  1.0  1.0  1.0
+ 1.0  1.0  1.0  1.0
+ 1.0  1.0  1.0  1.0
+ 1.0  1.0  1.0  1.0
+
+julia> xd * xd # Can be used with HIP libraries.
+4×4 ROCArray{Float32, 2, AMDGPU.Runtime.Mem.HostBuffer}:
+ 4.0  4.0  4.0  4.0
+ 4.0  4.0  4.0  4.0
+ 4.0  4.0  4.0  4.0
+ 4.0  4.0  4.0  4.0
 ```
-
-Pinned memory is automatically unregistered upon array destruction.
-You can't free it, since it is managed by the host.
 
 Additionally, you can wrap the device array with:
 
-```julia
-x = AMDGPU.rand(Float32, 4, 4)
-xd = unsafe_wrap(ROCArray, pointer(x), size(x); lock=false)
+```jldoctest unsafe_wrap
+julia> x = AMDGPU.zeros(Float32, 4, 4);
 
-# Can be used in kernels, `x` is also updated.
-xd .+= 1f0
+julia> xd = unsafe_wrap(ROCArray, pointer(x), size(x));
 
-# Can be used with HIP libraries.
-xd * xd
+julia> xd .+= 1f0; # Can be used in kernels, `x` is also updated.
 
-# Freeing is a no-op for `xd`, since `xd` does not own the underlying memory.
-AMDGPU.unsafe_free!(xd) # No-op.
+julia> all(x .== 1f0)
+true
+
+julia> xd * xd # Can be used with HIP libraries.
+4×4 ROCArray{Float32, 2, AMDGPU.Runtime.Mem.HIPBuffer}:
+ 4.0  4.0  4.0  4.0
+ 4.0  4.0  4.0  4.0
+ 4.0  4.0  4.0  4.0
+ 4.0  4.0  4.0  4.0
 ```
 
-Notice mandatory `; lock=false` keyword, this is to be able to
-differentiate between host & device pointers.
+!!! note
+    Passing `own=true` keyword will make the wrapped array take the ownership of the memory.
+    For host memory it will unpin it on destruction and for device memory it will free it.

@@ -146,6 +146,16 @@ end
         @test_throws ArgumentError pointer(xd2)
     end
 
+    @testset "Multiple wraps of the same device array" begin
+        x = AMDGPU.zeros(Float32, 16)
+        xd1 = unsafe_wrap(ROCArray, pointer(x), size(x); own=true)
+        xd2 = unsafe_wrap(ROCArray, pointer(x), size(x); own=true)
+
+        AMDGPU.unsafe_free!(xd1)
+        @test_throws ArgumentError AMDGPU.unsafe_free!(xd2)
+        @test_throws ArgumentError AMDGPU.unsafe_free!(x)
+    end
+
     @testset "Broadcasting different buffer types" begin
         x = rand(Float32, 4, 16, 16)
         xd = unsafe_wrap(ROCArray, pointer(x), size(x))

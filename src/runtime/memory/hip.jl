@@ -64,9 +64,9 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     HIPBuffer(dev, ctx, ptr, bytesize, true)
 end
 
-function HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int)
+function HIPBuffer(ptr::Ptr{Cvoid}, bytesize::Int; own::Bool = false)
     s = AMDGPU.stream()
-    HIPBuffer(s.device, s.ctx, ptr, bytesize, false)
+    HIPBuffer(s.device, s.ctx, ptr, bytesize, own)
 end
 
 Base.sizeof(b::HIPBuffer) = UInt64(b.bytesize)
@@ -133,12 +133,11 @@ end
 
 function HostBuffer(
     ptr::Ptr{Cvoid}, sz::Integer;
-    stream::HIP.HIPStream = AMDGPU.stream(),
-    register::Bool = true,
+    stream::HIP.HIPStream = AMDGPU.stream(), own::Bool = false,
 )
     pin(ptr, sz)
     dev_ptr = get_device_ptr(ptr)
-    HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, sz, false)
+    HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, sz, own)
 end
 
 Base.sizeof(b::HostBuffer) = UInt64(b.bytesize)
@@ -179,12 +178,12 @@ Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where T = convert(Ptr{T}, buf.ptr)
 @inline device_ptr(buf::HostBuffer) = buf.dev_ptr
 
 function free(buf::HostBuffer; kwargs...)
+    buf.own || return
     buf.ptr == C_NULL && return
-    if buf.own
-        HIP.hipHostFree(buf)
-    else
-        unpin(buf.ptr)
-    end
+    unpin(buf.ptr)
+    # TODO
+    # call HIP.hipHostFree(buf) if memory was allocated via hipHostMalloc
+    # or is unpinning enough?
     return
 end
 
