@@ -16,6 +16,18 @@ include("libhip.jl")
 include("error.jl")
 include("device.jl")
 
+hipMemLocation(type::hipMemLocationType, id::Integer) = reinterpret(hipMemLocation, (type, Cint(id)))
+function hipMemPoolProps(
+        type::hipMemAllocationType,
+        handle_type::hipMemAllocationHandleType,
+        loc::HIP.hipMemLocation,
+        p::Ptr{Nothing},
+        u::UInt64,
+        t::NTuple{56, UInt8},
+    )
+    return reinterpret(hipMemPoolProps, (type, handle_type, loc, p, u, t))
+end
+
 function runtime_version()
     v_ref = Ref{Cint}()
     hipRuntimeGetVersion(v_ref)

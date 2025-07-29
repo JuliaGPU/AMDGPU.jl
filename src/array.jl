@@ -192,7 +192,7 @@ function Base.unsafe_wrap(
 ) where {T,N}
     @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
 
-    memtype = Mem.attributes(ptr).memoryType
+    memtype = Mem.attributes(ptr).type
     B = if memtype == HIP.hipMemoryTypeUnregistered
         Mem.HostBuffer
     elseif memtype == HIP.hipMemoryTypeHost
