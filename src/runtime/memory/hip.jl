@@ -197,7 +197,7 @@ end
 function pin(ptr, sz)
     ptr == C_NULL && error("Cannot pin `NULL` pointer.")
 
-    memtype = attributes(ptr).memoryType
+    memtype = attributes(ptr).type
     if memtype == HIP.hipMemoryTypeUnregistered
         HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped)
     elseif memtype == HIP.hipMemoryTypeHost
@@ -211,7 +211,7 @@ end
 function unpin(ptr)
     ptr == C_NULL && error("Cannot unpin `NULL` pointer.")
 
-    memtype = attributes(ptr).memoryType
+    memtype = attributes(ptr).type
     if memtype == HIP.hipMemoryTypeUnregistered
         # Already unpinned.
     elseif memtype == HIP.hipMemoryTypeHost
@@ -225,7 +225,7 @@ end
 function is_pinned(ptr)
     ptr == C_NULL && return false
     data = attributes(ptr)
-    return data.memoryType == HIP.hipMemoryTypeHost
+    return data.type == HIP.hipMemoryTypeHost
 end
 
 function attributes(ptr)
