@@ -142,6 +142,7 @@ function synchronize(stream::HIPStream; blocking::Bool = false)
 end
 
 Base.unsafe_convert(::Type{hipStream_t}, stream::HIPStream) = stream.stream
+Base.unsafe_convert(::Type{Ptr{Cvoid}}, stream::HIPStream) = Ptr{Cvoid}(stream.stream)
 Base.:(==)(a::HIPStream, b::HIPStream) = a.stream == b.stream
 Base.hash(s::HIPStream, h::UInt) = hash(s.stream, h)
 
