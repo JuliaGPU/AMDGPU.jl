@@ -1,6 +1,9 @@
 [general]
 library_name = "libhip"
 output_file_path = "./libhip.jl"
+output_ignorelist = [
+    "__HOST_DEVICE__"
+]
 
 [codegen]
 use_ccall_macro = true

@@ -12,10 +12,21 @@ import .AMDGPU: @check, check
 
 import GPUToolbox: @gcsafe_ccall
 
-include("libhip_common.jl")
-include("error.jl")
 include("libhip.jl")
+include("error.jl")
 include("device.jl")
+
+hipMemLocation(type::hipMemLocationType, id::Integer) = reinterpret(hipMemLocation, (type, Cint(id)))
+function hipMemPoolProps(
+        type::hipMemAllocationType,
+        handle_type::hipMemAllocationHandleType,
+        loc::HIP.hipMemLocation,
+        p::Ptr{Nothing},
+        u::UInt64,
+        t::NTuple{56, UInt8},
+    )
+    return reinterpret(hipMemPoolProps, (type, handle_type, loc, p, u, t))
+end
 
 function runtime_version()
     v_ref = Ref{Cint}()
@@ -28,7 +39,7 @@ function runtime_version()
 end
 
 mutable struct HIPContext
-    context::hipContext_t
+    context::hipCtx_t
     valid::Bool
 end
 
@@ -42,7 +53,7 @@ function HIPContext(device::HIPDevice)
 
     Base.@lock CONTEXTS.lock begin
         get!(contexts, device) do
-            ctx_ref = Ref{hipContext_t}()
+            ctx_ref = Ref{hipCtx_t}()
             hipCtxCreate(ctx_ref, Cuint(0), device.device)
             ctx = HIPContext(ctx_ref[], true)
             device!(device)
@@ -54,7 +65,7 @@ end
 HIPContext(device_id::Integer) = HIPContext(HIPDevice(device_id))
 HIPContext() = HIPContext(device())
 
-Base.unsafe_convert(::Type{hipContext_t}, context::HIPContext) = context.context
+Base.unsafe_convert(::Type{hipCtx_t}, context::HIPContext) = context.context
 Base.:(==)(a::HIPContext, b::HIPContext) = a.context == b.context
 Base.hash(c::HIPContext, h::UInt) = hash(c.context, h)
 
@@ -63,9 +74,9 @@ function Base.show(io::IO, context::HIPContext)
 end
 
 context!(context::HIPContext) = context!(context.context)
-context!(context::hipContext_t) = hipCtxSetCurrent(context)
+context!(context::hipCtx_t) = hipCtxSetCurrent(context)
 function context!(f::Base.Callable, context::HIPContext)
-    old_context_ref = Ref{hipContext_t}()
+    old_context_ref = Ref{hipCtx_t}()
     hipCtxGetCurrent(old_context_ref)
     context!(context)
     try

@@ -190,7 +190,7 @@ function priority!(f::Function, p::Symbol)
 end
 
 @inline function prepare_state(state = task_local_state!())
-    hip_ctx = Ref{HIP.hipContext_t}()
+    hip_ctx = Ref{HIP.hipCtx_t}()
     HIP.hipCtxGetCurrent(hip_ctx)
     state.context.context != hip_ctx[] &&
         HIP.context!(state.context)
