@@ -330,3 +330,41 @@ if VERSION ≥ v"1.12-"
     LinearAlgebra.copytrito!(B::Matrix{T}, A::ROCMatrix{T}, uplo::AbstractChar) where {T <: ROCBLASFloat} = 
         invoke(LinearAlgebra.copytrito!, Tuple{AbstractMatrix, AbstractMatrix, AbstractChar}, B, A, uplo)
 end
+
+function LinearAlgebra.lmul!(A::Diagonal{T,<:ROCVector{T}}, B::ROCMatrix{T}) where {T<:ROCblasFloat}
+    return dgmm!('L', B, A.diag, B)
+end
+
+function LinearAlgebra.rmul!(A::ROCMatrix{T}, B::Diagonal{T,<:ROCVector{T}}) where {T<:ROCblasFloat}
+    return dgmm!('R', A, B.diag, A)
+end
+
+# eltypes do not match
+function LinearAlgebra.lmul!(A::Diagonal{T,<:ROCVector{T}}, B::ROCMatrix) where {T<:ROCblasFloat}
+    @. B = A.diag * B
+    return B
+end
+function LinearAlgebra.lmul!(A::Diagonal{Td,<:ROCVector{Td}}, B::Transpose{Tt, <:ROCMatrix{Tt}}) where {Td<:ROCblasFloat, Tt<:ROCblasFloat}
+    @. B = A.diag * B
+    return B
+end
+function LinearAlgebra.lmul!(A::Diagonal{Td,<:ROCVector{Td}}, B::Adjoint{Tt, <:ROCMatrix{Tt}}) where {Td<:ROCblasFloat, Tt<:ROCblasFloat}
+    @. B = A.diag * B
+    return B
+end
+# eltypes do not match
+function LinearAlgebra.rmul!(A::ROCMatrix, B::Diagonal{T,<:ROCVector{T}}) where {T<:ROCblasFloat}
+    At = transpose(A)
+    @. At = B.diag * At
+    return A
+end
+function LinearAlgebra.rmul!(A::Transpose{Tt, <:ROCMatrix{Tt}}, B::Diagonal{Td,<:ROCVector{Td}}) where {Td<:ROCblasFloat, Tt<:ROCblasFloat}
+    At = parent(A)
+    @. At = B.diag * At
+    return transpose(At)
+end
+function LinearAlgebra.rmul!(A::Adjoint{Tt, <:ROCMatrix{Tt}}, B::Diagonal{Td,<:ROCVector{Td}}) where {Td<:ROCblasFloat, Tt<:ROCblasFloat}
+    At = parent(A)
+    @. At = adjoint(B.diag) * At
+    return adjoint(At)
+end
