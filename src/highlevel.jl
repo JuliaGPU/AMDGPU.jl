@@ -94,7 +94,7 @@ rocconvert(arg) = adapt(Runtime.Adaptor(), arg)
 
 const MACRO_KWARGS = [:launch]
 const COMPILER_KWARGS = [:name, :unsafe_fp_atomics]
-const LAUNCH_KWARGS = [:gridsize, :groupsize, :shmem, :stream]
+const LAUNCH_KWARGS = [:gridsize, :groupsize, :shmem, :stream, :cooperative]
 
 """
     @roc [kwargs...] func(args...)

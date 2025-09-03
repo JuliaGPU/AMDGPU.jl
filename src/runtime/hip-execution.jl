@@ -117,13 +117,20 @@ function launch(
     fun::HIP.HIPFunction, args::Vararg{Any, N};
     gridsize = 1, groupsize = 1,
     shmem::Integer = 0, stream::HIP.HIPStream,
+    cooperative = false,
 ) where N
     gd = gridsize isa ROCDim3 ? gridsize : ROCDim3(gridsize)
     bd = groupsize isa ROCDim3 ? groupsize : ROCDim3(groupsize)
     pack_arguments(args...) do kernel_params
-        HIP.hipModuleLaunchKernel(
-            fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,
-            shmem, stream, kernel_params, C_NULL)
+        if cooperative
+            HIP.hipModuleLaunchCooperativeKernel(
+                fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,
+                shmem, stream, kernel_params)
+        else
+            HIP.hipModuleLaunchKernel(
+                fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,
+                shmem, stream, kernel_params, C_NULL)
+        end
     end
 
     AMDGPU.LAUNCH_BLOCKING[] && AMDGPU.synchronize(stream)

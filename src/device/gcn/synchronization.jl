@@ -69,3 +69,7 @@ and returns non-zero if and only if predicate evaluates to non-zero for any of t
 end
 
 @inline __not(x::Cint)::Cint = ifelse(iszero(x), one(x), zero(x))
+
+@inline function sync_grid()::Cvoid
+    ccall("extern __ockl_grid_sync", llvmcall, Cvoid, ())
+end

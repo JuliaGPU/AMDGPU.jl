@@ -130,3 +130,32 @@ end
     #     @test occ1 != occ2
     # end
 end
+
+if !iszero(AMDGPU.HIP.properties(AMDGPU.device()).cooperativeLaunch)
+    @testset "Cooperative Groups" begin
+        function test_kernel!(x)
+            block_row, block_col = workgroupIdx().x, workgroupIdx().y
+
+            for diag in 2:(gridGroupDim().x + gridGroupDim().y)
+                if block_row + block_col == diag
+                    if diag == 2
+                        x[block_col, block_row] = 1
+                    else
+                        x[block_col, block_row] = 0
+                        for I in CartesianIndices(x)
+                            i, j = Tuple(I)
+                            i + j == diag - 1 || continue
+                            x[block_col, block_row] += x[I]
+                        end
+                    end
+                end
+                AMDGPU.Device.sync_grid()
+            end
+        end
+
+        n = 4
+        x = ROCArray{Int}(undef, n, n)
+        @roc groupsize = (1, 1, 1) gridsize = (n, n, 1) cooperative = true test_kernel!(x)
+        @test Array(x) == [1 1 2 6; 1 2 6 24; 2 6 24 72; 6 24 72 144]
+    end
+end
