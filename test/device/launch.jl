@@ -151,6 +151,8 @@ if VERSION >= v"1.12-" && !iszero(AMDGPU.HIP.properties(AMDGPU.device()).coopera
                 end
                 AMDGPU.Device.sync_grid()
             end
+
+            return nothing
         end
 
         n = 4
