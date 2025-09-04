@@ -131,7 +131,7 @@ end
     # end
 end
 
-if !iszero(AMDGPU.HIP.properties(AMDGPU.device()).cooperativeLaunch)
+if VERSION >= v"1.12-" && !iszero(AMDGPU.HIP.properties(AMDGPU.device()).cooperativeLaunch)
     @testset "Cooperative Groups" begin
         function test_kernel!(x)
             block_row, block_col = workgroupIdx().x, workgroupIdx().y
