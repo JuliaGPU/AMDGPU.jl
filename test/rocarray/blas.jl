@@ -288,4 +288,56 @@ end
     end
 end
 
+@testset "Extension" begin
+    for TA in (Float32, Float64, ComplexF32, ComplexF64), TB in (Float32, Float64)
+        x    = rand(TB, m)
+        d_x  = ROCArray(x)
+        XA   = rand(TA, m, n)
+        d_XA = ROCArray(XA)
+        d_X  = Diagonal(d_x)
+        lmul!(d_X, d_XA)
+        @test Array(d_XA) ≈ Diagonal(x) * XA
+
+        x    = rand(TB, m)
+        d_x  = ROCArray(x)
+        XA   = rand(TA, n, m)
+        d_AX = transpose(ROCArray(XA))
+        d_X  = Diagonal(d_x)
+        lmul!(d_X, d_AX)
+        @test Array(d_AX) ≈ Diagonal(x) * transpose(XA)
+
+        x    = rand(TB, m)
+        d_x  = ROCArray(x)
+        XA   = rand(TA, n, m)
+        d_AX = adjoint(ROCArray(XA))
+        d_X  = Diagonal(d_x)
+        lmul!(d_X, d_AX)
+        @test Array(d_AX) ≈ Diagonal(x) * adjoint(XA)
+
+        y    = rand(TB, n)
+        d_y  = ROCArray(y)
+        AY   = rand(TA, m, n)
+        d_AY = ROCArray(AY)
+        d_Y  = Diagonal(d_y)
+        rmul!(d_AY, d_Y)
+        @test Array(d_AY) ≈ AY * Diagonal(y)
+
+        y    = rand(TB, n)
+        d_y  = ROCArray(y)
+        AY   = rand(TA, n, m)
+        d_YA = transpose(ROCArray(AY))
+        d_Y  = Diagonal(d_y)
+        d_YA = rmul!(d_YA, d_Y)
+        @test Array(d_YA) ≈ transpose(AY) * Diagonal(y)
+
+        y    = rand(TB, n)
+        d_y  = ROCArray(y)
+        AY   = rand(TA, n, m)
+        d_YA = adjoint(ROCArray(AY))
+        d_Y  = Diagonal(d_y)
+        d_YA = rmul!(d_YA, d_Y)
+        @test Array(d_YA) ≈ adjoint(AY) * Diagonal(y)
+    end
+end
+
 end
