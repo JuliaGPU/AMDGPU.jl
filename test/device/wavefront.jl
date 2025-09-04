@@ -145,4 +145,8 @@ end
     @roc kernel(RX)
     AMDGPU.synchronize()
     @allowscalar @test RX[1] == wavefrontsize
+
+    @roc wavefrontsize64=true kernel(RX)
+    AMDGPU.synchronize()
+    @allowscalar @test RX[1] == 64
 end
