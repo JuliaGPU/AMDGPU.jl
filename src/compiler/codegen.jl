@@ -118,14 +118,13 @@ end
 
 function compiler_config(dev::HIP.HIPDevice;
     name::Union{String, Nothing} = nothing, kernel::Bool = true,
-    unsafe_fp_atomics::Bool = true,
+    unsafe_fp_atomics::Bool = true, wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
 )
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
     if !isempty(features)
         features = "$features,"
     end
 
-    wavefrontsize64 = HIP.wavefrontsize(dev) == 64
     features = if wavefrontsize64
         features * "-wavefrontsize32,+wavefrontsize64"
     else
