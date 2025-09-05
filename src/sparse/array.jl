@@ -154,8 +154,8 @@ const ROCSparseMatrix{Tv, Ti} = Union{
 
 const ROCSparseVecOrMat = Union{ROCSparseVector, ROCSparseMatrix}
 
-# NOTE: we use Cint as default Ti on CUDA instead of Int to provide
-# maximum compatiblity to old CUSPARSE APIs
+# NOTE: we use Cint as default Ti on ROCm instead of Int to provide
+# maximum compatiblity to old ROCSparse APIs
 # The same pattern was followed for AMDGPU as well
 function ROCSparseVector{Tv}(iPtr::ROCVector{<:Integer}, nzVal::ROCVector, len::Integer) where Tv
     ROCSparseVector{Tv, Cint}(convert(ROCVector{Cint}, iPtr), nzVal, len)
@@ -284,6 +284,7 @@ SparseArrays.nnz(g::AbstractROCSparseArray) = g.nnz
 SparseArrays.nonzeros(g::AbstractROCSparseArray) = g.nzVal
 
 SparseArrays.nonzeroinds(g::AbstractROCSparseVector) = g.iPtr
+SparseArrays.rowvals(g::AbstractROCSparseVector) = nonzeroinds(g)
 
 SparseArrays.rowvals(g::ROCSparseMatrixCSC) = g.rowVal
 SparseArrays.getcolptr(g::ROCSparseMatrixCSC) = g.colPtr
@@ -422,14 +423,8 @@ ROCSparseMatrixCSC(x::Transpose{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 ROCSparseMatrixCSC(x::Adjoint{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 
 # gpu to cpu
-function SparseVector(x::ROCSparseVector)
-    SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
-end
-
-function SparseMatrixCSC(x::ROCSparseMatrixCSC)
-    SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
-end
-
+SparseVector(x::ROCSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
+SparseMatrixCSC(x::ROCSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
 SparseMatrixCSC(x::ROCSparseMatrixCSR) = SparseMatrixCSC(ROCSparseMatrixCSC(x))  # no direct conversion
 SparseMatrixCSC(x::ROCSparseMatrixBSR) = SparseMatrixCSC(ROCSparseMatrixCSR(x))  # no direct conversion
 SparseMatrixCSC(x::ROCSparseMatrixCOO) = SparseMatrixCSC(ROCSparseMatrixCSR(x))  # no direct conversion
@@ -519,7 +514,7 @@ Base.copy(Mat::ROCSparseMatrixCOO) = copyto!(similar(Mat), Mat)
 
 # input/output
 
-for (gpu, cpu) in [ROCSparseVector => SparseVector]
+for (gpu, cpu) in [:ROCSparseVector => :SparseVector]
     @eval function Base.show(io::IO, ::MIME"text/plain", x::$gpu)
         xnnz = length(nonzeros(x))
         print(io, length(x), "-element ", typeof(x), " with ", xnnz,
@@ -531,10 +526,10 @@ for (gpu, cpu) in [ROCSparseVector => SparseVector]
     end
 end
 
-for (gpu, cpu) in [ROCSparseMatrixCSC => SparseMatrixCSC,
-                   ROCSparseMatrixCSR => SparseMatrixCSC,
-                   ROCSparseMatrixBSR => SparseMatrixCSC,
-                   ROCSparseMatrixCOO => SparseMatrixCSC]
+for (gpu, cpu) in [:ROCSparseMatrixCSC => :SparseMatrixCSC,
+                   :ROCSparseMatrixCSR => :SparseMatrixCSC,
+                   :ROCSparseMatrixBSR => :SparseMatrixCSC,
+                   :ROCSparseMatrixCOO => :SparseMatrixCSC]
     @eval Base.show(io::IOContext, x::$gpu) = show(io, $cpu(x))
 
     @eval function Base.show(io::IO, mime::MIME"text/plain", S::$gpu)

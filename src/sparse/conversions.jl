@@ -46,6 +46,10 @@ function SparseArrays.sparse(
     end
 end
 
+for SparseMatrixType in (:ROCSparseMatrixCSC, :ROCSparseMatrixCSR, :ROCSparseMatrixCOO)
+    @eval SparseArrays.sparse(A::$SparseMatrixType) = A
+end
+
 function sort_rows(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat, Ti}
     m,n = size(coo)
     perm = ROCArray{Ti}(undef, nnz(coo))
@@ -486,4 +490,54 @@ end
 function ROCSparseMatrixBSR(A::ROCMatrix; ind::SparseChar = 'O')
     m, n = size(A)   # TODO: always let the user choose, or provide defaults for other methods too
     ROCSparseMatrixBSR(ROCSparseMatrixCSR(A; ind), gcd(m,n))
+end
+
+
+function AMDGPU.ROCMatrix{T}(coo::ROCSparseMatrixCOO{T}; index::SparseChar='O') where {T}
+    sparsetodense(coo, index)
+end
+
+function ROCSparseMatrixCOO(A::ROCMatrix{T}; index::SparseChar='O') where {T}
+    densetosparse(A, :coo, index)
+end
+
+## ROCSparseVector to ROCSparseMatrices and vice-versa
+function ROCSparseVector(A::ROCSparseMatrixCSC{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a ROCSparseVector.")
+    ROCSparseVector{T}(A.rowVal, A.nzVal, m)
+end
+
+# no direct conversion
+function ROCSparseVector(A::ROCSparseMatrixCSR{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a ROCSparseVector.")
+    B = ROCSparseMatrixCSC{T}(A)
+    ROCSparseVector(B)
+end
+
+function ROCSparseVector(A::ROCSparseMatrixCOO{T}) where T
+    m, n = size(A)
+    (n == 1) || error("A doesn't have one column and can't be converted to a ROCSparseVector.")
+    ROCSparseVector{T}(A.rowInd, A.nzVal, m)
+end
+
+function ROCSparseMatrixCSC(x::ROCSparseVector{T}) where T
+    n = length(x)
+    colPtr = CuVector{Int32}([1; nnz(x)+1])
+    ROCSparseMatrixCSC{T}(colPtr, x.iPtr, nonzeros(x), (n,1))
+end
+
+# no direct conversion
+function ROCSparseMatrixCSR(x::ROCSparseVector{T}) where T
+    A = ROCSparseMatrixCSC(x)
+    ROCSparseMatrixCSR{T}(A)
+end
+
+function ROCSparseMatrixCOO(x::ROCSparseVector{T}) where T
+    n = length(x)
+    nnzx = nnz(x)
+    colInd = CuVector{Int32}(undef, nnzx)
+    fill!(colInd, one(Int32))
+    ROCSparseMatrixCOO{T}(x.iPtr, colInd, nonzeros(x), (n,1), nnzx)
 end
