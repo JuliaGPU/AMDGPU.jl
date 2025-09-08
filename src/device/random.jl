@@ -82,11 +82,10 @@ end
     threadId = workitemIdx().x +
         (workitemIdx().y - Int32(1)) * workgroupDim().x +
         (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
-    warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
+    wavefrontsize_log2 = ifelse(wavefrontsize() == UInt32(32), 0x5, 0x6)
+    warpId = (threadId - Int32(1)) >> wavefrontsize_log2 + Int32(1)  # fld1 by 32
 
-    if field === :seed
-        @inbounds global_random_seed()[1]
-    elseif field === :key
+    if field === :key
         @inbounds global_random_keys()[warpId]
     elseif field === :ctr1
         @inbounds global_random_counters()[warpId]
@@ -104,7 +103,8 @@ end
     threadId = workitemIdx().x +
         (workitemIdx().y - Int32(1)) * workgroupDim().x +
         (workitemIdx().z - Int32(1)) * workgroupDim().x * workgroupDim().y
-    warpId = (threadId - Int32(1)) >> 0x5 + Int32(1)  # fld1 by 32
+    wavefrontsize_log2 = ifelse(wavefrontsize() == UInt32(32), 0x5, 0x6)
+    warpId = (threadId - Int32(1)) >> wavefrontsize_log2 + Int32(1)  # fld1 by 32
 
     if field === :key
         @inbounds global_random_keys()[warpId] = x

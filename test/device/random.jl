@@ -18,9 +18,11 @@ function apply_seed(seed)
     end
 end
 
-@testset "rand($T), seed $seed" for T in (
+wavefrontsize64 = AMDGPU.HIP.wavefrontsize(AMDGPU.device()) == 32 ? [false, true] : [true]
+
+@testset "rand($T), seed $seed, wavefrontsize64 = $wavefrontsize64" for T in (
     Int32, UInt32, Int64, UInt64, Int128, UInt128, Float16, Float32, Float64,
-), seed in (nothing, #=missing,=# 1234)
+), seed in (nothing, #=missing,=# 1234), wavefrontsize64 in wavefrontsize64
     # different kernel invocations should get different numbers
     @testset "across launches" begin
         function kernel(A::AbstractArray{T}, seed) where {T}
@@ -85,9 +87,9 @@ end
     end
 end
 
-@testset "basic randn($T), seed $seed" for T in (
+@testset "basic randn($T), seed $seed, wavefrontsize64 = $wavefrontsize64" for T in (
     Float16, Float32, Float64,
-), seed in (nothing, #=missing,=# 1234)
+), seed in (nothing, #=missing,=# 1234), wavefrontsize64 in wavefrontsize64
     function kernel(A::AbstractArray{T}, seed) where {T}
         apply_seed(seed)
         tid = workitemIdx().x
@@ -108,9 +110,9 @@ end
     end
 end
 
-@testset "basic randexp($T), seed $seed" for T in (
+@testset "basic randexp($T), seed $seed, wavefrontsize64 = $wavefrontsize64" for T in (
     Float16, Float32, Float64,
-), seed in (nothing, #=missing,=# 1234)
+), seed in (nothing, #=missing,=# 1234), wavefrontsize64 in wavefrontsize64
     function kernel(A::AbstractArray{T}, seed) where {T}
         apply_seed(seed)
         tid = workitemIdx().x
