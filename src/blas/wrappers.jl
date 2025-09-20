@@ -809,7 +809,7 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
     @eval begin
         function syrk!(
             uplo::Char, trans::Char, alpha::($elty),
-            A::ROCVecOrMat{$elty}, beta::($elty), C::ROCMatrix{$elty},
+            A::StridedROCVecOrMat{$elty}, beta::($elty), C::StridedROCMatrix{$elty},
         )
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
