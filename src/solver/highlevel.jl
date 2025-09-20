@@ -5,7 +5,7 @@ for (fname, elty) in (
     (:rocsolver_zpotrf, :ComplexF64),
 )
     @eval begin
-        function potrf!(uplo::Char, A::ROCMatrix{$elty})
+        function potrf!(uplo::Char, A::StridedROCMatrix{$elty})
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
