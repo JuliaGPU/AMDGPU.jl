@@ -974,7 +974,7 @@ for (mmname, smname, elty) in
     @eval begin
         function trmm!(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
-            A::ROCMatrix{$elty}, B::ROCMatrix{$elty}, C::ROCMatrix{$elty},
+            A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty}, C::StridedROCMatrix{$elty},
         )
             m, n = size(B)
             mA, nA = size(A)
@@ -992,13 +992,13 @@ for (mmname, smname, elty) in
         end
         function trmm(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
-            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+            A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty},
         )
             trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
         end
         function trsm!(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
-            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+            A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty},
         )
             m, n = size(B)
             mA, nA = size(A)
@@ -1013,7 +1013,7 @@ for (mmname, smname, elty) in
         end
         function trsm(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
-            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+            A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty},
         )
             trsm!(side, uplo, transa, diag, alpha, A, copy(B))
         end
