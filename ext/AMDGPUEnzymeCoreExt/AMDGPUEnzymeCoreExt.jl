@@ -15,6 +15,14 @@ function EnzymeCore.compiler_job_from_backend(
 end
 
 function EnzymeRules.forward(
+    config, fn::Const{typeof(AMDGPU.hipfunction)}, ::Type{<: Const},
+    f::Const{F}, tt::Const{TT}; kwargs...,
+) where {F, TT}
+    res = fn.val(f.val, tt.val; kwargs...)
+    return res
+end
+
+function EnzymeRules.forward(
     config, fn::Const{typeof(AMDGPU.hipfunction)}, ::Type{<: Duplicated},
     f::Const{F}, tt::Const{TT}; kwargs...,
 ) where {F, TT}
