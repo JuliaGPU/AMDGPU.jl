@@ -15,7 +15,7 @@ function versioninfo()
         _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
     ]
 
-    PrettyTables.pretty_table(data; header=[
+    PrettyTables.pretty_table(data; column_labels=[
         "Available", "Name", "Version", "Path"],
         alignment=[:c, :l, :l, :l])
 
