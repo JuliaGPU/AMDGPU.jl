@@ -163,7 +163,7 @@ if VERSION >= v"1.12-"
     # https://github.com/JuliaLang/LinearAlgebra.jl/blob/4e7c3f40316a956119ac419a97c4b8aad7a17e6c/src/matmul.jl#L490
     for blas_flag in (LinearAlgebra.BlasFlag.SyrkHerkGemm, LinearAlgebra.BlasFlag.SymmHemmGeneric)
         @eval LinearAlgebra.generic_matmatmul_wrapper!(
-            C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat, B::StridedROCVecOrMat,
+            C::StridedROCMatrix, tA::AbstractChar, tB::AbstractChar, A::StridedROCVecOrMat, B::StridedROCVecOrMat,
             alpha::Number, beta::Number, ::$blas_flag) =
             LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
     end
@@ -327,7 +327,7 @@ end
 if VERSION ≥ v"1.12-"
     # Otherwise, dispatches to:
     # https://github.com/JuliaLang/LinearAlgebra.jl/blob/4e7c3f40316a956119ac419a97c4b8aad7a17e6c/src/generic.jl#L2092
-    LinearAlgebra.copytrito!(B::Matrix{T}, A::ROCMatrix{T}, uplo::AbstractChar) where {T <: ROCBLASFloat} = 
+    LinearAlgebra.copytrito!(B::Matrix{T}, A::ROCMatrix{T}, uplo::AbstractChar) where {T <: ROCBLASFloat} =
         invoke(LinearAlgebra.copytrito!, Tuple{AbstractMatrix, AbstractMatrix, AbstractChar}, B, A, uplo)
 end
 
