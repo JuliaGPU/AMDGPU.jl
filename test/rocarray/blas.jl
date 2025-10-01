@@ -89,6 +89,13 @@ end
             α = rand(T)
             rocBLAS.gemv!('N', α, dA, dx, T(0), dy)
             @test α * A * x ≈ Array(dy)
+            A = rand(T, m, n)
+            x = rand(T, n)
+            dA, dx = ROCArray.((A, x))
+            dy = rocBLAS.gemv('N', α, dA, dx)
+            @test α * A * x ≈ Array(dy)
+            dy = rocBLAS.gemv('N', dA, dx)
+            @test A * x ≈ Array(dy)
         end
 
         @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (
@@ -106,6 +113,28 @@ end
             @test testf(
                 (y, a, b) -> mul!(y, Hermitian(a), b), rand(T, 5),
                 rand(T, 5, 5), rand(T, 5))
+            
+            A_ = rand(T, m, m)
+            A = A_ + A_'
+            x = rand(T, m)
+            y = zeros(T, m)
+            dA, dx, dy = ROCArray.((A, x, y))
+            α = rand(T)
+            if T <: Real
+                rocBLAS.symv!('U', α, dA, dx, T(0), dy)
+                @test α * A * x ≈ Array(dy)
+                dy = rocBLAS.symv('U', α, dA, dx)
+                @test α * A * x ≈ Array(dy)
+                dy = rocBLAS.symv('U', dA, dx)
+                @test A * x ≈ Array(dy)
+            else
+                rocBLAS.hemv!('U', α, dA, dx, T(0), dy)
+                @test α * A * x ≈ Array(dy)
+                dy = rocBLAS.hemv('U', α, dA, dx)
+                @test α * A * x ≈ Array(dy)
+                dy = rocBLAS.hemv('U', dA, dx)
+                @test A * x ≈ Array(dy)
+            end
         end
 
         A = rand(T, m, m)
@@ -137,6 +166,71 @@ end
         )
             @test testf(a -> inv(TR(a)), x)
         end
+
+        @testset "ger!" begin
+            A  = rand(T, m, m)
+            x  = rand(T, m)
+            y  = rand(T, m)
+            dA = ROCArray(A)
+            dx = ROCArray(x)
+            dy = ROCArray(y)
+            # perform rank one update
+            dB = copy(dA)
+            rocBLAS.ger!(alpha,dx,dy,dB)
+            B  = (alpha*x)*y' + A
+            # move to host and compare
+            hB = Array(dB)
+            @test B ≈ hB
+        end
+
+        @testset "syr!" begin
+            sA = rand(T, m, m)
+            sA = sA + transpose(sA)
+            x  = rand(T,m)
+            dx = ROCArray(x)
+            dB = ROCArray(sA)
+            rocBLAS.syr!('U',alpha,dx,dB)
+            B  = (alpha*x)*transpose(x) + sA
+            # move to host and compare upper triangles
+            hB = Array(dB)
+            B  = triu(B)
+            hB = triu(hB)
+            @test B ≈ hB
+        end
+
+        if T <: Complex
+            @testset "her" begin
+                hA = rand(T,m,m)
+                hA = hA + adjoint(hA)
+                dB = ROCArray(hA)
+                x  = rand(T,m)
+                dx = ROCArray(x)
+                # perform rank one update
+                rocBLAS.her!('U',real(alpha),dx,dB)
+                B = (real(alpha)*x)*x' + hA
+                # move to host and compare upper triangles
+                hB = Array(dB)
+                B  = triu(B)
+                hB = triu(hB)
+                @test B ≈ hB
+            end
+            @testset "her2!" begin
+                hA = rand(T,m,m)
+                hA = hA + adjoint(hA)
+                x  = rand(T, m)
+                y  = rand(T,m)
+                dB = ROCArray(hA)
+                dx = ROCArray(x)
+                dy = ROCArray(y)
+                rocBLAS.her2!('U',alpha,dx,dy,dB)
+                B = (alpha*x)*y' + y*(alpha*x)' + hA
+                # move to host and compare upper triangles
+                hB = Array(dB)
+                B  = triu(B)
+                hB = triu(hB)
+                @test B ≈ hB
+            end
+        end
     end
 end
 
@@ -156,6 +250,22 @@ end
             @test testf(
                 (c, a, b) -> mul!(c, Hermitian(a), b),
                 rand(T, 5, 5), Hermitian(rand(T, 5, 5)), rand(T, 5, 5))
+            A_ = rand(T, m, m)
+            A = A_ + A_'
+            B = rand(T, m, n)
+            dA, dB = ROCArray.((A, B))
+            α = rand(T)
+            if T <: Real
+                dC = rocBLAS.symm('L', 'U', α, dA, dB)
+                @test α * A * B ≈ Array(dC)
+                dC = rocBLAS.symm('L', 'U', dA, dB)
+                @test A * B ≈ Array(dC)
+            else
+                dC = rocBLAS.hemm('L', 'U', α, dA, dB)
+                @test α * A * B ≈ Array(dC)
+                dC = rocBLAS.hemm('L', 'U', dA, dB)
+                @test A * B ≈ Array(dC)
+            end
         end
 
         @testset "trsm ($T, $adjtype, $uplotype)" for adjtype in (
@@ -286,6 +396,122 @@ end
             end
         end
     end
+    @testset "syrk T=$T" for T in (Float32, Float64, ComplexF32, ComplexF64)
+        # generate parameters
+        α = rand(T)
+        β = rand(T)
+        A = rand(T, m, m)
+        Abad = rand(T, m + 1, m + 1)
+        C = rand(T, m, m)
+        # move to device
+        d_A, d_Abad = ROCArray(A), ROCArray(Abad)
+        C   = C + transpose(C)
+        d_C = ROCArray(C)
+        C   = α*(A*transpose(A)) + β*C
+        rocBLAS.syrk!('U','N',α,d_A,β,d_C)
+        # move back to host and compare
+        C   = triu(C)
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+        @test_throws DimensionMismatch rocBLAS.syrk!('U','N',α,d_Abad,β,d_C)
+
+        d_C = rocBLAS.syrk('U','N',d_A)
+        C   = triu(A*transpose(A))
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+    end
+    @testset "syr2k T=$T" for T in (Float32, Float64, ComplexF32, ComplexF64)
+        # generate parameters
+        α = rand(T)
+        β = rand(T)
+        A = rand(T, m, k)
+        B = rand(T, m, k)
+        Bbad = rand(T, m + 1, k + 1)
+        C = rand(T, m, m)
+        # move to device
+        d_A, d_B, d_Bbad = ROCArray(A), ROCArray(B), ROCArray(Bbad)
+        C = C + transpose(C)
+        d_C = ROCArray(C)
+        C = α*(A*transpose(B) + B*transpose(A)) + β*C
+        rocBLAS.syr2k!('U','N',α,d_A,d_B,β,d_C)
+        # move back to host and compare
+        C   = triu(C)
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+        @test_throws DimensionMismatch rocBLAS.syr2k!('U','N',α,d_A,d_Bbad,β,d_C)
+        Bbad   = rand(T, m, k + 1)
+        d_Bbad = ROCArray(Bbad)
+        @test_throws DimensionMismatch rocBLAS.syr2k!('U','N',α,d_A,d_Bbad,β,d_C)
+
+        d_C = rocBLAS.syr2k('U','N',d_A,d_B)
+        C   = triu((A*transpose(B)) + (B*transpose(A)))
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+    end
+    @testset "herk T=$T" for T in (ComplexF32, ComplexF64)
+        T1 = T 
+        T2 = real(T)
+        # generate parameters
+        α = rand(T2)
+        β = rand(T2)
+        A = rand(T, m, m)
+        Abad = rand(T, m + 1, m + 1)
+        C = rand(T, m, m)
+        # move to device
+        d_A, d_Abad = ROCArray(A), ROCArray(Abad)
+        C   = C + C'
+        d_C = ROCArray(C)
+        C   = α*(A*A') + β*C
+        rocBLAS.herk!('U','N',α,d_A,β,d_C)
+        # move back to host and compare
+        C   = triu(C)
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+        @test_throws DimensionMismatch rocBLAS.herk!('U','N',α,d_Abad,β,d_C)
+
+        d_C = rocBLAS.herk('U','N',d_A)
+        C   = triu(A*A')
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+    end
+    @testset "her2k T=$T" for T in (ComplexF32, ComplexF64)
+        T1 = T 
+        T2 = real(T)
+        # generate parameters
+        α = rand(T1)
+        β = rand(T2)
+        A = rand(T, m, k)
+        B = rand(T, m, k)
+        Bbad = rand(T, m + 1, k + 1)
+        C = rand(T, m, m)
+        # move to device
+        d_A, d_B, d_Bbad = ROCArray(A), ROCArray(B), ROCArray(Bbad)
+        C = C + C'
+        d_C = ROCArray(C)
+        C = α*(A*B') + conj(α)*(B*A') + β*C
+        rocBLAS.her2k!('U','N',α,d_A,d_B,β,d_C)
+        # move back to host and compare
+        C   = triu(C)
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+        @test_throws DimensionMismatch rocBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
+        Bbad   = rand(T, m, k + 1)
+        d_Bbad = ROCArray(Bbad)
+        @test_throws DimensionMismatch rocBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
+
+        d_C = rocBLAS.her2k('U','N',d_A,d_B)
+        C   = triu((A*B') + (B*A'))
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+    end
 end
 
 @testset "Extension" begin
@@ -338,6 +564,25 @@ end
         d_YA = rmul!(d_YA, d_Y)
         @test Array(d_YA) ≈ adjoint(AY) * Diagonal(y)
     end
+    @testset "geam" begin
+        m = 4
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            for at in ('N', 'T'), bt in ('N', 'T')
+                A = rand(T, m, m)
+                B = rand(T, m, m)
+                RA = ROCArray(A)
+                RB = ROCArray(B)
+                α = rand(T)
+                β = rand(T)
+                RC = rocBLAS.geam(at, bt, α, RA, β, RB)
+                C =
+                    α * (at == 'T' ? transpose(A) : A) +
+                    β * (bt == 'T' ? transpose(B) : B)
+                @test Array(RC) ≈ C
+            end
+        end
+    end
+
 end
 
 end
