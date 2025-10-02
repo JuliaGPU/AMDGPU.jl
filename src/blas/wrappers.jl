@@ -368,10 +368,10 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
             x
         end
         function tbmv(
-            uplo::Char, trans::Char, diag::Char,
+            uplo::Char, trans::Char, diag::Char, k::Integer,
             A::ROCMatrix{$elty}, x::ROCVector{$elty},
         )
-            tbmv!(uplo, trans, diag, A, copy(x))
+            tbmv!(uplo, trans, diag, k, A, copy(x))
         end
     end
 end

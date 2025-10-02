@@ -2,7 +2,7 @@
 
 using AMDGPU.rocBLAS
 using AMDGPU.HIP
-import .rocBLAS: rocblas_int
+import .rocBLAS: rocblas_int, bandex, band
 
 m = 20
 n = 35
@@ -229,6 +229,97 @@ end
                 B  = triu(B)
                 hB = triu(hB)
                 @test B ≈ hB
+            end
+        end
+        @testset "Banded methods" begin
+            ku = 3
+            kl = 4
+            A  = rand(T, m, n) # generate banded matrix
+            A  = bandex(A, kl, ku)
+            Ab = band(A, kl, ku) # get packed format
+            d_Ab = ROCArray(Ab)
+            x    = rand(T, n)
+            d_x  = ROCArray(x)
+            alpha = rand(T)
+            beta  = rand(T)
+            y     = rand(T, m)
+            d_y   = ROCArray(y)
+            @testset "gbmv!" begin
+                @testset for (op, da1, da2, ha1, ha2)  in (('N',d_x,d_y,x,y), ('T',d_y,d_x,y,x), ('C',d_y,d_x,y,x))
+                    # test y = alpha*A*x + beta*y
+                    rocBLAS.gbmv!(op,m,kl,ku,alpha,d_Ab,da1,beta,da2)
+                    BLAS.gbmv!(op,m,kl,ku,alpha,Ab,ha1,beta,ha2)
+                    @test ha2 ≈ Array(da2)
+                    d_y = ROCArray(y)
+                end
+            end
+            @testset "gbmv" begin
+                d_x = ROCArray(x)
+                d_y = rocBLAS.gbmv('N',m,kl,ku,alpha,d_Ab,d_x)
+                y   = BLAS.gbmv('N',m,kl,ku,alpha,Ab,x)
+                @test y ≈ Array(d_y)
+                # test alpha=1 version without y
+                d_y = rocBLAS.gbmv('N',m,kl,ku,d_Ab,d_x)
+                y   = BLAS.gbmv('N',m,kl,ku,Ab,x)
+                @test y ≈ Array(d_y)
+            end
+            A = rand(T, m, m)
+            A = A + A'
+            nbands = 3
+            @test m >= 1 + nbands
+            A = bandex(A,nbands,nbands)
+            # convert to 'upper' banded storage format
+            AB = band(A, 0, nbands)
+            # construct x
+            x    = rand(T, m)
+            d_AB = ROCArray(AB)
+            d_x  = ROCArray(x)
+            y    = rand(T, m)
+            if T <: Real
+                @testset "sbmv!" begin
+                    d_y = ROCArray(y)
+                    rocBLAS.sbmv!('U',nbands,alpha,d_AB,d_x,beta,d_y)
+                    @test alpha*(A*x) + beta*y ≈ Array(d_y)
+                end
+                @testset "sbmv" begin
+                    d_y = rocBLAS.sbmv('U',nbands,d_AB,d_x)
+                    @test A*x ≈ Array(d_y)
+                end
+            else
+                @testset "hbmv!" begin
+                    d_y = ROCArray(y)
+                    rocBLAS.hbmv!('U',nbands,alpha,d_AB,d_x,beta,d_y)
+                    @test alpha*(A*x) + beta*y ≈ Array(d_y)
+                end
+                @testset "hbmv" begin
+                    d_y = rocBLAS.hbmv('U',nbands,d_AB,d_x)
+                    @test A*x ≈ Array(d_y)
+                end
+            end
+            # generate banded triangular matrix
+            A    = rand(T, m, m)
+            nbands = 3 # restrict to 3 bands
+            @test m >= 1 + nbands
+            A    = bandex(A,0,nbands)
+            AB   = band(A,0,nbands)
+            d_AB = ROCArray(AB)
+            @testset "tbmv!" begin
+                d_y = ROCArray(y)
+                rocBLAS.tbmv!('U','N','N',nbands,d_AB,d_y)
+                @test A*y ≈ Array(d_y)
+            end
+            @testset "tbmv" begin
+                d_y = rocBLAS.tbmv('U','N','N',nbands,d_AB,d_x)
+                @test A*x ≈ Array(d_y)
+            end
+            @testset "tbsv!" begin
+                d_y = copy(d_x)
+                rocBLAS.tbsv!('U','N','N',nbands,d_AB,d_y)
+                @test A\x ≈ Array(d_y)
+            end
+            @testset "tbsv" begin
+                d_y = rocBLAS.tbsv('U','N','N',nbands,d_AB,d_x)
+                @test A\x ≈ Array(d_y)
             end
         end
     end
