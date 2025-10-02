@@ -368,10 +368,10 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
             x
         end
         function tbmv(
-            uplo::Char, trans::Char, diag::Char,
+            uplo::Char, trans::Char, diag::Char, k::Integer,
             A::ROCMatrix{$elty}, x::ROCVector{$elty},
         )
-            tbmv!(uplo, trans, diag, A, copy(x))
+            tbmv!(uplo, trans, diag, k, A, copy(x))
         end
     end
 end
@@ -496,10 +496,10 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
 end
 
 ### her
-for (fname, elty) in ((:rocblas_zher,:ComplexF64),
-                      (:rocblas_cher,:ComplexF32))
+for (fname, elty, relty) in ((:rocblas_zher,:ComplexF64,:Float64),
+                             (:rocblas_cher,:ComplexF32,:Float32))
     @eval begin
-        function her!(uplo::Char, alpha::$elty, x::ROCVector{$elty}, A::ROCMatrix{$elty})
+        function her!(uplo::Char, alpha::$relty, x::ROCVector{$elty}, A::ROCMatrix{$elty})
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
@@ -863,12 +863,12 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
 end
 
 ## herk
-for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
-                      (:rocblas_cherk,:ComplexF32))
+for (fname, elty, relty) in ((:rocblas_zherk,:ComplexF64,:Float64),
+                             (:rocblas_cherk,:ComplexF32,:Float32))
     @eval begin
         function herk!(
-            uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty},
-            beta::($elty), C::ROCMatrix{$elty},
+            uplo::Char, trans::Char, alpha::($relty), A::ROCVecOrMat{$elty},
+            beta::($relty), C::ROCMatrix{$elty},
         )
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -881,12 +881,12 @@ for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
             $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc)
             C
         end
-        function herk(uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty})
+        function herk(uplo::Char, trans::Char, alpha::($relty), A::ROCVecOrMat{$elty})
             n = size(A, trans == 'N' ? 1 : 2)
-            herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
+            herk!(uplo, trans, alpha, A, zero($relty), similar(A, $elty, (n,n)))
         end
         herk(uplo::Char, trans::Char, A::ROCVecOrMat{$elty}) =
-            herk(uplo, trans, one($elty), A)
+            herk(uplo, trans, one($relty), A)
    end
 end
 
@@ -1092,13 +1092,13 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
         )
            m,n = size(B)
            if ((transb == 'T' || transb == 'C'))
-               geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (n,m) ) )
+               return geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (n,m) ) )
            end
            if (transb == 'N')
-               geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (m,n) ) )
+               return geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (m,n) ) )
            end
        end
-       geam( uplo::Char, trans::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty}) = geam( uplo, trans, one($elty), A, one($elty), B)
+       geam( transa::Char, transb::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty}) = geam( transa, transb, one($elty), A, one($elty), B)
     end
 end
 
