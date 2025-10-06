@@ -495,7 +495,7 @@ end
                         (bt == 'T' ? transpose(B[:, :, i]) : B[:, :, i])
                     @test C[:, :, i] ≈ c
                 end
-                A = [rand(T, 4, 4) for ix in 1:batch_count]
+                A  = [rand(T, 4, 4) for ix in 1:batch_count]
                 B  = [rand(T, 4, 4) for ix in 1:batch_count]
                 RA = [ROCArray(A_) for A_ in A]
                 RB = [ROCArray(B_) for B_ in B]
