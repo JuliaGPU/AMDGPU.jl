@@ -51,6 +51,7 @@ end
         @test testf(norm, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
         @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
+        @test testf(axpy!, Ref(rand()), rand(T, m), 1:m-1, rand(T, m), 1:m-1)
         @test testf(axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
         @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
@@ -147,6 +148,14 @@ end
             @test testf((a, b) -> f(TR(a)) * b, A, x)
             @test testf((a, b) -> lmul!(f(TR(a)), b), A, copy(x))
         end
+        @testset "trmv" begin
+            A  = rand(T, m, m)
+            dA = ROCArray(A)
+            x  = rand(T, m)
+            dx = ROCArray(x)
+            dy = rocBLAS.trmv('U', 'N', 'N', dA, dx)
+            @test collect(dy) ≈ triu(A) * x
+        end
 
         A, x = rand(T, m, m), rand(T, m)
         @testset "Triangular ldiv" for TR in (
@@ -156,6 +165,14 @@ end
         )
             @test testf((a, b) -> f(TR(a)) \ b, A, x)
             @test testf((a, b) -> ldiv!(f(TR(a)), b), A, copy(x))
+        end
+        @testset "trsv" begin
+            A  = rand(T, m, m)
+            dA = ROCArray(A)
+            x  = rand(T, m)
+            dx = ROCArray(x)
+            dy = rocBLAS.trsv('U', 'N', 'N', dA, dx)
+            @test collect(dy) ≈ triu(A) \ x
         end
 
         x = rand(T, m, m)
@@ -372,6 +389,25 @@ end
                 (a, b) -> b / adjtype(uplotype(a)),
                 triu(rand(T, m, m)), rand(T, n, m))
         end
+        @testset "trsm" begin
+            A  = rand(T, m, m)
+            dA = ROCArray(A)
+            B  = rand(T, m, m)
+            dB = ROCArray(B)
+            dC = rocBLAS.trsm('L', 'U', 'N', 'N', one(T), dA, dB)
+            @test collect(dC) ≈ triu(A) \ B
+        end
+        @testset "trsm_batched" begin
+            batch_count = 3
+            A  = [rand(T, m, m) for ix in 1:batch_count]
+            dA = [ROCArray(A_) for A_ in A]
+            B  = [rand(T, m, m) for ix in 1:batch_count]
+            dB = [ROCArray(B_) for B_ in B]
+            dC = rocBLAS.trsm_batched('L', 'U', 'N', 'N', one(T), dA, dB)
+            for ix in 1:batch_count
+                @test collect(dC[ix]) ≈ triu(A[ix]) \ B[ix]
+            end
+        end
 
         @testset "triangular-dense mul ($T, $adjtype, $uplotype)" for adjtype in (
             identity, adjoint, transpose,
@@ -388,6 +424,14 @@ end
             @test testf(
                 (c, a, b) -> mul!(c, b, adjtype(uplotype(a))),
                 zeros(T, n, m), A, rand(T, n, m))
+        end
+        @testset "trmm" begin
+            A  = rand(T, m, m)
+            dA = ROCArray(A)
+            B  = rand(T, m, m)
+            dB = ROCArray(B)
+            dC = rocBLAS.trmm('L', 'U', 'N', 'N', one(T), dA, dB)
+            @test collect(dC) ≈ triu(A) * B
         end
 
         @testset "triangular-triangular mul"  for (TRa, ta, TRb, tb) in (
@@ -451,6 +495,20 @@ end
                         (at == 'T' ? transpose(A[:, :, i]) : A[:, :, i]) *
                         (bt == 'T' ? transpose(B[:, :, i]) : B[:, :, i])
                     @test C[:, :, i] ≈ c
+                end
+                A = [rand(T, 4, 4) for ix in 1:batch_count]
+                B = [rand(T, 4, 4) for ix in 1:batch_count]
+                RA = [ROCArray(A_) for A_ in A]
+                RB = [ROCArray(B_) for B_ in B]
+
+                RC = rocBLAS.gemm_batched(at, bt, RA, RB)
+                @test length(RC) == batch_count
+                C  = [Array(RC_) for RC_ in RC]
+                for i in 1:batch_count
+                    c =
+                    (at == 'T' ? transpose(A[i]) : A[i]) *
+                    (bt == 'T' ? transpose(B[i]) : B[i])
+                    @test C[i] ≈ c
                 end
             end
         end
