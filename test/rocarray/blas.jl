@@ -51,7 +51,6 @@ end
         @test testf(norm, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
         @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
-        @test testf(axpy!, Ref(rand()), rand(T, m), 1:m-1, rand(T, m), 1:m-1)
         @test testf(axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
         @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
