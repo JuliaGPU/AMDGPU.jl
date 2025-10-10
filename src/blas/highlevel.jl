@@ -45,6 +45,7 @@ function LinearAlgebra.:(*)(
     dotu(n, x, stride(x, 1), y, stride(y, 1))
 end
 
+LinearAlgebra.norm(x::Diagonal{T, <:StridedROCVector{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, ROCBLASFloat}} = norm(x.diag, p)
 LinearAlgebra.norm(x::ROCArray{T}) where T <: ROCBLASFloat = nrm2(length(x), x, stride(x, 1))
 LinearAlgebra.BLAS.asum(x::ROCArray{T}) where T <: ROCBLASFloat = asum(length(x), x, stride(x, 1))
 

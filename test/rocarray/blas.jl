@@ -58,6 +58,14 @@ end
 
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
+
+        # norm of Diagonal
+        x = rand(T, m)
+        dDx = Diagonal(ROCArray(x))
+        Dx = Diagonal(x)
+        @test norm(dDx, 1)   ≈ norm(Dx, 1)
+        @test norm(dDx, 2)   ≈ norm(Dx, 2)
+        @test norm(dDx, Inf) ≈ norm(Dx, Inf)
     end
 end
 
