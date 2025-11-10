@@ -246,11 +246,17 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T, M}
     end
 
     managed.dirty = true
-    # TODO introduce HIPPtr to differentiate
+    # Return appropriate pointer based on buffer type
     if M <: Mem.HIPBuffer
         convert(Ptr{T}, managed.mem)
-    else
+    elseif M <: Mem.HIPUnifiedBuffer
+        # Unified memory: accessible from device
+        convert(Ptr{T}, managed.mem)
+    elseif M <: Mem.HostBuffer
+        # Host buffer: use device pointer
         convert(Ptr{T}, managed.mem.dev_ptr)
+    else
+        error("Unsupported buffer type for device conversion: $M")
     end
 end
 

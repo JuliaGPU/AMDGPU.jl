@@ -229,4 +229,6 @@ else
     @test_skip "Multi-GPU"
 end
 
+include("unified.jl")
+
 end

@@ -165,6 +165,190 @@ download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
 transfer!(dst::HostBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
 
+"""
+    HIPUnifiedBuffer
+
+Unified memory buffer that can be accessed from both host and device.
+Allocated using `hipMallocManaged` with automatic migration between host and device.
+
+Supports memory advise hints and explicit prefetching for performance optimization.
+See: https://rocm.docs.amd.com/projects/HIP/en/latest/how-to/hip_runtime_api/memory_management/unified_memory.html
+"""
+struct HIPUnifiedBuffer <: AbstractAMDBuffer
+    device::HIPDevice
+    ctx::HIPContext
+    ptr::Ptr{Cvoid}
+    bytesize::Int
+    own::Bool
+end
+
+function HIPUnifiedBuffer(
+    bytesize::Integer, flags = HIP.hipMemAttachGlobal;
+    stream::HIP.HIPStream = AMDGPU.stream(),
+)
+    dev, ctx = stream.device, stream.ctx
+    bytesize == 0 && return HIPUnifiedBuffer(dev, ctx, C_NULL, 0, true)
+
+    AMDGPU.maybe_collect()
+
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    HIP.hipMallocManaged(ptr_ref, bytesize, flags)
+    ptr = ptr_ref[]
+    ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
+
+    AMDGPU.account!(AMDGPU.memory_stats(dev), bytesize)
+    HIPUnifiedBuffer(dev, ctx, ptr, bytesize, true)
+end
+
+function HIPUnifiedBuffer(
+    ptr::Ptr{Cvoid}, sz::Integer;
+    stream::HIP.HIPStream = AMDGPU.stream(), own::Bool = false,
+)
+    HIPUnifiedBuffer(stream.device, stream.ctx, ptr, sz, own)
+end
+
+Base.sizeof(b::HIPUnifiedBuffer) = UInt64(b.bytesize)
+
+Base.convert(::Type{Ptr{T}}, buf::HIPUnifiedBuffer) where T = convert(Ptr{T}, buf.ptr)
+
+function view(buf::HIPUnifiedBuffer, bytesize::Int)
+    bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
+    HIPUnifiedBuffer(
+        buf.device, buf.ctx,
+        buf.ptr + bytesize,
+        buf.bytesize - bytesize, buf.own)
+end
+
+function free(buf::HIPUnifiedBuffer; kwargs...)
+    buf.own || return
+    buf.ptr == C_NULL && return
+    HIP.hipFree(buf)
+    AMDGPU.account!(AMDGPU.memory_stats(buf.device), -buf.bytesize)
+    return
+end
+
+# Unified memory can be accessed from both host and device
+upload!(dst::HIPUnifiedBuffer, src::Ptr, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+upload!(dst::HIPUnifiedBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToDevice, stream)
+
+upload!(dst::HIPUnifiedBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+download!(dst::Ptr, src::HIPUnifiedBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+download!(dst::HIPBuffer, src::HIPUnifiedBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToDevice, stream)
+
+download!(dst::HostBuffer, src::HIPUnifiedBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+transfer!(dst::HIPUnifiedBuffer, src::HIPUnifiedBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDefault, stream)
+
+transfer!(dst::HIPUnifiedBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToDevice, stream)
+
+transfer!(dst::HIPBuffer, src::HIPUnifiedBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToDevice, stream)
+
+transfer!(dst::HIPUnifiedBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+transfer!(dst::HostBuffer, src::HIPUnifiedBuffer, sz::Int; stream::HIP.HIPStream) =
+    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
+
+"""
+    prefetch!(buf::HIPUnifiedBuffer, device::HIPDevice; stream::HIP.HIPStream)
+    prefetch!(buf::HIPUnifiedBuffer; stream::HIP.HIPStream)
+
+Prefetch unified memory to the specified device (or the buffer's device).
+Explicitly migrates the data to improve performance by reducing page faults.
+
+See: https://rocm.docs.amd.com/projects/HIP/en/latest/reference/hip_runtime_api/modules/memory_management/unified_memory_reference.html#_CPPv419hipMemPrefetchAsyncPvmi13hipStream_t
+"""
+function prefetch!(buf::HIPUnifiedBuffer, device::HIPDevice; stream::HIP.HIPStream = AMDGPU.stream())
+    buf.ptr == C_NULL && return
+    HIP.hipMemPrefetchAsync(buf.ptr, buf.bytesize, HIP.device_id(device), stream)
+    return
+end
+
+function prefetch!(buf::HIPUnifiedBuffer; stream::HIP.HIPStream = AMDGPU.stream())
+    prefetch!(buf, buf.device; stream)
+end
+
+"""
+    advise!(buf::HIPUnifiedBuffer, advice::HIP.hipMemoryAdvise, device::HIPDevice)
+    advise!(buf::HIPUnifiedBuffer, advice::HIP.hipMemoryAdvise)
+
+Provide hints to the unified memory system about how the memory will be used.
+
+Available advice flags:
+- `hipMemAdviseSetReadMostly`: Data will be mostly read and only occasionally written to
+- `hipMemAdviseUnsetReadMostly`: Undo read-mostly advice
+- `hipMemAdviseSetPreferredLocation`: Set preferred location for the data
+- `hipMemAdviseUnsetPreferredLocation`: Clear preferred location
+- `hipMemAdviseSetAccessedBy`: Data will be accessed by specified device
+- `hipMemAdviseUnsetAccessedBy`: Clear accessed-by hint
+- `hipMemAdviseSetCoarseGrain`: Use coarse-grain coherency (AMD-specific)
+- `hipMemAdviseUnsetCoarseGrain`: Use fine-grain coherency (AMD-specific)
+
+See: https://rocm.docs.amd.com/projects/HIP/en/latest/reference/hip_runtime_api/modules/memory_management/unified_memory_reference.html#_CPPv412hipMemAdvisePvmj8hipMemoryAdvise_t
+"""
+function advise!(buf::HIPUnifiedBuffer, advice::HIP.hipMemoryAdvise, device::HIPDevice)
+    buf.ptr == C_NULL && return
+    HIP.hipMemAdvise(buf.ptr, buf.bytesize, advice, HIP.device_id(device))
+    return
+end
+
+function advise!(buf::HIPUnifiedBuffer, advice::HIP.hipMemoryAdvise)
+    advise!(buf, advice, buf.device)
+end
+
+"""
+    query_attribute(buf::HIPUnifiedBuffer, attribute::HIP.hipMemRangeAttribute)
+
+Query attributes of unified memory range.
+
+Available attributes:
+- `hipMemRangeAttributeReadMostly`: Query if the range is read-mostly
+- `hipMemRangeAttributePreferredLocation`: Query preferred location
+- `hipMemRangeAttributeAccessedBy`: Query which devices can access this range
+- `hipMemRangeAttributeLastPrefetchLocation`: Query last prefetch location
+- `hipMemRangeAttributeCoherencyMode`: Query coherency mode (AMD-specific)
+
+Returns the attribute value.
+
+See: https://rocm.docs.amd.com/projects/HIP/en/latest/reference/hip_runtime_api/modules/memory_management/unified_memory_reference.html#_CPPv423hipMemRangeGetAttributePvm20hipMemRangeAttribute_tPvm
+"""
+function query_attribute(buf::HIPUnifiedBuffer, attribute::HIP.hipMemRangeAttribute)
+    buf.ptr == C_NULL && error("Cannot query attributes of NULL pointer")
+
+    # Different attributes return different types
+    if attribute == HIP.hipMemRangeAttributeReadMostly
+        data = Ref{Cint}()
+        HIP.hipMemRangeGetAttribute(data, sizeof(Cint), attribute, buf.ptr, buf.bytesize)
+        return Bool(data[])
+    elseif attribute in (HIP.hipMemRangeAttributePreferredLocation,
+                         HIP.hipMemRangeAttributeLastPrefetchLocation)
+        data = Ref{Cint}()
+        HIP.hipMemRangeGetAttribute(data, sizeof(Cint), attribute, buf.ptr, buf.bytesize)
+        return data[]
+    elseif attribute == HIP.hipMemRangeAttributeCoherencyMode
+        data = Ref{Cuint}()
+        HIP.hipMemRangeGetAttribute(data, sizeof(Cuint), attribute, buf.ptr, buf.bytesize)
+        return data[]
+    else
+        # For AccessedBy and other attributes, return raw pointer
+        data = Ref{Ptr{Cvoid}}()
+        HIP.hipMemRangeGetAttribute(data, sizeof(Ptr{Cvoid}), attribute, buf.ptr, buf.bytesize)
+        return data[]
+    end
+end
+
 # download!(::Ptr, ::HIPBuffer)
 transfer!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
     HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
