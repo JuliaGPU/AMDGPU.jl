@@ -350,3 +350,16 @@ end
 
 Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
+
+
+## indexing
+
+function Base.getindex(x::ROCArray{T, <:Any, <:Union{Mem.HostBuffer, Mem.HIPUnifiedBuffer}}, I::Int) where T
+    @boundscheck checkbounds(x, I)
+    unsafe_load(pointer(x, I))
+end
+
+function Base.setindex!(x::ROCArray{T, <:Any, <:Union{Mem.HostBuffer, Mem.HIPUnifiedBuffer}}, v, I::Int) where T
+    @boundscheck checkbounds(x, I)
+    unsafe_store!(pointer(x, I), v)
+end
