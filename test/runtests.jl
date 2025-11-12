@@ -109,7 +109,9 @@ AMDGPU.versioninfo()
 
 @info "Test suite info"
 data = String["$np" "$(AMDGPU.device())" join(TARGET_TESTS, ", ");]
-PrettyTables.pretty_table(data; header=["Workers", "Device", "Tests"], crop=:none)
+PrettyTables.pretty_table(data; column_labels=["Workers", "Device", "Tests"],
+                          fit_table_in_display_vertically=false,
+                          fit_table_in_display_horizontally=false)
 
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
     for tt in TARGET_TESTS

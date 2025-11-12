@@ -368,10 +368,10 @@ for (fname, elty) in ((:rocblas_stbmv,:Float32),
             x
         end
         function tbmv(
-            uplo::Char, trans::Char, diag::Char,
+            uplo::Char, trans::Char, diag::Char, k::Integer,
             A::ROCMatrix{$elty}, x::ROCVector{$elty},
         )
-            tbmv!(uplo, trans, diag, A, copy(x))
+            tbmv!(uplo, trans, diag, k, A, copy(x))
         end
     end
 end
@@ -496,10 +496,10 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
 end
 
 ### her
-for (fname, elty) in ((:rocblas_zher,:ComplexF64),
-                      (:rocblas_cher,:ComplexF32))
+for (fname, elty, relty) in ((:rocblas_zher,:ComplexF64,:Float64),
+                             (:rocblas_cher,:ComplexF32,:Float32))
     @eval begin
-        function her!(uplo::Char, alpha::$elty, x::ROCVector{$elty}, A::ROCMatrix{$elty})
+        function her!(uplo::Char, alpha::$relty, x::ROCVector{$elty}, A::ROCMatrix{$elty})
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
@@ -639,6 +639,7 @@ end
             "- length(B)=$(length(B))\n" *
             "- length(C)=$(length(C))\n"))
     end
+    m, k, n = (-1, -1, -1)
     for (i, (As, Bs, Cs)) in enumerate(zip(A, B, C))
         m, k = size(As, transA == 'N' ? 1 : 2), size(As, transA == 'N' ? 2 : 1)
         n, g = size(Bs, transB == 'N' ? 2 : 1), size(Bs, transB == 'N' ? 1 : 2)
@@ -653,7 +654,7 @@ end
     lda = max(1, stride(A[1], 2))
     ldb = max(1, stride(B[1], 2))
     ldc = max(1, stride(C[1], 2))
-    m, k, n, lda, ldb, ldc
+    return m, k, n, lda, ldb, ldc
 end
 
 ## (GE) general matrix-matrix multiplication batched
@@ -666,15 +667,17 @@ for (fname, elty) in
     @eval begin
         function gemm_batched!(
             transA::Char, transB::Char,
-            alpha::($elty), A::ROCArray{$elty, 3},
-            B::ROCArray{$elty, 3}, beta::($elty), C::ROCArray{$elty, 3},
-        )
+            alpha::($elty), A::TA,
+            B::TB, beta::($elty), C::TC,
+        ) where {TA<:Union{ROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
+                 TB<:Union{ROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
+                 TC<:Union{ROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}}}
             m, k, n, lda, ldb, ldc = _check_gemm_batched_dims(
                 transA, transB, A, B, C)
 
-            batch_count = size(C, 3)
-            a_broadcast = (size(A, 3) == 1) && (batch_count > 1)
-            b_broadcast = (size(B, 3) == 1) && (batch_count > 1)
+            batch_count = C isa ROCArray ? size(C, 3) : length(C)
+            a_broadcast = A isa ROCArray && (size(A, 3) == 1) && (batch_count > 1)
+            b_broadcast = B isa ROCArray && (size(B, 3) == 1) && (batch_count > 1)
             Ab = a_broadcast ? device_batch(A, batch_count) : device_batch(A)
             Bb = b_broadcast ? device_batch(B, batch_count) : device_batch(B)
             Cb = device_batch(C)
@@ -684,18 +687,18 @@ for (fname, elty) in
                 handle, transA, transB,
                 m, n, k, Ref(alpha), Ab, lda, Bb, ldb, Ref(beta),
                 Cb, ldc, batch_count)
-            C
+            return C
         end
         function gemm_batched(
             transA::Char, transB::Char, alpha::($elty), A::T, B::K,
         ) where {
-            T <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
-            K <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
+            T <: Union{AnyROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
+            K <: Union{AnyROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
         }
             is_ab_vec = Int(T <: Vector) + Int(K <: Vector)
             (is_ab_vec != 0) && (is_ab_vec != 2) && throw(ArgumentError(
                 "If `A` is a `Vector{ROCMatrix}`, then `B` must be too."))
-            if T isa Vector
+            if T <: Vector
                 C = ROCMatrix{$elty}[similar(B[i], $elty, (
                     size(A[i], transA == 'N' ? 1 : 2),
                     size(B[i], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
@@ -704,13 +707,15 @@ for (fname, elty) in
                 k = size(B, transB == 'N' ? 2 : 1)
                 C = similar(A, $elty, (m, k, max(size(A, 3), size(B, 3))))
             end
-            gemm_batched!(transA, transB, alpha, A, B, zero($elty), C)
+            m, k, n, lda, ldb, ldc = _check_gemm_batched_dims(
+                transA, transB, A, B, C)
+            return gemm_batched!(transA, transB, alpha, A, B, zero($elty), C)
         end
         function gemm_batched(transA::Char, transB::Char, A::T, B::K) where {
-            T <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
-            K <: Union{AnyROCArray{$elty, 3}, Vector{ROCMatrix{$elty}}},
+            T <: Union{AnyROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
+            K <: Union{AnyROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
         }
-            gemm_batched(transA, transB, one($elty), A, B)
+            return gemm_batched(transA, transB, one($elty), A, B)
         end
     end
 end
@@ -863,12 +868,12 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
 end
 
 ## herk
-for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
-                      (:rocblas_cherk,:ComplexF32))
+for (fname, elty, relty) in ((:rocblas_zherk,:ComplexF64,:Float64),
+                             (:rocblas_cherk,:ComplexF32,:Float32))
     @eval begin
         function herk!(
-            uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty},
-            beta::($elty), C::ROCMatrix{$elty},
+            uplo::Char, trans::Char, alpha::($relty), A::ROCVecOrMat{$elty},
+            beta::($relty), C::ROCMatrix{$elty},
         )
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -881,12 +886,12 @@ for (fname, elty) in ((:rocblas_zherk,:ComplexF64),
             $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc)
             C
         end
-        function herk(uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty})
+        function herk(uplo::Char, trans::Char, alpha::($relty), A::ROCVecOrMat{$elty})
             n = size(A, trans == 'N' ? 1 : 2)
-            herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
+            herk!(uplo, trans, alpha, A, zero($relty), similar(A, $elty, (n,n)))
         end
         herk(uplo::Char, trans::Char, A::ROCVecOrMat{$elty}) =
-            herk(uplo, trans, one($elty), A)
+            herk(uplo, trans, one($relty), A)
    end
 end
 
@@ -1029,7 +1034,7 @@ for (fname, elty) in
     @eval begin
         function trsm_batched!(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
-            A::Array{ROCMatrix{$elty},1}, B::Array{ROCMatrix{$elty},1},
+            A::Array{<:ROCMatrix{$elty},1}, B::Array{<:ROCMatrix{$elty},1},
         )
             if( length(A) != length(B) )
                 throw(DimensionMismatch(""))
@@ -1051,7 +1056,7 @@ for (fname, elty) in
         end
         function trsm_batched(
             side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
-            A::Array{ROCMatrix{$elty},1}, B::Array{ROCMatrix{$elty},1},
+            A::Array{<:ROCMatrix{$elty},1}, B::Array{<:ROCMatrix{$elty},1},
         )
             trsm_batched!(side, uplo, transa, diag, alpha, A, copy(B) )
         end
@@ -1092,13 +1097,13 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
         )
            m,n = size(B)
            if ((transb == 'T' || transb == 'C'))
-               geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (n,m) ) )
+               return geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (n,m) ) )
            end
            if (transb == 'N')
-               geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (m,n) ) )
+               return geam!( transa, transb, alpha, A, beta, B, similar(B, $elty, (m,n) ) )
            end
        end
-       geam( uplo::Char, trans::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty}) = geam( uplo, trans, one($elty), A, one($elty), B)
+       geam( transa::Char, transb::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty}) = geam( transa, transb, one($elty), A, one($elty), B)
     end
 end
 

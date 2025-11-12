@@ -44,7 +44,7 @@ function _hip_runtime_version()
     VersionNumber(major, minor, patch)
 end
 
-global rel_libdir::String = ""
+global rel_libdir::String = Sys.islinux() ? "" : "bin"
 global libhsaruntime::String = ""
 global lld_path::String = ""
 global lld_artifact::Bool = false

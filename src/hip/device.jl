@@ -168,11 +168,11 @@ function __pretty_data(dev::HIPDevice)
 end
 
 function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, dev::HIPDevice)
-    PrettyTables.pretty_table(io, __pretty_data(dev); header=[
+    PrettyTables.pretty_table(io, __pretty_data(dev); column_labels=[
         "Id", "Name", "GCN arch", "Wavefront", "Memory", "Shared Memory"])
 end
 
 function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, devs::Vector{HIPDevice})
-    PrettyTables.pretty_table(io, vcat(__pretty_data.(devs)...); header=[
+    PrettyTables.pretty_table(io, vcat(__pretty_data.(devs)...); column_labels=[
         "Id", "Name", "GCN arch", "Wavefront", "Memory", "Shared Memory"])
 end
