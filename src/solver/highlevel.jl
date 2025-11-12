@@ -630,7 +630,7 @@ end
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
-        LinearAlgebra.LAPACK.potrf!(uplo::Char, A::ROCMatrix{$elty}) = rocSOLVER.potrf!(uplo, A)
+        LinearAlgebra.LAPACK.potrf!(uplo::Char, A::StridedROCMatrix{$elty}) = rocSOLVER.potrf!(uplo, A)
         LinearAlgebra.LAPACK.potrs!(uplo::Char, A::ROCMatrix{$elty}, B::ROCVecOrMat{$elty}) = rocSOLVER.potrs!(uplo, A, B)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}) = rocSOLVER.sytrf!(uplo, A)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.sytrf!(uplo, A, ipiv)
