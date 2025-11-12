@@ -404,6 +404,15 @@ end
             dC = rocBLAS.trsm('L', 'U', 'N', 'N', one(T), dA, dB)
             @test collect(dC) ≈ triu(A) \ B
         end
+        @testset "trsm strided" begin
+            A  = rand(T, 2m, 2m)
+            dA = view(ROCArray(A),1:m,1:m)
+            B  = rand(T, 2m, 2m)
+            dB = view(ROCArray(B),1:m,1:m)
+            dC = rocBLAS.trsm('L', 'U', 'N', 'N', one(T), dA, dB)
+            @test collect(dC) ≈ triu(view(A,1:m,1:m)) \ view(B,1:m,1:m)
+        end
+            
         @testset "trsm_batched" begin
             batch_count = 3
             A  = [rand(T, m, m) for ix in 1:batch_count]
@@ -439,6 +448,15 @@ end
             dB = ROCArray(B)
             dC = rocBLAS.trmm('L', 'U', 'N', 'N', one(T), dA, dB)
             @test collect(dC) ≈ triu(A) * B
+        end
+
+         @testset "trmm strided" begin
+            A  = rand(T, 2m, 2m)
+            dA = view(ROCArray(A),1:m,1:m)
+            B  = rand(T, 2m, 2m)
+            dB = view(ROCArray(B),1:m,1:m)
+            dC = rocBLAS.trmm('L', 'U', 'N', 'N', one(T), dA, dB)
+            @test collect(dC) ≈ triu(view(A,1:m,1:m)) * view(B,1:m,1:m)
         end
 
         @testset "triangular-triangular mul"  for (TRa, ta, TRb, tb) in (
@@ -575,6 +593,26 @@ end
         d_C = rocBLAS.syrk('U','N',d_A)
         C   = triu(A*transpose(A))
         h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+    end
+    @testset "syrk strided T=$T" for T in (Float32, Float64, ComplexF32, ComplexF64)
+        # generate parameters
+        α = rand(T)
+        β = rand(T)
+        A = rand(T, 2m, 2m)
+        Abad = rand(T, 2m + 1, 2m + 1)
+        C = rand(T, 2m, 2m)
+        # move to device
+        d_A, d_Abad = ROCArray(A), ROCArray(Abad)
+        C   = C + transpose(C)
+        d_C = ROCArray(C)
+        A_view = view(A,1:m,1:m)
+        C   = α*(A_view*transpose(A_view)) + β*view(C,1:m,1:m)
+        rocBLAS.syrk!('U','N',α,view(d_A,1:m,1:m),β,view(d_C,1:m,1:m))
+        # move back to host and compare
+        C   = triu(C)
+        h_C = Array(view(d_C,1:m,1:m))
         h_C = triu(h_C)
         @test C ≈ h_C
     end
