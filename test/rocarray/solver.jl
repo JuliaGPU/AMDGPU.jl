@@ -183,6 +183,21 @@ end
         LAPACK.potrs!('U',A,B)
         @test B ≈ collect(d_B)
     end
+    @testset "elty = $elty strided" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A    = rand(elty,n*2,n*2)
+        A    = A*A' + I
+        B    = rand(elty,n,p)
+        d_A  = view(ROCArray(A),1:n,1:n)
+        d_B  = ROCArray(B)
+
+        LAPACK.potrf!('L',d_A)
+        LAPACK.potrs!('U',copy(d_A),d_B)
+        LAPACK.potrf!('L',view(A,1:n,1:n))
+        LAPACK.potrs!('U',copy(view(A,1:n,1:n)),B)
+        @test B ≈ collect(d_B)
+    end
+
+        
 end
 
 @testset "sytrf!" begin
