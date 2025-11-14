@@ -45,7 +45,7 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: "julia --project -e 'using Pkg; Pkg.update()'"
-    timeout_in_minutes: 30
+    timeout_in_minutes: 50
     env:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
@@ -62,7 +62,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "gfx1100,gfx1101"
+      rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: "julia --project -e 'using Pkg; Pkg.update()'"
     timeout_in_minutes: 50
@@ -85,7 +85,7 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: "julia --project -e 'using Pkg; Pkg.update()'"
-    timeout_in_minutes: 30
+    timeout_in_minutes: 50
     env:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
