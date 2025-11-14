@@ -182,3 +182,24 @@ julia> xd * xd # Can be used with HIP libraries.
 !!! note
     Passing `own=true` keyword will make the wrapped array take the ownership of the memory.
     For host memory it will unpin it on destruction and for device memory it will free it.
+
+## Unified Memory
+
+AMDGPU.jl supports HIP unified memory (also known as managed memory), which allows the same memory to be accessed from both CPU and GPU without explicit transfers. Arrays can be allocated with unified memory using the `unified=true` keyword:
+
+```julia
+x = ROCArray{Float32}(undef, 4, 4; unified=true)
+x .= 1f0  # Can be accessed and modified directly from CPU
+y = x .+ 2f0  # Can be used in GPU kernels
+Array(x)  # No copy needed - wraps the same memory
+```
+
+You can also wrap unified memory arrays to `Array` for direct CPU access:
+
+```julia
+x = ROCArray{Float32}(undef, 4; unified=true)
+x_cpu = unsafe_wrap(Array, x)  # Zero-copy access from CPU
+x_cpu[1] = 42f0  # Modifies the GPU array directly
+```
+
+Unified memory is particularly useful for irregular workloads and when you need frequent CPU-GPU data exchanges.
