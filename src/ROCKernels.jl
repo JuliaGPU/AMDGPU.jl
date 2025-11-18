@@ -3,11 +3,13 @@ module ROCKernels
 export ROCBackend
 
 import AMDGPU
+import AMDGPU: rocconvert, hipfunction
 import AMDGPU.Device: @device_override
-using AMDGPU: GPUArrays, rocSPARSE
+using AMDGPU: GPUArrays, rocSPARSE, HIP
 
 import Adapt
 import KernelAbstractions as KA
+import KernelAbstractions.KernelIntrinsics as KI
 import LLVM
 
 using StaticArraysCore: MArray
@@ -127,32 +129,57 @@ function KA.mkcontext(kernel::KA.Kernel{ROCBackend}, I, _ndrange, iterspace, ::D
     metadata = KA.CompilerMetadata{KA.ndrange(kernel), Dynamic}(I, _ndrange, iterspace)
 end
 
+KI.argconvert(::ROCBackend, arg) = rocconvert(arg)
+
+function KI.kernel_function(::ROCBackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+    kern = hipfunction(f, tt; name, kwargs...)
+    KI.Kernel{ROCBackend, typeof(kern)}(ROCBackend(), kern)
+end
+
+function (obj::KI.Kernel{ROCBackend})(args...; numworkgroups = 1, workgroupsize = 1)
+    KI.check_launch_args(numworkgroups, workgroupsize)
+
+    obj.kern(args...; groupsize = workgroupsize, gridsize = numworkgroups)
+    return nothing
+end
+
+
+function KI.kernel_max_work_group_size(kikern::KI.Kernel{<:ROCBackend}; max_work_items::Int=Int(typemax(Int32)))::Int
+    (; groupsize) = AMDGPU.launch_configuration(kikern.kern; max_block_size = max_work_items)
+
+    return Int(min(max_work_items, groupsize))
+end
+function KI.max_work_group_size(::ROCBackend)::Int
+    Int(HIP.attribute(AMDGPU.HIP.device(), AMDGPU.HIP.hipDeviceAttributeMaxThreadsPerBlock))
+end
+function KI.multiprocessor_count(::ROCBackend)::Int
+    Int(HIP.attribute(AMDGPU.HIP.device(), AMDGPU.HIP.hipDeviceAttributeMultiprocessorCount))
+end
+
 # Indexing.
-
-@device_override @inline function KA.__index_Local_Linear(ctx)
-    return AMDGPU.Device.threadIdx().x
+## COV_EXCL_START
+@device_override @inline function KI.get_local_id()
+    return (; x = Int(AMDGPU.Device.workitemIdx().x), y = Int(AMDGPU.Device.workitemIdx().y), z = Int(AMDGPU.Device.workitemIdx().z))
 end
 
-@device_override @inline function KA.__index_Group_Linear(ctx)
-    return AMDGPU.Device.blockIdx().x
+@device_override @inline function KI.get_group_id()
+    return (; x = Int(AMDGPU.Device.workgroupIdx().x), y = Int(AMDGPU.Device.workgroupIdx().y), z = Int(AMDGPU.Device.workgroupIdx().z))
 end
 
-@device_override @inline function KA.__index_Global_Linear(ctx)
-    I =  @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
-    # TODO: This is unfortunate, can we get the linear index cheaper
-    @inbounds LinearIndices(KA.__ndrange(ctx))[I]
+@device_override @inline function KI.get_global_id()
+    return (; x = Int((AMDGPU.Device.workgroupIdx().x-1)*AMDGPU.Device.blockDim().x + AMDGPU.Device.workitemIdx().x), y = Int((AMDGPU.Device.workgroupIdx().y-1)*AMDGPU.Device.blockDim().y + AMDGPU.Device.workitemIdx().y), z = Int((AMDGPU.Device.workgroupIdx().z-1)*AMDGPU.Device.blockDim().z + AMDGPU.Device.workitemIdx().z))
 end
 
-@device_override @inline function KA.__index_Local_Cartesian(ctx)
-    @inbounds KA.workitems(KA.__iterspace(ctx))[AMDGPU.Device.threadIdx().x]
+@device_override @inline function KI.get_local_size()
+    return (; x = Int(AMDGPU.Device.workgroupDim().x), y = Int(AMDGPU.Device.workgroupDim().y), z = Int(AMDGPU.Device.workgroupDim().z))
 end
 
-@device_override @inline function KA.__index_Group_Cartesian(ctx)
-    @inbounds KA.blocks(KA.__iterspace(ctx))[AMDGPU.Device.blockIdx().x]
+@device_override @inline function KI.get_num_groups()
+    return (; x = Int(AMDGPU.Device.gridGroupDim().x), y = Int(AMDGPU.Device.gridGroupDim().y), z = Int(AMDGPU.Device.gridGroupDim().z))
 end
 
-@device_override @inline function KA.__index_Global_Cartesian(ctx)
-    return @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
+@device_override @inline function KI.get_global_size()
+    return (; x = Int(AMDGPU.Device.gridItemDim().x), y = Int(AMDGPU.Device.gridItemDim().y), z = Int(AMDGPU.Device.gridItemDim().z))
 end
 
 @device_override @inline function KA.__validindex(ctx)
@@ -166,8 +193,8 @@ end
 
 # Shared memory.
 
-@device_override @inline function KA.SharedMemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
-    ptr = AMDGPU.Device.alloc_special(Val(Id), T, Val(AMDGPU.AS.Local), Val(prod(Dims)))
+@device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
+    ptr = AMDGPU.Device.alloc_special(Val(:shmem), T, Val(AMDGPU.AS.Local), Val(prod(Dims)))
     AMDGPU.ROCDeviceArray(Dims, ptr)
 end
 
@@ -177,12 +204,13 @@ end
 
 # Other.
 
-@device_override @inline function KA.__synchronize()
+@device_override @inline function KI.barrier()
     AMDGPU.Device.sync_workgroup()
 end
 
-@device_override @inline function KA.__print(args...)
+@device_override @inline function KI._print(args...)
     # TODO
 end
+## COV_EXCL_STOP
 
 end
