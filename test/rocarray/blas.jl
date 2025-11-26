@@ -484,6 +484,9 @@ end
             @test testf(
                 (c, a, b) -> mul!(c, a, Diagonal(b)),
                 zeros(T, m, m), rand(T, m, m), rand(T, m, m))
+            @test testf(
+                (c, a, b) -> mul!(Diagonal(c), a, b),
+                zeros(T, m), diagm(rand(T, m)), diagm(rand(T, m)))
         end
     end
 
