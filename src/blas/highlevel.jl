@@ -340,7 +340,7 @@ function LinearAlgebra.rmul!(A::ROCMatrix{T}, B::Diagonal{T,<:ROCVector{T}}) whe
     return dgmm!('R', A, B.diag, A)
 end
 
-function LinearAlgebra.mul!(C::Diagonal{T, <:ROCVector}, A::Union{<:ROCMatrix{T}, Adjoint{T, <:ROCMatrix}, Transpose{T, <:ROCMatrix}}, B::Union{<:ROCMatrix{T}, Adjoint{T, <:ROCMatrix}, Transpose{T, <:ROCMatrix}}) where {T<:ROCBLASloat}
+function LinearAlgebra.mul!(C::Diagonal{T, <:ROCVector}, A::Union{<:ROCMatrix{T}, Adjoint{T, <:ROCMatrix}, Transpose{T, <:ROCMatrix}}, B::Union{<:ROCMatrix{T}, Adjoint{T, <:ROCMatrix}, Transpose{T, <:ROCMatrix}}) where {T<:ROCBLASFloat}
     Cfull   = A*B
     C.diag .= diag(Cfull)
     return C
