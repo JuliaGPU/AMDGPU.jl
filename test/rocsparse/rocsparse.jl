@@ -4,9 +4,11 @@
     using SparseArrays
 
     using AMDGPU.rocSPARSE
-    using .rocSPARSE: ROCSparseDeviceVector, ROCSparseDeviceMatrixCSC
-    using .rocSPARSE: ROCSparseDeviceMatrixCSR, ROCSparseDeviceMatrixBSR
-    using .rocSPARSE: ROCSparseDeviceMatrixCOO
+    using AMDGPU.Device.AS
+    using AMDGPU.Device: ROCDeviceVector
+    using AMDGPU.GPUArrays:
+        GPUSparseDeviceVector, GPUSparseDeviceMatrixCSC, GPUSparseDeviceMatrixCSR,
+        GPUSparseDeviceMatrixBSR, GPUSparseDeviceMatrixCOO
 
     include("broadcast.jl")
     include("conversions.jl")
