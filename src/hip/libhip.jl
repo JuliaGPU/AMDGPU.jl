@@ -7841,8 +7841,6 @@ const HIP_SAMPLER_OBJECT_OFFSET_DWORD = HIP_IMAGE_OBJECT_SIZE_DWORD
 const HIP_TEXTURE_OBJECT_SIZE_DWORD = HIP_IMAGE_OBJECT_SIZE_DWORD +
                                       HIP_SAMPLER_OBJECT_SIZE_DWORD
 
-const HIP_DEPRECATED_MSG = ("This API is marked as deprecated and might not be supported in future releases. For more details please refer ")("https://github.com/ROCm/HIP/blob/develop/docs/reference/deprecated_api_list.md")
-
 # Skipping MacroDefinition: HIP_LAUNCH_PARAM_BUFFER_POINTER ( ( void * ) 0x01 )
 
 # Skipping MacroDefinition: HIP_LAUNCH_PARAM_BUFFER_SIZE ( ( void * ) 0x02 )

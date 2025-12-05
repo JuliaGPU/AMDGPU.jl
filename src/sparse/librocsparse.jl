@@ -2,26 +2,6 @@ mutable struct _rocsparse_handle end
 
 const rocsparse_handle = Ptr{_rocsparse_handle}
 
-@cenum rocsparse_status_::UInt32 begin
-    rocsparse_status_success = 0
-    rocsparse_status_invalid_handle = 1
-    rocsparse_status_not_implemented = 2
-    rocsparse_status_invalid_pointer = 3
-    rocsparse_status_invalid_size = 4
-    rocsparse_status_memory_error = 5
-    rocsparse_status_internal_error = 6
-    rocsparse_status_invalid_value = 7
-    rocsparse_status_arch_mismatch = 8
-    rocsparse_status_zero_pivot = 9
-    rocsparse_status_not_initialized = 10
-    rocsparse_status_type_mismatch = 11
-    rocsparse_status_requires_sorted_storage = 12
-    rocsparse_status_thrown_exception = 13
-    rocsparse_status_continue = 14
-end
-
-const rocsparse_status = rocsparse_status_
-
 function rocsparse_create_handle(handle)
     AMDGPU.prepare_state()
     @check @ccall(librocsparse.rocsparse_create_handle(handle::Ptr{rocsparse_handle})::rocsparse_status)
@@ -55,10 +35,6 @@ function rocsparse_get_status_description(status)
     AMDGPU.prepare_state()
     @check @ccall(librocsparse.rocsparse_get_status_description(status::rocsparse_status)::Ptr{Cchar})
 end
-
-mutable struct ihipStream_t end
-
-const hipStream_t = Ptr{ihipStream_t}
 
 function rocsparse_set_stream(handle, stream)
     AMDGPU.prepare_state()
@@ -10942,10 +10918,6 @@ end
 
 # Skipping MacroDefinition: ROCSPARSE_DEPRECATED __attribute__ ( ( __deprecated__ ) )
 
-const ROCSPARSE_DEPRECATED_EXPORT = ROCSPARSE_EXPORT(ROCSPARSE_DEPRECATED)
-
-const ROCSPARSE_DEPRECATED_NO_EXPORT = ROCSPARSE_NO_EXPORT(ROCSPARSE_DEPRECATED)
-
 # Skipping MacroDefinition: ROCSPARSE_DEVICE_ILF static __device__ __forceinline__
 
 const ROCSPARSE_VERSION_MAJOR = 4
@@ -10953,5 +10925,3 @@ const ROCSPARSE_VERSION_MAJOR = 4
 const ROCSPARSE_VERSION_MINOR = 3
 
 const ROCSPARSE_VERSION_PATCH = 0
-
-const ROCSPARSE_VERSION_TWEAK = fa20130872

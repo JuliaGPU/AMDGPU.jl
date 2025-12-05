@@ -2,10 +2,6 @@ mutable struct _rocblas_handle end
 
 const rocblas_handle = Ptr{_rocblas_handle}
 
-mutable struct ihipEvent_t end
-
-const hipEvent_t = Ptr{ihipEvent_t}
-
 @cenum rocblas_status_::UInt32 begin
     rocblas_status_success = 0
     rocblas_status_invalid_handle = 1
@@ -37,10 +33,6 @@ end
 struct rocblas_bfloat16
     data::UInt16
 end
-
-mutable struct ihipStream_t end
-
-const hipStream_t = Ptr{ihipStream_t}
 
 mutable struct rocblas_device_malloc_base end
 
@@ -15761,13 +15753,7 @@ end
 
 # Skipping MacroDefinition: ROCBLAS_DEPRECATED __attribute__ ( ( __deprecated__ ) )
 
-const ROCBLAS_DEPRECATED_EXPORT = ROCBLAS_EXPORT(ROCBLAS_DEPRECATED)
-
-const ROCBLAS_DEPRECATED_NO_EXPORT = ROCBLAS_NO_EXPORT(ROCBLAS_DEPRECATED)
-
 # Skipping MacroDefinition: ROCBLAS_INTERNAL_DEPRECATION __attribute__ ( ( deprecated ( "rocBLAS internal API may change each release. Advise against using." ) ) )
-
-const ROCBLAS_INTERNAL_EXPORT = ROCBLAS_EXPORT(ROCBLAS_INTERNAL_DEPRECATION)
 
 # Skipping MacroDefinition: ROCBLAS_INTERNAL_EXPORT_NOINLINE ROCBLAS_EXPORT __attribute__ ( ( noinline ) ) ROCBLAS_INTERNAL_DEPRECATION
 
@@ -15780,7 +15766,5 @@ const ROCBLAS_VERSION_MAJOR = 5
 const ROCBLAS_VERSION_MINOR = 3
 
 const ROCBLAS_VERSION_PATCH = 0
-
-const ROCBLAS_VERSION_TWEAK = fa20130872
 
 const ROCBLAS_TENSILE_COMMIT_ID = ("eca29852846c55435f31ed3920b31072d9ea01a1", "")

@@ -2,7 +2,8 @@
 library_name = "libhip"
 output_file_path = "../src/hip/libhip.jl"
 output_ignorelist = [
-    "__HOST_DEVICE__"
+    "__HOST_DEVICE__",
+    "HIP_DEPRECATED_MSG",
 ]
 
 [codegen]

@@ -276,14 +276,8 @@ end
 
 # Skipping MacroDefinition: ROCFFT_DEPRECATED __attribute__ ( ( __deprecated__ ) )
 
-const ROCFFT_DEPRECATED_EXPORT = ROCFFT_EXPORT(ROCFFT_DEPRECATED)
-
-const ROCFFT_DEPRECATED_NO_EXPORT = ROCFFT_NO_EXPORT(ROCFFT_DEPRECATED)
-
 const rocfft_version_major = 1
 
 const rocfft_version_minor = 0
 
 const rocfft_version_patch = 36
-
-const rocfft_version_tweak = fa20130872
