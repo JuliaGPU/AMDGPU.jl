@@ -1,14 +1,8 @@
-# custom extension of ROCArray in ROCM for sparse vectors/matrices
-# using CSC format for interop with Julia's native sparse functionality
-
 export ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixBSR, ROCSparseMatrixCOO
 export ROCSparseMatrix, AbstractROCSparseMatrix, ROCSparseVector, ROCSparseVecOrMat
 
-abstract type AbstractROCSparseArray{Tv, Ti, N} <: AbstractSparseArray{Tv, Ti, N} end
-const AbstractROCSparseVector{Tv, Ti} = AbstractROCSparseArray{Tv, Ti, 1}
-const AbstractROCSparseMatrix{Tv, Ti} = AbstractROCSparseArray{Tv, Ti, 2}
-
-Base.convert(T::Type{<:AbstractROCSparseArray}, m::AbstractArray) = m isa T ? m : T(m)
+abstract type AbstractROCSparseVector{Tv, Ti} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, 1} end
+abstract type AbstractROCSparseMatrix{Tv, Ti} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, 2} end
 
 mutable struct ROCSparseVector{Tv, Ti} <: AbstractROCSparseVector{Tv, Ti}
     iPtr::ROCVector{Ti}
@@ -29,7 +23,7 @@ function AMDGPU.unsafe_free!(xs::ROCSparseVector)
     return
 end
 
-mutable struct ROCSparseMatrixCSC{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
+mutable struct ROCSparseMatrixCSC{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSC{Tv, Ti}
     colPtr::ROCVector{Ti}
     rowVal::ROCVector{Ti}
     nzVal::ROCVector{Tv}
@@ -43,13 +37,17 @@ mutable struct ROCSparseMatrixCSC{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
         new{Tv, Ti}(colPtr, rowVal, nzVal, dims, length(nzVal))
     end
 end
+ROCSparseMatrixCSC{Tv, Ti}(x::ROCSparseMatrixCSC{Tv, Ti}) where {Tv, Ti} = x
+ROCSparseMatrixCSC(x::ROCSparseMatrixCSC) = x
 
-ROCSparseMatrixCSC(A::ROCSparseMatrixCSC) = A
+SparseArrays.rowvals(x::T) where T <: ROCSparseVector = nonzeroinds(x)
+SparseArrays.rowvals(x::ROCSparseMatrixCSC) = x.rowVal
+SparseArrays.getcolptr(x::ROCSparseMatrixCSC) = x.colPtr
 
-function AMDGPU.unsafe_free!(xs::ROCSparseMatrixCSC)
-    unsafe_free!(xs.colPtr)
-    unsafe_free!(rowvals(xs))
-    unsafe_free!(nonzeros(xs))
+function AMDGPU.unsafe_free!(x::ROCSparseMatrixCSC)
+    unsafe_free!(x.colPtr)
+    unsafe_free!(rowvals(x))
+    unsafe_free!(nonzeros(x))
     return
 end
 
@@ -63,7 +61,7 @@ GPU.
     Most ROCSPARSE operations work with CSR formatted matrices, rather
     than CSC.
 """
-mutable struct ROCSparseMatrixCSR{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
+mutable struct ROCSparseMatrixCSR{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSR{Tv, Ti}
     rowPtr::ROCVector{Ti}
     colVal::ROCVector{Ti}
     nzVal::ROCVector{Tv}
@@ -78,7 +76,8 @@ mutable struct ROCSparseMatrixCSR{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
     end
 end
 
-ROCSparseMatrixCSR(A::ROCSparseMatrixCSR) = A
+ROCSparseMatrixCSR{Tv, Ti}(x::ROCSparseMatrixCSR{Tv, Ti}) where {Tv, Ti} = x
+ROCSparseMatrixCSR(x::ROCSparseMatrixCSR) = x
 
 function AMDGPU.unsafe_free!(xs::ROCSparseMatrixCSR)
     unsafe_free!(xs.rowPtr)
@@ -86,6 +85,27 @@ function AMDGPU.unsafe_free!(xs::ROCSparseMatrixCSR)
     unsafe_free!(nonzeros(xs))
     return
 end
+
+GPUArrays.sparse_array_type(::Type{<:ROCSparseVector}) = ROCSparseVector
+GPUArrays.sparse_array_type(::Type{<:ROCSparseMatrixCSC}) = ROCSparseMatrixCSC
+GPUArrays.sparse_array_type(::Type{<:ROCSparseMatrixCSR}) = ROCSparseMatrixCSR
+GPUArrays.sparse_array_type(::ROCSparseVector) = ROCSparseVector
+GPUArrays.sparse_array_type(::ROCSparseMatrixCSC) = ROCSparseMatrixCSC
+GPUArrays.sparse_array_type(::ROCSparseMatrixCSR) = ROCSparseMatrixCSR
+
+GPUArrays.dense_array_type(::Type{<:ROCSparseVector}) = ROCArray
+GPUArrays.dense_array_type(::Type{<:ROCSparseMatrixCSC}) = ROCArray
+GPUArrays.dense_array_type(::Type{<:ROCSparseMatrixCSR}) = ROCArray
+GPUArrays.dense_array_type(::ROCSparseVector) = ROCArray
+GPUArrays.dense_array_type(::ROCSparseMatrixCSC) = ROCArray
+GPUArrays.dense_array_type(::ROCSparseMatrixCSR) = ROCArray
+
+GPUArrays.csc_type(::ROCSparseMatrixCSR) = ROCSparseMatrixCSC
+GPUArrays.csr_type(::ROCSparseMatrixCSC) = ROCSparseMatrixCSR
+GPUArrays.coo_type(::Union{ROCSparseMatrixCSR, Transpose{<:Any,<:ROCSparseMatrixCSR}, Adjoint{<:Any,<:ROCSparseMatrixCSR}}) = ROCSparseMatrixCOO
+GPUArrays.coo_type(::Union{ROCSparseMatrixCSC, Transpose{<:Any,<:ROCSparseMatrixCSC}, Adjoint{<:Any,<:ROCSparseMatrixCSC}}) = ROCSparseMatrixCOO
+GPUArrays.coo_type(::Type{T}) where {T<:Union{ROCSparseMatrixCSR, Transpose{<:Any,<:ROCSparseMatrixCSR}, Adjoint{<:Any,<:ROCSparseMatrixCSR}}} = ROCSparseMatrixCOO
+GPUArrays.coo_type(::Type{T}) where {T<:Union{ROCSparseMatrixCSC, Transpose{<:Any,<:ROCSparseMatrixCSC}, Adjoint{<:Any,<:ROCSparseMatrixCSC}}} = ROCSparseMatrixCOO
 
 """
 Container to hold sparse matrices in block compressed sparse row (BSR) format on
@@ -280,27 +300,6 @@ function SparseArrays.findnz(S::T) where {T <: AbstractROCSparseMatrix}
     return (I, J, V)
 end
 
-SparseArrays.nnz(g::AbstractROCSparseArray) = g.nnz
-SparseArrays.nonzeros(g::AbstractROCSparseArray) = g.nzVal
-
-SparseArrays.nonzeroinds(g::AbstractROCSparseVector) = g.iPtr
-SparseArrays.rowvals(g::AbstractROCSparseVector) = nonzeroinds(g)
-
-SparseArrays.rowvals(g::ROCSparseMatrixCSC) = g.rowVal
-SparseArrays.getcolptr(g::ROCSparseMatrixCSC) = g.colPtr
-
-LinearAlgebra.issymmetric(M::Union{ROCSparseMatrixCSC,ROCSparseMatrixCSR}) = false
-LinearAlgebra.ishermitian(M::Union{ROCSparseMatrixCSC,ROCSparseMatrixCSR}) = false
-LinearAlgebra.issymmetric(M::Symmetric{ROCSparseMatrixCSC}) = true
-LinearAlgebra.ishermitian(M::Hermitian{ROCSparseMatrixCSC}) = true
-
-LinearAlgebra.istriu(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}} = true
-LinearAlgebra.istril(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}} = false
-LinearAlgebra.istriu(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}} = false
-LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractROCSparseMatrix, Adjoint{<:Any, <:AbstractROCSparseMatrix}, Transpose{<:Any, <:AbstractROCSparseMatrix}}} = true
-
-Hermitian{T}(Mat::ROCSparseMatrix{T}) where T = Hermitian{T,typeof(Mat)}(Mat,'U')
-
 SparseArrays.nnz(g::ROCSparseMatrixBSR) = g.nnzb * g.blockDim * g.blockDim
 
 ## indexing
@@ -422,19 +421,14 @@ ROCSparseMatrixCSR(x::Adjoint{T}) where {T} = ROCSparseMatrixCSR{T}(x)
 ROCSparseMatrixCSC(x::Transpose{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 ROCSparseMatrixCSC(x::Adjoint{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 
+# TODO adjoint / transpose: GPUArrays._sptranspose
+
 # gpu to cpu
-SparseVector(x::ROCSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
-SparseMatrixCSC(x::ROCSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
+SparseVector(x::ROCSparseVector) = SparseVector(length(x), Array(SparseArrays.nonzeroinds(x)), Array(SparseArrays.nonzeros(x)))
+SparseMatrixCSC(x::ROCSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(SparseArrays.rowvals(x)), Array(SparseArrays.nonzeros(x)))
 SparseMatrixCSC(x::ROCSparseMatrixCSR) = SparseMatrixCSC(ROCSparseMatrixCSC(x))  # no direct conversion
 SparseMatrixCSC(x::ROCSparseMatrixBSR) = SparseMatrixCSC(ROCSparseMatrixCSR(x))  # no direct conversion
 SparseMatrixCSC(x::ROCSparseMatrixCOO) = SparseMatrixCSC(ROCSparseMatrixCSR(x))  # no direct conversion
-
-# collect to Array
-Base.collect(x::ROCSparseVector) = collect(SparseVector(x))
-Base.collect(x::ROCSparseMatrixCSC) = collect(SparseMatrixCSC(x))
-Base.collect(x::ROCSparseMatrixCSR) = collect(SparseMatrixCSC(x))
-Base.collect(x::ROCSparseMatrixBSR) = collect(ROCSparseMatrixCSR(x))  # no direct conversion
-Base.collect(x::ROCSparseMatrixCOO) = collect(ROCSparseMatrixCSR(x))  # no direct conversion
 
 Adapt.adapt_storage(::Type{ROCArray}, xs::SparseVector) = ROCSparseVector(xs)
 Adapt.adapt_storage(::Type{ROCArray}, xs::SparseMatrixCSC) = ROCSparseMatrixCSC(xs)
@@ -450,27 +444,6 @@ Adapt.adapt_storage(::Type{Array}, xs::ROCSparseVector) = SparseVector(xs)
 Adapt.adapt_storage(::Type{Array}, xs::ROCSparseMatrixCSC) = SparseMatrixCSC(xs)
 
 ## copying between sparse GPU arrays
-
-function Base.copyto!(dst::ROCSparseVector, src::ROCSparseVector)
-    if length(dst) != length(src)
-        throw(ArgumentError("Inconsistent Sparse Vector size"))
-    end
-    copyto!(nonzeroinds(dst), nonzeroinds(src))
-    copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = src.nnz
-    dst
-end
-
-function Base.copyto!(dst::ROCSparseMatrixCSC, src::ROCSparseMatrixCSC)
-    if size(dst) != size(src)
-        throw(ArgumentError("Inconsistent Sparse Matrix size"))
-    end
-    copyto!(dst.colPtr, src.colPtr)
-    copyto!(rowvals(dst), rowvals(src))
-    copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = src.nnz
-    dst
-end
 
 function Base.copyto!(dst::ROCSparseMatrixCSR, src::ROCSparseMatrixCSR)
     if size(dst) != size(src)
@@ -553,24 +526,57 @@ end
 # interop with device arrays
 
 Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseVector) =
-    ROCSparseDeviceVector(adapt(to, x.iPtr), adapt(to, x.nzVal), length(x), x.nnz)
+    GPUArrays.GPUSparseDeviceVector(adapt(to, x.iPtr), adapt(to, x.nzVal), length(x), x.nnz)
 
 Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCSR) =
-    ROCSparseDeviceMatrixCSR(
-        adapt(to, x.rowPtr), adapt(to, x.colVal), adapt(to, x.nzVal),
-        size(x), x.nnz)
+    GPUArrays.GPUSparseDeviceMatrixCSR(
+        adapt(to, x.rowPtr), adapt(to, x.colVal), adapt(to, x.nzVal), size(x), x.nnz)
 
 Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCSC) =
-    ROCSparseDeviceMatrixCSC(
-        adapt(to, x.colPtr), adapt(to, x.rowVal), adapt(to, x.nzVal),
-        size(x), x.nnz)
+    GPUArrays.GPUSparseDeviceMatrixCSC(
+        adapt(to, x.colPtr), adapt(to, x.rowVal), adapt(to, x.nzVal), size(x), x.nnz)
 
 Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixBSR) =
-    ROCSparseDeviceMatrixBSR(
+    GPUArrays.GPUSparseDeviceMatrixBSR(
         adapt(to, x.rowPtr), adapt(to, x.colVal), adapt(to, x.nzVal),
         size(x), x.blockDim, x.dir, x.nnzb)
 
 Adapt.adapt_structure(to::AMDGPU.Runtime.Adaptor, x::ROCSparseMatrixCOO) =
-    ROCSparseDeviceMatrixCOO(
-        adapt(to, x.rowInd), adapt(to, x.colInd), adapt(to, x.nzVal),
-        size(x), x.nnz)
+    GPUArrays.GPUSparseDeviceMatrixCOO(
+        adapt(to, x.rowInd), adapt(to, x.colInd), adapt(to, x.nzVal), size(x), x.nnz)
+
+# device array ctors
+
+GPUArrays.GPUSparseDeviceVector(
+    iPtr::ROCDeviceVector{Ti, A}, nzVal::ROCDeviceVector{Tv, A}, len::Int, nnz::Ti,
+) where {Ti, Tv, A} = GPUArrays.GPUSparseDeviceVector{
+    Tv, Ti, ROCDeviceVector{Ti, A}, ROCDeviceVector{Tv, A}, A,
+}(iPtr, nzVal, len, nnz)
+
+GPUArrays.GPUSparseDeviceMatrixCSR(
+    rowPtr::ROCDeviceVector{Ti, A}, colVal::ROCDeviceVector{Ti, A}, nzVal::ROCDeviceVector{Tv, A},
+    dims::NTuple{2, Int}, nnz::Ti,
+) where {Ti, Tv, A} = GPUArrays.GPUSparseDeviceMatrixCSR{
+    Tv, Ti, ROCDeviceVector{Ti, A}, ROCDeviceVector{Tv, A}, A,
+}(rowPtr, colVal, nzVal, dims, nnz)
+
+GPUArrays.GPUSparseDeviceMatrixCSC(
+    colPtr::ROCDeviceVector{Ti, A}, rowVal::ROCDeviceVector{Ti, A}, nzVal::ROCDeviceVector{Tv, A},
+    dims::NTuple{2, Int}, nnz::Ti,
+) where {Ti, Tv, A} = GPUArrays.GPUSparseDeviceMatrixCSC{
+    Tv, Ti, ROCDeviceVector{Ti, A}, ROCDeviceVector{Tv, A}, A,
+}(colPtr, rowVal, nzVal, dims, nnz)
+
+GPUArrays.GPUSparseDeviceMatrixBSR(
+    rowPtr::ROCDeviceVector{Ti, A}, colVal::ROCDeviceVector{Ti, A}, nzVal::ROCDeviceVector{Tv, A},
+    dims::NTuple{2, Int}, blockDim::Ti, dir::Char, nnz::Ti,
+) where {Ti, Tv, A} = GPUArrays.GPUSparseDeviceMatrixBSR{
+    Tv, Ti, ROCDeviceVector{Ti, A}, ROCDeviceVector{Tv, A}, A,
+}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
+
+GPUArrays.GPUSparseDeviceMatrixCOO(
+    rowInd::ROCDeviceVector{Ti, A}, colInd::ROCDeviceVector{Ti, A}, nzVal::ROCDeviceVector{Tv, A},
+    dims::NTuple{2, Int}, nnz::Ti,
+) where {Ti, Tv, A} = GPUArrays.GPUSparseDeviceMatrixCOO{
+    Tv, Ti, ROCDeviceVector{Ti, A}, ROCDeviceVector{Tv, A}, A,
+}(rowInd, colInd, nzVal, dims, nnz)

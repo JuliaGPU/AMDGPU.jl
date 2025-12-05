@@ -242,3 +242,5 @@ for SparseMatrixType in [:ROCSparseMatrixCSC, :ROCSparseMatrixCSR], op in [:(+),
         end
     end
 end
+
+# TODO _sptranspose / _spadjoint

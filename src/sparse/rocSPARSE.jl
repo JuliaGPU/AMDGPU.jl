@@ -6,16 +6,16 @@ using CEnum: @cenum
 using LinearAlgebra
 using LinearAlgebra: HermOrSym, BlasComplex, BlasFloat, BlasReal, MulAddMul, AdjOrTrans
 using SparseArrays
-using SparseArrays: nonzeroinds, dimlub
+using SparseArrays: nonzeroinds, nonzeros, rowvals, getcolptr, dimlub
+using GPUArrays
 using ..AMDGPU
 using ..AMDGPU: @allowscalar
 using ..AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
 
+import SparseArrays: SparseVector, SparseMatrixCSC
 import AMDGPU: librocsparse, HandleCache, HIP, library_state, ROCVector
 import AMDGPU.Device: ROCDeviceVector
 import .HIP: HIPContext, HIPStream, hipStream_t
-
-import SparseArrays: SparseVector, SparseMatrixCSC
 
 const SparseChar = Char
 
@@ -53,10 +53,6 @@ end
 include("array.jl")
 include("util.jl")
 include("types.jl")
-
-# native functionality
-include("device.jl")
-include("broadcast.jl")
 
 # low-level wrappers
 include("helpers.jl")
