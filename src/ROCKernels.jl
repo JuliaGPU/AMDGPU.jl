@@ -40,9 +40,15 @@ KA.argconvert(::KA.Kernel{ROCBackend}, arg) = AMDGPU.rocconvert(arg)
 KA.synchronize(::ROCBackend) = AMDGPU.synchronize()
 
 KA.unsafe_free!(x::AMDGPU.ROCArray) = AMDGPU.unsafe_free!(x)
-KA.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
-KA.zeros(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.zeros(T, dims)
-KA.ones(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ones(T, dims)
+KA.supports_unified(::ROCBackend) = true
+
+function KA.allocate(backend::ROCBackend, ::Type{T}, dims::Tuple; unified::Bool=false) where T
+    if unified
+        return AMDGPU.ROCArray{T, length(dims), AMDGPU.Mem.HIPUnifiedBuffer}(undef, dims)
+    else
+        return AMDGPU.ROCArray{T}(undef, dims)
+    end
+end
 
 function KA.priority!(::ROCBackend, priority::Symbol)
     priority ∉ (:high, :normal, :low) && error(

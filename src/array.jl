@@ -212,6 +212,39 @@ end
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
+"""
+    Base.unsafe_wrap(::Type{Array}, A::ROCArray, dims)
+
+Wrap a ROCArray backed by unified or host memory as a CPU Array, allowing direct CPU
+access without explicit data transfers. This only works for arrays backed by
+`HIPUnifiedBuffer` or `HostBuffer`.
+
+!!! warning
+    For unified memory arrays, ensure proper synchronization before accessing the wrapped
+    array from the host to avoid race conditions.
+
+# Example
+```julia
+# Create a unified memory array
+x = ROCArray{Float32, 1, AMDGPU.Mem.HIPUnifiedBuffer}(undef, 100)
+x .= 1.0f0
+
+# Wrap as CPU array
+cpu_view = unsafe_wrap(Array, x)
+cpu_view[1] = 42.0f0  # Direct CPU access
+```
+"""
+function Base.unsafe_wrap(::Type{Array}, A::ROCArray{T,N,B}) where {T,N,B}
+    if B === Mem.HIPUnifiedBuffer || B === Mem.HostBuffer
+        ptr = Base.unsafe_convert(Ptr{T}, A)
+        return unsafe_wrap(Array, ptr, size(A))
+    else
+        throw(ArgumentError(
+            "unsafe_wrap(Array, ::ROCArray) only supports arrays backed by " *
+            "HIPUnifiedBuffer or HostBuffer, got $B"))
+    end
+end
+
 ## interop with CPU arrays
 
 # We don't convert isbits types in `adapt`, since they are already
@@ -279,12 +312,18 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
 
     maxsize = n * sizeof(T)
     bufsize = Base.isbitsunion(T) ? (maxsize + n) : maxsize
-    new_buf = Mem.HIPBuffer(bufsize; stream=stream())
+
+    # Preserve the buffer type (HIPBuffer, HIPUnifiedBuffer, or HostBuffer)
+    old_buf = convert(Mem.AbstractAMDBuffer, A.buf[])
+    new_buf = if old_buf isa Mem.HIPUnifiedBuffer
+        Mem.HIPUnifiedBuffer(bufsize; stream=stream())
+    else
+        Mem.HIPBuffer(bufsize; stream=stream())
+    end
 
     copy_size = min(length(A), n) * sizeof(T)
     if copy_size > 0
-        Mem.transfer!(new_buf, convert(Mem.AbstractAMDBuffer, A.buf[]),
-            copy_size; stream=stream())
+        Mem.transfer!(new_buf, old_buf, copy_size; stream=stream())
     end
 
     # Free old buffer.
@@ -301,13 +340,26 @@ end
 function Base.convert(
     ::Type{ROCDeviceArray{T, N, AS.Global}}, a::ROCArray{T, N},
 ) where {T, N}
-    # If HostBuffer, use device pointer.
+    # Get the appropriate device pointer based on buffer type
     buf = convert(Mem.AbstractAMDBuffer, a.buf[])
-    ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ?
-        buf : buf.dev_ptr)
+    ptr = convert(Ptr{T}, typeof(buf) <: Mem.HostBuffer ?
+        buf.dev_ptr : buf)
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset * sizeof(T))
     ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
 end
 
 Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
     convert(ROCDeviceArray{T,N,AS.Global}, x)
+
+
+## indexing
+
+function Base.getindex(x::ROCArray{T, <:Any, <:Union{Mem.HostBuffer, Mem.HIPUnifiedBuffer}}, I::Int) where T
+    @boundscheck checkbounds(x, I)
+    unsafe_load(pointer(x, I))
+end
+
+function Base.setindex!(x::ROCArray{T, <:Any, <:Union{Mem.HostBuffer, Mem.HIPUnifiedBuffer}}, v, I::Int) where T
+    @boundscheck checkbounds(x, I)
+    unsafe_store!(pointer(x, I), v)
+end
