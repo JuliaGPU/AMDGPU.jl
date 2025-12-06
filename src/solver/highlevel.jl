@@ -392,10 +392,10 @@ for (fname, matrix_elty, vector_elty) in (
             k=ldv
             ldu = m
             
-             Vt = if jobvt === 'A'
+             V = if jobvt === 'A'
                 ROCMatrix{$matrix_elty}(undef, (n, n))
             elseif jobvt === 'S'
-                ROCMatrix{$matrix_elty}(undef, (k, n))
+                ROCMatrix{$matrix_elty}(undef, (n, k))
             elseif jobvt === 'N' || jobvt === 'O'
                 C_NULL
             else
