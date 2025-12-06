@@ -385,15 +385,8 @@ for (fname, matrix_elty, vector_elty) in (
             m, n = size(A)
             lda = max(1, stride(A, 2))
             dev_residual = ROCVector{$vector_elty}(undef, 1)
-
             dev_n_sweeps = ROCVector{Cint}(undef, 1)
-
             S = ROCArray{$vector_elty}(undef, min(m, n))
-            ldu = m
-            @assert stride(U, 2) == ldu
-            ldv = min(m, n)
-            @assert stride(V, 2) == ldv
-
             dev_info = ROCVector{Cint}(undef, 1)
 
              Vt = if jobvt === 'A'
@@ -414,6 +407,10 @@ for (fname, matrix_elty, vector_elty) in (
             else
                 error("jobu must be one of 'A', 'S', 'O', or 'N'")
             end
+             ldu = m
+            @assert stride(U, 2) == ldu
+            ldv = min(m, n)
+            @assert stride(V, 2) == ldv
             
             $fname(
                 rocBLAS.handle(),
