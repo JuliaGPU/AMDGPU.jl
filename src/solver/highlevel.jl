@@ -388,11 +388,14 @@ for (fname, matrix_elty, vector_elty) in (
             dev_n_sweeps = ROCVector{Cint}(undef, 1)
             S = ROCArray{$vector_elty}(undef, min(m, n))
             dev_info = ROCVector{Cint}(undef, 1)
-
+            ldv = min(m, n)
+            k=ldv
+            ldu = m
+            
              Vt = if jobvt === 'A'
                 ROCMatrix{$matrix_elty}(undef, (n, n))
             elseif jobvt === 'S'
-                ROCMatrix{$matrix_elty}(undef, (ldv, n))
+                ROCMatrix{$matrix_elty}(undef, (k, n))
             elseif jobvt === 'N' || jobvt === 'O'
                 C_NULL
             else
@@ -401,16 +404,13 @@ for (fname, matrix_elty, vector_elty) in (
              U = if jobu === 'A'
                 ROCMatrix{$matrix_elty}(undef, (m, m))
             elseif jobu === 'S'
-                ROCMatrix{$matrix_elty}(undef, (m, ldv))
+                ROCMatrix{$matrix_elty}(undef, (m, k))
             elseif jobu === 'N' || jobu === 'O'
                 C_NULL
             else
                 error("jobu must be one of 'A', 'S', 'O', or 'N'")
             end
-             ldu = m
-            @assert U==C_NULL || stride(U, 2) == ldu
-            ldv = min(m, n)
-            @assert Vt==C_NULL || stride(V, 2) == ldv
+
             
             $fname(
                 rocBLAS.handle(),
