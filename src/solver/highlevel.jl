@@ -408,7 +408,7 @@ for (fname, matrix_elty, vector_elty) in (
              U = if jobu === 'A'
                 ROCMatrix{$matrix_elty}(undef, (m, m))
             elseif jobu === 'S'
-                ROCMatrix{$martrix_elty}(undef, (m, ldv))
+                ROCMatrix{$matrix_elty}(undef, (m, ldv))
             elseif jobu === 'N' || jobu === 'O'
                 C_NULL
             else
