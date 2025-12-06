@@ -408,9 +408,9 @@ for (fname, matrix_elty, vector_elty) in (
                 error("jobu must be one of 'A', 'S', 'O', or 'N'")
             end
              ldu = m
-            @assert stride(U, 2) == ldu
+            @assert U=C_NULL || stride(U, 2) == ldu
             ldv = min(m, n)
-            @assert stride(V, 2) == ldv
+            @assert Vt==C_NULL || stride(V, 2) == ldv
             
             $fname(
                 rocBLAS.handle(),
