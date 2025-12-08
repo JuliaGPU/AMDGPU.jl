@@ -125,7 +125,7 @@ function write_gpuarrays_tests()
         import GPUArrays, AMDGPU
         include(joinpath(pkgdir(GPUArrays), "test", "testsuite.jl"))
 
-        gpuarrays_test(test_name::String) = TestSuite.tests[test_name](ROCArray)
+        gpuarrays_test(test_name::String) = TestSuite.tests[test_name](AMDGPU.ROCArray)
     end
     """
     for test_name in keys(TestSuite.tests)
