@@ -12,7 +12,6 @@ using Random
 
 export rand_logn!, rand_poisson!, rand_logn, rand_poisson
 
-include("librocrand_common.jl")
 include("error.jl")
 include("librocrand.jl")
 
