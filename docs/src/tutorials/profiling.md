@@ -79,7 +79,7 @@ rocprofv3 --output-format pftrace --hsa-trace --marker-trace --kernel-trace --me
 This will produce a number of `prof_output.pftrace` files which can be visualized
 using [Perfetto UI](https://ui.perfetto.dev/).
 
-`rocprofv3` is now recommended by ADM, however on ROCm 6.2.4 nothing seems to be reported.
+`rocprofv3` is now recommended by AMD, however on ROCm 6.2.4 nothing seems to be reported.
 
 #### Visualization of the results
 Here is an example of visualizing the `profile.jl` script above in Perfetto.
