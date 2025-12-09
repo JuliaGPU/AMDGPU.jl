@@ -44,20 +44,6 @@ const rocblas_float = Cfloat
 
 const rocblas_double = Cdouble
 
-struct rocblas_half
-    data::UInt16
-end
-
-struct rocblas_float_complex
-    x::Cfloat
-    y::Cfloat
-end
-
-struct rocblas_double_complex
-    x::Cdouble
-    y::Cdouble
-end
-
 @cenum rocblas_operation_::UInt32 begin
     rocblas_operation_none = 111
     rocblas_operation_transpose = 112

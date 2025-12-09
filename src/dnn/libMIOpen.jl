@@ -1,7 +1,5 @@
 using CEnum: CEnum, @cenum
 
-const miopenAcceleratorQueue_t = Cint
-
 struct miopenHandle
 end
 
