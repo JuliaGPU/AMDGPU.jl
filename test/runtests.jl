@@ -10,6 +10,9 @@ using LinearAlgebra
 using ReTestItems
 using Test
 
+import GPUArrays
+include(joinpath(pkgdir(GPUArrays), "test", "testsuite.jl"))
+
 macro grab_output(ex, io=stdout)
     quote
         mktemp() do fname, fout
@@ -112,6 +115,32 @@ data = String["$np" "$(AMDGPU.device())" join(TARGET_TESTS, ", ");]
 PrettyTables.pretty_table(data; column_labels=["Workers", "Device", "Tests"],
                           fit_table_in_display_vertically=false,
                           fit_table_in_display_horizontally=false)
+
+# Hack to define GPUArrays `@testitems` dynamically - by writing them to a file.
+function write_gpuarrays_tests()
+    template = """
+    @testsetup module TSGPUArrays
+        export gpuarrays_test
+
+        import GPUArrays, AMDGPU
+        include(joinpath(pkgdir(GPUArrays), "test", "testsuite.jl"))
+
+        gpuarrays_test(test_name::String) = TestSuite.tests[test_name](AMDGPU.ROCArray)
+    end
+    """
+    for test_name in keys(TestSuite.tests)
+        template = """
+        $template
+        @testitem "gpuarrays - $test_name" setup=[TSGPUArrays] begin gpuarrays_test("$test_name") end
+        """
+    end
+
+    test_file = joinpath(dirname(@__FILE__), "gpuarrays_generated_tests.jl")
+    open(io -> write(io, template), test_file, "w")
+    @info "Writing GPUArrays test file: `$test_file`."
+    return
+end
+write_gpuarrays_tests()
 
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
     for tt in TARGET_TESTS
