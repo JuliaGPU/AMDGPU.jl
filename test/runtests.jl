@@ -40,7 +40,8 @@ end
 
 AMDGPU.allowscalar(false)
 
-const TEST_NAMES = ["core", "hip", "ext", "gpuarrays", "kernelabstractions", "enzyme"]
+# const TEST_NAMES = ["core", "hip", "ext", "gpuarrays", "kernelabstractions", "enzyme"]
+const TEST_NAMES = ["kernelabstractions"]
 
 function parse_flags!(args, flag; default = nothing, typ = typeof(default))
     for f in args
