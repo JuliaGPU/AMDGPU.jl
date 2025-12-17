@@ -39,6 +39,7 @@ EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 
 [sources]
 KernelAbstractions = {rev = "main", url = "https://github.com/JuliaGPU/KernelAbstractions.jl"}
+AcceleratedKernels = {rev = "ka0.10simple", url = "https://github.com/christiangnrd/AcceleratedKernels.jl"}
 
 [extensions]
 AMDGPUChainRulesCoreExt = "ChainRulesCore"

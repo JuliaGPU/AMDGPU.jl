@@ -1,5 +1,6 @@
 @static if VERSION < v"1.11"
     using Pkg
+    Pkg.add(url="https://github.com/christiangnrd/AcceleratedKernels.jl", rev="ka0.10simple")
     Pkg.add(url="https://github.com/JuliaGPU/KernelAbstractions.jl", rev="main")
 end
 
