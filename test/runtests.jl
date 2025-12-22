@@ -142,7 +142,10 @@ function write_gpuarrays_tests()
 end
 write_gpuarrays_tests()
 
+is_rdna3 = parse(Int, AMDGPU.HIP.gcn_arch(AMDGPU.device())[4:end]) ≥ 1100
 runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
+    ti.name == "core: WMMA" && !is_rdna3 && return false
+
     for tt in TARGET_TESTS
         startswith(ti.name, tt) && return true
     end
