@@ -5,7 +5,7 @@ export ROCBackend
 import AMDGPU
 import AMDGPU: rocconvert, hipfunction
 import AMDGPU.Device: @device_override
-using AMDGPU: GPUArrays, rocSPARSE, HIP
+using AMDGPU: GPUArrays, rocSPARSE, HIP, Device
 
 import Adapt
 import KernelAbstractions as KA
@@ -162,6 +162,9 @@ end
 function KI.max_work_group_size(::ROCBackend)::Int
     Int(HIP.attribute(AMDGPU.HIP.device(), AMDGPU.HIP.hipDeviceAttributeMaxThreadsPerBlock))
 end
+function KI.sub_group_size(::ROCBackend)::Int
+    HIP.wavefrontsize(HIP.device())
+end
 function KI.multiprocessor_count(::ROCBackend)::Int
     Int(HIP.attribute(AMDGPU.HIP.device(), AMDGPU.HIP.hipDeviceAttributeMultiprocessorCount))
 end
@@ -192,6 +195,16 @@ end
     return (; x = Int(AMDGPU.Device.gridItemDim().x), y = Int(AMDGPU.Device.gridItemDim().y), z = Int(AMDGPU.Device.gridItemDim().z))
 end
 
+@device_override KI.get_sub_group_size() = UInt32(Device.wavefrontsize())
+
+@device_override KI.get_max_sub_group_size() = UInt32(Device.wavefrontsize())
+
+@device_override KI.get_num_sub_groups() = UInt32(prod(Device.blockDim()) ÷ Device.wavefrontsize())
+
+@device_override KI.get_sub_group_id() = UInt32(((Device.threadIdx().x - 1) + Device.blockDim().x * (Device.threadIdx().y - 1) + Device.blockDim().x * Device.blockDim().y * (Device.threadIdx().z - 1)) ÷ Device.wavefrontsize()) + 0x1
+
+@device_override KI.get_sub_group_local_id() = UInt32(Device.activelane() + 0x1)
+
 @device_override @inline function KA.__validindex(ctx)
     if KA.__dynamic_checkbounds(ctx)
         I = @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
@@ -216,6 +229,10 @@ end
 
 @device_override @inline function KI.barrier()
     AMDGPU.Device.sync_workgroup()
+end
+
+@device_override @inline function KI.sub_group_barrier()
+    throw(error("Somebody forgot to implement this"))
 end
 
 @device_override @inline function KI._print(args...)
