@@ -1,4 +1,4 @@
-@static if VERSION < v"1.11"
+@static if VERSION < v"1.11" && get(ENV, "BUILDKITE_PIPELINE_NAME", "AMDGPU.jl") == "AMDGPU.jl"
     using Pkg
     Pkg.add(url="https://github.com/christiangnrd/AcceleratedKernels.jl", rev="ka0.10simple")
     Pkg.add(url="https://github.com/JuliaGPU/KernelAbstractions.jl", rev="main")
