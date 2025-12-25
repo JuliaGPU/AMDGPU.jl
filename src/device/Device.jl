@@ -1,5 +1,6 @@
 module Device
 
+using ..BFloat16s
 using ..GPUCompiler
 using ..LLVM
 using ..LLVM.Interop
