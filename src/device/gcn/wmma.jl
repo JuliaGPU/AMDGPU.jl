@@ -1,4 +1,5 @@
 # WMMA (Wavefront Matrix Multiply-Accumulate) intrinsics for RDNA 3 (GFX11)
+# https://github.com/llvm/llvm-project/blob/main/llvm/test/CodeGen/AMDGPU/llvm.amdgcn.wmma_32.ll
 
 export WMMAFragment, WMMA_M, WMMA_N, WMMA_K
 export wmma_load_a, wmma_load_b, wmma_load_c, wmma_store_d, wmma_mma
