@@ -35,9 +35,12 @@ const WMMAFragmentC_F32 = WMMAFragment{WMMA_M, WMMA_N, Float32, 8}
 const WMMAFragmentC_F16 = WMMAFragment{WMMA_M, WMMA_N, Float16, 16}
 const WMMAFragmentC_BF16 = WMMAFragment{WMMA_M, WMMA_N, BFloat16, 16}
 
+"""
+    wmma_fill_c(::Type{Float32}, x::Float32)
+
+Create and return fragment for `C` filled with given value `x`.
+"""
 wmma_fill_c(::Type{Float32}, x::Float32) = WMMAFragmentC_F32(ntuple(_ -> VecElement(x), Val(8)))
-wmma_fill_c(::Type{Float16}, x::Float16) = WMMAFragmentC_F16(ntuple(_ -> VecElement(x), Val(16)))
-wmma_fill_c(::Type{BFloat16}, x::BFloat16) = WMMAFragmentC_F16(ntuple(_ -> VecElement(x), Val(16)))
 
 # Signature for BFloat16 is:
 # @llvm.amdgcn.wmma.f32.16x16x16.bf16(<16 x i16>, <16 x i16> , <8 x float>)
@@ -56,6 +59,13 @@ for (fname, intrinsic, ret_T, arg_T) in (
         ($arg_T, $arg_T, $ret_T), a, b, c)
 end
 
+"""
+    wmma_load_a(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat16}
+    wmma_load_b(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat16}
+    wmma_load_c(ptr::LLVMPtr{Float32}, stride::Int32)
+
+Load the matrix `A`, `B` or `C` from the memory given by `ptr` and return the resulting fragment.
+"""
 function wmma_load_a(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     row = lane & Int32(15)
@@ -88,6 +98,17 @@ function wmma_load_c(ptr::LLVMPtr{Float32}, stride::Int32)::WMMAFragmentC_F32
     return WMMAFragmentC_F32(data)
 end
 
+"""
+    wmma_store_d(ptr::LLVMPtr{Float32}, frag::WMMAFragmentC_F32, stride::Int32)
+
+Store the result matrix `D` to the memory location given by `ptr`.
+
+# Arguments
+
+- `ptr`: Adress to store the matrix to.
+- `frag`: Corresponding fragment.
+- `stride`: Leading dimension of the matrix for `ptr` in number of elements.
+"""
 function wmma_store_d(ptr::LLVMPtr{Float32}, frag::WMMAFragmentC_F32, stride::Int32)
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
@@ -99,6 +120,16 @@ function wmma_store_d(ptr::LLVMPtr{Float32}, frag::WMMAFragmentC_F32, stride::In
     end
     return
 end
+
+"""
+    wmma_mma(
+        a::WMMAFragmentA{T}, b::WMMAFragmentB{T}, c::WMMAFragmentC_F32,
+    ) where T <: Union{Float16, BFloat16}
+
+Perform matrix multiply-accumulate operation `D = A ⋅ B + C` with loaded fragments.
+`A` and `B` can be either in `Float16` or in `BFloat16`.
+"""
+wmma_mma
 
 for (fname, arg_T) in ((_wmma_f32_16x16x16_f16, Float16), (_wmma_f32_16x16x16_bf16, Int16))
     @eval wmma_mma(a::WMMAFragmentA{$arg_T}, b::WMMAFragmentB{$arg_T}, c::WMMAFragmentC_F32) =
