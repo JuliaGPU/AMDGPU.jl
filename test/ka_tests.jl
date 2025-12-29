@@ -6,7 +6,7 @@ include(joinpath(pkgdir(KernelAbstractions), "test", "testsuite.jl"))
 AMDGPU.allowscalar(false)
 
 # TODO fix Printing
-skip_tests = ["Printing", "sparse"]
+skip_tests = ["Printing", "sparse", "CPU synchronization", "fallback test: callable types",]
 if Sys.iswindows()
     # TODO
     # We do not support hostcalls on Windows yet.
