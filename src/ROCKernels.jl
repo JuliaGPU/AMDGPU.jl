@@ -169,6 +169,12 @@ function KI.multiprocessor_count(::ROCBackend)::Int
     Int(HIP.attribute(AMDGPU.HIP.device(), AMDGPU.HIP.hipDeviceAttributeMultiprocessorCount))
 end
 
+KI.shfl_down_types(::ROCBackend) = DataType[Bool,
+                                             UInt8, UInt16, UInt32, UInt64, UInt128,
+                                             Int8, Int16, Int32, Int64, Int128,
+                                             Float16, Float32, Float64,
+                                             ComplexF16, ComplexF32, ComplexF64]
+
 # Indexing.
 ## COV_EXCL_START
 @device_override @inline function KI.get_local_id()
@@ -232,7 +238,11 @@ end
 end
 
 @device_override @inline function KI.sub_group_barrier()
-    throw(error("Somebody forgot to implement this"))
+    AMDGPU.Device.sync_wavefront()
+end
+
+@device_override function KI.shfl_down(val::T, offset::Integer) where T
+    @inline AMDGPU.Device.shfl_down(val, Cint(offset))
 end
 
 @device_override @inline function KI._print(args...)
