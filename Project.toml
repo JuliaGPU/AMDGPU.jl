@@ -1,6 +1,6 @@
 name = "AMDGPU"
 uuid = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-version = "2.1.4"
+version = "2.2.0"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.churavy@gmail.com>", "Anton Smirnov <tonysmn97@gmail.com>"]
 
 [deps]
