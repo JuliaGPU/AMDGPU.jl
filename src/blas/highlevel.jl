@@ -1,5 +1,10 @@
 rocblas_size(t::Char, M::ROCVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
 
+@static if VERSION ≥ v"1.12.0-rc"
+    # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
+    using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
+end
+
 #
 # BLAS 1
 #
@@ -159,14 +164,31 @@ end
 # BLAS 3
 #
 
-if VERSION >= v"1.12-"
-    # Otherwise dispatches onto:
-    # https://github.com/JuliaLang/LinearAlgebra.jl/blob/4e7c3f40316a956119ac419a97c4b8aad7a17e6c/src/matmul.jl#L490
-    for blas_flag in (LinearAlgebra.BlasFlag.SyrkHerkGemm, LinearAlgebra.BlasFlag.SymmHemmGeneric)
-        @eval LinearAlgebra.generic_matmatmul_wrapper!(
-            C::StridedROCMatrix, tA::AbstractChar, tB::AbstractChar, A::StridedROCVecOrMat, B::StridedROCVecOrMat,
-            alpha::Number, beta::Number, ::$blas_flag) =
-            LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
+@static if VERSION ≥ v"1.12.0-rc"
+    function LinearAlgebra.generic_matmatmul_wrapper!(
+        C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCVecOrMat{T}, B::StridedROCVecOrMat{T},
+        alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:ROCBLASFloat}
+        LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
+    end
+    function LinearAlgebra._symm_hemm_generic!(
+        C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
+        alpha, beta, ::Val{BlasFlag.SYMM}) where {T}
+        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
+        if lrchar == 'L'
+            symm!(lrchar, ulchar, alpha, A, B, beta, C)
+        else
+            symm!(lrchar, ulchar, alpha, B, A, beta, C)
+        end
+    end
+    function LinearAlgebra._symm_hemm_generic!(
+        C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
+        alpha, beta, ::Val{BlasFlag.HEMM}) where {T}
+        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
+        if lrchar == 'L'
+            hemm!(lrchar, ulchar, alpha, A, B, beta, C)
+        else
+            hemm!(lrchar, ulchar, alpha, B, A, beta, C)
+        end
     end
 end
 
