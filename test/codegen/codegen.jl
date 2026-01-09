@@ -1,3 +1,9 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc
+using AMDGPU.Device: sync_workgroup
+using KernelAbstractions: @atomic
+
 @testset "Synchronization" begin
     function synckern()
         sync_workgroup()

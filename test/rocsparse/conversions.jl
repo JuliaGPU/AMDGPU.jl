@@ -1,3 +1,12 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCVector, ROCMatrix, ROCArray, roc
+using AMDGPU.rocSPARSE
+using SparseArrays
+using LinearAlgebra
+
+@assert AMDGPU.functional(:rocsparse)
+
 @testset "sparse" begin
     n, m = 4, 4
     I = [1,2,3] |> roc

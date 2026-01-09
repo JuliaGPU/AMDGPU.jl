@@ -1,3 +1,10 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray
+using AMDGPU.MIOpen
+
+@assert AMDGPU.functional(:MIOpen)
+
 @testset "Maxpool" begin
     x = rand(Float32, 16, 16, 3, 2)
     xd = ROCArray(x)

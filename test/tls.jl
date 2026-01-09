@@ -1,3 +1,7 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, HIPDevice, HIPStream
+
 @testset "Device" begin
     d1 = @inferred AMDGPU.device()
     @test d1 isa HIPDevice

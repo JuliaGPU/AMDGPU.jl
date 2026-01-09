@@ -1,3 +1,7 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, ROCVector, ROCMatrix, @allowscalar
+
 @testset "Base" begin
 
 @testset "Specifying buffer type" begin
@@ -215,18 +219,6 @@ end
     dsource, dindices, dtarget = ROCArray.((source, indices, target))
     @roc groupsize=256 gridsize=4 ker_atomic_max!(dtarget, dsource, dindices)
     @test Array(dtarget) == target
-end
-
-include("sorting.jl")
-include("reverse.jl")
-
-# TODO hangs
-# include("indexing.jl")
-
-if length(AMDGPU.devices()) > 1
-    include("multi_gpu.jl")
-else
-    @test_skip "Multi-GPU"
 end
 
 end

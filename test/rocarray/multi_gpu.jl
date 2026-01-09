@@ -1,3 +1,12 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, @roc
+using AMDGPU.Device: workitemIdx, workgroupIdx, workgroupDim
+
+if length(AMDGPU.devices()) <= 1
+    @info "Skipping Multi-GPU tests (requires more than 1 GPU)"
+else
+
 @testset "Multi-GPU" begin
     @testset "Device switching" begin
         d1 = AMDGPU.device()
@@ -109,4 +118,5 @@
         @test AMDGPU.device() == AMDGPU.device(1)
         @test AMDGPU.HIP.device() == AMDGPU.device(1)
     end
+end
 end

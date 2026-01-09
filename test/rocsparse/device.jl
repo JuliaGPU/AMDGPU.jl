@@ -1,3 +1,16 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCVector, ROCMatrix, ROCArray
+using AMDGPU.rocSPARSE
+using AMDGPU.Device.AS
+using AMDGPU.Device: ROCDeviceVector
+using AMDGPU.GPUArrays:
+    GPUSparseDeviceVector, GPUSparseDeviceMatrixCSC, GPUSparseDeviceMatrixCSR,
+    GPUSparseDeviceMatrixBSR, GPUSparseDeviceMatrixCOO
+using SparseArrays
+
+@assert AMDGPU.functional(:rocsparse)
+
 @testset "rocconvert" begin
     @test isbitstype(GPUSparseDeviceVector{
         Float32, Cint,

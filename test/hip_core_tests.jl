@@ -1,14 +1,11 @@
-@testitem "hip - core" setup=[TSCore] begin
-
 using Test
-using LinearAlgebra
 using Random
-
+using AMDGPU
 using AMDGPU: HIP, Runtime, Device, Mem
-import AMDGPU: @allowscalar
 
 Random.seed!(1)
-AMDGPU.allowscalar(false)
+
+@testset "hip - core" begin
 
 @testset "AMDGPU.@elapsed" begin
     xgpu = AMDGPU.rand(Float32, 100)

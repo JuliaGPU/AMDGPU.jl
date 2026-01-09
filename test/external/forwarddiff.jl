@@ -1,3 +1,6 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, @roc, @allowscalar
 using ForwardDiff
 using ForwardDiff: Dual
 using SpecialFunctions

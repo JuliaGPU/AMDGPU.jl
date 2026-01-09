@@ -1,9 +1,12 @@
-@testitem "kernelabstractions" begin
+using Test
+using AMDGPU
 
 import KernelAbstractions
 include(joinpath(pkgdir(KernelAbstractions), "test", "testsuite.jl"))
 
 AMDGPU.allowscalar(false)
+
+@testset "kernelabstractions" begin
 
 # TODO fix Printing
 skip_tests = ["Printing", "sparse"]

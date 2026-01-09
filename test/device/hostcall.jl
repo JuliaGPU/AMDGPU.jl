@@ -1,3 +1,8 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc
+using AMDGPU.Device: HostCallHolder, hostcall!
+
 @testset "Hostcall" begin
 
 @testset "Call: No return or arguments" begin

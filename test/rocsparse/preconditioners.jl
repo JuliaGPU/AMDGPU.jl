@@ -1,3 +1,12 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCVector, ROCMatrix, ROCArray
+using AMDGPU.rocSPARSE
+using SparseArrays
+using LinearAlgebra
+
+@assert AMDGPU.functional(:rocsparse)
+
 n = 32
 p = 5
 blockdim = 4

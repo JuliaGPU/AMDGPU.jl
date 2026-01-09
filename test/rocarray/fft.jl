@@ -1,3 +1,9 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray
+
+@assert AMDGPU.functional(:rocfft)
+
 @testset "FFT" begin
 
 using AMDGPU.rocFFT

@@ -1,3 +1,8 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc, @ROCStaticLocalArray, @ROCDynamicLocalArray
+using AMDGPU.Device: workitemIdx
+
 @testset "Memory: Static" begin
     @testset "Fixed-size Allocation" begin
         function memory_static_kernel(A, B, C)

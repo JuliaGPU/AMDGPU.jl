@@ -1,3 +1,6 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, @roc
 using Base.FastMath
 
 @testset "Math Intrinsics" begin

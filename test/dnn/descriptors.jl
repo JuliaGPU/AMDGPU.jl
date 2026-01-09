@@ -1,6 +1,9 @@
-@testset "MIOpen" begin
-
+using Test
+using AMDGPU
+using AMDGPU: ROCArray
 using AMDGPU.MIOpen
+
+@assert AMDGPU.functional(:MIOpen)
 
 @testset "Tensor descriptors" begin
     for nd in 1:MIOpen.MIOPEN_DIM_MAX
@@ -17,22 +20,4 @@ using AMDGPU.MIOpen
             @test all(stride .== reverse(strides(x)))
         end
     end
-end
-
-@testset "Convolutions" begin
-    include("conv.jl")
-end
-
-@testset "Pooling" begin
-    include("pool.jl")
-end
-
-@testset "Activations" begin
-    include("activations.jl")
-end
-
-@testset "Batchnorm" begin
-    include("batchnorm.jl")
-end
-
 end

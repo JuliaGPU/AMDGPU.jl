@@ -1,3 +1,10 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, @allowscalar
+using LinearAlgebra
+
+@assert AMDGPU.functional(:rocsolver)
+
 @testset "rocSOLVER" begin
 
 using AMDGPU.rocSOLVER

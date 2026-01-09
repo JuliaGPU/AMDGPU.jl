@@ -1,3 +1,8 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, Runtime, ROCArray, @roc, @ROCStaticLocalArray, HIPStream
+using AMDGPU.Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
+
 @testset "Launch Options" begin
     kernel() = nothing
 

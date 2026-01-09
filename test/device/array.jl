@@ -1,3 +1,9 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc, rocconvert
+using AMDGPU.Device: workitemIdx, workgroupIdx, workgroupDim
+import LinearAlgebra
+
 @testset "ROCDeviceArray array interface" begin
     x = ROCArray(zeros(Int, 1, 2, 3, 4))
     xd = rocconvert(x)

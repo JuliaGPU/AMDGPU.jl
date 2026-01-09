@@ -1,3 +1,10 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray
+using AMDGPU.MIOpen
+
+@assert AMDGPU.functional(:MIOpen)
+
 @testset "Simple Convolution" begin
     for T in (Float16, Float32), nd in 2:3
         ndims = Val{nd}()

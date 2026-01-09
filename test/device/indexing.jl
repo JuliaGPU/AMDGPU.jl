@@ -1,3 +1,8 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc
+using AMDGPU.Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
+
 @testset "Kernel Indexing" begin
     function idx_kern(X)
         X[1] = workitemIdx().x

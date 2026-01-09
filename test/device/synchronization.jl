@@ -1,3 +1,8 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc, @ROCStaticLocalArray
+using AMDGPU.Device: workitemIdx, workgroupIdx, workgroupDim
+
 @testset "Workgroup synchronization" begin
 
 function test_sync_workgroup_count!(

@@ -1,3 +1,13 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCVector, ROCMatrix, ROCArray
+using AMDGPU.rocSPARSE
+using SparseArrays
+using LinearAlgebra
+using Adapt
+
+@assert AMDGPU.functional(:rocsparse)
+
 fmt = Dict(ROCSparseMatrixCSC => :csc,
            ROCSparseMatrixCSR => :csr,
            ROCSparseMatrixCOO => :coo)

@@ -1,3 +1,14 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, ROCVector, ROCMatrix
+using LinearAlgebra
+
+import GPUArrays
+include(joinpath(pkgdir(GPUArrays), "test", "testsuite.jl"))
+testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
+
+@assert AMDGPU.functional(:rocblas)
+
 @testset "BLAS" begin
 
 using AMDGPU.rocBLAS
@@ -781,5 +792,4 @@ end
     end
 
 end
-
 end

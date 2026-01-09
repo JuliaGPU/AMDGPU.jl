@@ -1,3 +1,8 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc
+using AMDGPU.Device: workitemIdx, sync_workgroup
+
 # The original test :)
 @testset "Vector Addition Kernel" begin
     function vadd(a,b,c)
