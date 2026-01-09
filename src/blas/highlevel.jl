@@ -1,5 +1,10 @@
 rocblas_size(t::Char, M::ROCVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
 
+@static if VERSION ≥ v"1.12.0-rc"
+    # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
+    using LinearAlgebra: BlasFlag, _symm_hemm_generic!
+end
+
 #
 # BLAS 1
 #
@@ -160,11 +165,6 @@ end
 #
 
 @static if VERSION ≥ v"1.12.0-rc"
-    function LinearAlgebra.generic_matmatmul_wrapper!(
-        C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCVecOrMat{T}, B::StridedROCVecOrMat{T},
-        alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:ROCBLASFloat}
-        LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
-    end
     function LinearAlgebra._symm_hemm_generic!(
         C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
         alpha, beta, ::Val{BlasFlag.SYMM}) where {T}
