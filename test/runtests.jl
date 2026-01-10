@@ -39,8 +39,8 @@ if do_help
     Usage: runtests.jl [--help] [--list] [--jobs=N] [TESTS...]
 
         --help             Show this text.
-        --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS / 2).
-        --list             List all available tests (default: all).
+        --jobs=N           Launch `N` processes to perform tests (defaults to dynamically inspecting nthreads and RAM availability of the CPU)
+        --list             List all available tests.
 
         Remaining arguments filter the tests that will be executed.""")
     exit(0)
