@@ -38,6 +38,10 @@ UnsafeAtomics = "013be700-e6cd-48c3-b4a1-df204f14c38f"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 
+[sources]
+KernelAbstractions = {rev = "main", url = "https://github.com/JuliaGPU/KernelAbstractions.jl"}
+AcceleratedKernels = {rev = "ka0.10simple", url = "https://github.com/christiangnrd/AcceleratedKernels.jl"}
+
 [extensions]
 AMDGPUChainRulesCoreExt = "ChainRulesCore"
 AMDGPUEnzymeCoreExt = "EnzymeCore"
@@ -55,7 +59,7 @@ ExprTools = "0.1"
 GPUArrays = "11.3.1"
 GPUCompiler = "1"
 GPUToolbox = "0.1.0, 0.2, 0.3, 1"
-KernelAbstractions = "0.9.2"
+KernelAbstractions = "0.9, 0.10"
 LLD_jll = "15, 16, 17, 18, 19"
 LLVM = "9"
 LLVM_jll = "15, 16, 17, 18, 19"
