@@ -1,3 +1,10 @@
+using Test
+using Random
+using AMDGPU
+using AMDGPU: ROCArray
+
+@assert AMDGPU.functional(:rocrand)
+
 @testset "rand" begin
 # NOTE: tests should cover both pow2 and non-pow2 dims
 

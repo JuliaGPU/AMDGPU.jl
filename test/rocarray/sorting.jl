@@ -1,3 +1,7 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray
+
 @testset "Sorting" begin
     for sz in (1, 2, 3, 4, 33, 333, 3333, 4096), T in (
         Float16, Float32, Float64, Int16, Int32, Int64,

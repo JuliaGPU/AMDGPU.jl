@@ -1,3 +1,9 @@
+using Test
+using AMDGPU
+using AMDGPU.MIOpen
+
+@assert AMDGPU.functional(:MIOpen)
+
 @testset "Different input dimensions" begin
     for sz in ((3, 2), (4, 3, 2), (5, 4, 3, 2))
         x = AMDGPU.ones(Float32, sz)

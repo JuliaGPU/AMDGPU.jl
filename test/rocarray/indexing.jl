@@ -1,3 +1,7 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray
+
 @testset "Selection" begin
     x = rand(Int32, 16)
     m = rand(Bool, 16)

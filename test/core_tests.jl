@@ -1,31 +1,8 @@
-@testitem "core" setup=[TSCore] begin
-
-import AMDGPU: @allowscalar
-
+using Test
+using AMDGPU
 using AMDGPU: HIP, Runtime, Device, Mem
-using KernelAbstractions: @atomic
 
-AMDGPU.allowscalar(false)
-
-macro grab_output(ex, io=stdout)
-    quote
-        mktemp() do fname, fout
-            ret = nothing
-            open(fname, "w") do fout
-                if $io == stdout
-                    redirect_stdout(fout) do
-                        ret = $(esc(ex))
-                    end
-                elseif $io == stderr
-                    redirect_stderr(fout) do
-                        ret = $(esc(ex))
-                    end
-                end
-            end
-            ret, read(fname, String)
-        end
-    end
-end
+@testset "core" begin
 
 @testset "Functional" begin
     @test AMDGPU.has_rocm_gpu() isa Bool
@@ -77,10 +54,5 @@ end
     d = AMDGPU.device()
     @test d == deepcopy(d)
 end
-
-include("codegen/codegen.jl")
-include("rocarray/base.jl")
-include("rocarray/broadcast.jl")
-include("tls.jl")
 
 end

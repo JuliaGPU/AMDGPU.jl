@@ -1,3 +1,10 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray
+using AMDGPU.MIOpen
+
+@assert AMDGPU.functional(:MIOpen)
+
 @testset "Activation functions" begin
     for (T, atol) in ((Float16, 1f-3), (Float32, 1f-6))
         x, dy = randn(T, 16), randn(T, 16)

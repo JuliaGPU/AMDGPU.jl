@@ -1,3 +1,7 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray
+
 @testset "Reverse kernel" begin
     @testset "1D full reverse" begin
         for T in (Float16, Float32, Float64), sz in (1, 2, 3, 4, 16, 128, 1024, 1025)

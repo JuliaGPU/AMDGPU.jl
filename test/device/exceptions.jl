@@ -1,3 +1,9 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc
+using AMDGPU.Device: workitemIdx
+using StaticArrays
+
 @testset "Exceptions" begin
     function oob_kernel(X)
         X[0] = 1

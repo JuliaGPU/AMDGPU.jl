@@ -1,3 +1,7 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc, @allowscalar
+
 @testset "Wavefront Shuffle" begin
     ws::Cuint = AMDGPU.HIP.wavefrontsize(AMDGPU.device())
 

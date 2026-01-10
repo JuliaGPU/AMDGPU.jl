@@ -1,3 +1,13 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCVector, ROCMatrix, ROCArray
+using AMDGPU.rocSPARSE
+using SparseArrays
+using LinearAlgebra
+using Adapt
+
+@assert AMDGPU.functional(:rocsparse)
+
 @testset "LinearAlgebra" begin
     @testset "$f(A)±$h(B) $elty" for elty in (
         Float32, Float64, ComplexF32, ComplexF64,

@@ -1,3 +1,27 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc, @rocprint, @rocprintln
+
+macro grab_output(ex, io=stdout)
+    quote
+        mktemp() do fname, fout
+            ret = nothing
+            open(fname, "w") do fout
+                if $io == stdout
+                    redirect_stdout(fout) do
+                        ret = $(esc(ex))
+                    end
+                elseif $io == stderr
+                    redirect_stderr(fout) do
+                        ret = $(esc(ex))
+                    end
+                end
+            end
+            ret, read(fname, String)
+        end
+    end
+end
+
 @testset "@rocprintln" begin
     @testset "Plain, no newline" begin
         kernel() = @rocprint "Hello World!"

@@ -1,8 +1,17 @@
-@testitem "core: WMMA" begin
-
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, @roc
 using BFloat16s
 using AMDGPU.Device: wmma_load_a, wmma_load_b, wmma_load_c, wmma_store_d, wmma_mma, wmma_fill_c
-using AMDGPU.Device: WMMA_M, WMMA_N, WMMA_K
+using AMDGPU.Device: WMMA_M, WMMA_N, WMMA_K, workitemIdx, workgroupIdx
+
+AMDGPU.allowscalar(false)
+
+# Only run WMMA tests on RDNA3+ (gfx1100+)
+is_rdna3 = parse(Int, AMDGPU.HIP.gcn_arch(AMDGPU.device())[4:end]) >= 1100
+if !is_rdna3
+    @info "Skipping WMMA tests (requires RDNA3+)"
+else
 
 function wmma_kernel_ptr!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32) where T
     tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMMA_M)
@@ -30,18 +39,20 @@ function wmma_kernel_ptr!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int3
     return
 end
 
-@testset "Tiled $M x $N: $arg_T" for (M, N, K) in (
-    (64, 64, 64), (128, 128, 128),
-), arg_T in (Float16, BFloat16)
-    A_host = arg_T.(rand(M, K))
-    B_host = arg_T.(rand(K, N))
-    A, B = ROCArray(A_host), ROCArray(B_host)
-    C = ROCArray(zeros(Float32, M, N))
+@testset "core: WMMA" begin
 
-    tiles_m, tiles_n = M ÷ WMMA_M, N ÷ WMMA_N
-    @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel_ptr!(
-        C, A, B, Int32(M), Int32(N), Int32(K))
-    @test maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < 0.1
+    @testset "Tiled $M x $N: $arg_T" for (M, N, K) in (
+        (64, 64, 64), (128, 128, 128),
+    ), arg_T in (Float16, BFloat16)
+        A_host = arg_T.(rand(M, K))
+        B_host = arg_T.(rand(K, N))
+        A, B = ROCArray(A_host), ROCArray(B_host)
+        C = ROCArray(zeros(Float32, M, N))
+
+        tiles_m, tiles_n = M ÷ WMMA_M, N ÷ WMMA_N
+        @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel_ptr!(
+            C, A, B, Int32(M), Int32(N), Int32(K))
+        @test maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < 0.1
+    end
 end
-
 end

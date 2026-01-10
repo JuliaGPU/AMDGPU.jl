@@ -1,3 +1,11 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCVector, ROCMatrix, ROCArray
+using AMDGPU.rocSPARSE
+using SparseArrays
+
+@assert AMDGPU.functional(:rocsparse)
+
 m, n = 2, 3
 p = 0.5
 

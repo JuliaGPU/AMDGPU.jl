@@ -1,3 +1,8 @@
+using Test
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc
+using AMDGPU.Device: workitemIdx
+
 @testset "Execution Control Intrinsics" begin
     @testset "sendmsg/sendmsghalt/endpgm" begin
         function exec_ctl_kernel()
