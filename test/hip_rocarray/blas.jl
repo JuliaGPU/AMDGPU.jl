@@ -3,10 +3,6 @@ using AMDGPU
 using AMDGPU: ROCArray, ROCVector, ROCMatrix
 using LinearAlgebra
 
-import GPUArrays
-include(joinpath(pkgdir(GPUArrays), "test", "testsuite.jl"))
-testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
-
 @assert AMDGPU.functional(:rocblas)
 
 @testset "BLAS" begin
@@ -132,7 +128,7 @@ end
             @test testf(
                 (y, a, b) -> mul!(y, Hermitian(a), b), rand(T, 5),
                 rand(T, 5, 5), rand(T, 5))
-            
+
             A_ = rand(T, m, m)
             A = A_ + A_'
             x = rand(T, m)
@@ -423,7 +419,7 @@ end
             dC = rocBLAS.trsm('L', 'U', 'N', 'N', one(T), dA, dB)
             @test collect(dC) ≈ triu(view(A,1:m,1:m)) \ view(B,1:m,1:m)
         end
-            
+
         @testset "trsm_batched" begin
             batch_count = 3
             A  = [rand(T, m, m) for ix in 1:batch_count]
@@ -661,7 +657,7 @@ end
         @test C ≈ h_C
     end
     @testset "herk T=$T" for T in (ComplexF32, ComplexF64)
-        T1 = T 
+        T1 = T
         T2 = real(T)
         # generate parameters
         α = rand(T2)
@@ -689,7 +685,7 @@ end
         @test C ≈ h_C
     end
     @testset "her2k T=$T" for T in (ComplexF32, ComplexF64)
-        T1 = T 
+        T1 = T
         T2 = real(T)
         # generate parameters
         α = rand(T1)
