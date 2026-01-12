@@ -88,7 +88,7 @@ end
 runtests(AMDGPU, args; testsuite, init_code)
 
 # Hostcall tests must run on main thread (not in parallel workers)
-if any(name -> startswith(name, "device"), keys(testsuite)) && Sys.islinux()
+if any(name -> startswith(name, "core"), keys(testsuite)) && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")
