@@ -39,7 +39,7 @@ gpuarrays_root = dirname(dirname(gpuarrays))
 gpuarrays_testsuite = joinpath(gpuarrays_root, "test", "testsuite.jl")
 include(gpuarrays_testsuite)
 for name in keys(TestSuite.tests)
-    testsuite["gpuarrays/$name"] = :(TestSuite.tests[$name](ROCArray))
+    testsuite["gpuarrays/$name"] = :(TestSuite.tests[$name](AMDGPU.ROCArray))
 end
 
 args = parse_args(ARGS)
@@ -61,8 +61,9 @@ delete!(testsuite, "device/output")
 # Code to run in each test's sandbox module before running the test
 init_code = quote
     import GPUArrays
+    using AMDGPU
     include($gpuarrays_testsuite)
-    testf(f, xs...; kwargs...) = TestSuite.compare(f, ROCArray, xs...; kwargs...)
+    testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
 
     macro grab_output(ex, io=stdout)
         quote
