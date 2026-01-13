@@ -12,16 +12,14 @@ AMDGPU.allowscalar(false)
 
 # Force 4 workers if running on buildkite
 if parse(Bool, get(ENV, "BUILDKITE", "false"))
-    jobs_pos = findfirst(arg -> startswith(arg, "--jobs"), ARGS)
-    if isnothing(jobs_pos)
+    if !any(startswith("--jobs"), ARGS)
         push!(ARGS, "--jobs=4")
     end
 end
 
-# Force 4 workers if running on machine with <= 32GB RAM and not on CI
-jobs_pos = findfirst(arg -> startswith(arg, "--jobs"), ARGS)
-if isnothing(jobs_pos) && (Sys.total_memory() <= 32*2^30)
-    push!(ARGS, "--jobs=4")
+# Default to 4 workers if running on machine with <= 32GB RAM and not on CI
+if !any(startswith("--jobs"), ARGS) && (Sys.total_memory() <= 32*2^30)
+   push!(ARGS, "--jobs=4")
 end
 
 @info "System information:\n"
@@ -54,7 +52,7 @@ if any(name -> startswith(name, "enzyme"), keys(testsuite))
     Pkg.add(["EnzymeCore", "Enzyme"])
 end
 
-# Hostcall tests must run on main thread (not in parallel workers)
+# Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
 delete!(testsuite, "device/hostcall")
 delete!(testsuite, "device/output")
 
@@ -88,7 +86,7 @@ end
 
 runtests(AMDGPU, args; testsuite, init_code)
 
-# Hostcall tests must run on main thread (not in parallel workers)
+# Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
 if any(name -> startswith(name, "core"), keys(testsuite)) && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
