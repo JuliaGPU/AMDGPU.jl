@@ -56,7 +56,7 @@ julia> Pkg.test("AMDGPU"; test_args=`--jobs=4 core kernelabstractions`)
 Full list of tests to run can be obtained with `--list` argument (refer to [ParallelTestRunner.jl's doc](https://juliatesting.github.io/ParallelTestRunner.jl/dev/#Command-Line-Options) for the full list of available command line arguments):
 
 ```julia
-julia> Pkg.test("AMDGPU"; test_args=`--list`])
+julia> Pkg.test("AMDGPU"; test_args=`--list`)
 ```
 
 ## Questions and Contributions
