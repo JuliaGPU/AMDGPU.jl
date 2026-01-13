@@ -2,10 +2,6 @@ using Test
 using AMDGPU
 using AMDGPU: ROCArray
 
-import GPUArrays
-include(joinpath(pkgdir(GPUArrays), "test", "testsuite.jl"))
-testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
-
 @testset "broadcast" begin
     @test testf((x)       -> fill!(x, 1),  rand(3,3))
     @test testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))

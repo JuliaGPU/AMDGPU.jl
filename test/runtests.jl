@@ -2,86 +2,92 @@ using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
 import AMDGPU.Device: HostCallHolder, hostcall!
 
-import Pkg
-import PrettyTables
-import InteractiveUtils
-
 using ParallelTestRunner
 using Test
 
+import Pkg
+import InteractiveUtils
+
 AMDGPU.allowscalar(false)
 
-# Test names for filtering (excluding enzyme by default)
-const DEFAULT_TESTS = ["core", "device", "hip", "external", "gpuarrays", "kernelabstractions", "wmma"]
-
-function parse_flags!(args, flag; default = nothing, typ = typeof(default))
-    for f in args
-        startswith(f, flag) || continue
-
-        if f != flag
-            val = split(f, '=')[2]
-            if !(typ === nothing || typ <: AbstractString)
-                val = parse(typ, val)
-            end
-        else
-            val = default
-        end
-
-        filter!(x -> x != f, args)
-        return true, val
+# Force 4 workers if running on buildkite
+if parse(Bool, get(ENV, "BUILDKITE", "false"))
+    if !any(startswith("--jobs"), ARGS)
+        push!(ARGS, "--jobs=4")
     end
-    return false, default
 end
 
-do_help, _ = parse_flags!(ARGS, "--help")
-if do_help
-    println("""
-    Usage: runtests.jl [--help] [--list] [--jobs=N] [TESTS...]
-
-        --help             Show this text.
-        --jobs=N           Launch `N` processes to perform tests (defaults to dynamically inspecting nthreads and RAM availability of the CPU)
-        --list             List all available tests.
-
-        Remaining arguments filter the tests that will be executed.""")
-    exit(0)
+# Default to 4 workers if running on machine with <= 32GB RAM and not on CI
+if !any(startswith("--jobs"), ARGS) && (Sys.total_memory() <= 32*2^30)
+   push!(ARGS, "--jobs=4")
 end
 
-do_list, _ = parse_flags!(ARGS, "--list")
-if do_list
-    println("Available tests to run: $DEFAULT_TESTS, enzyme.")
-    exit(0)
+@info "System information:\n"
+InteractiveUtils.versioninfo()
+
+AMDGPU.versioninfo()
+
+# Autodiscovered tests
+testsuite = find_tests(@__DIR__)
+
+## GPUArrays test suite
+import GPUArrays
+gpuarrays = pathof(GPUArrays)
+gpuarrays_root = dirname(dirname(gpuarrays))
+gpuarrays_testsuite = joinpath(gpuarrays_root, "test", "testsuite.jl")
+include(gpuarrays_testsuite)
+for name in keys(TestSuite.tests)
+    testsuite["gpuarrays/$name"] = :(TestSuite.tests[$name](AMDGPU.ROCArray))
 end
 
-# No options should remain (except test names).
-optlike_args = filter(startswith("-"), ARGS)
-if !isempty(optlike_args)
-    error("""
-    Unknown test options: `$(join(optlike_args, " "))`.
-    Try `--help` for usage instructions.
-    """)
+args = parse_args(ARGS)
+
+# Don't run Enzyme tests by default
+if filter_tests!(testsuite, args)
+    delete!(testsuite, "enzyme_tests")
 end
 
-# Determine which tests to run
-const TARGET_TESTS = isempty(ARGS) ? DEFAULT_TESTS : ARGS
-
-if "enzyme" in TARGET_TESTS
+if any(name -> startswith(name, "enzyme"), keys(testsuite))
+    @info "Running Enzyme tests\n"
     Pkg.add(["EnzymeCore", "Enzyme"])
 end
 
-InteractiveUtils.versioninfo()
-AMDGPU.versioninfo()
+# Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
+delete!(testsuite, "device/hostcall")
+delete!(testsuite, "device/output")
 
-@info "Test suite info"
-data = String["$(AMDGPU.device())" join(TARGET_TESTS, ", ");]
-PrettyTables.pretty_table(data; column_labels=["Device", "Tests"],
-                          fit_table_in_display_vertically=false,
-                          fit_table_in_display_horizontally=false)
+# Code to run in each test's sandbox module before running the test
+init_code = quote
+    import GPUArrays
+    using AMDGPU
+    include($gpuarrays_testsuite)
+    testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
 
-# Run tests with ParallelTestRunner
-runtests(AMDGPU, ARGS)
+    macro grab_output(ex, io=stdout)
+        quote
+            mktemp() do fname, fout
+                ret = nothing
+                open(fname, "w") do fout
+                    if $io == stdout
+                        redirect_stdout(fout) do
+                            ret = $(esc(ex))
+                        end
+                    elseif $io == stderr
+                        redirect_stderr(fout) do
+                            ret = $(esc(ex))
+                        end
+                    end
+                end
+                ret, read(fname, String)
+            end
+        end
+    end
+end
 
-# Hostcall tests must run on main thread (not in parallel workers)
-if "core" in TARGET_TESTS && Sys.islinux()
+runtests(AMDGPU, args; testsuite, init_code)
+
+# Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
+if any(name -> startswith(name, "core"), keys(testsuite)) && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")

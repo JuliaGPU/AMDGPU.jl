@@ -28,6 +28,7 @@ Simply add the AMDGPU.jl package to your Julia environment:
 
 ```julia
 using Pkg
+
 Pkg.add("AMDGPU")
 ```
 
@@ -62,6 +63,7 @@ To ensure that everything works, you can run the test suite:
 ```julia
 using AMDGPU
 using Pkg
+
 Pkg.test("AMDGPU")
 ```
 
