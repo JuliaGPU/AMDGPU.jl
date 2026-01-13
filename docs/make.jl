@@ -35,6 +35,7 @@ function main()
                 "Performance Tips" => "tutorials/perf.md",
                 "Profiling" => "tutorials/profiling.md",
                 "Installation Tips" => "install_tips.md",
+                "Testing" => "testing.md",
             ],
             "API" => [
                 "Devices" => "api/devices.md",
