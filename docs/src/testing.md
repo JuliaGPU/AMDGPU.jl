@@ -34,7 +34,7 @@ core device hip external gpuarrays kernelabstractions wmma enzyme
 
 which allows to, e.g., run all `gpuarrays` related tests as:
 
-```
+```julia
 julia> Pkg.test("AMDGPU"; test_args=`gpuarrays`)
 ```
 
