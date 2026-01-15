@@ -13,6 +13,10 @@ using LinearAlgebra: AdjOrTrans, MulAddMul
 using LinearAlgebra: wrap, UpperOrLowerTriangular
 using CEnum
 
+const rocblas_half = Float16
+const rocblas_float_complex = ComplexF32
+const rocblas_double_complex = ComplexF64
+
 include("librocblas.jl")
 include("error.jl")
 include("util.jl")
