@@ -1,4 +1,8 @@
+using Test
 using Random
+using AMDGPU
+using AMDGPU: Device, ROCArray, @roc
+using AMDGPU.Device: workitemIdx
 
 const n = 256
 

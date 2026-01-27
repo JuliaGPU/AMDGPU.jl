@@ -1,6 +1,7 @@
 module AMDGPU
 
 using Adapt
+using BFloat16s
 using CEnum
 using GPUCompiler
 using GPUArrays

@@ -2,154 +2,92 @@ using AMDGPU
 using AMDGPU: Device, Runtime, @allowscalar
 import AMDGPU.Device: HostCallHolder, hostcall!
 
-import Pkg
-import PrettyTables
-import InteractiveUtils
-
-using LinearAlgebra
-using ReTestItems
+using ParallelTestRunner
 using Test
 
-import GPUArrays
-include(joinpath(pkgdir(GPUArrays), "test", "testsuite.jl"))
-
-macro grab_output(ex, io=stdout)
-    quote
-        mktemp() do fname, fout
-            ret = nothing
-            open(fname, "w") do fout
-                if $io == stdout
-                    redirect_stdout(fout) do
-                        ret = $(esc(ex))
-                    end
-                elseif $io == stderr
-                    redirect_stderr(fout) do
-                        ret = $(esc(ex))
-                    end
-                end
-            end
-            ret, read(fname, String)
-        end
-    end
-end
+import Pkg
+import InteractiveUtils
 
 AMDGPU.allowscalar(false)
 
-const TEST_NAMES = ["core", "hip", "ext", "gpuarrays", "kernelabstractions", "enzyme"]
-
-function parse_flags!(args, flag; default = nothing, typ = typeof(default))
-    for f in args
-        startswith(f, flag) || continue
-
-        if f != flag
-            val = split(f, '=')[2]
-            if !(typ ≡ nothing || typ <: AbstractString)
-                val = parse(typ, val)
-            end
-        else
-            val = default
-        end
-
-        filter!(x -> x != f, args)
-        return true, val
+# Force 4 workers if running on buildkite
+if parse(Bool, get(ENV, "BUILDKITE", "false"))
+    if !any(startswith("--jobs"), ARGS)
+        push!(ARGS, "--jobs=4")
     end
-    return false, default
 end
 
-do_help, _ = parse_flags!(ARGS, "--help")
-if do_help
-    println("""
-    Usage: runtests.jl [--help] [--list] [TESTS...]
-
-        --help             Show this text.
-        --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS ÷ 2).
-        --list             List all available tests (default: all).
-
-        Remaining arguments filter the tests that will be executed.""")
-    exit(0)
+# Default to 4 workers if running on machine with <= 32GB RAM and not on CI
+if !any(startswith("--jobs"), ARGS) && (Sys.total_memory() <= 32*2^30)
+   push!(ARGS, "--jobs=4")
 end
 
-do_list, _ = parse_flags!(ARGS, "--list")
-if do_list
-    println("Available tests to run: $TEST_NAMES.")
-    exit(0)
+@info "System information:\n"
+InteractiveUtils.versioninfo()
+
+AMDGPU.versioninfo()
+
+# Autodiscovered tests
+testsuite = find_tests(@__DIR__)
+
+## GPUArrays test suite
+import GPUArrays
+gpuarrays = pathof(GPUArrays)
+gpuarrays_root = dirname(dirname(gpuarrays))
+gpuarrays_testsuite = joinpath(gpuarrays_root, "test", "testsuite.jl")
+include(gpuarrays_testsuite)
+for name in keys(TestSuite.tests)
+    testsuite["gpuarrays/$name"] = :(TestSuite.tests[$name](AMDGPU.ROCArray))
 end
 
-set_jobs, jobs = parse_flags!(ARGS, "--jobs"; typ=Int)
+args = parse_args(ARGS)
 
-# No options should remain.
-optlike_args = filter(startswith("-"), ARGS)
-if !isempty(optlike_args)
-    error("""
-    Unknown test options: `$(join(optlike_args, " "))`.
-    Try `--help` for usage instructions.
-    """)
+# Don't run Enzyme tests by default
+if filter_tests!(testsuite, args)
+    delete!(testsuite, "enzyme_tests")
 end
 
-for test_name in ARGS
-    test_name in ARGS || error("""
-    Unknown test name: `$test_name`.
-    Try `--list` for available tests.
-    """)
-end
-
-# Do not run Enzyme tests by default.
-const TARGET_TESTS = isempty(ARGS) ?
-    [t for t in TEST_NAMES if t != "enzyme"] :
-    ARGS
-
-if "enzyme" in TARGET_TESTS
+if any(name -> startswith(name, "enzyme"), keys(testsuite))
+    @info "Running Enzyme tests\n"
     Pkg.add(["EnzymeCore", "Enzyme"])
 end
 
-# Configure number of test workers.
-np = set_jobs ? jobs : Sys.CPU_THREADS
-np = clamp(np, 1, 4)
-np = min(np, length(TARGET_TESTS))
+# Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
+delete!(testsuite, "device/hostcall")
+delete!(testsuite, "device/output")
 
-InteractiveUtils.versioninfo()
-AMDGPU.versioninfo()
+# Code to run in each test's sandbox module before running the test
+init_code = quote
+    import GPUArrays
+    using AMDGPU
+    include($gpuarrays_testsuite)
+    testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
 
-@info "Test suite info"
-data = String["$np" "$(AMDGPU.device())" join(TARGET_TESTS, ", ");]
-PrettyTables.pretty_table(data; column_labels=["Workers", "Device", "Tests"],
-                          fit_table_in_display_vertically=false,
-                          fit_table_in_display_horizontally=false)
-
-# Hack to define GPUArrays `@testitems` dynamically - by writing them to a file.
-function write_gpuarrays_tests()
-    template = """
-    @testsetup module TSGPUArrays
-        export gpuarrays_test
-
-        import GPUArrays, AMDGPU
-        include(joinpath(pkgdir(GPUArrays), "test", "testsuite.jl"))
-
-        gpuarrays_test(test_name::String) = TestSuite.tests[test_name](AMDGPU.ROCArray)
+    macro grab_output(ex, io=stdout)
+        quote
+            mktemp() do fname, fout
+                ret = nothing
+                open(fname, "w") do fout
+                    if $io == stdout
+                        redirect_stdout(fout) do
+                            ret = $(esc(ex))
+                        end
+                    elseif $io == stderr
+                        redirect_stderr(fout) do
+                            ret = $(esc(ex))
+                        end
+                    end
+                end
+                ret, read(fname, String)
+            end
+        end
     end
-    """
-    for test_name in keys(TestSuite.tests)
-        template = """
-        $template
-        @testitem "gpuarrays - $test_name" setup=[TSGPUArrays] begin gpuarrays_test("$test_name") end
-        """
-    end
-
-    test_file = joinpath(dirname(@__FILE__), "gpuarrays_generated_tests.jl")
-    open(io -> write(io, template), test_file, "w")
-    @info "Writing GPUArrays test file: `$test_file`."
-    return
-end
-write_gpuarrays_tests()
-
-runtests(AMDGPU; nworkers=np, nworker_threads=1, testitem_timeout=60 * 30) do ti
-    for tt in TARGET_TESTS
-        startswith(ti.name, tt) && return true
-    end
-    return false
 end
 
-if "core" in TARGET_TESTS && Sys.islinux()
+runtests(AMDGPU, args; testsuite, init_code)
+
+# Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
+if any(name -> startswith(name, "core"), keys(testsuite)) && Sys.islinux()
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")
