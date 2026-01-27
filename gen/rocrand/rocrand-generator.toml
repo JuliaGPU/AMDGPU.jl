@@ -1,0 +1,15 @@
+[general]
+library_name = "librocrand"
+output_file_path = "../src/rand/librocrand.jl"
+export_symbol_prefixes = []
+print_using_CEnum = false
+output_ignorelist = [
+    "(__)?hip.*",
+    "(__)?HIP.*",
+    "rocrand_status",
+    "half",
+    "SKEIN_KS_PARITY64",
+]
+
+[codegen]
+use_ccall_macro = true
