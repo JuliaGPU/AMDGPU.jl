@@ -12,7 +12,7 @@ using Random
 
 export rand_logn!, rand_poisson!, rand_logn, rand_poisson
 
-include("librocrand_common.jl")
+const half = Float16
 include("error.jl")
 include("librocrand.jl")
 
