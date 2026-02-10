@@ -1,8 +1,17 @@
 [general]
 library_name = "librocsparse"
-output_file_path = "./librocsparse.jl"
+output_file_path = "../src/sparse/librocsparse.jl"
 export_symbol_prefixes = []
 print_using_CEnum = false
+output_ignorelist = [
+    "hipStream_t",
+    "ihipStream_t",
+    "rocsparse_status_",
+    "rocsparse_status",
+    "ROCSPARSE_DEPRECATED_EXPORT",
+    "ROCSPARSE_DEPRECATED_NO_EXPORT",
+    "ROCSPARSE_VERSION_TWEAK",
+]
 
 [codegen]
 use_ccall_macro = true
