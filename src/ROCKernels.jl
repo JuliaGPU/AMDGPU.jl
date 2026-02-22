@@ -14,6 +14,7 @@ using StaticArraysCore: MArray
 
 struct ROCBackend <: KA.GPU end
 
+KA.functional(::ROCBackend) = AMDGPU.functional()
 KA.ndevices(::ROCBackend) = AMDGPU.HIP.ndevices()
 KA.device(::ROCBackend) = AMDGPU.device_id()
 function KA.device!(kab::ROCBackend, id::Int)
