@@ -16,6 +16,10 @@ function alloc_or_retry!(f, isfailed; stream::HIP.HIPStream)
             HIP.device_synchronize()
         elseif phase == 5
             HIP.trim(HIP.memory_pool(stream.device))
+        elseif phase == 6
+            for hook in AMDGPU.reclaim_hooks
+                hook()
+            end
         else
             break
         end

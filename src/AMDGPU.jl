@@ -184,6 +184,10 @@ function __init__()
 
     if functional(:hip)
         HIP.devices()
+        if isinteractive()
+            _pool_cleanup_task[] = errormonitor(
+                Threads.@spawn pool_cleanup())
+        end
     else
         @warn "HIP library is unavailable, HIP integration will be disabled."
         if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
