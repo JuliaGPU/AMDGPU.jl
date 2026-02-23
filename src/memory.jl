@@ -474,7 +474,7 @@ function pool_alloc(::Type{B}, bytesize) where B
 end
 
 function pool_free(managed::Managed{M}) where M
-    sz = sizeof(managed.mem)
+    sz = Int(sizeof(managed.mem))
     sz == 0 && return
 
     try
@@ -483,7 +483,8 @@ function pool_free(managed::Managed{M}) where M
         Base.@atomic alloc_stats.free_bytes += sz
         Base.@atomic alloc_stats.total_time += time
     catch ex
-        Base.showerror_nostdio(ex, "WARNING: Error while freeing $(managed.mem)")
+        Base.showerror_nostdio(ex,
+            "WARNING: Error while freeing $(Base.format_bytes(sz)) of GPU memory")
         Base.show_backtrace(Core.stdout, catch_backtrace())
         Core.println()
     end
