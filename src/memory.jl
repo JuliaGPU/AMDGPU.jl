@@ -209,22 +209,32 @@ function maybe_collect(; blocking::Bool = false)
     min_pressure = blocking ? 0.5 : 0.75
     pressure < min_pressure && return
 
+    # TODO take allocations into account
+    #   if pressure is high but we didn't allocate - don't collect
+    #   otherwise try hard
+
     # Check that we don't collect too often.
     gc_rate = stats.last_gc_time / (current_time - stats.last_time)
+    # Tolerate 5% GC time.
     max_gc_rate = 0.05
+    # If freed a lot of memory last time, double max GC rate.
     (stats.last_freed > 0.1 * stats.size) && (max_gc_rate *= 2;)
+    # Be more aggressive if we are going to block.
     blocking && (max_gc_rate *= 2;)
 
+    # And even more if the pressure is high.
     pressure > 0.9 && (max_gc_rate *= 2;)
     pressure > 0.95 && (max_gc_rate *= 2;)
     gc_rate > max_gc_rate && return
 
     Base.@atomic stats.last_time = current_time
 
+    # Call the GC.
     pre_gc_live = stats.live
     gc_time = Base.@elapsed GC.gc(false)
     post_gc_live = stats.live
 
+    # Update stats.
     freed = pre_gc_live - post_gc_live
     Base.@atomic stats.last_freed = freed
     Base.@atomic stats.last_gc_time = 0.75 * stats.last_gc_time + 0.25 * gc_time
