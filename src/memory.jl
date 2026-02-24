@@ -480,6 +480,11 @@ function pool_alloc(::Type{B}, bytesize) where B
     Base.@atomic alloc_stats.total_time += time
 
     pool_mark!(AMDGPU.device(), true)
+
+    if isinteractive() && !isassigned(_pool_cleanup_task)
+        _pool_cleanup_task[] = errormonitor(Threads.@spawn pool_cleanup())
+    end
+
     return managed
 end
 
