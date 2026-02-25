@@ -8,7 +8,8 @@ using AMDGPU.Device: WMMA_M, WMMA_N, WMMA_K, workitemIdx, workgroupIdx
 AMDGPU.allowscalar(false)
 
 # Only run WMMA tests on RDNA3+ (gfx1100+)
-is_rdna3 = parse(Int, AMDGPU.HIP.gcn_arch(AMDGPU.device())[4:end]) >= 1100
+_arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
+is_rdna3 = parse(Int, _arch_str[4:end]) >= 1100
 if !is_rdna3
     @info "Skipping WMMA tests (requires RDNA3+)"
 else
