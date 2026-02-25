@@ -142,12 +142,15 @@ end
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd1))) == true
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == true
 
+        # Refcounted: first free decrements the pin count but memory stays pinned.
         AMDGPU.unsafe_free!(xd1)
         @test_throws ArgumentError pointer(xd1)
-        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == false
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(xd2))) == true
 
+        # Second free drops refcount to zero and actually unregisters.
         AMDGPU.unsafe_free!(xd2)
         @test_throws ArgumentError pointer(xd2)
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x))) == false
     end
 
     @testset "Broadcasting different buffer types" begin
