@@ -5,7 +5,7 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
 
     function ROCArray{T, N, B}(::UndefInitializer, dims::Dims{N}) where {T, N, B <: Mem.AbstractAMDBuffer}
         @assert isbitstype(T) "ROCArray only supports bits types"
-        sz::Int64 = prod(dims) * sizeof(T)
+        sz::Int64 = prod(dims) * aligned_sizeof(T)
         ref = GPUArrays.cached_alloc((ROCArray, AMDGPU.device(), B, sz)) do
             @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(sz))"
             DataRef(pool_free, pool_alloc(B, sz))
@@ -24,7 +24,7 @@ GPUArrays.storage(a::ROCArray) = a.buf
 
 function GPUArrays.derive(::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int) where {N, T}
     ref = copy(x.buf)
-    offset += (x.offset * Base.elsize(x)) ÷ sizeof(T)
+    offset += (x.offset * Base.elsize(x)) ÷ aligned_sizeof(T)
     ROCArray{T, N}(ref, dims; offset)
 end
 
@@ -100,7 +100,7 @@ Base.similar(::ROCArray{<:Any, <:Any, B}, ::Type{T}, dims::Base.Dims{N}) where {
 
 ## array interface
 
-Base.elsize(::Type{<:ROCArray{T}}) where {T} = sizeof(T)
+Base.elsize(::Type{<:ROCArray{T}}) where {T} = aligned_sizeof(T)
 Base.size(x::ROCArray) = x.dims
 Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
 Base.dataids(A::ROCArray) = (UInt(pointer(A)),)
@@ -142,8 +142,8 @@ function Base.copyto!(
     Mem.download!(
         pointer(dest, d_offset),
         Mem.view(convert(Mem.AbstractAMDBuffer, source.buf[]),
-            (source.offset + s_offset - 1) * sizeof(T)),
-        amount * sizeof(T); stream=stm)
+            (source.offset + s_offset - 1) * aligned_sizeof(T)),
+        amount * aligned_sizeof(T); stream=stm)
     async || synchronize(stm)
     dest
 end
@@ -159,8 +159,8 @@ function Base.copyto!(
     @debug "[cpu -> gpu] T=$T, shape=$(size(dest))"
     Mem.upload!(
         Mem.view(convert(Mem.AbstractAMDBuffer, dest.buf[]),
-            (dest.offset + d_offset - 1) * sizeof(T)),
-        pointer(source, s_offset), amount * sizeof(T); stream=stream())
+            (dest.offset + d_offset - 1) * aligned_sizeof(T)),
+        pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
     dest
 end
 
@@ -173,10 +173,10 @@ function Base.copyto!(
     @boundscheck checkbounds(source, s_offset + amount - 1)
     Mem.transfer!(
         Mem.view(convert(Mem.AbstractAMDBuffer, dest.buf[]),
-            (dest.offset + d_offset - 1) * sizeof(T)),
+            (dest.offset + d_offset - 1) * aligned_sizeof(T)),
         Mem.view(convert(Mem.AbstractAMDBuffer, source.buf[]),
-            (source.offset + s_offset - 1) * sizeof(T)),
-        amount * sizeof(T); stream=stream())
+            (source.offset + s_offset - 1) * aligned_sizeof(T)),
+        amount * aligned_sizeof(T); stream=stream())
     dest
 end
 
@@ -203,7 +203,7 @@ function Base.unsafe_wrap(
         error("Unsupported memory type `$memtype` for pointer.")
     end
 
-    sz = prod(dims) * sizeof(T)
+    sz = prod(dims) * aligned_sizeof(T)
     buf = B(Ptr{Cvoid}(ptr), sz; own)
     dref = DataRef(own ? pool_free : Returns(nothing), Managed(buf))
     return ROCArray{T, N}(dref, dims)
@@ -245,7 +245,7 @@ Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
 roc(xs) = adapt(Float32Adaptor(), xs)
 
 Base.unsafe_convert(typ::Type{Ptr{T}}, x::ROCArray{T}) where T =
-    convert(typ, x.buf[]) + x.offset * sizeof(T)
+    convert(typ, x.buf[]) + x.offset * aligned_sizeof(T)
 
 # some nice utilities
 
@@ -277,11 +277,11 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     # TODO: add additional space to allow for quicker resizing
     n == length(A) && return A
 
-    maxsize = n * sizeof(T)
+    maxsize = n * aligned_sizeof(T)
     bufsize = Base.isbitsunion(T) ? (maxsize + n) : maxsize
     new_buf = Mem.HIPBuffer(bufsize; stream=stream())
 
-    copy_size = min(length(A), n) * sizeof(T)
+    copy_size = min(length(A), n) * aligned_sizeof(T)
     if copy_size > 0
         Mem.transfer!(new_buf, convert(Mem.AbstractAMDBuffer, A.buf[]),
             copy_size; stream=stream())
@@ -305,7 +305,7 @@ function Base.convert(
     buf = convert(Mem.AbstractAMDBuffer, a.buf[])
     ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ?
         buf : buf.dev_ptr)
-    llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset * sizeof(T))
+    llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset * aligned_sizeof(T))
     ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
 end
 

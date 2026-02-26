@@ -56,7 +56,7 @@ end
             ptr = call!(builder, intr_typ, intr)
 
             # load the index
-            offset = base + ((off - 1) * sizeof(T))
+            offset = base + ((off - 1) * aligned_sizeof(T))
             idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
             idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
             idx_T = load!(builder, T_T, idx_ptr_T)

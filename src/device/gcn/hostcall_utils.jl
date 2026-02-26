@@ -79,7 +79,7 @@ end
     off = 1
     for i in 1:length(args)
         T = args[i]
-        sz = sizeof(T)
+        sz = aligned_sizeof(T)
         # FIXME: Use proper alignment
         ptr = :(reinterpret(LLVMPtr{$T,AS.Global}, hc.buf_ptr + $off - 1))
         push!(ex.args, :(Base.unsafe_store!($ptr, args[$i])))
@@ -140,7 +140,7 @@ end
 @inline @generated function hostcall_device_args_size(args...)
     sz = 0
     for arg in args
-        sz += sizeof(arg)
+        sz += aligned_sizeof(arg)
     end
     return sz
 end
@@ -152,7 +152,7 @@ end
     off = 1
     for i in 1:length(AT.parameters)
         T = AT.parameters[i]
-        sz = sizeof(T)
+        sz = aligned_sizeof(T)
         # FIXME: Use correct alignment
         push!(ex.args, quote
             lref = Ref{$T}()

@@ -48,10 +48,10 @@ function HostCall(
         buf_len = 0
         for T in AT.parameters
             @assert isbitstype(T) "Hostcall arguments must be bits-type"
-            buf_len += sizeof(T)
+            buf_len += aligned_sizeof(T)
         end
     end
-    buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
+    buf_len = max(aligned_sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.HostBuffer(buf_len, AMDGPU.HIP.hipHostAllocDefault)
 
     buf_ptr = LLVMPtr{UInt8, AS.Global}(convert(Ptr{UInt8}, buf))
@@ -134,10 +134,10 @@ function HostCallHolder(
                 try
                     ret_buf = last(ret_bufs)
                     do_realloc =
-                        (ret_buf.ptr != C_NULL && ret_len < sizeof(ret)) ||
+                        (ret_buf.ptr != C_NULL && ret_len < aligned_sizeof(ret)) ||
                         (ret_buf.ptr == C_NULL)
                     if do_realloc
-                        ret_len = sizeof(ret)
+                        ret_len = aligned_sizeof(ret)
                         ret_buf = Mem.HostBuffer(ret_len, AMDGPU.HIP.hipHostAllocDefault)
                         push!(ret_bufs, ret_buf)
                     end
@@ -145,11 +145,11 @@ function HostCallHolder(
                     ret_ref = Ref{rettype}(ret)
                     GC.@preserve ret_ref begin
                         ret_ptr = convert(Ptr{Cvoid}, ret_buf)
-                        if sizeof(ret) > 0
+                        if aligned_sizeof(ret) > 0
                             src_ptr = reinterpret(Ptr{Cvoid},
                                 Base.unsafe_convert(Ptr{rettype}, ret_ref))
                             HSA.memory_copy(
-                                ret_ptr, src_ptr, sizeof(ret)) |> Runtime.check
+                                ret_ptr, src_ptr, aligned_sizeof(ret)) |> Runtime.check
                         end
 
                         args_buf_ptr = reinterpret(Ptr{Ptr{Cvoid}}, hc.buf_ptr)
