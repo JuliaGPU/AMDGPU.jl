@@ -133,8 +133,8 @@ function axpy!(
     end
     axpy!(
         length(rx), convert(T, alpha),
-        pointer(x) + (first(rx) - 1) * sizeof(T), step(rx),
-        pointer(y) + (first(ry) - 1) * sizeof(T), step(ry))
+        pointer(x) + (first(rx) - 1) * Base.aligned_sizeof(T), step(rx),
+        pointer(y) + (first(ry) - 1) * Base.aligned_sizeof(T), step(ry))
     y
 end
 
@@ -585,7 +585,7 @@ function device_batch(batch::Array{T}) where T <: ROCArray
 end
 
 function device_batch(x::AnyROCArray{T, 3}) where T
-    shift = size(x, 1) * size(x, 2) * sizeof(T)
+    shift = size(x, 1) * size(x, 2) * Base.aligned_sizeof(T)
     buf = convert(AMDGPU.Mem.AbstractAMDBuffer, x.buf[])
     ROCArray([
         convert(Ptr{T}, AMDGPU.Mem.view(buf, shift * (i - 1)))
