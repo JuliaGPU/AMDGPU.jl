@@ -41,7 +41,6 @@ function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
           msg *= explain_eltype(U, depth+1)
         end
       end
-    elseif Base.ismutabletype(T)
     elseif Base.ismutabletype(T) && Base.datatype_fieldcount(T) != 0
       msg = "  "^depth * "$T is a mutable type\n"
     elseif hasfieldcount(T)
