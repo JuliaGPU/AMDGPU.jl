@@ -4,6 +4,8 @@ using Adapt
 using BFloat16s
 using CEnum
 using GPUCompiler
+using GPUToolbox
+using GPUToolbox: @enum_without_prefix
 using GPUArrays
 using GPUArrays: allowscalar
 using Libdl
@@ -114,6 +116,7 @@ include("kernels/reverse.jl")
 include("blas/rocBLAS.jl")
 include("solver/rocSOLVER.jl")
 include("sparse/rocSPARSE.jl")
+include("tensor/hipTENSOR.jl")
 include("rand/rocRAND.jl")
 include("fft/rocFFT.jl")
 include("dnn/MIOpen.jl")
