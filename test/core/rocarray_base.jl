@@ -157,6 +157,20 @@ end
         y .= @view(xd[1:3, :, :])
         @test Array(y) ≈ @view(x[1:3, :, :])
     end
+
+    @testset "Symbols" begin
+        # symbols and tuples thereof
+        let a = ROCArray([:a])
+            b = unsafe_wrap(ROCArray, pointer(a), 1)
+            @test typeof(b) <: ROCArray{Symbol,1}
+            @test size(b) == (1,)
+        end
+        let a = ROCArray([(:a,:b)])
+            b = unsafe_wrap(ROCArray, pointer(a), 1)
+            @test typeof(b) <: ROCArray{Tuple{Symbol,Symbol},1}
+            @test size(b) == (1,)
+        end
+    end
 end
 
 @testset "unsafe_free" begin
@@ -219,6 +233,19 @@ end
     dsource, dindices, dtarget = ROCArray.((source, indices, target))
     @roc groupsize=256 gridsize=4 ker_atomic_max!(dtarget, dsource, dindices)
     @test Array(dtarget) == target
+end
+
+@testset "Symbols" begin
+    function pass_symbol(x, name)
+        i = name == :var ? 1 : 2
+        x[i] = true
+        return nothing
+    end
+    x = ROCArray([false, false])
+    @roc pass_symbol(x, :var)
+    @test Array(x) == [true, false]
+    @roc pass_symbol(x, :not_var)
+    @test Array(x) == [true, true]
 end
 
 end
