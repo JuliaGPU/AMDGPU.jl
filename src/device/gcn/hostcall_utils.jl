@@ -140,7 +140,7 @@ end
 @inline @generated function hostcall_device_args_size(args...)
     sz = 0
     for arg in args
-        sz += aligned_sizeof(arg)
+        sz += sizeof(arg)
     end
     return sz
 end
