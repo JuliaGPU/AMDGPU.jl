@@ -110,7 +110,7 @@ end
 
 const __pin_lock = ReentrantLock()
 const __pinned_memory = Dict{Ptr{Cvoid}, Int}()   # ptr => bytesize
-const __pin_count    = Dict{Ptr{Cvoid}, Int}()     # ptr => refcount
+const __pin_count = Dict{Ptr{Cvoid}, Int}()       # ptr => refcount
 
 struct HostBuffer <: AbstractAMDBuffer
     device::HIPDevice
