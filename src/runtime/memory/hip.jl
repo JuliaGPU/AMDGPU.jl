@@ -263,10 +263,10 @@ function unsafe_copy3d!(
     (width == 0 || height == 0 || depth == 0) && return dst
 
     srcPos, dstPos = ROCDim3(srcPos), ROCDim3(dstPos)
-    srcPos = HIP.hipPos((srcPos[1] - 1) * sizeof(T), srcPos[2] - 1, srcPos[3] - 1)
-    dstPos = HIP.hipPos((dstPos[1] - 1) * sizeof(T), dstPos[2] - 1, dstPos[3] - 1)
+    srcPos = HIP.hipPos((srcPos[1] - 1) * Base.aligned_sizeof(T), srcPos[2] - 1, srcPos[3] - 1)
+    dstPos = HIP.hipPos((dstPos[1] - 1) * Base.aligned_sizeof(T), dstPos[2] - 1, dstPos[3] - 1)
 
-    extent = HIP.hipExtent(width * sizeof(T), height, depth)
+    extent = HIP.hipExtent(width * Base.aligned_sizeof(T), height, depth)
     kind = if D <: HIPBuffer && S <: HIPBuffer
         HIP.hipMemcpyDeviceToDevice
     elseif D <: HIPBuffer && S <: HostBuffer

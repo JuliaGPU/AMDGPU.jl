@@ -129,7 +129,7 @@ function GPUArrays.mapreducedim!(
     # that's why each items also loops across their inputs, processing multiple values
     # so that we can span the entire reduction dimension using a single item group.
     max_block_size = 256
-    compute_shmem(items) = items * sizeof(T)
+    compute_shmem(items) = items * aligned_sizeof(T)
     max_shmem = max_block_size |> compute_items |> compute_shmem
     kernel = @roc launch=false partial_mapreduce_device(
         f, op, init, Rreduce, Rother, R′, A)

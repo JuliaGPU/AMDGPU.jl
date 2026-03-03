@@ -15,6 +15,7 @@ import ..Runtime
 import ..Mem
 import ..AMDGPU
 import .AMDGPU: method_table
+import .AMDGPU: aligned_sizeof
 import ..UnsafeAtomics
 
 include("addrspaces.jl")

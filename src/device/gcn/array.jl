@@ -63,7 +63,7 @@ Base.pointer(a::ROCDeviceArray{T, <: Any, A}) where {T, A} =
 
 Base.unsafe_convert(::Type{LLVMPtr{T, A}}, a::ROCDeviceArray{T, <: Any, A}) where {T, A} = a.ptr
 
-Base.elsize(::Type{<:ROCDeviceArray{T}}) where {T} = sizeof(T)
+Base.elsize(::Type{<:ROCDeviceArray{T}}) where {T} = aligned_sizeof(T)
 Base.size(g::ROCDeviceArray) = g.dims
 Base.sizeof(x::ROCDeviceArray) = Base.elsize(x) * length(x)
 Base.length(g::ROCDeviceArray) = g.len

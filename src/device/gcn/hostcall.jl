@@ -48,10 +48,10 @@ function HostCall(
         buf_len = 0
         for T in AT.parameters
             @assert isbitstype(T) "Hostcall arguments must be bits-type"
-            buf_len += sizeof(T)
+            buf_len += aligned_sizeof(T)
         end
     end
-    buf_len = max(sizeof(UInt64), buf_len) # make room for return buffer pointer
+    buf_len = max(aligned_sizeof(UInt64), buf_len) # make room for return buffer pointer
     buf = Mem.HostBuffer(buf_len, AMDGPU.HIP.hipHostAllocDefault)
 
     buf_ptr = LLVMPtr{UInt8, AS.Global}(convert(Ptr{UInt8}, buf))
