@@ -39,22 +39,23 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     dev, ctx = stream.device, stream.ctx
     bytesize == 0 && return HIPBuffer(dev, ctx, C_NULL, 0, true)
 
-    AMDGPU.maybe_collect()
     pool = pool_create(dev)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     ptr = alloc_or_retry!(isnothing; stream) do
         try
-            # Try to allocate.
-            HIP.hipMallocAsync(ptr_ref, bytesize, stream)
-            # HIP.hipMallocFromPoolAsync(ptr_ref, bytesize, pool, stream)
-
+            HIP.hipMallocFromPoolAsync(ptr_ref, bytesize, pool, stream)
             ptr = ptr_ref[]
             ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
             return ptr
         catch err
-            # TODO rethrow if not out of memory error
-            @debug "hipMallocAsync exception. Requested $(Base.format_bytes(bytesize))." exception=(err, catch_backtrace())
+            # Only retry for OOM. Any other error (e.g. hipErrorLaunchFailure
+            # from a prior kernel exception surfacing here) must propagate
+            # immediately so the caller sees the real cause.
+            err isa HIP.HIPError || rethrow(err)
+            err.code in (HIP.hipErrorOutOfMemory, HIP.hipErrorMemoryAllocation) ||
+                rethrow(err)
+            @debug "hipMallocFromPoolAsync exception. Requested $(Base.format_bytes(bytesize))." exception=(err, catch_backtrace())
             return nothing
         end
     end
@@ -105,6 +106,12 @@ function transfer!(dst::HIPBuffer, src::HIPBuffer, bytesize::Int; stream::HIP.HI
     return
 end
 
+## Host memory pinning state
+
+const __pin_lock = ReentrantLock()
+const __pinned_memory = Dict{Ptr{Cvoid}, Int}()   # ptr => bytesize
+const __pin_count = Dict{Ptr{Cvoid}, Int}()       # ptr => refcount
+
 struct HostBuffer <: AbstractAMDBuffer
     device::HIPDevice
     ctx::HIPContext
@@ -119,6 +126,10 @@ function HostBuffer()
     HostBuffer(s.device, s.ctx, C_NULL, C_NULL, 0, true)
 end
 
+"""
+Allocate host-pinned memory via `hipHostMalloc`.
+Freed by `hipHostFree` through [`free`](@ref).
+"""
 function HostBuffer(
     bytesize::Integer, flags = 0; stream::HIP.HIPStream = AMDGPU.stream(),
 )
@@ -131,11 +142,15 @@ function HostBuffer(
     HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, bytesize, true)
 end
 
+"""
+Register (pin) an existing host pointer via `hipHostRegister`.
+Freed by `hipHostUnregister` through [`free`](@ref).
+"""
 function HostBuffer(
     ptr::Ptr{Cvoid}, sz::Integer;
     stream::HIP.HIPStream = AMDGPU.stream(), own::Bool = false,
 )
-    pin(ptr, sz)
+    register(ptr, sz)
     dev_ptr = get_device_ptr(ptr)
     HostBuffer(stream.device, stream.ctx, ptr, dev_ptr, sz, own)
 end
@@ -180,10 +195,11 @@ Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where T = convert(Ptr{T}, buf.ptr)
 function free(buf::HostBuffer; kwargs...)
     buf.own || return
     buf.ptr == C_NULL && return
-    unpin(buf.ptr)
-    # TODO
-    # call HIP.hipHostFree(buf) if memory was allocated via hipHostMalloc
-    # or is unpinning enough?
+    if is_registered(buf.ptr)
+        unregister(buf.ptr)
+    else
+        HIP.hipHostFree(buf.ptr)
+    end
     return
 end
 
@@ -194,44 +210,93 @@ function get_device_ptr(ptr::Ptr{Cvoid})
     ptr_ref[]
 end
 
-function pin(ptr, sz)
-    ptr == C_NULL && error("Cannot pin `NULL` pointer.")
+function attributes(ptr)
+    data = Ref{HIP.hipPointerAttribute_t}()
+    HIP.hipPointerGetAttributes(data, ptr)
+    return data[]
+end
 
-    memtype = attributes(ptr).type
-    if memtype == HIP.hipMemoryTypeUnregistered
-        HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped)
-    elseif memtype == HIP.hipMemoryTypeHost
-        # Already pinned.
-    else
-        error("Cannot pin pointer with memory type `$memtype`.")
+
+"""
+    register(ptr::Ptr{Cvoid}, sz::Integer)
+
+Page-lock host memory at `ptr` via `hipHostRegister` with refcounting.
+Subsequent calls on the same pointer increment the refcount; the
+actual `hipHostUnregister` only happens when the count drops to zero
+via [`unregister`](@ref).
+"""
+function register(ptr::Ptr{Cvoid}, sz::Integer)
+    ptr == C_NULL && error("Cannot register `NULL` pointer.")
+
+    Base.@lock __pin_lock begin
+        count = get(__pin_count, ptr, 0)
+        if count > 0
+            __pin_count[ptr] = count + 1
+            return
+        end
+
+        memtype = attributes(ptr).type
+        if memtype == HIP.hipMemoryTypeUnregistered
+            HIP.hipHostRegister(ptr, sz, HIP.hipHostRegisterMapped)
+            __pinned_memory[ptr] = Int(sz)
+            __pin_count[ptr] = 1
+        elseif memtype == HIP.hipMemoryTypeHost
+            # Already pinned externally (e.g. hipHostMalloc); nothing to track.
+        else
+            error("Cannot register pointer with memory type `$memtype`.")
+        end
     end
     return
 end
 
-function unpin(ptr)
-    ptr == C_NULL && error("Cannot unpin `NULL` pointer.")
+"""
+    unregister(ptr::Ptr{Cvoid})
 
-    memtype = attributes(ptr).type
-    if memtype == HIP.hipMemoryTypeUnregistered
-        # Already unpinned.
-    elseif memtype == HIP.hipMemoryTypeHost
+Decrement the refcount for `ptr`. When it reaches zero the underlying
+`hipHostUnregister` call is issued and tracking state is cleaned up.
+"""
+function unregister(ptr::Ptr{Cvoid})
+    ptr == C_NULL && error("Cannot unregister `NULL` pointer.")
+
+    do_unregister = false
+    Base.@lock __pin_lock begin
+        count = get(__pin_count, ptr, 0)
+        count == 0 && error("Cannot unregister untracked pointer $ptr.")
+
+        if count == 1
+            delete!(__pinned_memory, ptr)
+            delete!(__pin_count, ptr)
+            do_unregister = true
+        else
+            __pin_count[ptr] = count - 1
+        end
+    end
+
+    if do_unregister
         HIP.hipHostUnregister(ptr)
-    else
-        error("Cannot unpin pointer with memory type `$memtype`.")
     end
     return
 end
+
+"""
+    is_registered(ptr::Ptr{Cvoid}) -> Bool
+
+Return `true` if `ptr` is tracked as registered (pinned) memory that
+should be freed via `hipHostUnregister` rather than `hipHostFree`.
+"""
+function is_registered(ptr::Ptr{Cvoid})
+    Base.@lock __pin_lock begin
+        haskey(__pin_count, ptr)
+    end
+end
+
+pin(ptr, sz) = register(Ptr{Cvoid}(ptr), sz)
+unpin(ptr) = unregister(Ptr{Cvoid}(ptr))
 
 function is_pinned(ptr)
     ptr == C_NULL && return false
     data = attributes(ptr)
     return data.type == HIP.hipMemoryTypeHost
-end
-
-function attributes(ptr)
-    data = Ref{HIP.hipPointerAttribute_t}()
-    HIP.hipPointerGetAttributes(data, ptr)
-    return data[]
 end
 
 """
