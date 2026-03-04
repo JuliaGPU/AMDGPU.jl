@@ -277,7 +277,10 @@ function Base.unsafe_wrap(
     return ROCArray{T, N}(dref, dims)
 end
 
-Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
+Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr, dim::Integer; own::Bool=false) =
+    unsafe_wrap(ROCArray, ptr, (dim,); own)
+
+Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims::NTuple{N, <:Integer}; kwargs...) where {T, N} =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
 ## interop with CPU arrays
