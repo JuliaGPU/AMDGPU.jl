@@ -1,3 +1,13 @@
+# In contrast to `Base.RefValue` we just need a container for both pass-by-ref (Symbol),
+# and pass-by-value (immutable structs).
+mutable struct ArgBox{T}
+    const val::T
+end
+
+function Base.unsafe_convert(P::Union{Type{Ptr{T}}, Type{Ptr{Cvoid}}}, b::ArgBox{T})::P where {T}
+    return pointer_from_objref(b)
+end
+
 """
     (ker::HIPKernel)(args::Vararg{Any, N}; kwargs...)
 
@@ -28,15 +38,6 @@ end
     to_pass = map(!predicate, sig.parameters)
     call_t = Type[x[1] for x in zip(sig.parameters, to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
-
-    # replace non-isbits arguments (they should be unused, or compilation would have failed)
-    # alternatively, allow `launch` with non-isbits arguments.
-    for (i,dt) in enumerate(call_t)
-        if !isbitstype(dt)
-            call_t[i] = Ptr{Any}
-            call_args[i] = :C_NULL
-        end
-    end
 
     # add the kernel state
     pushfirst!(call_t, AMDGPU.KernelState)
@@ -87,17 +88,12 @@ function roccall(fun::F, tt::Type{T}, args::Vararg{Any, N}; kwargs...) where {F,
 end
 
 @inline @generated function pack_arguments(f::Function, args...)
-    for arg in args
-        isbitstype(arg) || throw(ArgumentError(
-            "Arguments to kernel should be bitstype, instead `$(arg)` was given."))
-    end
-
     ex = quote end
 
     arg_refs = Vector{Symbol}(undef, length(args))
     for i in 1:length(args)
         arg_refs[i] = gensym()
-        push!(ex.args, :($(arg_refs[i]) = Base.RefValue(args[$i])))
+        push!(ex.args, :($(arg_refs[i]) = $ArgBox(args[$i])))
     end
 
     arg_ptrs = [

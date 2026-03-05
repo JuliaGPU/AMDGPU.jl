@@ -4,7 +4,7 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     offset::Int # Offset is in number of elements (not bytes).
 
     function ROCArray{T, N, B}(::UndefInitializer, dims::Dims{N}) where {T, N, B <: Mem.AbstractAMDBuffer}
-        @assert isbitstype(T) "ROCArray only supports bits types"
+        check_eltype("ROCArray", T)
         sz::Int64 = prod(dims) * aligned_sizeof(T)
         ref = GPUArrays.cached_alloc((ROCArray, AMDGPU.device(), B, sz)) do
             @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(sz))"
@@ -14,10 +14,78 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     end
 
     function ROCArray{T, N}(buf::DataRef{Managed{B}}, dims::Dims{N}; offset::Integer = 0) where {T, N, B <: Mem.AbstractAMDBuffer}
-        @assert isbitstype(T) "ROCArray only supports bits types"
+        check_eltype("ROCArray", T)
         xs = new{T, N, B}(buf, dims, offset)
         return finalizer(unsafe_free!, xs)
     end
+end
+
+function hasfieldcount(@nospecialize(dt))
+    try
+        fieldcount(dt)
+    catch
+        return false
+    end
+    return true
+end
+
+explain_nonisbits(@nospecialize(T), depth=0) = "  "^depth * "$T is not a bitstype\n"
+
+function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
+    depth > maxdepth && return ""
+
+    if T isa Union
+      msg = "  "^depth * "$T is a union that's not allocated inline\n"
+      for U in Base.uniontypes(T)
+        if !Base.allocatedinline(U)
+          msg *= explain_eltype(U, depth+1)
+        end
+      end
+    elseif Base.ismutabletype(T) && Base.datatype_fieldcount(T) != 0
+      msg = "  "^depth * "$T is a mutable type\n"
+    elseif hasfieldcount(T)
+      msg = "  "^depth * "$T is a struct that's not allocated inline\n"
+      for U in fieldtypes(T)
+          if !Base.allocatedinline(U)
+              msg *= explain_nonisbits(U, depth+1)
+          end
+      end
+    else
+      msg = "  "^depth * "$T is not allocated inline\n"
+    end
+    return msg
+end
+
+# ROCArray only supports element types that are allocated inline (`Base.allocatedinline`).
+# These come in three forms:
+# 1. plain bitstypes (`Int`, `(Float32, Float64)`, plain immutable structs, etc).
+#    these are simply stored contiguously in memory.
+# 2. structs of unions (`struct Foo; x::Union{Int, Float32}; end`)
+#    these are stored with a selector at the end (handled by Julia).
+# 3. bitstype unions (`Union{Int, Float32}`, etc)
+#    these are stored contiguously and require a selector array (handled by us)
+# As well as "mutable singleton" types like `Symbol` that use pointer-identity
+
+function valid_type(@nospecialize(T))
+  if Base.allocatedinline(T)
+    if hasfieldcount(T)
+      return all(valid_type, fieldtypes(T))
+    end
+    return true
+  elseif Base.ismutabletype(T)
+    return Base.datatype_fieldcount(T) == 0
+  end
+  return false
+end
+
+
+@inline function check_eltype(name, T)
+  if !valid_type(T)
+    explanation = explain_eltype(T)
+    error("""
+      $name only supports element types that are allocated inline.
+      $explanation""")
+  end
 end
 
 GPUArrays.storage(a::ROCArray) = a.buf
@@ -190,7 +258,7 @@ function Base.unsafe_wrap(
     ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
     own::Bool = false,
 ) where {T,N}
-    @assert isbitstype(T) "Cannot wrap a non-bitstype pointer as a ROCArray"
+    check_eltype("unsafe_wrap(CuArray, ...)", T)
 
     memtype = Mem.attributes(ptr).type
     B = if memtype == HIP.hipMemoryTypeUnregistered
@@ -209,7 +277,10 @@ function Base.unsafe_wrap(
     return ROCArray{T, N}(dref, dims)
 end
 
-Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims; kwargs...) where T =
+Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr, dim::Integer; own::Bool=false) =
+    unsafe_wrap(ROCArray, ptr, (dim,); own)
+
+Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims::NTuple{N, <:Integer}; kwargs...) where {T, N} =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
 ## interop with CPU arrays
