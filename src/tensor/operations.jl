@@ -207,6 +207,7 @@ function permute!(
     else
         plan
     end
+    @show plan
     permute!(actual_plan, alpha, A, B)
 
     if plan === nothing
@@ -384,7 +385,7 @@ function reduce!(plan::hipTensorPlan,
     hiptensorReduce(handle(), plan,
                    Ref{scalar_type}(alpha), A,
                    Ref{scalar_type}(beta), C, C,
-                   plan.workspace, sizeof(plan.workspace), stream().stream)
+                   plan.workspace, sizeof(plan.workspace), Cint(0))
     return C
 end
 

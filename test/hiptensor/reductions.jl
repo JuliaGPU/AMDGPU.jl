@@ -12,6 +12,9 @@ eltypes = [(Float16, Float16),
            (ComplexF64, ComplexF64)]
 
 if AMDGPU.hipTENSOR.has_hiptensor()
+    AMDGPU.hipTENSOR.hiptensorLoggerSetLevel(AMDGPU.hipTENSOR.hiptensorLogLevel_t(UInt32(16)))
+    AMDGPU.hipTENSOR.hiptensorLoggerOpenFile("reduce.log")
+
     @testset for NA=2:5, NC = 1:NA-1
         @testset for (eltyA, eltyC) in eltypes
             # setup

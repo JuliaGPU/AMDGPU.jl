@@ -169,32 +169,30 @@ end
 ## plan
 
 mutable struct hipTensorPlan
-    ctx::HIPContext
     handle::hiptensorPlan_t
     workspace::ROCVector{UInt8,Mem.HIPBuffer}
     scalar_type::DataType
 
-    function hipTensorPlan(desc, pref; workspacePref=HIPTENSOR_WORKSPACE_DEFAULT, compute_type)
+    function hipTensorPlan(desc, pref; workspacePref=HIPTENSOR_WORKSPACE_DEFAULT)
         # estimate the workspace size
         workspaceSizeEstimate = Ref{UInt64}(0)
         hiptensorEstimateWorkspaceSize(handle(), desc, pref, workspacePref, workspaceSizeEstimate)
 
         # determine the scalar type
-        #required_scalar_type = Ref{hiptensorDataType_t}(convert(hiptensorDataType_t, compute_type))
         required_scalar_type = Ref{hiptensorDataType_t}()
         hiptensorOperationDescriptorGetAttribute(handle(), desc, HIPTENSOR_OPERATION_DESCRIPTOR_SCALAR_TYPE, required_scalar_type, sizeof(required_scalar_type))
+        @show convert(Int64, UInt32(required_scalar_type[]))
 
         # create the plan
         plan_ref = Ref{hiptensorPlan_t}()
         hiptensorCreatePlan(handle(), plan_ref, desc, pref, workspaceSizeEstimate[])
-        AMDGPU.synchronize()
 
         # allocate the actual workspace
         actualWorkspaceSize = Ref{UInt64}(0)
         hiptensorPlanGetAttribute(handle(), plan_ref[], HIPTENSOR_PLAN_REQUIRED_WORKSPACE, actualWorkspaceSize, sizeof(actualWorkspaceSize))
-        workspace = ROCArray{UInt8}(undef, actualWorkspaceSize[])
+        workspace = ROCVector{UInt8}(undef, actualWorkspaceSize[])
 
-        obj = new(HIPContext(), plan_ref[], workspace, convert(hiptensorDataType_t, compute_type))
+        obj = new(plan_ref[], workspace, required_scalar_type[])
         finalizer(AMDGPU.unsafe_free!, obj)
         return obj
     end
@@ -208,11 +206,7 @@ Base.:(==)(a::hipTensorPlan, b::hipTensorPlan) = a.handle == b.handle
 Base.hash(plan::hipTensorPlan, h::UInt) = hash(plan.handle, h)
 
 # destroying the plan
-function unsafe_destroy!(plan::hipTensorPlan)
-    HIP.context!(plan.ctx) do
-        hiptensorDestroyPlan(plan)
-    end
-end
+unsafe_destroy!(plan::hipTensorPlan) = hiptensorDestroyPlan(plan)
 
 # freeing the plan and associated workspace
 function AMDGPU.unsafe_free!(plan::hipTensorPlan)
@@ -226,7 +220,7 @@ function AMDGPU.unsafe_free!(plan::hipTensorPlan)
 end
 
 
-const HIPTENSOR_ALIGNMENT = UInt32(128)
+const HIPTENSOR_ALIGNMENT = UInt32(1)
 
 ## descriptor
 
@@ -235,12 +229,10 @@ mutable struct hipTensorDescriptor
     # inner constructor handles creation and finalizer of the descriptor
     function hipTensorDescriptor(sz::Vector{Int64}, st::Vector{Int64}, eltype::DataType,
                                 alignmentRequirement::UInt32=HIPTENSOR_ALIGNMENT)
-        desc = Ref{hiptensorTensorDescriptor_t}()
+        desc = Ref{hiptensorTensorDescriptor_t}(C_NULL)
         length(st) == (N = length(sz)) || throw(ArgumentError("size and stride vectors must have the same length"))
         T = convert(hiptensorDataType_t, eltype)
-        @show eltype, UInt32(T)
-        hiptensorCreateTensorDescriptor(handle(), desc, N, sz, st, T, alignmentRequirement)
-
+        hiptensorCreateTensorDescriptor(handle(), desc, UInt32(N), sz, st, T, alignmentRequirement)
         obj = new(desc[])
         finalizer(unsafe_destroy!, obj)
         return obj
@@ -258,9 +250,7 @@ Base.show(io::IO, desc::hipTensorDescriptor) = @printf(io, "hipTensorDescriptor(
 
 Base.unsafe_convert(::Type{hiptensorTensorDescriptor_t}, obj::hipTensorDescriptor) = obj.handle
 
-function unsafe_destroy!(obj::hipTensorDescriptor)
-    hiptensorDestroyTensorDescriptor(obj)
-end
+unsafe_destroy!(obj::hipTensorDescriptor) = hiptensorDestroyTensorDescriptor(obj)
 
 
 ## tensor

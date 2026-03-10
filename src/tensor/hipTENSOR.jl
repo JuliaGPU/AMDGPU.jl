@@ -14,8 +14,7 @@ using Printf: @printf
 
 export has_hiptensor
 
-const _initialized = Ref{Bool}(false)
-has_hiptensor() = _initialized[]
+has_hiptensor() = AMDGPU.functional(:hiptensor)
 
 # core library
 include("libhiptensor.jl")
