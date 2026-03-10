@@ -13,11 +13,11 @@ AMDGPU.hipTENSOR.hiptensorLoggerOpenFile("contract.log")
 eltypes = [(Float32, Float32, Float32, Float32),
            (Float32, Float32, Float32, Float16),
            (Float16, Float16, Float16, Float32),
-           (ComplexF32, ComplexF32, ComplexF32, Float32),
+           (ComplexF32, ComplexF32, ComplexF32, ComplexF32),
            (Float64, Float64, Float64, Float64),
            (Float64, Float64, Float64, Float32),
-           (ComplexF64, ComplexF64, ComplexF64, Float64),
-           (ComplexF64, ComplexF64, ComplexF64, Float32)]
+           (ComplexF64, ComplexF64, ComplexF64, ComplexF64),
+           ]
 
 @testset for NoA=1:2, NoB=1:2, Nc=1:2
     @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes
