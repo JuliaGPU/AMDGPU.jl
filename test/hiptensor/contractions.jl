@@ -2,44 +2,8 @@ using Test, AMDGPU
 using LinearAlgebra
 using AMDGPU.hipTENSOR: contract!, plan_contraction, hipTensor
 
-modeC = ['m', 'n', 'u', 'v']
-modeA = ['m', 'n', 'h', 'k']
-modeB = ['u', 'v', 'h', 'k']
+if AMDGPU.hipTENSOR.has_hiptensor()
 
-nmodeA = length(modeA)
-nmodeB = length(modeB)
-nmodeC = length(modeC)
-
-eltyA = Float64
-eltyB = Float64
-eltyC = Float64
-
-
-extent = Dict{Char, Int}()
-extent['m'] = 4
-extent['n'] = 3
-extent['u'] = 4
-extent['v'] = 3
-extent['h'] = 6
-extent['k'] = 5
-
-A = rand(eltyA, [extent[iA] for iA in modeA]...)
-B = rand(eltyB, [extent[iB] for iB in modeB]...)
-C = rand(eltyC, [extent[iC] for iC in modeC]...)
-
-dA = ROCArray(A)
-dB = ROCArray(B)
-dC = ROCArray(C)
-
-# simple case
-opA = AMDGPU.hipTENSOR.OP_IDENTITY
-opB = AMDGPU.hipTENSOR.OP_IDENTITY
-opC = AMDGPU.hipTENSOR.OP_IDENTITY
-opOut = AMDGPU.hipTENSOR.OP_IDENTITY
-        
-dC = contract!(1, dA, modeA, opA, dB, modeB, opB, 0, dC, modeC, opC, opOut, compute_type=eltyC)
-
-#=
 @testset "contractions" begin
 
 
@@ -230,4 +194,5 @@ end
 end
 
 end
-=#
+
+end
