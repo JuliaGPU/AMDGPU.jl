@@ -91,8 +91,8 @@ eltypes = [(Float32, Float32, Float32, Float32),
         end
 
         @testset "simple case with plan storage and JIT compilation" begin
-            plan  = hipTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; jit=hipTENSOR.JIT_MODE_DEFAULT)
-            dC = hipTENSOR.contract!(plan, 1, dA, dB, 0, dC)
+            plan  = AMDGPU.hipTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; jit=hipTENSOR.JIT_MODE_DEFAULT)
+            dC = contract!(plan, 1, dA, dB, 0, dC)
             C = collect(dC)
             mC = reshape(permutedims(C, ipC), (loA, loB))
             @test mC ≈ mA * mB

@@ -186,7 +186,7 @@ function plan_elementwise_binary(
     plan_pref = Ref{hiptensorPlanPreference_t}()
     hiptensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
-    plan = hipTensorPlan(desc[], plan_pref[]; workspacePref=workspace, compute_type = actual_compute_type)
+    plan = hipTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
     hiptensorDestroyOperationDescriptor(desc[])
     hiptensorDestroyPlanPreference(plan_pref[])
     return plan
@@ -207,7 +207,6 @@ function permute!(
     else
         plan
     end
-    @show plan
     permute!(actual_plan, alpha, A, B)
 
     if plan === nothing
@@ -255,7 +254,7 @@ function plan_permutation(
     plan_pref = Ref{hiptensorPlanPreference_t}()
     hiptensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
-    plan = hipTensorPlan(desc[], plan_pref[]; workspacePref=workspace, compute_type = actual_compute_type)
+    plan = hipTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
     hiptensorDestroyOperationDescriptor(desc[])
     hiptensorDestroyPlanPreference(plan_pref[])
     return plan
@@ -345,7 +344,7 @@ function plan_contraction(
     plan_pref = Ref{hiptensorPlanPreference_t}()
     hiptensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
-    plan = hipTensorPlan(desc[], plan_pref[]; workspacePref=workspace, compute_type = actual_compute_type)
+    plan = hipTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
     hiptensorDestroyOperationDescriptor(desc[])
     hiptensorDestroyPlanPreference(plan_pref[])
     return plan
