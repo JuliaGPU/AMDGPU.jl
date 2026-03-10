@@ -11,8 +11,8 @@ if AMDGPU.hipTENSOR.has_hiptensor()
     AMDGPU.hipTENSOR.hiptensorLoggerSetLevel(AMDGPU.hipTENSOR.hiptensorLogLevel_t(UInt32(16)))
     AMDGPU.hipTENSOR.hiptensorLoggerOpenFile("permute.log")
 
-    eltypes = [#(Float16, Float16),
-               #(Float16, Float32),
+    eltypes = [(Float16, Float16),
+               (Float16, Float32),
                #(Float32, Float16),
                (Float32, Float32),
                #=(Float64, Float64),
