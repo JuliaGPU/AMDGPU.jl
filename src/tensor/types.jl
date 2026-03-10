@@ -38,6 +38,7 @@ const elementwise_trinary_compute_types = Dict(
 const elementwise_binary_compute_types = Dict(
     # typeA,     typeC       => typeCompute
     (Float16,    Float16)    => Float16,
+    (Float16,    Float32)    => Float32,
     (Float32,    Float32)    => Float32,
     (Float64,    Float64)    => Float64,
     (ComplexF32, ComplexF32) => Float32,
