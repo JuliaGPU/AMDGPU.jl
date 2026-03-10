@@ -1,7 +1,7 @@
 @inline function retry_reclaim(f, retry_if)
   ret = f()
   if retry_if(ret)
-    return alloc_or_retry!(f, retry_if)
+      return alloc_or_retry!(f, retry_if; stream = stream())
   else
     return ret
   end
@@ -121,9 +121,9 @@ const hiptensorTensorDescriptor_t = Ptr{hiptensorTensorDescriptor}
     HIPTENSOR_C_64U = 27
 end
 
-@checked function hiptensorCreateTensorDescriptor(handle, desc, numModes, lens, strides, dataType,
+function hiptensorCreateTensorDescriptor(handle, desc, numModes, lens, strides, dataType,
                                          alignmentRequirement)
-    @ccall libhiptensor.hiptensorCreateTensorDescriptor(handle::hiptensorHandle_t,
+    @debug_ccall libhiptensor.hiptensorCreateTensorDescriptor(handle::hiptensorHandle_t,
                                                         desc::Ptr{hiptensorTensorDescriptor_t},
                                                         numModes::UInt32, lens::Ptr{Int64},
                                                         strides::Ptr{Int64},
@@ -225,8 +225,8 @@ end
                                                                  sizeInBytes::Csize_t)::hiptensorStatus_t
 end
 
-@checked function hiptensorOperationDescriptorGetAttribute(handle, desc, attr, buf, sizeInBytes)
-    @ccall libhiptensor.hiptensorOperationDescriptorGetAttribute(handle::hiptensorHandle_t,
+function hiptensorOperationDescriptorGetAttribute(handle, desc, attr, buf, sizeInBytes)
+    @debug_ccall libhiptensor.hiptensorOperationDescriptorGetAttribute(handle::hiptensorHandle_t,
                                                                  desc::hiptensorOperationDescriptor_t,
                                                                  attr::hiptensorOperationDescriptorAttribute_t,
                                                                  buf::Ptr{Cvoid},
@@ -284,8 +284,8 @@ const hiptensorPlan_t = Ptr{hiptensorPlan}
     HIPTENSOR_PLAN_REQUIRED_WORKSPACE = 0
 end
 
-@checked function hiptensorPlanGetAttribute(handle, plan, attr, buf, sizeInBytes)
-    @ccall libhiptensor.hiptensorPlanGetAttribute(handle::hiptensorHandle_t,
+function hiptensorPlanGetAttribute(handle, plan, attr, buf, sizeInBytes)
+    @debug_ccall libhiptensor.hiptensorPlanGetAttribute(handle::hiptensorHandle_t,
                                                   plan::hiptensorPlan_t,
                                                   attr::hiptensorPlanAttribute_t,
                                                   buf::Ptr{Cvoid},
@@ -319,8 +319,8 @@ end
                                                    descCompute::hiptensorComputeDescriptor_t)::hiptensorStatus_t
 end
 
-@checked function hiptensorCreatePlan(handle, plan, desc, pref, workspaceSizeLimit)
-    @ccall libhiptensor.hiptensorCreatePlan(handle::hiptensorHandle_t,
+function hiptensorCreatePlan(handle, plan, desc, pref, workspaceSizeLimit)
+    @debug_ccall libhiptensor.hiptensorCreatePlan(handle::hiptensorHandle_t,
                                             plan::Ptr{hiptensorPlan_t},
                                             desc::hiptensorOperationDescriptor_t,
                                             pref::hiptensorPlanPreference_t,
@@ -403,9 +403,9 @@ end
                                                            stream::Cint)::hiptensorStatus_t
 end
 
-@checked function hiptensorCreateReduction(handle, desc, descA, modeA, opA, descC, modeC, opC, descD,
+function hiptensorCreateReduction(handle, desc, descA, modeA, opA, descC, modeC, opC, descD,
                                   modeD, opReduce, descCompute)
-    @ccall libhiptensor.hiptensorCreateReduction(handle::hiptensorHandle_t,
+    @debug_ccall libhiptensor.hiptensorCreateReduction(handle::hiptensorHandle_t,
                                                  desc::Ptr{hiptensorOperationDescriptor_t},
                                                  descA::hiptensorTensorDescriptor_t,
                                                  modeA::Ptr{Int32},
@@ -419,9 +419,9 @@ end
                                                  descCompute::hiptensorComputeDescriptor_t)::hiptensorStatus_t
 end
 
-@checked function hiptensorReduce(handle, plan, alpha, A, beta, C, D, workspace, workspaceSize,
+function hiptensorReduce(handle, plan, alpha, A, beta, C, D, workspace, workspaceSize,
                          stream)
-    @ccall libhiptensor.hiptensorReduce(handle::hiptensorHandle_t, plan::hiptensorPlan_t,
+    @debug_ccall libhiptensor.hiptensorReduce(handle::hiptensorHandle_t, plan::hiptensorPlan_t,
                                         alpha::Ptr{Cvoid}, A::Ptr{Cvoid}, beta::Ptr{Cvoid},
                                         C::Ptr{Cvoid}, D::Ptr{Cvoid}, workspace::Ptr{Cvoid},
                                         workspaceSize::UInt64,
