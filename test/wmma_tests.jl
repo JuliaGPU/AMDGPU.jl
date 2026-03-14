@@ -25,7 +25,7 @@ _b_tile(ptr, ::WMMA.ColMajor, tile_col, k, N, K, ::Type{T}) where T =
 _b_tile(ptr, ::WMMA.RowMajor, tile_col, k, N, K, ::Type{T}) where T =
     ptr + (k * N + tile_col) * Int32(sizeof(T)), N
 
-function wmma_kernel!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32, layout) where T
+function wmma_kernel!(C::AbstractArray{R}, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32, layout) where {R, T}
     tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMMA.M)
     tile_col = (workgroupIdx().y - Int32(1)) * Int32(WMMA.N)
 
@@ -46,42 +46,44 @@ function wmma_kernel!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32, l
         k += Int32(WMMA.K)
     end
 
-    c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(Float32))
+    c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(R))
     WMMA.store_d(c_ptr, c_frag, M, WMMA.ColMajor())
     return
 end
 
 @testset "WMMA" begin
-    @testset "ColMajor $M×$N: $arg_T" for (M, N, K) in (
+    @testset "ColMajor $M×$N: $arg_T -> $res_T" for (M, N, K) in (
         (64, 64, 64), (128, 128, 128),
-    ), arg_T in (Float16, BFloat16)
+    ), arg_T in (Float16, BFloat16), res_T in (Float16, BFloat16, Float32)
         A_host = arg_T.(rand(M, K))
         B_host = arg_T.(rand(K, N))
         A, B = ROCArray(A_host), ROCArray(B_host)
-        C = ROCArray(zeros(Float32, M, N))
+        C = ROCArray(zeros(res_T, M, N))
+        tol = sizeof(res_T) == 4 ? 0.1 : 0.3
 
         tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
         @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
             C, A, B, Int32(M), Int32(N), Int32(K), WMMA.ColMajor())
-        @test maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < 0.1
+        @test maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < tol
     end
 
     @testset "RowMajor $M×$N: $arg_T" for (M, N, K) in (
         (64, 64, 64), (128, 128, 128),
-    ), arg_T in (Float16, BFloat16)
+    ), arg_T in (Float16, BFloat16), res_T in (Float16, BFloat16, Float32)
         A_host = arg_T.(rand(M, K))
         B_host = arg_T.(rand(K, N))
         # Transpose to get row-major storage.
         A = ROCArray(A_host')
         B = ROCArray(B_host')
-        C = ROCArray(zeros(Float32, M, N))
+        C = ROCArray(zeros(res_T, M, N))
+        tol = sizeof(res_T) == 4 ? 0.1 : 0.3
 
         tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
         @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
             C, A, B, Int32(M), Int32(N), Int32(K), WMMA.RowMajor())
         @test maximum(abs.(
             Float32.(C) .- ROCArray(Float32.(A_host)) * ROCArray(Float32.(B_host))
-        )) < 0.1
+        )) < tol
     end
 end
 
