@@ -25,7 +25,12 @@ _b_tile(ptr, ::WMMA.ColMajor, tile_col, k, N, K, ::Type{T}) where T =
 _b_tile(ptr, ::WMMA.RowMajor, tile_col, k, N, K, ::Type{T}) where T =
     ptr + (k * N + tile_col) * Int32(sizeof(T)), N
 
-function wmma_kernel!(C::AbstractArray{R}, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32, layout) where {R, T}
+function wmma_kernel!(
+    C::AbstractArray{R},
+    A::AbstractArray{T}, B,
+    M::Int32, N::Int32, K::Int32,
+    layout, scale::Float32,
+) where {R, T}
     tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMMA.M)
     tile_col = (workgroupIdx().y - Int32(1)) * Int32(WMMA.N)
 
@@ -46,6 +51,7 @@ function wmma_kernel!(C::AbstractArray{R}, A::AbstractArray{T}, B, M::Int32, N::
         k += Int32(WMMA.K)
     end
 
+    c_frag = c_frag .* scale
     c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(R))
     WMMA.store_d(c_ptr, c_frag, M, WMMA.ColMajor())
     return
@@ -63,8 +69,24 @@ end
 
         tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
         @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
-            C, A, B, Int32(M), Int32(N), Int32(K), WMMA.ColMajor())
+            C, A, B, Int32(M), Int32(N), Int32(K), WMMA.ColMajor(), 1f0)
         @test maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < tol
+    end
+
+    @testset "Fragment broadcast: $M×$N $arg_T" for (M, N, K) in (
+        (64, 64, 64), (128, 128, 128),
+    ), arg_T in (Float16, BFloat16)
+        scale = rand(Float32)
+        A_host = arg_T.(rand(M, K))
+        B_host = arg_T.(rand(K, N))
+        A, B = ROCArray(A_host), ROCArray(B_host)
+        C = ROCArray(zeros(Float32, M, N))
+
+        tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
+        @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
+            C, A, B, Int32(M), Int32(N), Int32(K), WMMA.ColMajor(), scale)
+        expected = scale .* (Float32.(A) * Float32.(B))
+        @test maximum(abs.(Float32.(C) .- expected)) < 0.1
     end
 
     @testset "RowMajor $M×$N: $arg_T" for (M, N, K) in (
@@ -80,7 +102,7 @@ end
 
         tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
         @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
-            C, A, B, Int32(M), Int32(N), Int32(K), WMMA.RowMajor())
+            C, A, B, Int32(M), Int32(N), Int32(K), WMMA.RowMajor(), 1f0)
         @test maximum(abs.(
             Float32.(C) .- ROCArray(Float32.(A_host)) * ROCArray(Float32.(B_host))
         )) < tol

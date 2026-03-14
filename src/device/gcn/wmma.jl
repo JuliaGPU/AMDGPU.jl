@@ -67,9 +67,37 @@ Create and return fragment for `C` filled with given value `x`.
 """
 fill_c(::Type{Float32}, x::Float32) = FragmentC_F32(ntuple(_ -> VecElement(x), Val(8)))
 
-Base.:*(frag::FragmentC_F32, x::Number) =
-    FragmentC_F32(map(v -> VecElement(v.value * Float32(x)), frag.data))
-Base.:*(x::Number, frag::FragmentC_F32) = frag * x
+# Broadcasting over Fragments.
+# Based on CUDA.jl's implementation:
+# https://github.com/JuliaGPU/CUDA.jl/blob/153f819e49a18e9be8726af548a15ee8f69ba750/src/device/intrinsics/wmma.jl#L815
+
+struct FragmentBroadcastStyle <: Base.Broadcast.BroadcastStyle end
+
+Base.BroadcastStyle(::Type{<:Fragment}) = FragmentBroadcastStyle()
+Base.BroadcastStyle(::FragmentBroadcastStyle, ::Base.Broadcast.DefaultArrayStyle{0}) = FragmentBroadcastStyle()
+
+Base.broadcastable(frag::Fragment) = frag
+Base.axes(frag::Fragment) = axes(frag.data)
+
+@inline _bc_get(x, i) = x
+@inline _bc_get(frag::Fragment, i) = frag.data[i].value
+
+@inline _bc_find(args::Tuple) = _bc_find(args[1], Base.tail(args))
+@inline _bc_find(frag::Fragment, rest) = frag
+@inline _bc_find(::Any, rest) = _bc_find(rest)
+
+_eltype(::Fragment{M, N, T, L}) where {M, N, T, L} = T
+
+@inline function Base.copy(bc::Base.Broadcast.Broadcasted{FragmentBroadcastStyle})
+    dim = Base.Broadcast.combine_axes(bc.args...)
+    length(dim) == 1 ||
+        throw(DimensionMismatch("Fragment broadcast supports only one dimension"))
+    N = length(dim[1])
+    frag = _bc_find(bc.args)
+    ET = _eltype(frag)
+    data = ntuple(i -> VecElement(ET(bc.f(map(arg -> _bc_get(arg, i), bc.args)...))), Val(N))
+    return typeof(frag)(data)
+end
 
 # Signature for BFloat16 is:
 # @llvm.amdgcn.wmma.f32.16x16x16.bf16(<16 x i16>, <16 x i16> , <8 x float>)
