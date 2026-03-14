@@ -181,4 +181,69 @@ julia> xd * xd # Can be used with HIP libraries.
 
 !!! note
     Passing `own=true` keyword will make the wrapped array take the ownership of the memory.
-    For host memory it will unpin it on destruction and for device memory it will free it.
+    For device memory it will free it on destruction.
+    For host memory it will unregister (unpin) it on destruction.
+    Multiple wraps of the same host pointer are reference-counted,
+    so the actual unregister only happens when the last wrapper is freed.
+
+## GPU Memory Management
+
+Instances of `ROCArray` are managed by the Julia garbage collector.
+When a `ROCArray` becomes unreachable it is eventually collected
+and the underlying GPU memory is released.
+There is no need for manual memory management in normal use.
+
+### Memory pool
+
+Behind the scenes, a HIP memory pool caches freed allocations to speed up
+future requests.
+As a result, GPU memory may appear occupied even after arrays have been freed.
+When memory pressure is high, the pool automatically releases cached memory.
+
+To query current GPU memory usage:
+
+```julia
+AMDGPU.info()   # (free_bytes, total_bytes)
+AMDGPU.free()   # free bytes
+AMDGPU.total()  # total bytes
+AMDGPU.used()   # used bytes (total - free)
+```
+
+To manually release all cached pool memory back to the system:
+
+```julia
+AMDGPU.HIP.reclaim()
+```
+
+### Avoiding GC pressure
+
+To explicitly free a `ROCArray` without waiting for the garbage collector:
+
+```julia
+AMDGPU.unsafe_free!(x)
+```
+
+After this call `x` is invalid and must not be used again.
+
+### Eager GC
+
+When enabled, proactively triggers garbage collection before
+allocations when GPU memory pressure exceeds ~75%.
+This prevents out-of-memory errors in allocation-heavy workloads at
+small runtime cost.
+
+```julia
+AMDGPU.eager_gc!(true)   # or false
+```
+
+### Memory limits
+
+Constrain how much GPU memory usage is allowed.
+Values are strings in the form `"8 GiB"`, `"50 %"`, or `"none"` (default).
+These are persisted via `Preferences.jl`.
+
+```julia
+AMDGPU.hard_memory_limit!("8 GiB")  # hard cap checked before every allocation
+AMDGPU.soft_memory_limit!("6 GiB")  # advisory limit for the memory pool
+AMDGPU.hard_memory_limit!("none")   # disable (default)
+```
