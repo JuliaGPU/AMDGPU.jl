@@ -6,6 +6,7 @@ export WMMA
 module WMMA
 
 export Fragment, M, N, K
+export ColMajor, RowMajor
 export load_a, load_b, load_c, store_d, mma, fill_c
 
 import Core: LLVMPtr, VecElement
@@ -44,6 +45,22 @@ const FragmentC_F16 = Fragment{M, N, Float16, 16}
 const FragmentC_BF16 = Fragment{M, N, BFloat16, 16}
 
 """
+    ColMajor
+
+Layout type representing a matrix stored in column-major (Julia/Fortran) order,
+where `ptr[col * stride + row]` addresses element `(row, col)`.
+"""
+struct ColMajor end
+
+"""
+    RowMajor
+
+Layout type representing a matrix stored in row-major (C) order,
+where `ptr[row * stride + col]` addresses element `(row, col)`.
+"""
+struct RowMajor end
+
+"""
     fill_c(::Type{Float32}, x::Float32)
 
 Create and return fragment for `C` filled with given value `x`.
@@ -68,13 +85,15 @@ for (fname, intrinsic, ret_T, arg_T) in (
 end
 
 """
-    load_a(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat16}
-    load_b(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat16}
-    load_c(ptr::LLVMPtr{Float32}, stride::Int32)
+    load_a(ptr::LLVMPtr{T}, stride::Int32, layout=ColMajor()) where T
 
-Load the matrix `A`, `B` or `C` from the memory given by `ptr` and return the resulting fragment.
+Load matrix `A` (M×K) from memory and return the resulting fragment.
+`stride` is the leading dimension in number of elements.
+
+- `ColMajor()`: column-major storage, `ptr[col * stride + row]`
+- `RowMajor()`: row-major storage, `ptr[row * stride + col]`
 """
-function load_a(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat16}
+function load_a(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor()) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     row = lane & Int32(15)
     data = ntuple(Val(16)) do col
@@ -84,7 +103,26 @@ function load_a(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat
     return FragmentA{_llvm_inttype(T)}(data)
 end
 
-function load_b(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat16}
+function load_a(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor) where T <: Union{Float16, BFloat16}
+    lane = unsafe_trunc(Int32, activelane())
+    row = lane & Int32(15)
+    data = ntuple(Val(16)) do col
+        offset = (row * stride + Int32(col - 1)) * Int32(sizeof(T))
+        VecElement(_llvm_inttype(unsafe_load(ptr + offset)))
+    end
+    return FragmentA{_llvm_inttype(T)}(data)
+end
+
+"""
+    load_b(ptr::LLVMPtr{T}, stride::Int32, layout=ColMajor()) where T
+
+Load matrix `B` (K×N) from memory and return the resulting fragment.
+`stride` is the leading dimension in number of elements.
+
+- `ColMajor()`: column-major storage, `ptr[col * stride + row]`
+- `RowMajor()`: row-major storage, `ptr[row * stride + col]`
+"""
+function load_b(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor()) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     base = ptr + col * stride * Int32(sizeof(T))
@@ -94,36 +132,80 @@ function load_b(ptr::LLVMPtr{T}, stride::Int32) where T <: Union{Float16, BFloat
     return FragmentB{_llvm_inttype(T)}(data)
 end
 
-function load_c(ptr::LLVMPtr{Float32}, stride::Int32)::FragmentC_F32
+function load_b(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor) where T <: Union{Float16, BFloat16}
+    lane = unsafe_trunc(Int32, activelane())
+    col = lane & Int32(15)
+    data = ntuple(Val(16)) do row
+        offset = (Int32(row - 1) * stride + col) * Int32(sizeof(T))
+        VecElement(_llvm_inttype(unsafe_load(ptr + offset)))
+    end
+    return FragmentB{_llvm_inttype(T)}(data)
+end
+
+"""
+    load_c(ptr::LLVMPtr{Float32}, stride::Int32, layout=ColMajor())
+
+Load matrix `C` (M×N) from memory and return the resulting fragment.
+`stride` is the leading dimension in number of elements.
+
+- `ColMajor()`: column-major storage, `ptr[col * stride + row]`
+- `RowMajor()`: row-major storage, `ptr[row * stride + col]`
+"""
+function load_c(ptr::LLVMPtr{Float32}, stride::Int32, ::ColMajor=ColMajor())::FragmentC_F32
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
     data = ntuple(Val(8)) do k
         row = Int32(2 * (k - 1)) + half
         offset = (col * stride + row) * Int32(sizeof(Float32))
-        VecElement(_llvm_inttype(unsafe_load(ptr + offset)))
+        VecElement(unsafe_load(ptr + offset))
+    end
+    return FragmentC_F32(data)
+end
+
+function load_c(ptr::LLVMPtr{Float32}, stride::Int32, ::RowMajor)::FragmentC_F32
+    lane = unsafe_trunc(Int32, activelane())
+    col = lane & Int32(15)
+    half = lane >> 4
+    data = ntuple(Val(8)) do k
+        row = Int32(2 * (k - 1)) + half
+        offset = (row * stride + col) * Int32(sizeof(Float32))
+        VecElement(unsafe_load(ptr + offset))
     end
     return FragmentC_F32(data)
 end
 
 """
-    store_d(ptr::LLVMPtr{Float32}, frag::FragmentC_F32, stride::Int32)
+    store_d(ptr::LLVMPtr{Float32}, frag::FragmentC_F32, stride::Int32, layout=ColMajor())
 
 Store the result matrix `D` to the memory location given by `ptr`.
 
 # Arguments
 
-- `ptr`: Adress to store the matrix to.
+- `ptr`: Address to store the matrix to.
 - `frag`: Corresponding fragment.
 - `stride`: Leading dimension of the matrix for `ptr` in number of elements.
+- `layout`: `ColMajor()` (default) or `RowMajor()`.
 """
-function store_d(ptr::LLVMPtr{Float32}, frag::FragmentC_F32, stride::Int32)
+function store_d(ptr::LLVMPtr{Float32}, frag::FragmentC_F32, stride::Int32, ::ColMajor=ColMajor())
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
     for k in 1:8
         row = Int32(2 * (k - 1)) + half
         offset = (col * stride + row) * Int32(sizeof(Float32))
+        unsafe_store!(ptr + offset, frag.data[k].value)
+    end
+    return
+end
+
+function store_d(ptr::LLVMPtr{Float32}, frag::FragmentC_F32, stride::Int32, ::RowMajor)
+    lane = unsafe_trunc(Int32, activelane())
+    col = lane & Int32(15)
+    half = lane >> 4
+    for k in 1:8
+        row = Int32(2 * (k - 1)) + half
+        offset = (row * stride + col) * Int32(sizeof(Float32))
         unsafe_store!(ptr + offset, frag.data[k].value)
     end
     return
