@@ -97,6 +97,11 @@ AMDGPU.Device.WMMA.store_d
 AMDGPU.Device.WMMA.mma
 ```
 
+`load_c` and `store_d` accept pointer types `Float32`, `Float16`, and `BFloat16`.
+When `T` is `Float16` or `BFloat16`, values are widened to `Float32` on load and
+narrowed back on store, so the `FragmentC_F32` accumulator type is always `Float32`
+regardless of the backing buffer type.
+
 ### Example
 
 Below is a matrix multiplication kernel using WMMA with column-major inputs.

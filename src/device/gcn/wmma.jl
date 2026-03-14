@@ -67,6 +67,10 @@ Create and return fragment for `C` filled with given value `x`.
 """
 fill_c(::Type{Float32}, x::Float32) = FragmentC_F32(ntuple(_ -> VecElement(x), Val(8)))
 
+Base.:*(frag::FragmentC_F32, x::Number) =
+    FragmentC_F32(map(v -> VecElement(v.value * Float32(x)), frag.data))
+Base.:*(x::Number, frag::FragmentC_F32) = frag * x
+
 # Signature for BFloat16 is:
 # @llvm.amdgcn.wmma.f32.16x16x16.bf16(<16 x i16>, <16 x i16> , <8 x float>)
 # thus conversion.
@@ -143,42 +147,46 @@ function load_b(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor) where T <: Union{Flo
 end
 
 """
-    load_c(ptr::LLVMPtr{Float32}, stride::Int32, layout=ColMajor())
+    load_c(ptr::LLVMPtr{T}, stride::Int32, layout=ColMajor()) where T
 
-Load matrix `C` (M×N) from memory and return the resulting fragment.
+Load matrix `C` (M×N) from memory and return a `FragmentC_F32`.
 `stride` is the leading dimension in number of elements.
+`T` may be `Float32`, `Float16`, or `BFloat16`; non-Float32 values are
+widened to `Float32` on load.
 
 - `ColMajor()`: column-major storage, `ptr[col * stride + row]`
 - `RowMajor()`: row-major storage, `ptr[row * stride + col]`
 """
-function load_c(ptr::LLVMPtr{Float32}, stride::Int32, ::ColMajor=ColMajor())::FragmentC_F32
+function load_c(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor())::FragmentC_F32 where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
     data = ntuple(Val(8)) do k
         row = Int32(2 * (k - 1)) + half
-        offset = (col * stride + row) * Int32(sizeof(Float32))
-        VecElement(unsafe_load(ptr + offset))
+        offset = (col * stride + row) * Int32(sizeof(T))
+        VecElement(Float32(unsafe_load(ptr + offset)))
     end
     return FragmentC_F32(data)
 end
 
-function load_c(ptr::LLVMPtr{Float32}, stride::Int32, ::RowMajor)::FragmentC_F32
+function load_c(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor)::FragmentC_F32 where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
     data = ntuple(Val(8)) do k
         row = Int32(2 * (k - 1)) + half
-        offset = (row * stride + col) * Int32(sizeof(Float32))
-        VecElement(unsafe_load(ptr + offset))
+        offset = (row * stride + col) * Int32(sizeof(T))
+        VecElement(Float32(unsafe_load(ptr + offset)))
     end
     return FragmentC_F32(data)
 end
 
 """
-    store_d(ptr::LLVMPtr{Float32}, frag::FragmentC_F32, stride::Int32, layout=ColMajor())
+    store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, layout=ColMajor()) where T
 
 Store the result matrix `D` to the memory location given by `ptr`.
+`T` may be `Float32`, `Float16`, or `BFloat16`; fragment values are
+narrowed from `Float32` on store.
 
 # Arguments
 
@@ -187,26 +195,26 @@ Store the result matrix `D` to the memory location given by `ptr`.
 - `stride`: Leading dimension of the matrix for `ptr` in number of elements.
 - `layout`: `ColMajor()` (default) or `RowMajor()`.
 """
-function store_d(ptr::LLVMPtr{Float32}, frag::FragmentC_F32, stride::Int32, ::ColMajor=ColMajor())
+function store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, ::ColMajor=ColMajor()) where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
     for k in 1:8
         row = Int32(2 * (k - 1)) + half
-        offset = (col * stride + row) * Int32(sizeof(Float32))
-        unsafe_store!(ptr + offset, frag.data[k].value)
+        offset = (col * stride + row) * Int32(sizeof(T))
+        unsafe_store!(ptr + offset, T(frag.data[k].value))
     end
     return
 end
 
-function store_d(ptr::LLVMPtr{Float32}, frag::FragmentC_F32, stride::Int32, ::RowMajor)
+function store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, ::RowMajor) where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
     for k in 1:8
         row = Int32(2 * (k - 1)) + half
-        offset = (row * stride + col) * Int32(sizeof(Float32))
-        unsafe_store!(ptr + offset, frag.data[k].value)
+        offset = (row * stride + col) * Int32(sizeof(T))
+        unsafe_store!(ptr + offset, T(frag.data[k].value))
     end
     return
 end
