@@ -117,15 +117,15 @@ for (fname, intrinsic, ret_T, arg_T) in (
 end
 
 """
-    load_a(ptr::LLVMPtr{T}, stride::Int32, layout=ColMajor()) where T
+    load_a(ptr::LLVMPtr{T}, stride::Int32, layout) where T
 
 Load matrix `A` (M×K) from memory and return the resulting fragment.
 `stride` is the leading dimension in number of elements.
 
-- `ColMajor()`: column-major storage, `ptr[col * stride + row]`
-- `RowMajor()`: row-major storage, `ptr[row * stride + col]`
+- `ColMajor`: column-major storage, `ptr[col * stride + row]`
+- `RowMajor`: row-major storage, `ptr[row * stride + col]`
 """
-function load_a(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor()) where T <: Union{Float16, BFloat16}
+function load_a(ptr::LLVMPtr{T}, stride::Int32, ::Type{ColMajor}) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     row = lane & Int32(15)
     data = ntuple(Val(16)) do col
@@ -135,7 +135,7 @@ function load_a(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor()) where T <
     return FragmentA{_llvm_inttype(T)}(data)
 end
 
-function load_a(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor) where T <: Union{Float16, BFloat16}
+function load_a(ptr::LLVMPtr{T}, stride::Int32, ::Type{RowMajor}) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     row = lane & Int32(15)
     data = ntuple(Val(16)) do col
@@ -146,15 +146,15 @@ function load_a(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor) where T <: Union{Flo
 end
 
 """
-    load_b(ptr::LLVMPtr{T}, stride::Int32, layout=ColMajor()) where T
+    load_b(ptr::LLVMPtr{T}, stride::Int32, layout) where T
 
 Load matrix `B` (K×N) from memory and return the resulting fragment.
 `stride` is the leading dimension in number of elements.
 
-- `ColMajor()`: column-major storage, `ptr[col * stride + row]`
-- `RowMajor()`: row-major storage, `ptr[row * stride + col]`
+- `ColMajor`: column-major storage, `ptr[col * stride + row]`
+- `RowMajor`: row-major storage, `ptr[row * stride + col]`
 """
-function load_b(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor()) where T <: Union{Float16, BFloat16}
+function load_b(ptr::LLVMPtr{T}, stride::Int32, ::Type{ColMajor}) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     base = ptr + col * stride * Int32(sizeof(T))
@@ -164,7 +164,7 @@ function load_b(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor()) where T <
     return FragmentB{_llvm_inttype(T)}(data)
 end
 
-function load_b(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor) where T <: Union{Float16, BFloat16}
+function load_b(ptr::LLVMPtr{T}, stride::Int32, ::Type{RowMajor}) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     data = ntuple(Val(16)) do row
@@ -175,17 +175,17 @@ function load_b(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor) where T <: Union{Flo
 end
 
 """
-    load_c(ptr::LLVMPtr{T}, stride::Int32, layout=ColMajor()) where T
+    load_c(ptr::LLVMPtr{T}, stride::Int32, layout) where T
 
 Load matrix `C` (M×N) from memory and return a `FragmentC_F32`.
 `stride` is the leading dimension in number of elements.
 `T` may be `Float32`, `Float16`, or `BFloat16`; non-Float32 values are
 widened to `Float32` on load.
 
-- `ColMajor()`: column-major storage, `ptr[col * stride + row]`
-- `RowMajor()`: row-major storage, `ptr[row * stride + col]`
+- `ColMajor`: column-major storage, `ptr[col * stride + row]`
+- `RowMajor`: row-major storage, `ptr[row * stride + col]`
 """
-function load_c(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor())::FragmentC_F32 where T <: Union{Float32, Float16, BFloat16}
+function load_c(ptr::LLVMPtr{T}, stride::Int32, ::Type{ColMajor})::FragmentC_F32 where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
@@ -197,7 +197,7 @@ function load_c(ptr::LLVMPtr{T}, stride::Int32, ::ColMajor=ColMajor())::Fragment
     return FragmentC_F32(data)
 end
 
-function load_c(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor)::FragmentC_F32 where T <: Union{Float32, Float16, BFloat16}
+function load_c(ptr::LLVMPtr{T}, stride::Int32, ::Type{RowMajor})::FragmentC_F32 where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
@@ -210,7 +210,7 @@ function load_c(ptr::LLVMPtr{T}, stride::Int32, ::RowMajor)::FragmentC_F32 where
 end
 
 """
-    store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, layout=ColMajor()) where T
+    store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, layout) where T
 
 Store the result matrix `D` to the memory location given by `ptr`.
 `T` may be `Float32`, `Float16`, or `BFloat16`; fragment values are
@@ -221,9 +221,9 @@ narrowed from `Float32` on store.
 - `ptr`: Address to store the matrix to.
 - `frag`: Corresponding fragment.
 - `stride`: Leading dimension of the matrix for `ptr` in number of elements.
-- `layout`: `ColMajor()` (default) or `RowMajor()`.
+- `layout`: `ColMajor` (default) or `RowMajor`.
 """
-function store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, ::ColMajor=ColMajor()) where T <: Union{Float32, Float16, BFloat16}
+function store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, ::Type{ColMajor}) where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4
@@ -235,7 +235,7 @@ function store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, ::ColMajor
     return
 end
 
-function store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, ::RowMajor) where T <: Union{Float32, Float16, BFloat16}
+function store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, ::Type{RowMajor}) where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
     col = lane & Int32(15)
     half = lane >> 4

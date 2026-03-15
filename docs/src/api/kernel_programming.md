@@ -82,8 +82,8 @@ The tile dimensions are fixed at 16×16×16 (`WMMA.M`, `WMMA.N`, `WMMA.K`).
 
 Two layout types control how matrices are read from and written to memory:
 
-- `WMMA.ColMajor()` — column-major (Julia/Fortran) order: element `(row, col)` is at `ptr[col * stride + row]`.
-- `WMMA.RowMajor()` — row-major (C) order: element `(row, col)` is at `ptr[row * stride + col]`.
+- `WMMA.ColMajor` — column-major (Julia/Fortran) order: element `(row, col)` is at `ptr[col * stride + row]`.
+- `WMMA.RowMajor` — row-major (C) order: element `(row, col)` is at `ptr[row * stride + col]`.
 
 ### API
 
@@ -105,7 +105,7 @@ regardless of the backing buffer type.
 ### Example
 
 Below is a matrix multiplication kernel using WMMA with column-major inputs.
-Pass `WMMA.RowMajor()` instead to load from row-major (C-style) buffers.
+Pass `WMMA.RowMajor` instead to load from row-major (C-style) buffers.
 
 ```@example wmma-matmul
 using AMDGPU
@@ -133,7 +133,7 @@ function wmma_kernel!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32, l
     end
 
     c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(Float32))
-    WMMA.store_d(c_ptr, c_frag, M, WMMA.ColMajor())
+    WMMA.store_d(c_ptr, c_frag, M, WMMA.ColMajor)
     return
 end
 
@@ -156,7 +156,7 @@ C = ROCArray(zeros(Float32, M, N))
 
 tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
 @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
-    C, A, B, Int32(M), Int32(N), Int32(K), WMMA.ColMajor())
+    C, A, B, Int32(M), Int32(N), Int32(K), WMMA.ColMajor)
 
 @assert maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < 0.1
 ```
