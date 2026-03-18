@@ -77,10 +77,7 @@ end
 
 function signal_exception()
     ei = kernel_state().exception_info
-    ei.status = Int32(0x1)
-    # Lock in case it was not locked before, to get workitem and workgroup info.
-    lock_output!(ei)
-    endpgm() # Without endpgm we'll get hardware exception.
+    signal_exception!(ei, ExceptionCode.UNKNOWN)
     return
 end
 
