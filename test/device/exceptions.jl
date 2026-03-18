@@ -34,7 +34,7 @@ end
     AMDGPU.code_native(iob, div_kernel, Tuple{
         Device.ROCDeviceArray{Int64, 1, 1},
         Int64, Int64, Int64, Int64,
-    })
+    }; kernel=true)
     asm = String(take!(iob))
 
     # The new lightweight exception path should NOT generate flat_store_byte
@@ -57,7 +57,7 @@ end
     AMDGPU.code_native(iob2, boundscheck_kernel, Tuple{
         Device.ROCDeviceArray{Float64, 1, 1},
         Device.ROCDeviceArray{Float64, 1, 1},
-    })
+    }; kernel=true)
     asm2 = String(take!(iob2))
 
     @test count("flat_store_byte", asm2) == 0
