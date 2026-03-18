@@ -45,6 +45,23 @@ end
 
     # Should use global_atomic_cmpswap for the exception flag instead
     @test occursin("global_atomic_cmpswap", asm) || occursin("flat_atomic_cmpswap", asm)
+
+    # Kernel with bounds-checked array access
+    function boundscheck_kernel(X, Y)
+        i = workitemIdx().x
+        X[i] = Y[i] + Y[i+1]
+        return
+    end
+
+    iob2 = IOBuffer()
+    AMDGPU.code_native(iob2, boundscheck_kernel, Tuple{
+        Device.ROCDeviceArray{Float64, 1, 1},
+        Device.ROCDeviceArray{Float64, 1, 1},
+    })
+    asm2 = String(take!(iob2))
+
+    @test count("flat_store_byte", asm2) == 0
+    @test occursin("global_atomic_cmpswap", asm2) || occursin("flat_atomic_cmpswap", asm2)
 end
 
 if VERSION ≥ v"1.11-"
