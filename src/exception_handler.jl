@@ -2,44 +2,30 @@
 const GLOBAL_EXCEPTION_INFO = Dict{UInt, Mem.HostBuffer}()
 
 # TODO RT_LOCK?
-function exception_info(dev::HIPDevice)::Ptr{Device.ExceptionInfo}
+function exception_info(dev::HIPDevice)::Ptr{UInt64}
     ei = get!(
         () -> Device.alloc_exception_info(),
         GLOBAL_EXCEPTION_INFO, hash(dev))
-    return convert(Ptr{Device.ExceptionInfo}, Mem.device_ptr(ei))
+    return convert(Ptr{UInt64}, Mem.device_ptr(ei))
 end
 
 function has_exception(dev::HIPDevice)::Bool
-    return exception_info(dev).status != 0
+    return unsafe_load(exception_info(dev)) != UInt64(0)
 end
 
 function reset_exception_info!(dev::HIPDevice)
-    unsafe_store!(exception_info(dev), Device.ExceptionInfo())
+    unsafe_store!(exception_info(dev), UInt64(0))
     return
 end
 
-function device_str_to_host(str_ptr, str_length)
-    str_length == 0 && return ""
-
-    buf = Vector{UInt8}(undef, str_length)
-    HSA.memory_copy(
-        convert(Ptr{Cvoid}, pointer(buf)),
-        reinterpret(Ptr{Cvoid}, str_ptr), str_length) |> Runtime.check
-    return String(buf)
-end
-
 function get_exception_info_string(dev::HIPDevice)
-    ei = exception_info(dev)
-    reason = device_str_to_host(ei.reason, ei.reason_length)
+    packed = unsafe_load(exception_info(dev))
+    info = Device.unpack_exception(packed)
+    reason = get(Device.EXCEPTION_REASON_STRINGS, info.code, "Unkown error code $(info.code)")
 
-    workitemIdx = ei.thread
-    workgroupIdx = ei.block
-
-    isempty(reason) && (reason = "Unknown reason";)
     return """GPU Kernel Exception:
     $reason
-    workitemIdx: $workitemIdx
-    workgroupIdx: $workgroupIdx"""
+    workgroupIdx: ($(info.wg_x), $(info.wg_y), $(info.wg_z))"""
 end
 
 function throw_if_exception(dev::HIPDevice)

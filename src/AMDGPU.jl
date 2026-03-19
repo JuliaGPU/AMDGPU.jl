@@ -100,7 +100,7 @@ export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
 
 struct KernelState
-    exception_info::Ptr{Device.ExceptionInfo}
+    exception_info::Ptr{UInt64}
     malloc_hc::Ptr{Cvoid}
     free_hc::Ptr{Cvoid}
     output_context::Ptr{Cvoid}

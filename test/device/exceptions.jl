@@ -16,9 +16,52 @@ using StaticArrays
         AMDGPU.synchronize()
     catch err
         @test err isa ErrorException
+        @test occursin("GPU Kernel Exception", err.msg)
     end
-    # TODO check exception message
-    # TODO check specific exception type
+end
+
+@testset "Exception codegen" begin
+    # Kernel with multiple div() calls — each generates an error path
+    function div_kernel(X, a, b, c, d)
+        i = workitemIdx().x
+        x = div(a, b)
+        y = div(c, d)
+        X[i] = x + y
+        return
+    end
+
+    iob = IOBuffer()
+    AMDGPU.code_native(iob, div_kernel, Tuple{
+        Device.ROCDeviceArray{Int64, 1, 1},
+        Int64, Int64, Int64, Int64,
+    }; kernel=true)
+    asm = String(take!(iob))
+
+    # The new lightweight exception path should NOT generate flat_store_byte
+    # instructions for writing ExceptionInfo fields. Previously each div check
+    # inlined ~20 flat_store_byte for the 56-byte ExceptionInfo struct.
+    n_flat_store_byte = count("flat_store_byte", asm)
+    @test n_flat_store_byte == 0
+
+    # Should use global_atomic_cmpswap for the exception flag instead
+    @test occursin("global_atomic_cmpswap", asm) || occursin("flat_atomic_cmpswap", asm)
+
+    # Kernel with bounds-checked array access
+    function boundscheck_kernel(X, Y)
+        i = workitemIdx().x
+        X[i] = Y[i] + Y[i+1]
+        return
+    end
+
+    iob2 = IOBuffer()
+    AMDGPU.code_native(iob2, boundscheck_kernel, Tuple{
+        Device.ROCDeviceArray{Float64, 1, 1},
+        Device.ROCDeviceArray{Float64, 1, 1},
+    }; kernel=true)
+    asm2 = String(take!(iob2))
+
+    @test count("flat_store_byte", asm2) == 0
+    @test occursin("global_atomic_cmpswap", asm2) || occursin("flat_atomic_cmpswap", asm2)
 end
 
 if VERSION ≥ v"1.11-"
