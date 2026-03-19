@@ -21,7 +21,7 @@ end
 function get_exception_info_string(dev::HIPDevice)
     packed = unsafe_load(exception_info(dev))
     info = Device.unpack_exception(packed)
-    reason = get(Device.EXCEPTION_REASON_STRINGS, info.code, "Unknown exception (code=$(info.code))")
+    reason = get(Device.EXCEPTION_REASON_STRINGS, info.code, "Unkown error code $(info.code)")
 
     return """GPU Kernel Exception:
     $reason
