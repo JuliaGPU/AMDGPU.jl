@@ -1,5 +1,6 @@
 module HIP
 export HIPError, devices, device_synchronize, default_stream
+export HIPGraph, @captured, capture, instantiate, update, is_capturing, launch
 
 using CEnum
 
@@ -90,6 +91,7 @@ include("stream.jl")
 include("event.jl")
 include("pool.jl")
 include("module.jl")
+include("graph.jl")
 
 """
 Blocks until all kernels on all streams have completed.

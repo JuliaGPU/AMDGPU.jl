@@ -24,7 +24,6 @@ end
 
 @info "System information:\n"
 InteractiveUtils.versioninfo()
-
 AMDGPU.versioninfo()
 
 # Autodiscovered tests
@@ -39,6 +38,7 @@ include(gpuarrays_testsuite)
 for name in keys(TestSuite.tests)
     testsuite["gpuarrays/$name"] = :(TestSuite.tests[$name](AMDGPU.ROCArray))
 end
+@info "Available tests: `$(keys(testsuite))`."
 
 args = parse_args(ARGS)
 

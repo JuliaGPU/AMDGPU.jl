@@ -409,9 +409,10 @@ mutable struct Managed{M}
     const mem::M
     stream::HIPStream
     dirty::Bool
+    captured::Bool
 
-    function Managed(mem; stream=AMDGPU.stream(), dirty=true)
-        new{typeof(mem)}(mem, stream, dirty)
+    function Managed(mem; stream=AMDGPU.stream(), dirty=true, captured=false)
+        new{typeof(mem)}(mem, stream, dirty, captured)
     end
 end
 
@@ -472,7 +473,7 @@ function pool_alloc(::Type{B}, bytesize) where B
     maybe_collect()
     time = Base.@elapsed begin
         s = AMDGPU.stream()
-        managed = Managed(B(bytesize; stream=s); stream=s)
+        managed = Managed(B(bytesize; stream=s); stream=s, captured=AMDGPU.is_capturing())
     end
 
     Base.@atomic alloc_stats.alloc_count += 1
