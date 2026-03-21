@@ -65,7 +65,7 @@ using GPUArrays
         g_new = AMDGPU.capture() do
             f2!(z)
         end
-        AMDGPU.update(graph, g_new)
+        @test AMDGPU.update(graph, g_new)
         AMDGPU.launch(graph)
         @test sum(z) == 16 * 3
     end
