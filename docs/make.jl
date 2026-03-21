@@ -41,6 +41,7 @@ function main()
                 "Devices" => "api/devices.md",
                 "Streams" => "api/streams.md",
                 "Kernel Programming" => "api/kernel_programming.md",
+                "Graphs" => "api/graphs.md",
                 "Exceptions" => "api/exceptions.md",
                 "Memory" => "api/memory.md",
                 "Host-Call" => "api/hostcall.md",

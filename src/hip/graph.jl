@@ -1,3 +1,18 @@
+"""
+    instantiate(graph::HIPGraph)::HIPGraphExec
+
+Instantiate captured graph making it executable with [`launch`](@ref).
+"""
+instantiate
+
+"""
+    capture(f::Function; flags = hipStreamCaptureModeGlobal, throw_error::Bool = true)::Union{Nothing, HIPGraph}
+
+Capture fiven function `f` to a graph.
+If successful, returns a captured graph that needs to be [`instantiate`](@ref)'d to obtain executable graph.
+"""
+capture
+
 function unchecked_hipStreamEndCapture(stream, pGraph)
     AMDGPU.prepare_state()
     @gcsafe_ccall(libhip.hipStreamEndCapture(stream::hipStream_t, pGraph::Ptr{hipGraph_t})::hipError_t)
@@ -17,7 +32,7 @@ mutable struct HIPGraph
         return obj
     end
 
-    global function capture(f::Function; flags = hipStreamCaptureModeGlobal, throw_error::Bool = true)
+    global function capture(f::Function; flags = hipStreamCaptureModeGlobal, throw_error::Bool = true)::Union{Nothing, HIPGraph}
         gc_state = GC.enable(false)
         stream = AMDGPU.stream()
         try
@@ -61,9 +76,24 @@ end
 
 Base.unsafe_convert(::Type{hipGraphExec_t}, exec::HIPGraphExec) = exec.handle
 
-launch(exec::HIPGraphExec, stream::HIPStream = AMDGPU.stream()) = hipGraphLaunch(exec, stream)
+"""
+    launch(exec::HIPGraphExec, stream::HIPStream = AMDGPU.stream())
 
-function update(exec::HIPGraphExec, graph::HIPGraph; throw_error::Bool = true)
+Launch executable graph on a given stream.
+"""
+function launch(exec::HIPGraphExec, stream::HIPStream = AMDGPU.stream())
+    hipGraphLaunch(exec, stream)
+end
+
+"""
+    update(exec::HIPGraphExec, graph::HIPGraph; throw_error::Bool = true)::Bool
+
+Given executable graph, perform update with graph.
+Return `true` if successful, `false` otherwise.
+
+If `throw_error=false` allows avoiding throwing an exception if update was not successful.
+"""
+function update(exec::HIPGraphExec, graph::HIPGraph; throw_error::Bool = true)::Bool
     error_node = Ref{hipGraphNode_t}()
     update_res_ref = Ref{hipGraphExecUpdateResult}()
     hipGraphExecUpdate(exec, graph, error_node, update_res_ref)
@@ -84,14 +114,26 @@ function capture_status(stream::HIPStream)
     return (; status, id=(status == hipStreamCaptureStatusActive) ? id_ref[] : nothing)
 end
 
-is_capturing(stream::HIPStream = AMDGPU.stream()) =
-    capture_status(stream).status == hipStreamCaptureStatusActive
+"""
+    is_capturing(stream::HIPStream = AMDGPU.stream())::Bool
 
-macro captured(ex)
-    @gensym exec
-    @eval __module__ begin
-        const $exec = Ref{$HIPGraphExec}()
+For a given `stream` check if capturing for a graph is performed.
+"""
+function is_capturing(stream::HIPStream = AMDGPU.stream())::Bool
+    capture_status(stream).status == hipStreamCaptureStatusActive
+end
+
+"""
+    graph = AMDGPU.@captured begin
+        # code to capture in a graph.
     end
+
+Macro to capture a given expression in a graph & execute it.
+Returns captured graph, that can be relaunched with [`launch`](@ref) or updated with [`update`](@ref).
+
+If capture fails (e.g. due to JIT), attempts recovery, compilation and re-capture.
+"""
+macro captured(ex)
     quote
         executed = false
         GC.enable(false)
@@ -104,11 +146,11 @@ macro captured(ex)
         end
 
         if graph === nothing
-            # if the capture failed, this may have been due to JIT compilation.
+            # If the capture failed, this may have been due to JIT compilation.
             # execute the body out of capture, and try capturing again.
             $(esc(ex))
 
-            # don't tolerate capture failures now so that the user will be informed
+            # Don't tolerate capture failures now so that the user will be informed.
             GC.enable(false)
             graph = try
                 capture() do
@@ -122,15 +164,8 @@ macro captured(ex)
             executed = true
         end
 
-        # TODO updating should be done manually by users.
-        # Update or instantiate.
-        # if !isassigned($(esc(exec))) || !update($(esc(exec))[], graph; throw_error=false)
-        #     $(esc(exec))[] = instantiate(graph)
-        # end
-
-        # when allocation nodes are present on AMD ROCm — always reinstantiate for now.
-        $(esc(exec))[] = instantiate(graph)
-        executed || launch($(esc(exec))[])
-        $(esc(exec))[]
+        exec = instantiate(graph)
+        executed || launch(exec)
+        exec
     end
 end

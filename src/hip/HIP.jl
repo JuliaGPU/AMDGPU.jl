@@ -1,6 +1,6 @@
 module HIP
 export HIPError, devices, device_synchronize, default_stream
-export HIPGraph, @captured, capture, instantiate, update, is_capturing, launch
+export HIPGraph, HIPGraphExec, @captured, capture, instantiate, update, is_capturing, launch
 
 using CEnum
 
