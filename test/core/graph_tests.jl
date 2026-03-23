@@ -55,8 +55,8 @@ using GPUArrays
     end
 
     @testset "Update graph" begin
-        f1!(o) = o .+= 1f0
-        f2!(o) = o .+= 2f0
+        f1!(o) = o .+= one(eltype(o))
+        f2!(o) = o .+= eltype(o)(2)
 
         z = AMDGPU.zeros(Int, 4, 4)
         graph = AMDGPU.@captured f1!(z)

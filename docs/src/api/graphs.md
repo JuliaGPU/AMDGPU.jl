@@ -8,7 +8,7 @@ Simple operations can be captured as is:
 ```@example graph-1
 using AMDGPU
 
-f!(o) = o .+= 1f0
+f!(o) = o .+= one(eltype(o))
 
 z = AMDGPU.zeros(Int, 4, 4)
 graph = AMDGPU.@captured f!(z)
@@ -19,6 +19,7 @@ AMDGPU.launch(graph)
 ```
 
 However, if your code contains more complex flow, it requires more preparations:
+- code **must not** result in hostcall invokation.
 - if code contains malloc and respective frees, then it can be captured and relaunched as is.
 - if code contains **only** allocations (without freeing), allocations must be cached with `GPUArrays.@cached` beforehand (see example below).
 - other unsupported operations (e.g. RNG init) must be done beforehand as well.
