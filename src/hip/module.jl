@@ -2,7 +2,10 @@ mutable struct HIPModule
     handle::hipModule_t
 
     function HIPModule(data)
-        device_synchronize()
+        # During stream capture no GPU work is actually executing, so syncing
+        # would call hipStreamQuery on a capturing stream, which returns
+        # hipErrorStreamCaptureUnsupported and invalidates the capture.
+        is_capturing() || device_synchronize()
 
         mod_ref = Ref{hipModule_t}()
         hipModuleLoadData(mod_ref, data)

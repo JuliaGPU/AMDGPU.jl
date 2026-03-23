@@ -2,8 +2,8 @@
 
 ## rocprof
 
-[rocprofv2](https://github.com/ROCm/rocprofiler?tab=readme-ov-file#rocprofiler-v2)
-allows profiling both HSA & HIP API calls (rocprof being deprecated).
+[rocprofv3](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocprofv3.html)
+allows profiling both HSA & HIP API calls.
 
 Let's profile simple copying kernel saved in `profile.jl` file:
 ```julia
@@ -39,11 +39,10 @@ main(2^24)
 ### Profiling problematic code
 
 ```bash
-ENABLE_JITPROFILING=1 rocprofv2 --plugin perfetto --hip-trace --hsa-trace --kernel-trace -o prof julia ./profile.jl
+ENABLE_JITPROFILING=1 rocprofv3 --output-directory ./profiling --output-format pftrace --hip-trace --hsa-trace --kernel-trace -- julia ./profile.jl
 ```
 
-This will produce `prof_output.pftrace` file which can be visualized
-using [Perfetto UI](https://ui.perfetto.dev/).
+This will produce `.pftrace` file which can be visualized using [Perfetto UI](https://ui.perfetto.dev/).
 
 ![image](../assets/profile_1.png)
 
