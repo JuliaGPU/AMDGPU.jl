@@ -88,21 +88,16 @@ function free(buf::HIPBuffer; stream::HIP.HIPStream)
     return
 end
 
-function upload!(dst::HIPBuffer, src::Ptr, bytesize::Int; stream::HIP.HIPStream)
+function memcpy!(dst, src, bytesize::Int; stream::HIP.HIPStream)
     bytesize == 0 && return
-    HIP.hipMemcpyHtoDAsync(dst, src, bytesize, stream)
-    return
-end
-
-function download!(dst::Ptr, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
-    bytesize == 0 && return
-    HIP.hipMemcpyDtoHAsync(dst, src, bytesize, stream)
-    return
-end
-
-function transfer!(dst::HIPBuffer, src::HIPBuffer, bytesize::Int; stream::HIP.HIPStream)
-    bytesize == 0 && return
-    HIP.hipMemcpyDtoDAsync(dst, src, bytesize, stream)
+    dst_type = attributes(convert(Ptr{Cvoid}, dst)).type
+    src_type = attributes(convert(Ptr{Cvoid}, src)).type
+    kind = if src_type == HIP.hipMemoryTypeDevice
+        dst_type == HIP.hipMemoryTypeDevice ? HIP.hipMemcpyDeviceToDevice : HIP.hipMemcpyDeviceToHost
+    else
+        dst_type == HIP.hipMemoryTypeDevice ? HIP.hipMemcpyHostToDevice : HIP.hipMemcpyHostToHost
+    end
+    HIP.memcpy(dst, src, bytesize, kind, stream)
     return
 end
 
@@ -165,28 +160,6 @@ function view(buf::HostBuffer, bytesize::Int)
         buf.bytesize - bytesize, buf.own)
 end
 
-upload!(dst::HostBuffer, src::Ptr, sz::Int; stream::HIP.HIPStream) =
-    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
-
-upload!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
-    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
-
-download!(dst::Ptr, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
-    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
-
-download!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
-    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
-
-transfer!(dst::HostBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
-    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToHost, stream)
-
-# download!(::Ptr, ::HIPBuffer)
-transfer!(dst::HostBuffer, src::HIPBuffer, sz::Int; stream::HIP.HIPStream) =
-    HIP.memcpy(dst, src, sz, HIP.hipMemcpyDeviceToHost, stream)
-
-# upload!(::HIPBuffer, ::Ptr)
-transfer!(dst::HIPBuffer, src::HostBuffer, sz::Int; stream::HIP.HIPStream) =
-    HIP.memcpy(dst, src, sz, HIP.hipMemcpyHostToDevice, stream)
 
 Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where T = convert(Ptr{T}, buf.ptr)
 

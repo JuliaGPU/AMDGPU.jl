@@ -194,8 +194,6 @@ Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
 ## memory operations
 
-# TODO rework, to pass pointers, instead of accessing .mem
-
 function Base.copyto!(
     dest::Array{T}, d_offset::Integer,
     source::ROCArray{T}, s_offset::Integer, amount::Integer;
@@ -204,16 +202,10 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-
-    @debug "[gpu -> cpu] T=$T, shape=$(size(dest))"
     stm = stream()
-    Mem.download!(
-        pointer(dest, d_offset),
-        Mem.view(convert(Mem.AbstractAMDBuffer, source.buf[]),
-            (source.offset + s_offset - 1) * aligned_sizeof(T)),
-        amount * aligned_sizeof(T); stream=stm)
+    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
     async || synchronize(stm)
-    dest
+    return dest
 end
 
 function Base.copyto!(
@@ -223,13 +215,8 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-
-    @debug "[cpu -> gpu] T=$T, shape=$(size(dest))"
-    Mem.upload!(
-        Mem.view(convert(Mem.AbstractAMDBuffer, dest.buf[]),
-            (dest.offset + d_offset - 1) * aligned_sizeof(T)),
-        pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
-    dest
+    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
+    return dest
 end
 
 function Base.copyto!(
@@ -239,19 +226,14 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-    Mem.transfer!(
-        Mem.view(convert(Mem.AbstractAMDBuffer, dest.buf[]),
-            (dest.offset + d_offset - 1) * aligned_sizeof(T)),
-        Mem.view(convert(Mem.AbstractAMDBuffer, source.buf[]),
-            (source.offset + s_offset - 1) * aligned_sizeof(T)),
-        amount * aligned_sizeof(T); stream=stream())
-    dest
+    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
+    return dest
 end
 
 function Base.copy(X::ROCArray{T}) where T
     Xnew = ROCArray{T}(undef, size(X))
     copyto!(Xnew, 1, X, 1, length(X))
-    Xnew
+    return Xnew
 end
 
 function Base.unsafe_wrap(
@@ -344,8 +326,6 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     # if A.buf.host_ptr != C_NULL
     #     throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
     # end
-
-    # TODO: add additional space to allow for quicker resizing
     n == length(A) && return A
 
     maxsize = n * aligned_sizeof(T)
@@ -353,12 +333,7 @@ function Base.resize!(A::ROCVector{T}, n::Integer) where T
     new_buf = Mem.HIPBuffer(bufsize; stream=stream())
 
     copy_size = min(length(A), n) * aligned_sizeof(T)
-    if copy_size > 0
-        Mem.transfer!(new_buf, convert(Mem.AbstractAMDBuffer, A.buf[]),
-            copy_size; stream=stream())
-    end
-
-    # Free old buffer.
+    copy_size > 0 && Mem.memcpy!(new_buf, pointer(A), copy_size; stream=stream())
     unsafe_free!(A)
 
     A.buf = DataRef(pool_free, Managed(new_buf))
