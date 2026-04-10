@@ -1,7 +1,7 @@
 mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     buf::DataRef{Managed{B}}
     dims::Dims{N}
-    offset::Int # Offset is in number of elements (not bytes).
+    offset::Int # offset of the data in memory, in bytes
 
     function ROCArray{T, N, B}(::UndefInitializer, dims::Dims{N}) where {T, N, B <: Mem.AbstractAMDBuffer}
         check_eltype("ROCArray", T)
@@ -92,7 +92,7 @@ GPUArrays.storage(a::ROCArray) = a.buf
 
 function GPUArrays.derive(::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int) where {N, T}
     ref = copy(x.buf)
-    offset += (x.offset * Base.elsize(x)) ÷ aligned_sizeof(T)
+    offset = x.offset + offset * aligned_sizeof(T)
     ROCArray{T, N}(ref, dims; offset)
 end
 
@@ -298,7 +298,7 @@ Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
 roc(xs) = adapt(Float32Adaptor(), xs)
 
 Base.unsafe_convert(typ::Type{Ptr{T}}, x::ROCArray{T}) where T =
-    convert(typ, x.buf[]) + x.offset * aligned_sizeof(T)
+    convert(typ, x.buf[]) + x.offset
 
 # some nice utilities
 
@@ -351,7 +351,7 @@ function Base.convert(
     buf = convert(Mem.AbstractAMDBuffer, a.buf[])
     ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ?
         buf : buf.dev_ptr)
-    llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset * aligned_sizeof(T))
+    llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset)
     ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
 end
 
