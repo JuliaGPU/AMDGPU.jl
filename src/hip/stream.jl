@@ -156,7 +156,7 @@ function Base.show(io::IO, mime::MIME{Symbol("text/plain")}, stream::HIPStream)
         "$(stream.priority)",
         "$(stream.device)",
     ], 1, :)
-    PrettyTables.pretty_table(io, data; header=["Ptr", "Priority", "Device"])
+    PrettyTables.pretty_table(io, data; column_labels=["Ptr", "Priority", "Device"])
 end
 
 function priority_to_symbol(priority)
