@@ -4,6 +4,7 @@ using AMDGPU: ROCVector, ROCMatrix, ROCArray, roc
 using AMDGPU.rocSPARSE
 using SparseArrays
 using LinearAlgebra
+using Adapt
 
 @assert AMDGPU.functional(:rocsparse)
 
@@ -53,6 +54,17 @@ end
         Agpu = sparse(I |> roc, J |> roc, ones(typ, length(I)) |> roc, 6, 6)
         @test SparseMatrixCSC(Agpu) == A
     end
+end
+
+@testset "Adapt sparse arrays to ROCBackend" begin
+    A = spdiagm(0 => ones(5), -1 => -ones(4), 1 => -ones(4))
+    @test adapt(ROCBackend(), A) isa ROCSparseMatrixCSC
+
+    v = sparsevec([1, 3, 5], [1.0, 2.0, 3.0], 5)
+    @test adapt(ROCBackend(), v) isa ROCSparseVector
+
+    dA = adapt(ROCBackend(), A)
+    @test adapt(ROCBackend(), dA) === dA
 end
 
 @testset "ROCSparseMatrix(::Diagonal)" begin
