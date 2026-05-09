@@ -31,17 +31,19 @@ GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelSt
 
 function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
-    undefined_fns::Vector{String},
 )
     invoke(GPUCompiler.link_libraries!,
-        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
-        job, mod, undefined_fns)
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)},
+        job, mod)
 
     # Detect global hostcalls here, before optimizations & cleanup occur.
     _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
 
     # Link only if there are undefined functions.
     # Everything else was loaded in `finish_module!` stage.
+    undefined_fns = map(LLVM.name, filter(
+        f -> isdeclaration(f) && !LLVM.isintrinsic(f),
+        collect(LLVM.functions(mod))))
     link_device_libs!(
         job.config.target, mod, undefined_fns;
         wavefrontsize64=job.config.params.wavefrontsize64,
@@ -58,7 +60,9 @@ function GPUCompiler.finish_module!(
     # Link libraries early to include options libraries in the runtime.
     # Otherwise we get wave64 specific instructions on wave32 hardware
     # which results in ICE.
-    undefined_fns = GPUCompiler.decls(mod)
+    undefined_fns = filter(
+        f -> isdeclaration(f) && !LLVM.isintrinsic(f),
+        collect(LLVM.functions(mod)))
     if !isempty(undefined_fns)
         link_device_libs!(
             job.config.target, mod, LLVM.name.(undefined_fns);
