@@ -32,6 +32,10 @@ function throw_if_exception(dev::HIPDevice)
     has_exception(dev) || return
     ex_str = get_exception_info_string(dev)
     reset_exception_info!(dev)
+    # Drain the sticky HIP error that the failed kernel left on the context.
+    # If not cleared here, subsequent library calls (rocSPARSE, rocBLAS, etc.)
+    # that internally synchronize will surface it as a spurious library error.
+    HIP.clear_last_error()
     error(ex_str) # TODO KernelException
 end
 
