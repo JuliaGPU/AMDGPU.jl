@@ -32,6 +32,10 @@ end
 function create_handle()
     AMDGPU.functional(:rocblas) || error("rocBLAS is not available")
 
+    # Consume any sticky HIP error from prior GPU work in this context.
+    # See rocSPARSE.create_handle for the rationale.
+    HIP.clear_last_error()
+
     handle_ref = Ref{rocblas_handle}()
     @check rocblas_create_handle(handle_ref)
     handle_ref[]

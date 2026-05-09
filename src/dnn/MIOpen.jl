@@ -66,6 +66,10 @@ end
 function create_handle()::miopenHandle_t
     AMDGPU.functional(:MIOpen) || error("MIOpen is not available")
 
+    # Consume any sticky HIP error from prior GPU work in this context.
+    # See rocSPARSE.create_handle for the rationale.
+    HIP.clear_last_error()
+
     handle = Ref{miopenHandle_t}()
     miopenCreate(handle)
     handle[]
