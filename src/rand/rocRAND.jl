@@ -30,6 +30,10 @@ lib_state() = library_state(
     :rocRAND, RNG, IDLE_RNGS,
     () -> RNG(), r -> return, # RNG destroys itself in finalizer.
     (nh, s) -> begin
+        # Consume any sticky HIP error from prior GPU work in this context.
+        # rocrand_initialize_generator (called inside seed!) internally syncs
+        # and will surface pending errors as ROCRAND_STATUS_LAUNCH_FAILURE.
+        HIP.clear_last_error()
         rocrand_set_stream(nh.handle, s)
         Random.seed!(nh)
     end)
