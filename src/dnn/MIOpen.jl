@@ -66,10 +66,6 @@ end
 function create_handle()::miopenHandle_t
     AMDGPU.functional(:MIOpen) || error("MIOpen is not available")
 
-    # Consume any sticky HIP error from prior GPU work in this context.
-    # See rocSPARSE.create_handle for the rationale.
-    HIP.clear_last_error()
-
     handle = Ref{miopenHandle_t}()
     miopenCreate(handle)
     handle[]
@@ -87,7 +83,12 @@ lib_state() = library_state(
     create_handle, destroy_handle!,
     (nh, s) -> miopenSetStream(nh, s))
 
-handle() = lib_state().handle
+function handle()
+    # Consume any sticky HIP error from prior GPU work in this context before
+    # any MIOpen call. See rocSPARSE.handle for the rationale.
+    HIP.clear_last_error()
+    return lib_state().handle
+end
 stream() = lib_state().stream
 
 include("descriptors.jl")

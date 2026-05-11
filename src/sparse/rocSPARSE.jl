@@ -27,12 +27,6 @@ include("librocsparse_deprecated.jl")
 function create_handle()
     AMDGPU.functional(:rocsparse) || error("rocSPARSE is not available")
 
-    # Consume any sticky HIP error from prior GPU work in this context.
-    # rocsparse_create_handle internally calls hipDeviceSynchronize which
-    # surfaces pending errors (e.g. hipErrorLaunchFailure from a prior kernel
-    # exception) and returns rocsparse_status_internal_error as a result.
-    HIP.clear_last_error()
-
     handle_ref = Ref{rocsparse_handle}()
     rocsparse_create_handle(handle_ref)
     handle_ref[]
@@ -44,7 +38,13 @@ lib_state() = library_state(
     :rocSPARSE, rocsparse_handle, IDLE_HANDLES,
     create_handle, rocsparse_destroy_handle, rocsparse_set_stream)
 
-handle() = lib_state().handle
+function handle()
+    # Consume any sticky HIP error from prior GPU work in this context before
+    # any rocsparse call. rocsparse operations internally synchronize and will
+    # surface a pending hipErrorLaunchFailure as rocsparse_status_internal_error.
+    HIP.clear_last_error()
+    return lib_state().handle
+end
 stream() = lib_state().stream
 
 function version()
