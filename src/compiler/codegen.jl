@@ -38,15 +38,9 @@ function GPUCompiler.link_libraries!(
     # Detect global hostcalls here, before optimizations & cleanup occur.
     _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
 
-    # Link only if there are undefined functions.
-    # Everything else was loaded in `finish_module!` stage.
-    undefined_fns = map(LLVM.name, filter(
-        f -> isdeclaration(f) && !LLVM.isintrinsic(f),
-        collect(LLVM.functions(mod))))
     link_device_libs!(
-        job.config.target, mod, undefined_fns;
-        wavefrontsize64=job.config.params.wavefrontsize64,
-        only_undefined=true)
+        job.config.target, mod;
+        wavefrontsize64=job.config.params.wavefrontsize64)
 end
 
 function GPUCompiler.finish_module!(
@@ -55,19 +49,6 @@ function GPUCompiler.finish_module!(
     entry = invoke(GPUCompiler.finish_module!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
-
-    # Link libraries early to include options libraries in the runtime.
-    # Otherwise we get wave64 specific instructions on wave32 hardware
-    # which results in ICE.
-    undefined_fns = filter(
-        f -> isdeclaration(f) && !LLVM.isintrinsic(f),
-        collect(LLVM.functions(mod)))
-    if !isempty(undefined_fns)
-        link_device_libs!(
-            job.config.target, mod, LLVM.name.(undefined_fns);
-            wavefrontsize64=job.config.params.wavefrontsize64,
-            only_undefined=false)
-    end
 
     # Set kernel target cpu and features.
     if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
