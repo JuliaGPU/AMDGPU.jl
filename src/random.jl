@@ -6,11 +6,7 @@ const GPUARRAY_RNG = Ref{Union{Nothing,GPUArrays.RNG}}(nothing)
 
 function GPUArrays.default_rng(::Type{<:ROCArray})
     if GPUARRAY_RNG[] == nothing
-        dev = AMDGPU.device()
-        N = HIP.attribute(dev, HIP.hipDeviceAttributeMaxThreadsPerBlock)
-        state = ROCArray{NTuple{4, UInt32}}(undef, N)
-        GPUARRAY_RNG[] = GPUArrays.RNG(state)
-        Random.seed!(GPUARRAY_RNG[])
+        GPUARRAY_RNG[] = GPUArrays.RNG{ROCArray}()
     end
     return GPUARRAY_RNG[]::GPUArrays.RNG
 end
