@@ -72,7 +72,7 @@ end
 function load_and_link!(devlib::DevLib, mod::LLVM.Module)
     isempty(devlib.path) && return
 
-    lib = parse(LLVM.Module, devlib.data; lazy=true)
+    lib = parse(LLVM.Module, devlib.data)
     inline_attr = EnumAttribute("alwaysinline")
     noinline_attr = EnumAttribute("noinline")
 
@@ -97,6 +97,6 @@ function load_and_link!(devlib::DevLib, mod::LLVM.Module)
     # override triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
-    LLVM.link!(mod, lib; only_needed=true)
+    LLVM.link!(mod, lib)
     return
 end
