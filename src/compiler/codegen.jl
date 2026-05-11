@@ -33,7 +33,7 @@ function GPUCompiler.link_libraries!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
 )
     invoke(GPUCompiler.link_libraries!,
-        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod)}, job, mod)
+        Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
 
     # Detect global hostcalls here, before optimizations & cleanup occur.
     _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
