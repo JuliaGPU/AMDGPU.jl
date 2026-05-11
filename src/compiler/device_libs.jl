@@ -72,7 +72,7 @@ end
 function load_and_link!(devlib::DevLib, mod::LLVM.Module)
     isempty(devlib.path) && return
 
-    lib = parse(LLVM.Module, devlib.data)
+    lib = parse(LLVM.Module, devlib.data; lazy=true)
     inline_attr = EnumAttribute("alwaysinline")
     noinline_attr = EnumAttribute("noinline")
 
