@@ -48,6 +48,13 @@ function GPUCompiler.finish_module!(
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
 
+    # Re-link device libs to resolve references introduced by the GPUCompiler
+    # runtime (e.g. boxing → malloc → hostcall → __ockl_hsa_signal*) which are
+    # added after link_libraries! has already run.
+    link_device_libs!(
+        job.config.target, mod;
+        wavefrontsize64=job.config.params.wavefrontsize64)
+
     # Set kernel target cpu and features.
     if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
