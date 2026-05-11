@@ -29,9 +29,7 @@ GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
 GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
 
-function GPUCompiler.link_libraries!(
-    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
-)
+function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
     invoke(GPUCompiler.link_libraries!,
         Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
 
