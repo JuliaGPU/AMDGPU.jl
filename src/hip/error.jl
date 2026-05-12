@@ -157,6 +157,9 @@ context until consumed. Call this before creating library handles to prevent
 stale errors from causing spurious failures in unrelated operations.
 """
 function clear_last_error()
-    @gcsafe_ccall libhip.hipGetLastError()::hipError_t
+    err = @gcsafe_ccall libhip.hipGetLastError()::hipError_t
+    if err != hipSuccess
+        @debug "Cleared sticky HIP error before library call" error=HIPError(err)
+    end
     return
 end
