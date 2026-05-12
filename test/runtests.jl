@@ -52,6 +52,21 @@ if any(name -> startswith(name, "enzyme"), keys(testsuite))
     Pkg.add(["EnzymeCore", "Enzyme"])
 end
 
+# Filter tests for HIP libraries that are not available.
+for (lib, pred) in [
+    :MIOpen    => name -> startswith(name, "hip_dnn/"),
+    :rocsparse => name -> startswith(name, "hip_rocsparse/"),
+    :rocblas   => name -> name == "hip_rocarray/blas",
+    :rocfft    => name -> name == "hip_rocarray/fft",
+    :rocrand   => name -> name == "hip_rocarray/random",
+    :rocsolver => name -> name == "hip_rocarray/solver",
+]
+    if !AMDGPU.functional(lib)
+        @warn "$lib is unavailable, skipping related tests."
+        filter!(((name, _),) -> !pred(name), testsuite)
+    end
+end
+
 # Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
 delete!(testsuite, "device/hostcall")
 delete!(testsuite, "device/output")
