@@ -38,19 +38,6 @@ include(gpuarrays_testsuite)
 for name in keys(TestSuite.tests)
     testsuite["gpuarrays/$name"] = :(TestSuite.tests[$name](AMDGPU.ROCArray))
 end
-@info "Available tests: `$(keys(testsuite))`."
-
-args = parse_args(ARGS)
-
-# Don't run Enzyme tests by default
-if filter_tests!(testsuite, args)
-    delete!(testsuite, "enzyme_tests")
-end
-
-if any(name -> startswith(name, "enzyme"), keys(testsuite))
-    @info "Running Enzyme tests\n"
-    Pkg.add(["EnzymeCore", "Enzyme"])
-end
 
 # Filter tests for HIP libraries that are not available.
 for (lib, pred) in [
@@ -62,9 +49,23 @@ for (lib, pred) in [
     :rocsolver => name -> name == "hip_rocarray/solver",
 ]
     if !AMDGPU.functional(lib)
-        @warn "$lib is unavailable, skipping related tests."
+        @info "$lib is unavailable, skipping related tests."
         filter!(((name, _),) -> !pred(name), testsuite)
     end
+end
+
+@info "Available tests:\n" * join(sort(collect(keys(testsuite))), "\n")
+
+args = parse_args(ARGS)
+
+# Don't run Enzyme tests by default
+if filter_tests!(testsuite, args)
+    delete!(testsuite, "enzyme_tests")
+end
+
+if any(name -> startswith(name, "enzyme"), keys(testsuite))
+    @info "Running Enzyme tests\n"
+    Pkg.add(["EnzymeCore", "Enzyme"])
 end
 
 # Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
