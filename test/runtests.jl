@@ -38,7 +38,23 @@ include(gpuarrays_testsuite)
 for name in keys(TestSuite.tests)
     testsuite["gpuarrays/$name"] = :(TestSuite.tests[$name](AMDGPU.ROCArray))
 end
-@info "Available tests: `$(keys(testsuite))`."
+
+# Filter tests for HIP libraries that are not available.
+for (lib, pred) in [
+    :MIOpen    => name -> startswith(name, "hip_dnn/"),
+    :rocsparse => name -> startswith(name, "hip_rocsparse/"),
+    :rocblas   => name -> name == "hip_rocarray/blas",
+    :rocfft    => name -> name == "hip_rocarray/fft",
+    :rocrand   => name -> name == "hip_rocarray/random",
+    :rocsolver => name -> name == "hip_rocarray/solver",
+]
+    if !AMDGPU.functional(lib)
+        @info "$lib is unavailable, skipping related tests."
+        filter!(((name, _),) -> !pred(name), testsuite)
+    end
+end
+
+@info "Available tests:\n" * join(sort(collect(keys(testsuite))), "\n")
 
 args = parse_args(ARGS)
 
