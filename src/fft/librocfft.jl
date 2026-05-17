@@ -74,45 +74,46 @@ end
 
 const rocfft_comm_type = rocfft_comm_type_e
 
+# no prototype is found for this function at rocfft.h:150:29, please use with caution
 function rocfft_setup()
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_setup()::rocfft_status
+    @check @ccall(librocfft.rocfft_setup()::rocfft_status)
 end
 
+# no prototype is found for this function at rocfft.h:154:29, please use with caution
 function rocfft_cleanup()
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_cleanup()::rocfft_status
+    @check @ccall(librocfft.rocfft_cleanup()::rocfft_status)
 end
 
 function rocfft_plan_create(plan, placement, transform_type, precision, dimensions, lengths,
                             number_of_transforms, description)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_create(plan::Ptr{rocfft_plan},
+    @check @ccall(librocfft.rocfft_plan_create(plan::Ptr{rocfft_plan},
                                                placement::rocfft_result_placement,
                                                transform_type::rocfft_transform_type,
                                                precision::rocfft_precision,
-                                               dimensions::Csize_t,
-                                               lengths::Ptr{Csize_t},
+                                               dimensions::Csize_t, lengths::Ptr{Csize_t},
                                                number_of_transforms::Csize_t,
-                                               description::rocfft_plan_description)::rocfft_status
+                                               description::rocfft_plan_description)::rocfft_status)
 end
 
 function rocfft_execute(plan, in_buffer, out_buffer, info)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_execute(plan::rocfft_plan, in_buffer::Ptr{Ptr{Cvoid}},
+    @check @ccall(librocfft.rocfft_execute(plan::rocfft_plan, in_buffer::Ptr{Ptr{Cvoid}},
                                            out_buffer::Ptr{Ptr{Cvoid}},
-                                           info::rocfft_execution_info)::rocfft_status
+                                           info::rocfft_execution_info)::rocfft_status)
 end
 
 function rocfft_plan_destroy(plan)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_destroy(plan::rocfft_plan)::rocfft_status
+    @check @ccall(librocfft.rocfft_plan_destroy(plan::rocfft_plan)::rocfft_status)
 end
 
 function rocfft_plan_description_set_scale_factor(description, scale_factor)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_description_set_scale_factor(description::rocfft_plan_description,
-                                                                     scale_factor::Cdouble)::rocfft_status
+    @check @ccall(librocfft.rocfft_plan_description_set_scale_factor(description::rocfft_plan_description,
+                                                                     scale_factor::Cdouble)::rocfft_status)
 end
 
 function rocfft_plan_description_set_data_layout(description, in_array_type, out_array_type,
@@ -120,7 +121,7 @@ function rocfft_plan_description_set_data_layout(description, in_array_type, out
                                                  in_strides, in_distance, out_strides_size,
                                                  out_strides, out_distance)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_description_set_data_layout(description::rocfft_plan_description,
+    @check @ccall(librocfft.rocfft_plan_description_set_data_layout(description::rocfft_plan_description,
                                                                     in_array_type::rocfft_array_type,
                                                                     out_array_type::rocfft_array_type,
                                                                     in_offsets::Ptr{Csize_t},
@@ -130,139 +131,153 @@ function rocfft_plan_description_set_data_layout(description, in_array_type, out
                                                                     in_distance::Csize_t,
                                                                     out_strides_size::Csize_t,
                                                                     out_strides::Ptr{Csize_t},
-                                                                    out_distance::Csize_t)::rocfft_status
+                                                                    out_distance::Csize_t)::rocfft_status)
 end
 
 function rocfft_field_create(field)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_field_create(field::Ptr{rocfft_field})::rocfft_status
+    @check @ccall(librocfft.rocfft_field_create(field::Ptr{rocfft_field})::rocfft_status)
 end
 
 function rocfft_field_destroy(field)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_field_destroy(field::rocfft_field)::rocfft_status
+    @check @ccall(librocfft.rocfft_field_destroy(field::rocfft_field)::rocfft_status)
 end
 
 function rocfft_get_version_string(buf, len)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_get_version_string(buf::Ptr{Cchar},
-                                                      len::Csize_t)::rocfft_status
+    @check @ccall(librocfft.rocfft_get_version_string(buf::Ptr{Cchar},
+                                                      len::Csize_t)::rocfft_status)
 end
 
 function rocfft_plan_description_set_comm(description, comm_type, comm_handle)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_description_set_comm(description::rocfft_plan_description,
+    @check @ccall(librocfft.rocfft_plan_description_set_comm(description::rocfft_plan_description,
                                                              comm_type::rocfft_comm_type,
-                                                             comm_handle::Ptr{Cvoid})::rocfft_status
+                                                             comm_handle::Ptr{Cvoid})::rocfft_status)
 end
 
-function rocfft_brick_create(brick, field_lower, field_upper, brick_stride, dim, deviceID)
+function rocfft_brick_create(brick, field_lower, field_upper, brick_stride, dim_with_batch,
+                             deviceID)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_brick_create(brick::Ptr{rocfft_brick},
+    @check @ccall(librocfft.rocfft_brick_create(brick::Ptr{rocfft_brick},
                                                 field_lower::Ptr{Csize_t},
                                                 field_upper::Ptr{Csize_t},
-                                                brick_stride::Ptr{Csize_t}, dim::Csize_t,
-                                                deviceID::Cint)::rocfft_status
+                                                brick_stride::Ptr{Csize_t},
+                                                dim_with_batch::Csize_t,
+                                                deviceID::Cint)::rocfft_status)
 end
 
 function rocfft_brick_destroy(brick)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_brick_destroy(brick::rocfft_brick)::rocfft_status
+    @check @ccall(librocfft.rocfft_brick_destroy(brick::rocfft_brick)::rocfft_status)
 end
 
 function rocfft_field_add_brick(field, brick)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_field_add_brick(field::rocfft_field,
-                                                   brick::rocfft_brick)::rocfft_status
+    @check @ccall(librocfft.rocfft_field_add_brick(field::rocfft_field,
+                                                   brick::rocfft_brick)::rocfft_status)
 end
 
 function rocfft_plan_description_add_infield(description, field)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_description_add_infield(description::rocfft_plan_description,
-                                                                field::rocfft_field)::rocfft_status
+    @check @ccall(librocfft.rocfft_plan_description_add_infield(description::rocfft_plan_description,
+                                                                field::rocfft_field)::rocfft_status)
 end
 
 function rocfft_plan_description_add_outfield(description, field)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_description_add_outfield(description::rocfft_plan_description,
-                                                                 field::rocfft_field)::rocfft_status
+    @check @ccall(librocfft.rocfft_plan_description_add_outfield(description::rocfft_plan_description,
+                                                                 field::rocfft_field)::rocfft_status)
 end
 
 function rocfft_plan_get_work_buffer_size(plan, size_in_bytes)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_get_work_buffer_size(plan::rocfft_plan,
-                                                             size_in_bytes::Ptr{Csize_t})::rocfft_status
+    @check @ccall(librocfft.rocfft_plan_get_work_buffer_size(plan::rocfft_plan,
+                                                             size_in_bytes::Ptr{Csize_t})::rocfft_status)
 end
 
 function rocfft_plan_get_print(plan)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_get_print(plan::rocfft_plan)::rocfft_status
+    @check @ccall(librocfft.rocfft_plan_get_print(plan::rocfft_plan)::rocfft_status)
 end
 
 function rocfft_plan_description_create(description)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_description_create(description::Ptr{rocfft_plan_description})::rocfft_status
+    @check @ccall(librocfft.rocfft_plan_description_create(description::Ptr{rocfft_plan_description})::rocfft_status)
 end
 
 function rocfft_plan_description_destroy(description)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_plan_description_destroy(description::rocfft_plan_description)::rocfft_status
+    @check @ccall(librocfft.rocfft_plan_description_destroy(description::rocfft_plan_description)::rocfft_status)
 end
 
 function rocfft_execution_info_create(info)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_execution_info_create(info::Ptr{rocfft_execution_info})::rocfft_status
+    @check @ccall(librocfft.rocfft_execution_info_create(info::Ptr{rocfft_execution_info})::rocfft_status)
 end
 
 function rocfft_execution_info_destroy(info)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_execution_info_destroy(info::rocfft_execution_info)::rocfft_status
+    @check @ccall(librocfft.rocfft_execution_info_destroy(info::rocfft_execution_info)::rocfft_status)
 end
 
 function rocfft_execution_info_set_work_buffer(info, work_buffer, size_in_bytes)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_execution_info_set_work_buffer(info::rocfft_execution_info,
+    @check @ccall(librocfft.rocfft_execution_info_set_work_buffer(info::rocfft_execution_info,
                                                                   work_buffer::Ptr{Cvoid},
-                                                                  size_in_bytes::Csize_t)::rocfft_status
+                                                                  size_in_bytes::Csize_t)::rocfft_status)
 end
 
 function rocfft_execution_info_set_stream(info, stream)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_execution_info_set_stream(info::rocfft_execution_info,
-                                                             stream::Ptr{Cvoid})::rocfft_status
+    @check @ccall(librocfft.rocfft_execution_info_set_stream(info::rocfft_execution_info,
+                                                             stream::Ptr{Cvoid})::rocfft_status)
 end
 
 function rocfft_execution_info_set_load_callback(info, cb_functions, cb_data,
                                                  shared_mem_bytes)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_execution_info_set_load_callback(info::rocfft_execution_info,
+    @check @ccall(librocfft.rocfft_execution_info_set_load_callback(info::rocfft_execution_info,
                                                                     cb_functions::Ptr{Ptr{Cvoid}},
                                                                     cb_data::Ptr{Ptr{Cvoid}},
-                                                                    shared_mem_bytes::Csize_t)::rocfft_status
+                                                                    shared_mem_bytes::Csize_t)::rocfft_status)
 end
 
 function rocfft_execution_info_set_store_callback(info, cb_functions, cb_data,
                                                   shared_mem_bytes)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_execution_info_set_store_callback(info::rocfft_execution_info,
+    @check @ccall(librocfft.rocfft_execution_info_set_store_callback(info::rocfft_execution_info,
                                                                      cb_functions::Ptr{Ptr{Cvoid}},
                                                                      cb_data::Ptr{Ptr{Cvoid}},
-                                                                     shared_mem_bytes::Csize_t)::rocfft_status
+                                                                     shared_mem_bytes::Csize_t)::rocfft_status)
 end
 
 function rocfft_cache_serialize(buffer, buffer_len_bytes)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_cache_serialize(buffer::Ptr{Ptr{Cvoid}},
-                                                   buffer_len_bytes::Ptr{Csize_t})::rocfft_status
+    @check @ccall(librocfft.rocfft_cache_serialize(buffer::Ptr{Ptr{Cvoid}},
+                                                   buffer_len_bytes::Ptr{Csize_t})::rocfft_status)
 end
 
 function rocfft_cache_buffer_free(buffer)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_cache_buffer_free(buffer::Ptr{Cvoid})::rocfft_status
+    @check @ccall(librocfft.rocfft_cache_buffer_free(buffer::Ptr{Cvoid})::rocfft_status)
 end
 
 function rocfft_cache_deserialize(buffer, buffer_len_bytes)
     AMDGPU.prepare_state()
-    @check @ccall librocfft.rocfft_cache_deserialize(buffer::Ptr{Cvoid},
-                                                     buffer_len_bytes::Csize_t)::rocfft_status
+    @check @ccall(librocfft.rocfft_cache_deserialize(buffer::Ptr{Cvoid},
+                                                     buffer_len_bytes::Csize_t)::rocfft_status)
 end
+
+# Skipping MacroDefinition: ROCFFT_EXPORT __attribute__ ( ( visibility ( "default" ) ) )
+
+# Skipping MacroDefinition: ROCFFT_NO_EXPORT __attribute__ ( ( visibility ( "hidden" ) ) )
+
+# Skipping MacroDefinition: ROCFFT_DEPRECATED __attribute__ ( ( __deprecated__ ) )
+
+const rocfft_version_major = 1
+
+const rocfft_version_minor = 0
+
+const rocfft_version_patch = 36
