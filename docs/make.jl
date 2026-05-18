@@ -13,7 +13,7 @@ function main()
     deploy_decision = Documenter.deploy_folder(
         deploy_config;
         repo,
-        devbranch="master",
+        devbranch="main",
         devurl="dev",
         push_preview=true,
     )
@@ -24,7 +24,7 @@ function main()
         format=DocumenterVitepress.MarkdownVitepress(;
             repo,
             deploy_url,
-            devbranch="master",
+            devbranch="main",
             devurl="dev",
             deploy_decision,
         ),
@@ -58,7 +58,7 @@ function main()
             repo="github.com/JuliaGPU/AMDGPU.jl.git",
             push_preview=true,
             target="build",
-            devbranch="master",
+            devbranch="main",
         )
     end
 end

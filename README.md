@@ -7,10 +7,10 @@
 [doi-img]: https://zenodo.org/badge/DOI/10.5281/zenodo.10040461.svg
 [doi-url]: https://doi.org/10.5281/zenodo.10040461
 
-[buildkite-img]: https://badge.buildkite.com/b1b3b0e3d13add4aa5a64c866937fde364ad777813725ef887.svg?branch=master
+[buildkite-img]: https://badge.buildkite.com/b1b3b0e3d13add4aa5a64c866937fde364ad777813725ef887.svg?branch=main
 [buildkite-url]: https://buildkite.com/julialang/amdgpu-dot-jl
 
-[codecov-img]: https://codecov.io/gh/JuliaGPU/AMDGPU.jl/branch/master/graph/badge.svg
+[codecov-img]: https://codecov.io/gh/JuliaGPU/AMDGPU.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/AMDGPU.jl
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
