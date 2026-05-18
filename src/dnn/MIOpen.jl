@@ -83,7 +83,9 @@ lib_state() = library_state(
     create_handle, destroy_handle!,
     (nh, s) -> miopenSetStream(nh, s))
 
-handle() = lib_state().handle
+function handle()
+    return lib_state().handle
+end
 stream() = lib_state().stream
 
 include("descriptors.jl")
