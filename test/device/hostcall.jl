@@ -39,7 +39,7 @@ end
     RB = ROCArray(zeros(Float32, 1))
     dref = Ref{Bool}(false)
 
-    @test_logs (:error, "HostCall error") match_mode=:any begin
+    @test_logs (:error, "HostCall error") begin
         hc = HostCallHolder(Nothing, Tuple{}) do
             error("Some error")
             dref[] = true
