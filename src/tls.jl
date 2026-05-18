@@ -190,6 +190,7 @@ function priority!(f::Function, p::Symbol)
 end
 
 @inline function prepare_state(state = task_local_state!())
+    HIP.clear_last_error() # Drain any sticky HIP error left by a prior kernel failure
     hip_ctx = Ref{HIP.hipCtx_t}()
     HIP.hipCtxGetCurrent(hip_ctx)
     state.context.context != hip_ctx[] &&

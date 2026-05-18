@@ -52,9 +52,6 @@ function lib_state()
 end
 
 function handle()
-    # Consume any sticky HIP error from prior GPU work in this context before
-    # any rocblas call. See rocSPARSE.handle for the rationale.
-    HIP.clear_last_error()
     return lib_state().handle
 end
 stream() = lib_state().stream

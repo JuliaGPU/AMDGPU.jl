@@ -149,11 +149,8 @@ end
 """
     clear_last_error()
 
-Consume any sticky HIP error on the current context without throwing.
-
-Some HIP operations surface errors that were set by previous GPU work (e.g. a kernel exception).
-These errors persist on the context until consumed.
-Call this before creating library handles to prevent stale errors from causing spurious failures in unrelated operations.
+Consume any sticky HIP error on the current context without throwing,
+logging it at the `@debug` level if one was present.
 """
 function clear_last_error()
     err = @gcsafe_ccall libhip.hipGetLastError()::hipError_t

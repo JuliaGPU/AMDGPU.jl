@@ -39,10 +39,6 @@ lib_state() = library_state(
     create_handle, rocsparse_destroy_handle, rocsparse_set_stream)
 
 function handle()
-    # Consume any sticky HIP error from prior GPU work in this context before
-    # any rocsparse call. rocsparse operations internally synchronize and will
-    # surface a pending hipErrorLaunchFailure as rocsparse_status_internal_error.
-    HIP.clear_last_error()
     return lib_state().handle
 end
 stream() = lib_state().stream
