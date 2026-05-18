@@ -70,7 +70,7 @@ mutable struct ROCSparseMatrixCSR{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCS
 
     function ROCSparseMatrixCSR{Tv, Ti}(
         rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
-        nzVal::ROCVector, dims::NTuple{2, Int},
+        nzVal::ROCVector, dims::NTuple{2,<:Integer},
     ) where {Tv, Ti<:Integer}
         new{Tv, Ti}(rowPtr, colVal, nzVal, dims, length(nzVal))
     end
@@ -153,7 +153,7 @@ mutable struct ROCSparseMatrixCOO{Tv, Ti} <: AbstractROCSparseMatrix{Tv, Ti}
 
     function ROCSparseMatrixCOO{Tv, Ti}(
         rowInd::ROCVector{<:Integer}, colInd::ROCVector{<:Integer},
-        nzVal::ROCVector, dims::NTuple{2,Int} = (dimlub(rowInd),dimlub(colInd)),
+        nzVal::ROCVector, dims::NTuple{2,<:Integer} = (dimlub(rowInd),dimlub(colInd)),
         nnz::Integer = length(nzVal),
     ) where {Tv, Ti}
         new{Tv, Ti}(rowInd,colInd,nzVal,dims,nnz)
@@ -190,7 +190,7 @@ end
 
 function ROCSparseMatrixCSR{Tv}(
     rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
-    nzVal::ROCVector, dims::NTuple{2,Int},
+    nzVal::ROCVector, dims::NTuple{2,<:Integer},
 ) where Tv
     ROCSparseMatrixCSR{Tv, Cint}(rowPtr, colVal, nzVal, dims)
 end
@@ -205,7 +205,7 @@ end
 
 function ROCSparseMatrixCOO{Tv}(
     rowInd::ROCVector{<:Integer}, colInd::ROCVector{<:Integer},
-    nzVal::ROCVector, dims::NTuple{2,Int} = (dimlub(rowInd), dimlub(colInd)),
+    nzVal::ROCVector, dims::NTuple{2,<:Integer} = (dimlub(rowInd), dimlub(colInd)),
     nnz::Integer = length(nzVal),
 ) where Tv
     ROCSparseMatrixCOO{Tv, Cint}(rowInd,colInd,nzVal,dims,nnz)
@@ -217,22 +217,22 @@ ROCSparseVector(iPtr::DenseROCArray{<:Integer}, nzVal::DenseROCArray{T}, len::In
 
 ROCSparseMatrixCSC(
     colPtr::DenseROCArray{<:Integer}, rowVal::DenseROCArray{<:Integer},
-    nzVal::DenseROCArray{T}, dims::NTuple{2,Int},
+    nzVal::DenseROCArray{T}, dims::NTuple{2,<:Integer},
 ) where {T} =
     ROCSparseMatrixCSC{T}(colPtr, rowVal, nzVal, dims)
 
-ROCSparseMatrixCSR(rowPtr::DenseROCArray, colVal::DenseROCArray, nzVal::DenseROCArray{T}, dims::NTuple{2,Int}) where T =
+ROCSparseMatrixCSR(rowPtr::DenseROCArray, colVal::DenseROCArray, nzVal::DenseROCArray{T}, dims::NTuple{2,<:Integer}) where T =
     ROCSparseMatrixCSR{T}(rowPtr, colVal, nzVal, dims)
 
 ROCSparseMatrixBSR(
     rowPtr::DenseROCArray, colVal::DenseROCArray, nzVal::DenseROCArray{T},
-    blockDim, dir, nnz, dims::NTuple{2,Int},
+    blockDim, dir, nnz, dims::NTuple{2,<:Integer},
 ) where T =
     ROCSparseMatrixBSR{T}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 
 ROCSparseMatrixCOO(
     rowInd::DenseROCArray, colInd::DenseROCArray, nzVal::DenseROCArray{T},
-    dims::NTuple{2,Int}, nnz,
+    dims::NTuple{2,<:Integer}, nnz,
 ) where T =
     ROCSparseMatrixCOO{T}(rowInd, colInd, nzVal, dims, nnz)
 

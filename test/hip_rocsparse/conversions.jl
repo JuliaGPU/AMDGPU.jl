@@ -43,6 +43,24 @@ using LinearAlgebra
     end
 end
 
+@testset "sparse with Int32 indices" begin
+    I = Int32[1,2,3] |> roc
+    J = Int32[2,3,4] |> roc
+    V = Float32[1,2,3] |> roc
+
+    @test sparse(I, J, V) isa ROCSparseMatrixCSC
+    for fmt in (:coo, :csc, :csr)
+        x = sparse(I, J, V; fmt=fmt)
+        @test size(x) == (3, 4)
+    end
+
+    m, n = Int32(4), Int32(4)
+    for fmt in (:coo, :csc, :csr)
+        x = sparse(I, J, V, m, n; fmt=fmt)
+        @test size(x) == (4, 4)
+    end
+end
+
 @testset "unsorted sparse (AMDGPU.jl#1407)" begin
     I = [1, 1, 2, 3, 3, 4, 5, 4, 6, 4, 5, 6, 6, 6]
     J = [4, 6, 4, 5, 6, 6, 6, 1, 1, 2, 3, 3, 4, 5]
