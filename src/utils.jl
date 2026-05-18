@@ -12,6 +12,7 @@ function versioninfo()
         _status(functional(:rocsparse))   "rocSPARSE"        _ver(:rocsparse, rocSPARSE.version) _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
+        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version) _libpath(libhiptensor);
         _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
     ]
 
@@ -64,6 +65,7 @@ function correctly. Available `component` values are:
 - `:rocsparse`   - Queries rocSPARSE library availability
 - `:rocrand`     - Queries rocRAND library availability
 - `:rocfft`      - Queries rocFFT library availability
+- `:hiptensor`   - Queries hipTENSOR library availability
 - `:MIOpen`      - Queries MIOpen library availability
 - `:all`         - Queries all above components
 
@@ -86,6 +88,8 @@ function functional(component::Symbol)
         return !isempty(librocrand)
     elseif component == :rocfft
         return !isempty(librocfft)
+    elseif component == :hiptensor
+        return !isempty(libhiptensor)
     elseif component == :MIOpen
         return !isempty(libMIOpen_path)
     elseif component == :all

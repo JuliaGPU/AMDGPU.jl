@@ -3,6 +3,7 @@ module ROCmDiscovery
 export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
 export librocblas, librocsparse, librocsolver
 export librocrand, librocfft, libMIOpen_path
+export libhiptensor
 
 using LLD_jll
 using ROCmDeviceLibs_jll
@@ -55,6 +56,7 @@ global librocsparse::String = ""
 global librocsolver::String = ""
 global librocrand::String = ""
 global librocfft::String = ""
+global libhiptensor::String = ""
 global libMIOpen_path::String = ""
 
 function __init__()
@@ -96,6 +98,7 @@ function __init__()
         global librocsolver = find_rocm_library(lib_prefix * "rocsolver"; rocm_path)
         global librocrand = find_rocm_library(lib_prefix * "rocrand"; rocm_path)
         global librocfft = find_rocm_library(lib_prefix * "rocfft"; rocm_path)
+        global libhiptensor = find_rocm_library(lib_prefix * "hiptensor"; rocm_path)
         global libMIOpen_path = find_rocm_library(lib_prefix * "MIOpen"; rocm_path)
     catch err
         @error """ROCm discovery failed!
