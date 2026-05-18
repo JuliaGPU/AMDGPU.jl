@@ -151,10 +151,9 @@ end
 
 Consume any sticky HIP error on the current context without throwing.
 
-Some HIP operations (e.g. `hipDeviceSynchronize`) surface errors that were set
-by previous GPU work (e.g. a kernel exception). These errors persist on the
-context until consumed. Call this before creating library handles to prevent
-stale errors from causing spurious failures in unrelated operations.
+Some HIP operations surface errors that were set by previous GPU work (e.g. a kernel exception).
+These errors persist on the context until consumed.
+Call this before creating library handles to prevent stale errors from causing spurious failures in unrelated operations.
 """
 function clear_last_error()
     err = @gcsafe_ccall libhip.hipGetLastError()::hipError_t
