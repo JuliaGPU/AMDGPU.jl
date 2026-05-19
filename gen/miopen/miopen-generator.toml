@@ -11,6 +11,11 @@ output_ignorelist = [
     "MIOPEN_VERSION_TWEAK",
     "MIOPEN_USE_GEMM",
     "MIOPEN_INSTALLABLE",
+    # HIP compat aliases pulled in transitively; the aliased R0600 functions are
+    # not emitted in this file so these would reference undefined symbols.
+    "hipGetDeviceProperties",
+    "hipDeviceProp_t",
+    "hipChooseDevice",
 ]
 
 [codegen]
