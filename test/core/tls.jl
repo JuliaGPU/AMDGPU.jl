@@ -43,4 +43,15 @@ end
         s2 = AMDGPU.stream()
         @test s1 ≡ s2
     end
+
+    @testset "Validity" begin
+        s = HIPStream()
+        @test AMDGPU.isvalid(s)
+
+        finalize(s)
+        @test !AMDGPU.isvalid(s)
+
+        # Must return true without segfaulting on an already-finalized stream.
+        @test AMDGPU.HIP.isdone(s) == true
+    end
 end
