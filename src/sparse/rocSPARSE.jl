@@ -38,9 +38,7 @@ lib_state() = library_state(
     :rocSPARSE, rocsparse_handle, IDLE_HANDLES,
     create_handle, rocsparse_destroy_handle, rocsparse_set_stream)
 
-function handle()
-    return lib_state().handle
-end
+handle() = lib_state().handle
 stream() = lib_state().stream
 
 function version()

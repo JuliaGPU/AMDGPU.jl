@@ -34,9 +34,7 @@ lib_state() = library_state(
         Random.seed!(nh)
     end)
 
-function handle()
-    return lib_state().handle
-end
+handle() = lib_state().handle
 stream() = lib_state().stream
 
 end

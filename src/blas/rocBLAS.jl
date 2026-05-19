@@ -51,9 +51,7 @@ function lib_state()
         (nh, s) -> rocblas_set_stream(nh, s))
 end
 
-function handle()
-    return lib_state().handle
-end
+handle() = lib_state().handle
 stream() = lib_state().stream
 
 end
