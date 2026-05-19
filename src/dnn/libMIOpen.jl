@@ -3667,12 +3667,6 @@ const __HIP_ARCH_HAS_3DGRID__ = 0
 
 const __HIP_ARCH_HAS_DYNAMIC_PARALLEL__ = 0
 
-const hipGetDeviceProperties = hipGetDevicePropertiesR0600
-
-const hipDeviceProp_t = hipDeviceProp_tR0600
-
-const hipChooseDevice = hipChooseDeviceR0600
-
 const HIP_GET_PROC_ADDRESS_DEFAULT = 0x00
 
 const HIP_GET_PROC_ADDRESS_LEGACY_STREAM = 0x01
