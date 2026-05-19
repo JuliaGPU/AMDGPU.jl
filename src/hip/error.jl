@@ -145,3 +145,17 @@ function check(err::hipError_t)
         throw(HIPError(err))
     end
 end
+
+"""
+    clear_last_error()
+
+Consume any sticky HIP error on the current context without throwing,
+logging it at the `@debug` level if one was present.
+"""
+function clear_last_error()
+    err = @gcsafe_ccall libhip.hipGetLastError()::hipError_t
+    if err != hipSuccess
+        @debug "Cleared sticky HIP error before library call" error=HIPError(err)
+    end
+    return
+end
