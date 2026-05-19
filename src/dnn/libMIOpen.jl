@@ -1,5 +1,519 @@
 using CEnum: CEnum, @cenum
 
+struct hipUUID_t
+    bytes::NTuple{16,Cchar}
+end
+
+const hipUUID = hipUUID_t
+
+struct hipDeviceArch_t
+    data::NTuple{4,UInt8}
+end
+
+function Base.getproperty(x::Ptr{hipDeviceArch_t}, f::Symbol)
+    f === :hasGlobalInt32Atomics && return (Ptr{Cuint}(x + 0), 0, 1)
+    f === :hasGlobalFloatAtomicExch && return (Ptr{Cuint}(x + 0), 1, 1)
+    f === :hasSharedInt32Atomics && return (Ptr{Cuint}(x + 0), 2, 1)
+    f === :hasSharedFloatAtomicExch && return (Ptr{Cuint}(x + 0), 3, 1)
+    f === :hasFloatAtomicAdd && return (Ptr{Cuint}(x + 0), 4, 1)
+    f === :hasGlobalInt64Atomics && return (Ptr{Cuint}(x + 0), 5, 1)
+    f === :hasSharedInt64Atomics && return (Ptr{Cuint}(x + 0), 6, 1)
+    f === :hasDoubles && return (Ptr{Cuint}(x + 0), 7, 1)
+    f === :hasWarpVote && return (Ptr{Cuint}(x + 0), 8, 1)
+    f === :hasWarpBallot && return (Ptr{Cuint}(x + 0), 9, 1)
+    f === :hasWarpShuffle && return (Ptr{Cuint}(x + 0), 10, 1)
+    f === :hasFunnelShift && return (Ptr{Cuint}(x + 0), 11, 1)
+    f === :hasThreadFenceSystem && return (Ptr{Cuint}(x + 0), 12, 1)
+    f === :hasSyncThreadsExt && return (Ptr{Cuint}(x + 0), 13, 1)
+    f === :hasSurfaceFuncs && return (Ptr{Cuint}(x + 0), 14, 1)
+    f === :has3dGrid && return (Ptr{Cuint}(x + 0), 15, 1)
+    f === :hasDynamicParallelism && return (Ptr{Cuint}(x + 0), 16, 1)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::hipDeviceArch_t, f::Symbol)
+    r = Ref{hipDeviceArch_t}(x)
+    ptr = Base.unsafe_convert(Ptr{hipDeviceArch_t}, r)
+    fptr = getproperty(ptr, f)
+    begin
+        if fptr isa Ptr
+            return GC.@preserve(r, unsafe_load(fptr))
+        else
+            (baseptr, offset, width) = fptr
+            ty = eltype(baseptr)
+            baseptr32 = convert(Ptr{UInt32}, baseptr)
+            u64 = GC.@preserve(r, unsafe_load(baseptr32))
+            if offset + width > 32
+                u64 |= GC.@preserve(r, unsafe_load(baseptr32 + 4)) << 32
+            end
+            u64 = u64 >> offset & (1 << width - 1)
+            return u64 % ty
+        end
+    end
+end
+
+function Base.setproperty!(x::Ptr{hipDeviceArch_t}, f::Symbol, v)
+    fptr = getproperty(x, f)
+    if fptr isa Ptr
+        unsafe_store!(getproperty(x, f), v)
+    else
+        (baseptr, offset, width) = fptr
+        baseptr32 = convert(Ptr{UInt32}, baseptr)
+        u64 = unsafe_load(baseptr32)
+        straddle = offset + width > 32
+        if straddle
+            u64 |= unsafe_load(baseptr32 + 4) << 32
+        end
+        mask = 1 << width - 1
+        u64 &= ~(mask << offset)
+        u64 |= (unsigned(v) & mask) << offset
+        unsafe_store!(baseptr32, u64 & typemax(UInt32))
+        if straddle
+            unsafe_store!(baseptr32 + 4, u64 >> 32)
+        end
+    end
+end
+
+function Base.propertynames(x::hipDeviceArch_t, private::Bool=false)
+    return (:hasGlobalInt32Atomics, :hasGlobalFloatAtomicExch, :hasSharedInt32Atomics,
+            :hasSharedFloatAtomicExch, :hasFloatAtomicAdd, :hasGlobalInt64Atomics,
+            :hasSharedInt64Atomics, :hasDoubles, :hasWarpVote, :hasWarpBallot,
+            :hasWarpShuffle, :hasFunnelShift, :hasThreadFenceSystem, :hasSyncThreadsExt,
+            :hasSurfaceFuncs, :has3dGrid, :hasDynamicParallelism,
+            if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct hipDeviceProp_tR0600
+    data::NTuple{1472,UInt8}
+end
+
+function Base.getproperty(x::Ptr{hipDeviceProp_tR0600}, f::Symbol)
+    f === :name && return Ptr{NTuple{256,Cchar}}(x + 0)
+    f === :uuid && return Ptr{hipUUID}(x + 256)
+    f === :luid && return Ptr{NTuple{8,Cchar}}(x + 272)
+    f === :luidDeviceNodeMask && return Ptr{Cuint}(x + 280)
+    f === :totalGlobalMem && return Ptr{Csize_t}(x + 288)
+    f === :sharedMemPerBlock && return Ptr{Csize_t}(x + 296)
+    f === :regsPerBlock && return Ptr{Cint}(x + 304)
+    f === :warpSize && return Ptr{Cint}(x + 308)
+    f === :memPitch && return Ptr{Csize_t}(x + 312)
+    f === :maxThreadsPerBlock && return Ptr{Cint}(x + 320)
+    f === :maxThreadsDim && return Ptr{NTuple{3,Cint}}(x + 324)
+    f === :maxGridSize && return Ptr{NTuple{3,Cint}}(x + 336)
+    f === :clockRate && return Ptr{Cint}(x + 348)
+    f === :totalConstMem && return Ptr{Csize_t}(x + 352)
+    f === :major && return Ptr{Cint}(x + 360)
+    f === :minor && return Ptr{Cint}(x + 364)
+    f === :textureAlignment && return Ptr{Csize_t}(x + 368)
+    f === :texturePitchAlignment && return Ptr{Csize_t}(x + 376)
+    f === :deviceOverlap && return Ptr{Cint}(x + 384)
+    f === :multiProcessorCount && return Ptr{Cint}(x + 388)
+    f === :kernelExecTimeoutEnabled && return Ptr{Cint}(x + 392)
+    f === :integrated && return Ptr{Cint}(x + 396)
+    f === :canMapHostMemory && return Ptr{Cint}(x + 400)
+    f === :computeMode && return Ptr{Cint}(x + 404)
+    f === :maxTexture1D && return Ptr{Cint}(x + 408)
+    f === :maxTexture1DMipmap && return Ptr{Cint}(x + 412)
+    f === :maxTexture1DLinear && return Ptr{Cint}(x + 416)
+    f === :maxTexture2D && return Ptr{NTuple{2,Cint}}(x + 420)
+    f === :maxTexture2DMipmap && return Ptr{NTuple{2,Cint}}(x + 428)
+    f === :maxTexture2DLinear && return Ptr{NTuple{3,Cint}}(x + 436)
+    f === :maxTexture2DGather && return Ptr{NTuple{2,Cint}}(x + 448)
+    f === :maxTexture3D && return Ptr{NTuple{3,Cint}}(x + 456)
+    f === :maxTexture3DAlt && return Ptr{NTuple{3,Cint}}(x + 468)
+    f === :maxTextureCubemap && return Ptr{Cint}(x + 480)
+    f === :maxTexture1DLayered && return Ptr{NTuple{2,Cint}}(x + 484)
+    f === :maxTexture2DLayered && return Ptr{NTuple{3,Cint}}(x + 492)
+    f === :maxTextureCubemapLayered && return Ptr{NTuple{2,Cint}}(x + 504)
+    f === :maxSurface1D && return Ptr{Cint}(x + 512)
+    f === :maxSurface2D && return Ptr{NTuple{2,Cint}}(x + 516)
+    f === :maxSurface3D && return Ptr{NTuple{3,Cint}}(x + 524)
+    f === :maxSurface1DLayered && return Ptr{NTuple{2,Cint}}(x + 536)
+    f === :maxSurface2DLayered && return Ptr{NTuple{3,Cint}}(x + 544)
+    f === :maxSurfaceCubemap && return Ptr{Cint}(x + 556)
+    f === :maxSurfaceCubemapLayered && return Ptr{NTuple{2,Cint}}(x + 560)
+    f === :surfaceAlignment && return Ptr{Csize_t}(x + 568)
+    f === :concurrentKernels && return Ptr{Cint}(x + 576)
+    f === :ECCEnabled && return Ptr{Cint}(x + 580)
+    f === :pciBusID && return Ptr{Cint}(x + 584)
+    f === :pciDeviceID && return Ptr{Cint}(x + 588)
+    f === :pciDomainID && return Ptr{Cint}(x + 592)
+    f === :tccDriver && return Ptr{Cint}(x + 596)
+    f === :asyncEngineCount && return Ptr{Cint}(x + 600)
+    f === :unifiedAddressing && return Ptr{Cint}(x + 604)
+    f === :memoryClockRate && return Ptr{Cint}(x + 608)
+    f === :memoryBusWidth && return Ptr{Cint}(x + 612)
+    f === :l2CacheSize && return Ptr{Cint}(x + 616)
+    f === :persistingL2CacheMaxSize && return Ptr{Cint}(x + 620)
+    f === :maxThreadsPerMultiProcessor && return Ptr{Cint}(x + 624)
+    f === :streamPrioritiesSupported && return Ptr{Cint}(x + 628)
+    f === :globalL1CacheSupported && return Ptr{Cint}(x + 632)
+    f === :localL1CacheSupported && return Ptr{Cint}(x + 636)
+    f === :sharedMemPerMultiprocessor && return Ptr{Csize_t}(x + 640)
+    f === :regsPerMultiprocessor && return Ptr{Cint}(x + 648)
+    f === :managedMemory && return Ptr{Cint}(x + 652)
+    f === :isMultiGpuBoard && return Ptr{Cint}(x + 656)
+    f === :multiGpuBoardGroupID && return Ptr{Cint}(x + 660)
+    f === :hostNativeAtomicSupported && return Ptr{Cint}(x + 664)
+    f === :singleToDoublePrecisionPerfRatio && return Ptr{Cint}(x + 668)
+    f === :pageableMemoryAccess && return Ptr{Cint}(x + 672)
+    f === :concurrentManagedAccess && return Ptr{Cint}(x + 676)
+    f === :computePreemptionSupported && return Ptr{Cint}(x + 680)
+    f === :canUseHostPointerForRegisteredMem && return Ptr{Cint}(x + 684)
+    f === :cooperativeLaunch && return Ptr{Cint}(x + 688)
+    f === :cooperativeMultiDeviceLaunch && return Ptr{Cint}(x + 692)
+    f === :sharedMemPerBlockOptin && return Ptr{Csize_t}(x + 696)
+    f === :pageableMemoryAccessUsesHostPageTables && return Ptr{Cint}(x + 704)
+    f === :directManagedMemAccessFromHost && return Ptr{Cint}(x + 708)
+    f === :maxBlocksPerMultiProcessor && return Ptr{Cint}(x + 712)
+    f === :accessPolicyMaxWindowSize && return Ptr{Cint}(x + 716)
+    f === :reservedSharedMemPerBlock && return Ptr{Csize_t}(x + 720)
+    f === :hostRegisterSupported && return Ptr{Cint}(x + 728)
+    f === :sparseHipArraySupported && return Ptr{Cint}(x + 732)
+    f === :hostRegisterReadOnlySupported && return Ptr{Cint}(x + 736)
+    f === :timelineSemaphoreInteropSupported && return Ptr{Cint}(x + 740)
+    f === :memoryPoolsSupported && return Ptr{Cint}(x + 744)
+    f === :gpuDirectRDMASupported && return Ptr{Cint}(x + 748)
+    f === :gpuDirectRDMAFlushWritesOptions && return Ptr{Cuint}(x + 752)
+    f === :gpuDirectRDMAWritesOrdering && return Ptr{Cint}(x + 756)
+    f === :memoryPoolSupportedHandleTypes && return Ptr{Cuint}(x + 760)
+    f === :deferredMappingHipArraySupported && return Ptr{Cint}(x + 764)
+    f === :ipcEventSupported && return Ptr{Cint}(x + 768)
+    f === :clusterLaunch && return Ptr{Cint}(x + 772)
+    f === :unifiedFunctionPointers && return Ptr{Cint}(x + 776)
+    f === :reserved && return Ptr{NTuple{63,Cint}}(x + 780)
+    f === :hipReserved && return Ptr{NTuple{32,Cint}}(x + 1032)
+    f === :gcnArchName && return Ptr{NTuple{256,Cchar}}(x + 1160)
+    f === :maxSharedMemoryPerMultiProcessor && return Ptr{Csize_t}(x + 1416)
+    f === :clockInstructionRate && return Ptr{Cint}(x + 1424)
+    f === :arch && return Ptr{hipDeviceArch_t}(x + 1428)
+    f === :hdpMemFlushCntl && return Ptr{Ptr{Cuint}}(x + 1432)
+    f === :hdpRegFlushCntl && return Ptr{Ptr{Cuint}}(x + 1440)
+    f === :cooperativeMultiDeviceUnmatchedFunc && return Ptr{Cint}(x + 1448)
+    f === :cooperativeMultiDeviceUnmatchedGridDim && return Ptr{Cint}(x + 1452)
+    f === :cooperativeMultiDeviceUnmatchedBlockDim && return Ptr{Cint}(x + 1456)
+    f === :cooperativeMultiDeviceUnmatchedSharedMem && return Ptr{Cint}(x + 1460)
+    f === :isLargeBar && return Ptr{Cint}(x + 1464)
+    f === :asicRevision && return Ptr{Cint}(x + 1468)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::hipDeviceProp_tR0600, f::Symbol)
+    r = Ref{hipDeviceProp_tR0600}(x)
+    ptr = Base.unsafe_convert(Ptr{hipDeviceProp_tR0600}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{hipDeviceProp_tR0600}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::hipDeviceProp_tR0600, private::Bool=false)
+    return (:name, :uuid, :luid, :luidDeviceNodeMask, :totalGlobalMem, :sharedMemPerBlock,
+            :regsPerBlock, :warpSize, :memPitch, :maxThreadsPerBlock, :maxThreadsDim,
+            :maxGridSize, :clockRate, :totalConstMem, :major, :minor, :textureAlignment,
+            :texturePitchAlignment, :deviceOverlap, :multiProcessorCount,
+            :kernelExecTimeoutEnabled, :integrated, :canMapHostMemory, :computeMode,
+            :maxTexture1D, :maxTexture1DMipmap, :maxTexture1DLinear, :maxTexture2D,
+            :maxTexture2DMipmap, :maxTexture2DLinear, :maxTexture2DGather, :maxTexture3D,
+            :maxTexture3DAlt, :maxTextureCubemap, :maxTexture1DLayered,
+            :maxTexture2DLayered, :maxTextureCubemapLayered, :maxSurface1D, :maxSurface2D,
+            :maxSurface3D, :maxSurface1DLayered, :maxSurface2DLayered, :maxSurfaceCubemap,
+            :maxSurfaceCubemapLayered, :surfaceAlignment, :concurrentKernels, :ECCEnabled,
+            :pciBusID, :pciDeviceID, :pciDomainID, :tccDriver, :asyncEngineCount,
+            :unifiedAddressing, :memoryClockRate, :memoryBusWidth, :l2CacheSize,
+            :persistingL2CacheMaxSize, :maxThreadsPerMultiProcessor,
+            :streamPrioritiesSupported, :globalL1CacheSupported, :localL1CacheSupported,
+            :sharedMemPerMultiprocessor, :regsPerMultiprocessor, :managedMemory,
+            :isMultiGpuBoard, :multiGpuBoardGroupID, :hostNativeAtomicSupported,
+            :singleToDoublePrecisionPerfRatio, :pageableMemoryAccess,
+            :concurrentManagedAccess, :computePreemptionSupported,
+            :canUseHostPointerForRegisteredMem, :cooperativeLaunch,
+            :cooperativeMultiDeviceLaunch, :sharedMemPerBlockOptin,
+            :pageableMemoryAccessUsesHostPageTables, :directManagedMemAccessFromHost,
+            :maxBlocksPerMultiProcessor, :accessPolicyMaxWindowSize,
+            :reservedSharedMemPerBlock, :hostRegisterSupported, :sparseHipArraySupported,
+            :hostRegisterReadOnlySupported, :timelineSemaphoreInteropSupported,
+            :memoryPoolsSupported, :gpuDirectRDMASupported,
+            :gpuDirectRDMAFlushWritesOptions, :gpuDirectRDMAWritesOrdering,
+            :memoryPoolSupportedHandleTypes, :deferredMappingHipArraySupported,
+            :ipcEventSupported, :clusterLaunch, :unifiedFunctionPointers, :reserved,
+            :hipReserved, :gcnArchName, :maxSharedMemoryPerMultiProcessor,
+            :clockInstructionRate, :arch, :hdpMemFlushCntl, :hdpRegFlushCntl,
+            :cooperativeMultiDeviceUnmatchedFunc, :cooperativeMultiDeviceUnmatchedGridDim,
+            :cooperativeMultiDeviceUnmatchedBlockDim,
+            :cooperativeMultiDeviceUnmatchedSharedMem, :isLargeBar, :asicRevision,
+            if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+@cenum var"##Ctag#232"::UInt32 begin
+    HIP_SUCCESS = 0
+    HIP_ERROR_INVALID_VALUE = 1
+    HIP_ERROR_NOT_INITIALIZED = 2
+    HIP_ERROR_LAUNCH_OUT_OF_RESOURCES = 3
+end
+
+@cenum hipMemoryType::UInt32 begin
+    hipMemoryTypeUnregistered = 0
+    hipMemoryTypeHost = 1
+    hipMemoryTypeDevice = 2
+    hipMemoryTypeManaged = 3
+    hipMemoryTypeArray = 10
+    hipMemoryTypeUnified = 11
+end
+
+struct hipPointerAttribute_t
+    type::hipMemoryType
+    device::Cint
+    devicePointer::Ptr{Cvoid}
+    hostPointer::Ptr{Cvoid}
+    isManaged::Cint
+    allocationFlags::Cuint
+end
+
+@cenum hipError_t::UInt32 begin
+    hipSuccess = 0
+    hipErrorInvalidValue = 1
+    hipErrorOutOfMemory = 2
+    hipErrorMemoryAllocation = 2
+    hipErrorNotInitialized = 3
+    hipErrorInitializationError = 3
+    hipErrorDeinitialized = 4
+    hipErrorProfilerDisabled = 5
+    hipErrorProfilerNotInitialized = 6
+    hipErrorProfilerAlreadyStarted = 7
+    hipErrorProfilerAlreadyStopped = 8
+    hipErrorInvalidConfiguration = 9
+    hipErrorInvalidPitchValue = 12
+    hipErrorInvalidSymbol = 13
+    hipErrorInvalidDevicePointer = 17
+    hipErrorInvalidMemcpyDirection = 21
+    hipErrorInsufficientDriver = 35
+    hipErrorMissingConfiguration = 52
+    hipErrorPriorLaunchFailure = 53
+    hipErrorInvalidDeviceFunction = 98
+    hipErrorNoDevice = 100
+    hipErrorInvalidDevice = 101
+    hipErrorInvalidImage = 200
+    hipErrorInvalidContext = 201
+    hipErrorContextAlreadyCurrent = 202
+    hipErrorMapFailed = 205
+    hipErrorMapBufferObjectFailed = 205
+    hipErrorUnmapFailed = 206
+    hipErrorArrayIsMapped = 207
+    hipErrorAlreadyMapped = 208
+    hipErrorNoBinaryForGpu = 209
+    hipErrorAlreadyAcquired = 210
+    hipErrorNotMapped = 211
+    hipErrorNotMappedAsArray = 212
+    hipErrorNotMappedAsPointer = 213
+    hipErrorECCNotCorrectable = 214
+    hipErrorUnsupportedLimit = 215
+    hipErrorContextAlreadyInUse = 216
+    hipErrorPeerAccessUnsupported = 217
+    hipErrorInvalidKernelFile = 218
+    hipErrorInvalidGraphicsContext = 219
+    hipErrorInvalidSource = 300
+    hipErrorFileNotFound = 301
+    hipErrorSharedObjectSymbolNotFound = 302
+    hipErrorSharedObjectInitFailed = 303
+    hipErrorOperatingSystem = 304
+    hipErrorInvalidHandle = 400
+    hipErrorInvalidResourceHandle = 400
+    hipErrorIllegalState = 401
+    hipErrorNotFound = 500
+    hipErrorNotReady = 600
+    hipErrorIllegalAddress = 700
+    hipErrorLaunchOutOfResources = 701
+    hipErrorLaunchTimeOut = 702
+    hipErrorPeerAccessAlreadyEnabled = 704
+    hipErrorPeerAccessNotEnabled = 705
+    hipErrorSetOnActiveProcess = 708
+    hipErrorContextIsDestroyed = 709
+    hipErrorAssert = 710
+    hipErrorHostMemoryAlreadyRegistered = 712
+    hipErrorHostMemoryNotRegistered = 713
+    hipErrorLaunchFailure = 719
+    hipErrorCooperativeLaunchTooLarge = 720
+    hipErrorNotSupported = 801
+    hipErrorStreamCaptureUnsupported = 900
+    hipErrorStreamCaptureInvalidated = 901
+    hipErrorStreamCaptureMerge = 902
+    hipErrorStreamCaptureUnmatched = 903
+    hipErrorStreamCaptureUnjoined = 904
+    hipErrorStreamCaptureIsolation = 905
+    hipErrorStreamCaptureImplicit = 906
+    hipErrorCapturedEvent = 907
+    hipErrorStreamCaptureWrongThread = 908
+    hipErrorGraphExecUpdateFailure = 910
+    hipErrorInvalidChannelDescriptor = 911
+    hipErrorInvalidTexture = 912
+    hipErrorUnknown = 999
+    hipErrorRuntimeMemory = 1052
+    hipErrorRuntimeOther = 1053
+    hipErrorInvalidClusterSize = 1054
+    hipErrorTbd = 1055
+end
+
+@cenum hipDeviceAttribute_t::UInt32 begin
+    hipDeviceAttributeCudaCompatibleBegin = 0
+    hipDeviceAttributeEccEnabled = 0
+    hipDeviceAttributeAccessPolicyMaxWindowSize = 1
+    hipDeviceAttributeAsyncEngineCount = 2
+    hipDeviceAttributeCanMapHostMemory = 3
+    hipDeviceAttributeCanUseHostPointerForRegisteredMem = 4
+    hipDeviceAttributeClockRate = 5
+    hipDeviceAttributeComputeMode = 6
+    hipDeviceAttributeComputePreemptionSupported = 7
+    hipDeviceAttributeConcurrentKernels = 8
+    hipDeviceAttributeConcurrentManagedAccess = 9
+    hipDeviceAttributeCooperativeLaunch = 10
+    hipDeviceAttributeCooperativeMultiDeviceLaunch = 11
+    hipDeviceAttributeDeviceOverlap = 12
+    hipDeviceAttributeDirectManagedMemAccessFromHost = 13
+    hipDeviceAttributeGlobalL1CacheSupported = 14
+    hipDeviceAttributeHostNativeAtomicSupported = 15
+    hipDeviceAttributeIntegrated = 16
+    hipDeviceAttributeIsMultiGpuBoard = 17
+    hipDeviceAttributeKernelExecTimeout = 18
+    hipDeviceAttributeL2CacheSize = 19
+    hipDeviceAttributeLocalL1CacheSupported = 20
+    hipDeviceAttributeLuid = 21
+    hipDeviceAttributeLuidDeviceNodeMask = 22
+    hipDeviceAttributeComputeCapabilityMajor = 23
+    hipDeviceAttributeManagedMemory = 24
+    hipDeviceAttributeMaxBlocksPerMultiProcessor = 25
+    hipDeviceAttributeMaxBlockDimX = 26
+    hipDeviceAttributeMaxBlockDimY = 27
+    hipDeviceAttributeMaxBlockDimZ = 28
+    hipDeviceAttributeMaxGridDimX = 29
+    hipDeviceAttributeMaxGridDimY = 30
+    hipDeviceAttributeMaxGridDimZ = 31
+    hipDeviceAttributeMaxSurface1D = 32
+    hipDeviceAttributeMaxSurface1DLayered = 33
+    hipDeviceAttributeMaxSurface2D = 34
+    hipDeviceAttributeMaxSurface2DLayered = 35
+    hipDeviceAttributeMaxSurface3D = 36
+    hipDeviceAttributeMaxSurfaceCubemap = 37
+    hipDeviceAttributeMaxSurfaceCubemapLayered = 38
+    hipDeviceAttributeMaxTexture1DWidth = 39
+    hipDeviceAttributeMaxTexture1DLayered = 40
+    hipDeviceAttributeMaxTexture1DLinear = 41
+    hipDeviceAttributeMaxTexture1DMipmap = 42
+    hipDeviceAttributeMaxTexture2DWidth = 43
+    hipDeviceAttributeMaxTexture2DHeight = 44
+    hipDeviceAttributeMaxTexture2DGather = 45
+    hipDeviceAttributeMaxTexture2DLayered = 46
+    hipDeviceAttributeMaxTexture2DLinear = 47
+    hipDeviceAttributeMaxTexture2DMipmap = 48
+    hipDeviceAttributeMaxTexture3DWidth = 49
+    hipDeviceAttributeMaxTexture3DHeight = 50
+    hipDeviceAttributeMaxTexture3DDepth = 51
+    hipDeviceAttributeMaxTexture3DAlt = 52
+    hipDeviceAttributeMaxTextureCubemap = 53
+    hipDeviceAttributeMaxTextureCubemapLayered = 54
+    hipDeviceAttributeMaxThreadsDim = 55
+    hipDeviceAttributeMaxThreadsPerBlock = 56
+    hipDeviceAttributeMaxThreadsPerMultiProcessor = 57
+    hipDeviceAttributeMaxPitch = 58
+    hipDeviceAttributeMemoryBusWidth = 59
+    hipDeviceAttributeMemoryClockRate = 60
+    hipDeviceAttributeComputeCapabilityMinor = 61
+    hipDeviceAttributeMultiGpuBoardGroupID = 62
+    hipDeviceAttributeMultiprocessorCount = 63
+    hipDeviceAttributeUnused1 = 64
+    hipDeviceAttributePageableMemoryAccess = 65
+    hipDeviceAttributePageableMemoryAccessUsesHostPageTables = 66
+    hipDeviceAttributePciBusId = 67
+    hipDeviceAttributePciDeviceId = 68
+    hipDeviceAttributePciDomainId = 69
+    hipDeviceAttributePciDomainID = 69
+    hipDeviceAttributePersistingL2CacheMaxSize = 70
+    hipDeviceAttributeMaxRegistersPerBlock = 71
+    hipDeviceAttributeMaxRegistersPerMultiprocessor = 72
+    hipDeviceAttributeReservedSharedMemPerBlock = 73
+    hipDeviceAttributeMaxSharedMemoryPerBlock = 74
+    hipDeviceAttributeSharedMemPerBlockOptin = 75
+    hipDeviceAttributeSharedMemPerMultiprocessor = 76
+    hipDeviceAttributeSingleToDoublePrecisionPerfRatio = 77
+    hipDeviceAttributeStreamPrioritiesSupported = 78
+    hipDeviceAttributeSurfaceAlignment = 79
+    hipDeviceAttributeTccDriver = 80
+    hipDeviceAttributeTextureAlignment = 81
+    hipDeviceAttributeTexturePitchAlignment = 82
+    hipDeviceAttributeTotalConstantMemory = 83
+    hipDeviceAttributeTotalGlobalMem = 84
+    hipDeviceAttributeUnifiedAddressing = 85
+    hipDeviceAttributeUnused2 = 86
+    hipDeviceAttributeWarpSize = 87
+    hipDeviceAttributeMemoryPoolsSupported = 88
+    hipDeviceAttributeVirtualMemoryManagementSupported = 89
+    hipDeviceAttributeHostRegisterSupported = 90
+    hipDeviceAttributeMemoryPoolSupportedHandleTypes = 91
+    hipDeviceAttributeHostNumaId = 92
+    hipDeviceAttributeDmaBufSupported = 93
+    hipDeviceAttributeGPUDirectRDMAWithHipVMMSupported = 94
+    hipDeviceAttributeCudaCompatibleEnd = 9999
+    hipDeviceAttributeAmdSpecificBegin = 10000
+    hipDeviceAttributeClockInstructionRate = 10000
+    hipDeviceAttributeUnused3 = 10001
+    hipDeviceAttributeMaxSharedMemoryPerMultiprocessor = 10002
+    hipDeviceAttributeUnused4 = 10003
+    hipDeviceAttributeUnused5 = 10004
+    hipDeviceAttributeHdpMemFlushCntl = 10005
+    hipDeviceAttributeHdpRegFlushCntl = 10006
+    hipDeviceAttributeCooperativeMultiDeviceUnmatchedFunc = 10007
+    hipDeviceAttributeCooperativeMultiDeviceUnmatchedGridDim = 10008
+    hipDeviceAttributeCooperativeMultiDeviceUnmatchedBlockDim = 10009
+    hipDeviceAttributeCooperativeMultiDeviceUnmatchedSharedMem = 10010
+    hipDeviceAttributeIsLargeBar = 10011
+    hipDeviceAttributeAsicRevision = 10012
+    hipDeviceAttributeCanUseStreamWaitValue = 10013
+    hipDeviceAttributeImageSupport = 10014
+    hipDeviceAttributePhysicalMultiProcessorCount = 10015
+    hipDeviceAttributeFineGrainSupport = 10016
+    hipDeviceAttributeWallClockRate = 10017
+    hipDeviceAttributeNumberOfXccs = 10018
+    hipDeviceAttributeMaxAvailableVgprsPerThread = 10019
+    hipDeviceAttributePciChipId = 10020
+    hipDeviceAttributeExpertSchedMode = 10021
+    hipDeviceAttributeAmdSpecificEnd = 19999
+    hipDeviceAttributeVendorSpecificBegin = 20000
+end
+
+@cenum hipDriverProcAddressQueryResult::UInt32 begin
+    HIP_GET_PROC_ADDRESS_SUCCESS = 0
+    HIP_GET_PROC_ADDRESS_SYMBOL_NOT_FOUND = 1
+    HIP_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT = 2
+end
+
+@cenum hipComputeMode::UInt32 begin
+    hipComputeModeDefault = 0
+    hipComputeModeExclusive = 1
+    hipComputeModeProhibited = 2
+    hipComputeModeExclusiveProcess = 3
+end
+
+@cenum hipFlushGPUDirectRDMAWritesOptions::UInt32 begin
+    hipFlushGPUDirectRDMAWritesOptionHost = 1
+    hipFlushGPUDirectRDMAWritesOptionMemOps = 2
+end
+
+@cenum hipGPUDirectRDMAWritesOrdering::UInt32 begin
+    hipGPUDirectRDMAWritesOrderingNone = 0
+    hipGPUDirectRDMAWritesOrderingOwner = 100
+    hipGPUDirectRDMAWritesOrderingAllDevices = 200
+end
+
 struct miopenHandle
 end
 
@@ -19,14 +533,19 @@ const miopenHandle_t = Ptr{miopenHandle}
     miopenStatusVersionMismatch = 10
 end
 
+@cenum miopenMathType_t::UInt32 begin
+    miopenMathDefault = 0
+    miopenMathPedantic = 1
+end
+
 function miopenGetErrorString(error)
     @check @ccall(libMIOpen_path.miopenGetErrorString(error::miopenStatus_t)::Ptr{Cchar})
 end
 
-# typedef void * ( * miopenAllocatorFunction ) ( void * context , size_t sizeBytes )
+#  typedef void * ( * miopenAllocatorFunction ) ( void * context , size_t sizeBytes )
 const miopenAllocatorFunction = Ptr{Cvoid}
 
-# typedef void ( * miopenDeallocatorFunction ) ( void * context , void * memory )
+#  typedef void ( * miopenDeallocatorFunction ) ( void * context , void * memory )
 const miopenDeallocatorFunction = Ptr{Cvoid}
 
 function miopenGetVersion(major, minor, patch)
@@ -275,6 +794,7 @@ end
 @cenum miopenConvolutionAttrib_t::UInt32 begin
     MIOPEN_CONVOLUTION_ATTRIB_FP16_ALT_IMPL = 0
     MIOPEN_CONVOLUTION_ATTRIB_DETERMINISTIC = 1
+    MIOPEN_CONVOLUTION_ATTRIB_MATH_TYPE = 3
 end
 
 @cenum miopenConvolutionFindMode_t::UInt32 begin
@@ -623,7 +1143,7 @@ end
 struct miopenConvSolution_t
     time::Cfloat
     workspace_size::Csize_t
-    solution_id::Cint
+    solution_id::UInt64
     algorithm::miopenConvAlgorithm_t
 end
 
@@ -659,7 +1179,7 @@ function miopenConvolutionForwardGetSolutionWorkspaceSize(handle, wDesc, xDesc, 
                                                                                   xDesc::miopenTensorDescriptor_t,
                                                                                   convDesc::miopenConvolutionDescriptor_t,
                                                                                   yDesc::miopenTensorDescriptor_t,
-                                                                                  solution_id::Cint,
+                                                                                  solution_id::UInt64,
                                                                                   workSpaceSize::Ptr{Csize_t})::miopenStatus_t)
 end
 
@@ -671,7 +1191,7 @@ function miopenConvolutionForwardCompileSolution(handle, wDesc, xDesc, convDesc,
                                                                          xDesc::miopenTensorDescriptor_t,
                                                                          convDesc::miopenConvolutionDescriptor_t,
                                                                          yDesc::miopenTensorDescriptor_t,
-                                                                         solution_id::Cint)::miopenStatus_t)
+                                                                         solution_id::UInt64)::miopenStatus_t)
 end
 
 function miopenConvolutionForwardImmediate(handle, wDesc, w, xDesc, x, convDesc, yDesc, y,
@@ -687,7 +1207,7 @@ function miopenConvolutionForwardImmediate(handle, wDesc, w, xDesc, x, convDesc,
                                                                    y::Ptr{Cvoid},
                                                                    workSpace::Ptr{Cvoid},
                                                                    workSpaceSize::Csize_t,
-                                                                   solution_id::Cint)::miopenStatus_t)
+                                                                   solution_id::UInt64)::miopenStatus_t)
 end
 
 function miopenConvolutionBackwardDataGetSolutionCount(handle, dyDesc, wDesc, convDesc,
@@ -724,7 +1244,7 @@ function miopenConvolutionBackwardDataGetSolutionWorkspaceSize(handle, dyDesc, w
                                                                                        wDesc::miopenTensorDescriptor_t,
                                                                                        convDesc::miopenConvolutionDescriptor_t,
                                                                                        dxDesc::miopenTensorDescriptor_t,
-                                                                                       solution_id::Cint,
+                                                                                       solution_id::UInt64,
                                                                                        workSpaceSize::Ptr{Csize_t})::miopenStatus_t)
 end
 
@@ -736,7 +1256,7 @@ function miopenConvolutionBackwardDataCompileSolution(handle, dyDesc, wDesc, con
                                                                               wDesc::miopenTensorDescriptor_t,
                                                                               convDesc::miopenConvolutionDescriptor_t,
                                                                               dxDesc::miopenTensorDescriptor_t,
-                                                                              solution_id::Cint)::miopenStatus_t)
+                                                                              solution_id::UInt64)::miopenStatus_t)
 end
 
 function miopenConvolutionBackwardDataImmediate(handle, dyDesc, dy, wDesc, w, convDesc,
@@ -753,7 +1273,7 @@ function miopenConvolutionBackwardDataImmediate(handle, dyDesc, dy, wDesc, w, co
                                                                         dx::Ptr{Cvoid},
                                                                         workSpace::Ptr{Cvoid},
                                                                         workSpaceSize::Csize_t,
-                                                                        solution_id::Cint)::miopenStatus_t)
+                                                                        solution_id::UInt64)::miopenStatus_t)
 end
 
 function miopenConvolutionBackwardWeightsGetSolutionCount(handle, dyDesc, xDesc, convDesc,
@@ -791,7 +1311,7 @@ function miopenConvolutionBackwardWeightsGetSolutionWorkspaceSize(handle, dyDesc
                                                                                           xDesc::miopenTensorDescriptor_t,
                                                                                           convDesc::miopenConvolutionDescriptor_t,
                                                                                           dwDesc::miopenTensorDescriptor_t,
-                                                                                          solution_id::Cint,
+                                                                                          solution_id::UInt64,
                                                                                           workSpaceSize::Ptr{Csize_t})::miopenStatus_t)
 end
 
@@ -803,7 +1323,7 @@ function miopenConvolutionBackwardWeightsCompileSolution(handle, dyDesc, xDesc, 
                                                                                  xDesc::miopenTensorDescriptor_t,
                                                                                  convDesc::miopenConvolutionDescriptor_t,
                                                                                  dwDesc::miopenTensorDescriptor_t,
-                                                                                 solution_id::Cint)::miopenStatus_t)
+                                                                                 solution_id::UInt64)::miopenStatus_t)
 end
 
 function miopenConvolutionBackwardWeightsImmediate(handle, dyDesc, dy, xDesc, x, convDesc,
@@ -820,7 +1340,7 @@ function miopenConvolutionBackwardWeightsImmediate(handle, dyDesc, dy, xDesc, x,
                                                                            dw::Ptr{Cvoid},
                                                                            workSpace::Ptr{Cvoid},
                                                                            workSpaceSize::Csize_t,
-                                                                           solution_id::Cint)::miopenStatus_t)
+                                                                           solution_id::UInt64)::miopenStatus_t)
 end
 
 function miopenConvolutionForwardGetWorkSpaceSize(handle, wDesc, xDesc, convDesc, yDesc,
@@ -1265,6 +1785,40 @@ function miopenBatchNormalizationForwardTraining_V2(handle, bn_mode, alpha, beta
                                                                             resultSaveInvVariance::Ptr{Cvoid})::miopenStatus_t)
 end
 
+function miopenBatchNormalizationForwardTraining_V3(handle, bn_mode, alpha, beta, xDesc, x,
+                                                    yDesc, y, scaleDesc, biasVarDesc,
+                                                    savedMeanDesc, savedVarDesc, bnScale,
+                                                    bnBias, expAvgFactor,
+                                                    prevResultRunningMean,
+                                                    prevResultRunningVariance,
+                                                    nextResultRunningMean,
+                                                    nextResultRunningVariance, epsilon,
+                                                    resultSaveMean, resultSaveInvVariance)
+    AMDGPU.prepare_state()
+    @check @ccall(libMIOpen_path.miopenBatchNormalizationForwardTraining_V3(handle::miopenHandle_t,
+                                                                            bn_mode::miopenBatchNormMode_t,
+                                                                            alpha::Ptr{Cvoid},
+                                                                            beta::Ptr{Cvoid},
+                                                                            xDesc::miopenTensorDescriptor_t,
+                                                                            x::Ptr{Cvoid},
+                                                                            yDesc::miopenTensorDescriptor_t,
+                                                                            y::Ptr{Cvoid},
+                                                                            scaleDesc::miopenTensorDescriptor_t,
+                                                                            biasVarDesc::miopenTensorDescriptor_t,
+                                                                            savedMeanDesc::miopenTensorDescriptor_t,
+                                                                            savedVarDesc::miopenTensorDescriptor_t,
+                                                                            bnScale::Ptr{Cvoid},
+                                                                            bnBias::Ptr{Cvoid},
+                                                                            expAvgFactor::Cdouble,
+                                                                            prevResultRunningMean::Ptr{Cvoid},
+                                                                            prevResultRunningVariance::Ptr{Cvoid},
+                                                                            nextResultRunningMean::Ptr{Cvoid},
+                                                                            nextResultRunningVariance::Ptr{Cvoid},
+                                                                            epsilon::Cdouble,
+                                                                            resultSaveMean::Ptr{Cvoid},
+                                                                            resultSaveInvVariance::Ptr{Cvoid})::miopenStatus_t)
+end
+
 function miopenBatchNormForwardTrainingActivation(handle, bn_mode, alpha, beta, xDesc, x,
                                                   yDesc, y, scaleDesc, biasVarDesc,
                                                   savedMeanDesc, savedVarDesc, bnScale,
@@ -1294,6 +1848,42 @@ function miopenBatchNormForwardTrainingActivation(handle, bn_mode, alpha, beta, 
                                                                           resultSaveMean::Ptr{Cvoid},
                                                                           resultSaveInvVariance::Ptr{Cvoid},
                                                                           activDesc::miopenActivationDescriptor_t)::miopenStatus_t)
+end
+
+function miopenBatchNormForwardTrainingActivation_V2(handle, bn_mode, alpha, beta, xDesc, x,
+                                                     yDesc, y, scaleDesc, biasVarDesc,
+                                                     savedMeanDesc, savedVarDesc, bnScale,
+                                                     bnBias, expAvgFactor,
+                                                     prevResultRunningMean,
+                                                     prevResultRunningVariance,
+                                                     nextResultRunningMean,
+                                                     nextResultRunningVariance, epsilon,
+                                                     resultSaveMean, resultSaveInvVariance,
+                                                     activDesc)
+    AMDGPU.prepare_state()
+    @check @ccall(libMIOpen_path.miopenBatchNormForwardTrainingActivation_V2(handle::miopenHandle_t,
+                                                                             bn_mode::miopenBatchNormMode_t,
+                                                                             alpha::Ptr{Cvoid},
+                                                                             beta::Ptr{Cvoid},
+                                                                             xDesc::miopenTensorDescriptor_t,
+                                                                             x::Ptr{Cvoid},
+                                                                             yDesc::miopenTensorDescriptor_t,
+                                                                             y::Ptr{Cvoid},
+                                                                             scaleDesc::miopenTensorDescriptor_t,
+                                                                             biasVarDesc::miopenTensorDescriptor_t,
+                                                                             savedMeanDesc::miopenTensorDescriptor_t,
+                                                                             savedVarDesc::miopenTensorDescriptor_t,
+                                                                             bnScale::Ptr{Cvoid},
+                                                                             bnBias::Ptr{Cvoid},
+                                                                             expAvgFactor::Cdouble,
+                                                                             prevResultRunningMean::Ptr{Cvoid},
+                                                                             prevResultRunningVariance::Ptr{Cvoid},
+                                                                             nextResultRunningMean::Ptr{Cvoid},
+                                                                             nextResultRunningVariance::Ptr{Cvoid},
+                                                                             epsilon::Cdouble,
+                                                                             resultSaveMean::Ptr{Cvoid},
+                                                                             resultSaveInvVariance::Ptr{Cvoid},
+                                                                             activDesc::miopenActivationDescriptor_t)::miopenStatus_t)
 end
 
 function miopenBatchNormalizationForwardInference(handle, bn_mode, alpha, beta, xDesc, x,
@@ -1340,6 +1930,58 @@ function miopenBatchNormalizationForwardInference_V2(handle, bn_mode, alpha, bet
                                                                              estimatedMean::Ptr{Cvoid},
                                                                              estimatedVariance::Ptr{Cvoid},
                                                                              epsilon::Cdouble)::miopenStatus_t)
+end
+
+function miopenBatchNormalizationForwardInferenceInvVariance(handle, bn_mode, alpha, beta,
+                                                             xDesc, x, yDesc, y, scaleDesc,
+                                                             biasDesc, estMeanDesc,
+                                                             estInvVarianceDesc, bnScale,
+                                                             bnBias, estimatedMean,
+                                                             estimatedInvVariance)
+    AMDGPU.prepare_state()
+    @check @ccall(libMIOpen_path.miopenBatchNormalizationForwardInferenceInvVariance(handle::miopenHandle_t,
+                                                                                     bn_mode::miopenBatchNormMode_t,
+                                                                                     alpha::Ptr{Cvoid},
+                                                                                     beta::Ptr{Cvoid},
+                                                                                     xDesc::miopenTensorDescriptor_t,
+                                                                                     x::Ptr{Cvoid},
+                                                                                     yDesc::miopenTensorDescriptor_t,
+                                                                                     y::Ptr{Cvoid},
+                                                                                     scaleDesc::miopenTensorDescriptor_t,
+                                                                                     biasDesc::miopenTensorDescriptor_t,
+                                                                                     estMeanDesc::miopenTensorDescriptor_t,
+                                                                                     estInvVarianceDesc::miopenTensorDescriptor_t,
+                                                                                     bnScale::Ptr{Cvoid},
+                                                                                     bnBias::Ptr{Cvoid},
+                                                                                     estimatedMean::Ptr{Cvoid},
+                                                                                     estimatedInvVariance::Ptr{Cvoid})::miopenStatus_t)
+end
+
+function miopenBatchNormForwardInferenceActivationInvVariance(handle, bn_mode, alpha, beta,
+                                                              xDesc, x, yDesc, y, scaleDesc,
+                                                              biasDesc, estMeanDesc,
+                                                              estInvVarianceDesc, bnScale,
+                                                              bnBias, estimatedMean,
+                                                              estimatedInvVariance,
+                                                              activDesc)
+    AMDGPU.prepare_state()
+    @check @ccall(libMIOpen_path.miopenBatchNormForwardInferenceActivationInvVariance(handle::miopenHandle_t,
+                                                                                      bn_mode::miopenBatchNormMode_t,
+                                                                                      alpha::Ptr{Cvoid},
+                                                                                      beta::Ptr{Cvoid},
+                                                                                      xDesc::miopenTensorDescriptor_t,
+                                                                                      x::Ptr{Cvoid},
+                                                                                      yDesc::miopenTensorDescriptor_t,
+                                                                                      y::Ptr{Cvoid},
+                                                                                      scaleDesc::miopenTensorDescriptor_t,
+                                                                                      biasDesc::miopenTensorDescriptor_t,
+                                                                                      estMeanDesc::miopenTensorDescriptor_t,
+                                                                                      estInvVarianceDesc::miopenTensorDescriptor_t,
+                                                                                      bnScale::Ptr{Cvoid},
+                                                                                      bnBias::Ptr{Cvoid},
+                                                                                      estimatedMean::Ptr{Cvoid},
+                                                                                      estimatedInvVariance::Ptr{Cvoid},
+                                                                                      activDesc::miopenActivationDescriptor_t)::miopenStatus_t)
 end
 
 function miopenBatchNormForwardInferenceActivation(handle, bn_mode, alpha, beta, xDesc, x,
@@ -2806,13 +3448,20 @@ end
 function miopenGetSolutionSolverId(solution, solverId)
     AMDGPU.prepare_state()
     @check @ccall(libMIOpen_path.miopenGetSolutionSolverId(solution::miopenSolution_t,
-                                                           solverId::Ptr{Cint})::miopenStatus_t)
+                                                           solverId::Ptr{UInt64})::miopenStatus_t)
 end
 
 function miopenGetSolverIdConvAlgorithm(solverId, result)
     AMDGPU.prepare_state()
-    @check @ccall(libMIOpen_path.miopenGetSolverIdConvAlgorithm(solverId::Cint,
+    @check @ccall(libMIOpen_path.miopenGetSolverIdConvAlgorithm(solverId::UInt64,
                                                                 result::Ptr{miopenConvAlgorithm_t})::miopenStatus_t)
+end
+
+@cenum miopenAlphaBetaCase_t::UInt32 begin
+    DEFAULT = 0
+    SCALE = 1
+    BILINEAR = 2
+    ERROR_STATE = 3
 end
 
 @cenum miopenTuningPolicy_t::UInt32 begin
@@ -2877,7 +3526,7 @@ const MIOPEN_ENABLE_SQLITE_BACKOFF = 1
 
 const MIOPEN_USE_MLIR = 0
 
-const MIOPEN_USE_COMPOSABLEKERNEL = 0
+const MIOPEN_USE_COMPOSABLEKERNEL = 1
 
 const MIOPEN_BUILD_DRIVER = 1
 
@@ -2887,19 +3536,17 @@ const MIOPEN_ENABLE_AI_KERNEL_TUNING = 1
 
 const MIOPEN_HIP_COMPILER_HAS_OPTION_OFFLOAD_UNIFORM_BLOCK = 1
 
-const MIOPEN_WORKAROUND_USE_BOOST_FILESYSTEM = 0
-
 const MIOPEN_ENABLE_FIN_INTERFACE = 0
 
 const HIP_PACKAGE_VERSION_MAJOR = 7
 
-const HIP_PACKAGE_VERSION_MINOR = 2
+const HIP_PACKAGE_VERSION_MINOR = 13
 
-const HIP_PACKAGE_VERSION_PATCH = 53150
+const HIP_PACKAGE_VERSION_PATCH = 99004
 
-const MIOPEN_AMD_COMGR_VERSION_MAJOR = 999
+const MIOPEN_AMD_COMGR_VERSION_MAJOR = 3
 
-const MIOPEN_AMD_COMGR_VERSION_MINOR = 99
+const MIOPEN_AMD_COMGR_VERSION_MINOR = 0
 
 const MIOPEN_AMD_COMGR_VERSION_PATCH = 0
 
@@ -2911,13 +3558,13 @@ const MIOPEN_FP8_CLIPPING = 1
 
 const MIOPEN_OFFLINE_COMPILER_PATHS_V2 = 0
 
-const MIOPEN_AMDGCN_ASSEMBLER = "/therock/output/build/compiler/amd-llvm/dist/lib/llvm/bin/clang"
+const MIOPEN_AMDGCN_ASSEMBLER = "/home/runner/_work/rockrel/rockrel/output/build/compiler/amd-llvm/dist/lib/llvm/bin/clang"
 
-const HIP_OC_COMPILER = "/therock/output/build/compiler/amd-llvm/dist/lib/llvm/bin/amdclang"
+const HIP_OC_COMPILER = "/home/runner/_work/rockrel/rockrel/output/build/compiler/amd-llvm/dist/lib/llvm/bin/amdclang"
 
-const MIOPEN_HIP_COMPILER = "/therock/output/build/core/clr/dist/lib/llvm/bin/clang++"
+const MIOPEN_HIP_COMPILER = "/home/runner/_work/rockrel/rockrel/output/build/core/clr/dist/lib/llvm/bin/clang++"
 
-const MIOPEN_OFFLOADBUNDLER_BIN = "/therock/output/build/compiler/amd-llvm/dist/lib/llvm/bin/clang-offload-bundler"
+const MIOPEN_OFFLOADBUNDLER_BIN = "/home/runner/_work/rockrel/rockrel/output/build/compiler/amd-llvm/dist/lib/llvm/bin/clang-offload-bundler"
 
 const MIOPEN_CACHE_DIR = "~/.cache/miopen/"
 
@@ -2933,7 +3580,7 @@ const HIP_PACKAGE_VERSION_FLAT = (HIP_PACKAGE_VERSION_MAJOR * Culonglong(1000) +
 
 const MIOPEN_ROCBLAS_VERSION_MAJOR = 5
 
-const MIOPEN_ROCBLAS_VERSION_MINOR = 3
+const MIOPEN_ROCBLAS_VERSION_MINOR = 4
 
 const MIOPEN_ROCBLAS_VERSION_PATCH = 0
 
@@ -2943,7 +3590,7 @@ const MIOPEN_ROCBLAS_VERSION_FLAT = (MIOPEN_ROCBLAS_VERSION_MAJOR * 1000 +
 
 const MIOPEN_HIPBLASLT_VERSION_MAJOR = 1
 
-const MIOPEN_HIPBLASLT_VERSION_MINOR = 2
+const MIOPEN_HIPBLASLT_VERSION_MINOR = 3
 
 const MIOPEN_HIPBLASLT_VERSION_PATCH = 0
 
@@ -2964,6 +3611,73 @@ const MIOPEN_GOLDEN_DB_VERSION = 21
 # Skipping MacroDefinition: MIOPEN_INTERNALS_NO_EXPORT __attribute__ ( ( visibility ( "hidden" ) ) )
 
 # Skipping MacroDefinition: MIOPEN_INTERNALS_DEPRECATED __attribute__ ( ( __deprecated__ ) )
+
+const HIP_VERSION_MAJOR = 7
+
+const HIP_VERSION_MINOR = 13
+
+const HIP_VERSION_PATCH = 99004
+
+const HIP_VERSION_GITHASH = "3309c6114a"
+
+const HIP_VERSION_BUILD_ID = 0
+
+const HIP_VERSION_BUILD_NAME = ""
+
+const HIP_VERSION = HIP_VERSION_MAJOR * 10000000 + HIP_VERSION_MINOR * 100000 +
+                    HIP_VERSION_PATCH
+
+const __HIP_HAS_GET_PCH = 1
+
+# Skipping MacroDefinition: HIP_PUBLIC_API __attribute__ ( ( visibility ( "default" ) ) )
+
+# Skipping MacroDefinition: HIP_INTERNAL_EXPORTED_API __attribute__ ( ( visibility ( "default" ) ) )
+
+const __HIP_ARCH_HAS_GLOBAL_INT32_ATOMICS__ = 0
+
+const __HIP_ARCH_HAS_GLOBAL_FLOAT_ATOMIC_EXCH__ = 0
+
+const __HIP_ARCH_HAS_SHARED_INT32_ATOMICS__ = 0
+
+const __HIP_ARCH_HAS_SHARED_FLOAT_ATOMIC_EXCH__ = 0
+
+const __HIP_ARCH_HAS_FLOAT_ATOMIC_ADD__ = 0
+
+const __HIP_ARCH_HAS_GLOBAL_INT64_ATOMICS__ = 0
+
+const __HIP_ARCH_HAS_SHARED_INT64_ATOMICS__ = 0
+
+const __HIP_ARCH_HAS_DOUBLES__ = 0
+
+const __HIP_ARCH_HAS_WARP_VOTE__ = 0
+
+const __HIP_ARCH_HAS_WARP_BALLOT__ = 0
+
+const __HIP_ARCH_HAS_WARP_SHUFFLE__ = 0
+
+const __HIP_ARCH_HAS_WARP_FUNNEL_SHIFT__ = 0
+
+const __HIP_ARCH_HAS_THREAD_FENCE_SYSTEM__ = 0
+
+const __HIP_ARCH_HAS_SYNC_THREAD_EXT__ = 0
+
+const __HIP_ARCH_HAS_SURFACE_FUNCS__ = 0
+
+const __HIP_ARCH_HAS_3DGRID__ = 0
+
+const __HIP_ARCH_HAS_DYNAMIC_PARALLEL__ = 0
+
+const hipGetDeviceProperties = hipGetDevicePropertiesR0600
+
+const hipDeviceProp_t = hipDeviceProp_tR0600
+
+const hipChooseDevice = hipChooseDeviceR0600
+
+const HIP_GET_PROC_ADDRESS_DEFAULT = 0x00
+
+const HIP_GET_PROC_ADDRESS_LEGACY_STREAM = 0x01
+
+const HIP_GET_PROC_ADDRESS_PER_THREAD_DEFAULT_STREAM = 0x02
 
 const MIOPEN_API_VERSION_REDUCE_TENSOR = 1
 

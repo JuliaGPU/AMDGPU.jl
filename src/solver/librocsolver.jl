@@ -193,6 +193,15 @@ end
 
 const rocsolver_alg_mode = rocsolver_alg_mode_
 
+@cenum rocsolver_norm_type_::UInt32 begin
+    rocsolver_norm_type_one = 301
+    rocsolver_norm_type_frobenius = 302
+    rocsolver_norm_type_infinity = 303
+    rocsolver_norm_type_max = 304
+end
+
+const rocsolver_norm_type = rocsolver_norm_type_
+
 @cenum rocsolver_function_::UInt32 begin
     rocsolver_function_bdsqr = 401
     rocsolver_function_gesvd = 402
@@ -289,6 +298,152 @@ function rocsolver_zlacgv_64(handle, n, x, incx)
     @check @ccall(librocsolver.rocsolver_zlacgv_64(handle::rocblas_handle, n::Int64,
                                                    x::Ptr{rocblas_double_complex},
                                                    incx::Int64)::rocblas_status)
+end
+
+function rocsolver_slange(handle, norm_type, m, n, A, lda, norm)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_slange(handle::rocblas_handle,
+                                                norm_type::rocsolver_norm_type,
+                                                m::rocblas_int, n::rocblas_int,
+                                                A::Ptr{Cfloat}, lda::rocblas_int,
+                                                norm::Ptr{Cfloat})::rocblas_status)
+end
+
+function rocsolver_dlange(handle, norm_type, m, n, A, lda, norm)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dlange(handle::rocblas_handle,
+                                                norm_type::rocsolver_norm_type,
+                                                m::rocblas_int, n::rocblas_int,
+                                                A::Ptr{Cdouble}, lda::rocblas_int,
+                                                norm::Ptr{Cdouble})::rocblas_status)
+end
+
+function rocsolver_clange(handle, norm_type, m, n, A, lda, norm)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_clange(handle::rocblas_handle,
+                                                norm_type::rocsolver_norm_type,
+                                                m::rocblas_int, n::rocblas_int,
+                                                A::Ptr{rocblas_float_complex},
+                                                lda::rocblas_int,
+                                                norm::Ptr{Cfloat})::rocblas_status)
+end
+
+function rocsolver_zlange(handle, norm_type, m, n, A, lda, norm)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zlange(handle::rocblas_handle,
+                                                norm_type::rocsolver_norm_type,
+                                                m::rocblas_int, n::rocblas_int,
+                                                A::Ptr{rocblas_double_complex},
+                                                lda::rocblas_int,
+                                                norm::Ptr{Cdouble})::rocblas_status)
+end
+
+function rocsolver_slange_64(handle, norm_type, m, n, A, lda, norm)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_slange_64(handle::rocblas_handle,
+                                                   norm_type::rocsolver_norm_type, m::Int64,
+                                                   n::Int64, A::Ptr{Cfloat}, lda::Int64,
+                                                   norm::Ptr{Cfloat})::rocblas_status)
+end
+
+function rocsolver_dlange_64(handle, norm_type, m, n, A, lda, norm)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dlange_64(handle::rocblas_handle,
+                                                   norm_type::rocsolver_norm_type, m::Int64,
+                                                   n::Int64, A::Ptr{Cdouble}, lda::Int64,
+                                                   norm::Ptr{Cdouble})::rocblas_status)
+end
+
+function rocsolver_clange_64(handle, norm_type, m, n, A, lda, norm)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_clange_64(handle::rocblas_handle,
+                                                   norm_type::rocsolver_norm_type, m::Int64,
+                                                   n::Int64, A::Ptr{rocblas_float_complex},
+                                                   lda::Int64,
+                                                   norm::Ptr{Cfloat})::rocblas_status)
+end
+
+function rocsolver_zlange_64(handle, norm_type, m, n, A, lda, norm)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zlange_64(handle::rocblas_handle,
+                                                   norm_type::rocsolver_norm_type, m::Int64,
+                                                   n::Int64, A::Ptr{rocblas_double_complex},
+                                                   lda::Int64,
+                                                   norm::Ptr{Cdouble})::rocblas_status)
+end
+
+function rocsolver_sgecon(handle, norm_type, n, A, lda, anorm, rcond)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_sgecon(handle::rocblas_handle,
+                                                norm_type::rocsolver_norm_type,
+                                                n::rocblas_int, A::Ptr{Cfloat},
+                                                lda::rocblas_int, anorm::Ptr{Cfloat},
+                                                rcond::Ptr{Cfloat})::rocblas_status)
+end
+
+function rocsolver_dgecon(handle, norm_type, n, A, lda, anorm, rcond)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dgecon(handle::rocblas_handle,
+                                                norm_type::rocsolver_norm_type,
+                                                n::rocblas_int, A::Ptr{Cdouble},
+                                                lda::rocblas_int, anorm::Ptr{Cdouble},
+                                                rcond::Ptr{Cdouble})::rocblas_status)
+end
+
+function rocsolver_cgecon(handle, norm_type, n, A, lda, anorm, rcond)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_cgecon(handle::rocblas_handle,
+                                                norm_type::rocsolver_norm_type,
+                                                n::rocblas_int,
+                                                A::Ptr{rocblas_float_complex},
+                                                lda::rocblas_int, anorm::Ptr{Cfloat},
+                                                rcond::Ptr{Cfloat})::rocblas_status)
+end
+
+function rocsolver_zgecon(handle, norm_type, n, A, lda, anorm, rcond)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zgecon(handle::rocblas_handle,
+                                                norm_type::rocsolver_norm_type,
+                                                n::rocblas_int,
+                                                A::Ptr{rocblas_double_complex},
+                                                lda::rocblas_int, anorm::Ptr{Cdouble},
+                                                rcond::Ptr{Cdouble})::rocblas_status)
+end
+
+function rocsolver_sgecon_64(handle, norm_type, n, A, lda, anorm, rcond)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_sgecon_64(handle::rocblas_handle,
+                                                   norm_type::rocsolver_norm_type, n::Int64,
+                                                   A::Ptr{Cfloat}, lda::Int64,
+                                                   anorm::Ptr{Cfloat},
+                                                   rcond::Ptr{Cfloat})::rocblas_status)
+end
+
+function rocsolver_dgecon_64(handle, norm_type, n, A, lda, anorm, rcond)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dgecon_64(handle::rocblas_handle,
+                                                   norm_type::rocsolver_norm_type, n::Int64,
+                                                   A::Ptr{Cdouble}, lda::Int64,
+                                                   anorm::Ptr{Cdouble},
+                                                   rcond::Ptr{Cdouble})::rocblas_status)
+end
+
+function rocsolver_cgecon_64(handle, norm_type, n, A, lda, anorm, rcond)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_cgecon_64(handle::rocblas_handle,
+                                                   norm_type::rocsolver_norm_type, n::Int64,
+                                                   A::Ptr{rocblas_float_complex},
+                                                   lda::Int64, anorm::Ptr{Cfloat},
+                                                   rcond::Ptr{Cfloat})::rocblas_status)
+end
+
+function rocsolver_zgecon_64(handle, norm_type, n, A, lda, anorm, rcond)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zgecon_64(handle::rocblas_handle,
+                                                   norm_type::rocsolver_norm_type, n::Int64,
+                                                   A::Ptr{rocblas_double_complex},
+                                                   lda::Int64, anorm::Ptr{Cdouble},
+                                                   rcond::Ptr{Cdouble})::rocblas_status)
 end
 
 function rocsolver_slaswp(handle, n, A, lda, k1, k2, ipiv, incx)
@@ -4741,6 +4896,337 @@ function rocsolver_zgetrs_strided_batched_64(handle, trans, n, nrhs, A, lda, str
                                                                    batch_count::Int64)::rocblas_status)
 end
 
+function rocsolver_ssytrs(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_ssytrs(handle::rocblas_handle, uplo::rocblas_fill,
+                                                n::rocblas_int, nrhs::rocblas_int,
+                                                A::Ptr{Cfloat}, lda::rocblas_int,
+                                                ipiv::Ptr{rocblas_int}, B::Ptr{Cfloat},
+                                                ldb::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_dsytrs(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dsytrs(handle::rocblas_handle, uplo::rocblas_fill,
+                                                n::rocblas_int, nrhs::rocblas_int,
+                                                A::Ptr{Cdouble}, lda::rocblas_int,
+                                                ipiv::Ptr{rocblas_int}, B::Ptr{Cdouble},
+                                                ldb::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_csytrs(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_csytrs(handle::rocblas_handle, uplo::rocblas_fill,
+                                                n::rocblas_int, nrhs::rocblas_int,
+                                                A::Ptr{rocblas_float_complex},
+                                                lda::rocblas_int, ipiv::Ptr{rocblas_int},
+                                                B::Ptr{rocblas_float_complex},
+                                                ldb::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_zsytrs(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zsytrs(handle::rocblas_handle, uplo::rocblas_fill,
+                                                n::rocblas_int, nrhs::rocblas_int,
+                                                A::Ptr{rocblas_double_complex},
+                                                lda::rocblas_int, ipiv::Ptr{rocblas_int},
+                                                B::Ptr{rocblas_double_complex},
+                                                ldb::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_ssytrs_64(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_ssytrs_64(handle::rocblas_handle,
+                                                   uplo::rocblas_fill, n::Int64,
+                                                   nrhs::Int64, A::Ptr{Cfloat}, lda::Int64,
+                                                   ipiv::Ptr{Int64}, B::Ptr{Cfloat},
+                                                   ldb::Int64)::rocblas_status)
+end
+
+function rocsolver_dsytrs_64(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dsytrs_64(handle::rocblas_handle,
+                                                   uplo::rocblas_fill, n::Int64,
+                                                   nrhs::Int64, A::Ptr{Cdouble}, lda::Int64,
+                                                   ipiv::Ptr{Int64}, B::Ptr{Cdouble},
+                                                   ldb::Int64)::rocblas_status)
+end
+
+function rocsolver_csytrs_64(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_csytrs_64(handle::rocblas_handle,
+                                                   uplo::rocblas_fill, n::Int64,
+                                                   nrhs::Int64,
+                                                   A::Ptr{rocblas_float_complex},
+                                                   lda::Int64, ipiv::Ptr{Int64},
+                                                   B::Ptr{rocblas_float_complex},
+                                                   ldb::Int64)::rocblas_status)
+end
+
+function rocsolver_zsytrs_64(handle, uplo, n, nrhs, A, lda, ipiv, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zsytrs_64(handle::rocblas_handle,
+                                                   uplo::rocblas_fill, n::Int64,
+                                                   nrhs::Int64,
+                                                   A::Ptr{rocblas_double_complex},
+                                                   lda::Int64, ipiv::Ptr{Int64},
+                                                   B::Ptr{rocblas_double_complex},
+                                                   ldb::Int64)::rocblas_status)
+end
+
+function rocsolver_ssytrs_batched(handle, uplo, n, nrhs, A, lda, ipiv, strideP, B, ldb,
+                                  batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_ssytrs_batched(handle::rocblas_handle,
+                                                        uplo::rocblas_fill, n::rocblas_int,
+                                                        nrhs::rocblas_int,
+                                                        A::Ptr{Ptr{Cfloat}},
+                                                        lda::rocblas_int,
+                                                        ipiv::Ptr{rocblas_int},
+                                                        strideP::rocblas_stride,
+                                                        B::Ptr{Ptr{Cfloat}},
+                                                        ldb::rocblas_int,
+                                                        batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_dsytrs_batched(handle, uplo, n, nrhs, A, lda, ipiv, strideP, B, ldb,
+                                  batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dsytrs_batched(handle::rocblas_handle,
+                                                        uplo::rocblas_fill, n::rocblas_int,
+                                                        nrhs::rocblas_int,
+                                                        A::Ptr{Ptr{Cdouble}},
+                                                        lda::rocblas_int,
+                                                        ipiv::Ptr{rocblas_int},
+                                                        strideP::rocblas_stride,
+                                                        B::Ptr{Ptr{Cdouble}},
+                                                        ldb::rocblas_int,
+                                                        batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_csytrs_batched(handle, uplo, n, nrhs, A, lda, ipiv, strideP, B, ldb,
+                                  batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_csytrs_batched(handle::rocblas_handle,
+                                                        uplo::rocblas_fill, n::rocblas_int,
+                                                        nrhs::rocblas_int,
+                                                        A::Ptr{Ptr{rocblas_float_complex}},
+                                                        lda::rocblas_int,
+                                                        ipiv::Ptr{rocblas_int},
+                                                        strideP::rocblas_stride,
+                                                        B::Ptr{Ptr{rocblas_float_complex}},
+                                                        ldb::rocblas_int,
+                                                        batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_zsytrs_batched(handle, uplo, n, nrhs, A, lda, ipiv, strideP, B, ldb,
+                                  batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zsytrs_batched(handle::rocblas_handle,
+                                                        uplo::rocblas_fill, n::rocblas_int,
+                                                        nrhs::rocblas_int,
+                                                        A::Ptr{Ptr{rocblas_double_complex}},
+                                                        lda::rocblas_int,
+                                                        ipiv::Ptr{rocblas_int},
+                                                        strideP::rocblas_stride,
+                                                        B::Ptr{Ptr{rocblas_double_complex}},
+                                                        ldb::rocblas_int,
+                                                        batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_ssytrs_batched_64(handle, uplo, n, nrhs, A, lda, ipiv, strideP, B, ldb,
+                                     batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_ssytrs_batched_64(handle::rocblas_handle,
+                                                           uplo::rocblas_fill, n::Int64,
+                                                           nrhs::Int64, A::Ptr{Ptr{Cfloat}},
+                                                           lda::Int64, ipiv::Ptr{Int64},
+                                                           strideP::rocblas_stride,
+                                                           B::Ptr{Ptr{Cfloat}}, ldb::Int64,
+                                                           batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_dsytrs_batched_64(handle, uplo, n, nrhs, A, lda, ipiv, strideP, B, ldb,
+                                     batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dsytrs_batched_64(handle::rocblas_handle,
+                                                           uplo::rocblas_fill, n::Int64,
+                                                           nrhs::Int64,
+                                                           A::Ptr{Ptr{Cdouble}}, lda::Int64,
+                                                           ipiv::Ptr{Int64},
+                                                           strideP::rocblas_stride,
+                                                           B::Ptr{Ptr{Cdouble}}, ldb::Int64,
+                                                           batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_csytrs_batched_64(handle, uplo, n, nrhs, A, lda, ipiv, strideP, B, ldb,
+                                     batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_csytrs_batched_64(handle::rocblas_handle,
+                                                           uplo::rocblas_fill, n::Int64,
+                                                           nrhs::Int64,
+                                                           A::Ptr{Ptr{rocblas_float_complex}},
+                                                           lda::Int64, ipiv::Ptr{Int64},
+                                                           strideP::rocblas_stride,
+                                                           B::Ptr{Ptr{rocblas_float_complex}},
+                                                           ldb::Int64,
+                                                           batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_zsytrs_batched_64(handle, uplo, n, nrhs, A, lda, ipiv, strideP, B, ldb,
+                                     batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zsytrs_batched_64(handle::rocblas_handle,
+                                                           uplo::rocblas_fill, n::Int64,
+                                                           nrhs::Int64,
+                                                           A::Ptr{Ptr{rocblas_double_complex}},
+                                                           lda::Int64, ipiv::Ptr{Int64},
+                                                           strideP::rocblas_stride,
+                                                           B::Ptr{Ptr{rocblas_double_complex}},
+                                                           ldb::Int64,
+                                                           batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_ssytrs_strided_batched(handle, uplo, n, nrhs, A, lda, strideA, ipiv,
+                                          strideP, B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_ssytrs_strided_batched(handle::rocblas_handle,
+                                                                uplo::rocblas_fill,
+                                                                n::rocblas_int,
+                                                                nrhs::rocblas_int,
+                                                                A::Ptr{Cfloat},
+                                                                lda::rocblas_int,
+                                                                strideA::rocblas_stride,
+                                                                ipiv::Ptr{rocblas_int},
+                                                                strideP::rocblas_stride,
+                                                                B::Ptr{Cfloat},
+                                                                ldb::rocblas_int,
+                                                                strideB::rocblas_stride,
+                                                                batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_dsytrs_strided_batched(handle, uplo, n, nrhs, A, lda, strideA, ipiv,
+                                          strideP, B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dsytrs_strided_batched(handle::rocblas_handle,
+                                                                uplo::rocblas_fill,
+                                                                n::rocblas_int,
+                                                                nrhs::rocblas_int,
+                                                                A::Ptr{Cdouble},
+                                                                lda::rocblas_int,
+                                                                strideA::rocblas_stride,
+                                                                ipiv::Ptr{rocblas_int},
+                                                                strideP::rocblas_stride,
+                                                                B::Ptr{Cdouble},
+                                                                ldb::rocblas_int,
+                                                                strideB::rocblas_stride,
+                                                                batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_csytrs_strided_batched(handle, uplo, n, nrhs, A, lda, strideA, ipiv,
+                                          strideP, B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_csytrs_strided_batched(handle::rocblas_handle,
+                                                                uplo::rocblas_fill,
+                                                                n::rocblas_int,
+                                                                nrhs::rocblas_int,
+                                                                A::Ptr{rocblas_float_complex},
+                                                                lda::rocblas_int,
+                                                                strideA::rocblas_stride,
+                                                                ipiv::Ptr{rocblas_int},
+                                                                strideP::rocblas_stride,
+                                                                B::Ptr{rocblas_float_complex},
+                                                                ldb::rocblas_int,
+                                                                strideB::rocblas_stride,
+                                                                batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_zsytrs_strided_batched(handle, uplo, n, nrhs, A, lda, strideA, ipiv,
+                                          strideP, B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zsytrs_strided_batched(handle::rocblas_handle,
+                                                                uplo::rocblas_fill,
+                                                                n::rocblas_int,
+                                                                nrhs::rocblas_int,
+                                                                A::Ptr{rocblas_double_complex},
+                                                                lda::rocblas_int,
+                                                                strideA::rocblas_stride,
+                                                                ipiv::Ptr{rocblas_int},
+                                                                strideP::rocblas_stride,
+                                                                B::Ptr{rocblas_double_complex},
+                                                                ldb::rocblas_int,
+                                                                strideB::rocblas_stride,
+                                                                batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_ssytrs_strided_batched_64(handle, uplo, n, nrhs, A, lda, strideA, ipiv,
+                                             strideP, B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_ssytrs_strided_batched_64(handle::rocblas_handle,
+                                                                   uplo::rocblas_fill,
+                                                                   n::Int64, nrhs::Int64,
+                                                                   A::Ptr{Cfloat},
+                                                                   lda::Int64,
+                                                                   strideA::rocblas_stride,
+                                                                   ipiv::Ptr{Int64},
+                                                                   strideP::rocblas_stride,
+                                                                   B::Ptr{Cfloat},
+                                                                   ldb::Int64,
+                                                                   strideB::rocblas_stride,
+                                                                   batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_dsytrs_strided_batched_64(handle, uplo, n, nrhs, A, lda, strideA, ipiv,
+                                             strideP, B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dsytrs_strided_batched_64(handle::rocblas_handle,
+                                                                   uplo::rocblas_fill,
+                                                                   n::Int64, nrhs::Int64,
+                                                                   A::Ptr{Cdouble},
+                                                                   lda::Int64,
+                                                                   strideA::rocblas_stride,
+                                                                   ipiv::Ptr{Int64},
+                                                                   strideP::rocblas_stride,
+                                                                   B::Ptr{Cdouble},
+                                                                   ldb::Int64,
+                                                                   strideB::rocblas_stride,
+                                                                   batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_csytrs_strided_batched_64(handle, uplo, n, nrhs, A, lda, strideA, ipiv,
+                                             strideP, B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_csytrs_strided_batched_64(handle::rocblas_handle,
+                                                                   uplo::rocblas_fill,
+                                                                   n::Int64, nrhs::Int64,
+                                                                   A::Ptr{rocblas_float_complex},
+                                                                   lda::Int64,
+                                                                   strideA::rocblas_stride,
+                                                                   ipiv::Ptr{Int64},
+                                                                   strideP::rocblas_stride,
+                                                                   B::Ptr{rocblas_float_complex},
+                                                                   ldb::Int64,
+                                                                   strideB::rocblas_stride,
+                                                                   batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_zsytrs_strided_batched_64(handle, uplo, n, nrhs, A, lda, strideA, ipiv,
+                                             strideP, B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zsytrs_strided_batched_64(handle::rocblas_handle,
+                                                                   uplo::rocblas_fill,
+                                                                   n::Int64, nrhs::Int64,
+                                                                   A::Ptr{rocblas_double_complex},
+                                                                   lda::Int64,
+                                                                   strideA::rocblas_stride,
+                                                                   ipiv::Ptr{Int64},
+                                                                   strideP::rocblas_stride,
+                                                                   B::Ptr{rocblas_double_complex},
+                                                                   ldb::Int64,
+                                                                   strideB::rocblas_stride,
+                                                                   batch_count::Int64)::rocblas_status)
+end
+
 function rocsolver_sgesv(handle, n, nrhs, A, lda, ipiv, B, ldb, info)
     AMDGPU.prepare_state()
     @check @ccall(librocsolver.rocsolver_sgesv(handle::rocblas_handle, n::rocblas_int,
@@ -4911,6 +5397,320 @@ function rocsolver_zgesv_strided_batched(handle, n, nrhs, A, lda, strideA, ipiv,
                                                                strideB::rocblas_stride,
                                                                info::Ptr{rocblas_int},
                                                                batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_sgetrs_npvt(handle, trans, n, nrhs, A, lda, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_sgetrs_npvt(handle::rocblas_handle,
+                                                     trans::rocblas_operation,
+                                                     n::rocblas_int, nrhs::rocblas_int,
+                                                     A::Ptr{Cfloat}, lda::rocblas_int,
+                                                     B::Ptr{Cfloat},
+                                                     ldb::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_dgetrs_npvt(handle, trans, n, nrhs, A, lda, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dgetrs_npvt(handle::rocblas_handle,
+                                                     trans::rocblas_operation,
+                                                     n::rocblas_int, nrhs::rocblas_int,
+                                                     A::Ptr{Cdouble}, lda::rocblas_int,
+                                                     B::Ptr{Cdouble},
+                                                     ldb::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_cgetrs_npvt(handle, trans, n, nrhs, A, lda, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_cgetrs_npvt(handle::rocblas_handle,
+                                                     trans::rocblas_operation,
+                                                     n::rocblas_int, nrhs::rocblas_int,
+                                                     A::Ptr{rocblas_float_complex},
+                                                     lda::rocblas_int,
+                                                     B::Ptr{rocblas_float_complex},
+                                                     ldb::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_zgetrs_npvt(handle, trans, n, nrhs, A, lda, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zgetrs_npvt(handle::rocblas_handle,
+                                                     trans::rocblas_operation,
+                                                     n::rocblas_int, nrhs::rocblas_int,
+                                                     A::Ptr{rocblas_double_complex},
+                                                     lda::rocblas_int,
+                                                     B::Ptr{rocblas_double_complex},
+                                                     ldb::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_sgetrs_npvt_64(handle, trans, n, nrhs, A, lda, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_sgetrs_npvt_64(handle::rocblas_handle,
+                                                        trans::rocblas_operation, n::Int64,
+                                                        nrhs::Int64, A::Ptr{Cfloat},
+                                                        lda::Int64, B::Ptr{Cfloat},
+                                                        ldb::Int64)::rocblas_status)
+end
+
+function rocsolver_dgetrs_npvt_64(handle, trans, n, nrhs, A, lda, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dgetrs_npvt_64(handle::rocblas_handle,
+                                                        trans::rocblas_operation, n::Int64,
+                                                        nrhs::Int64, A::Ptr{Cdouble},
+                                                        lda::Int64, B::Ptr{Cdouble},
+                                                        ldb::Int64)::rocblas_status)
+end
+
+function rocsolver_cgetrs_npvt_64(handle, trans, n, nrhs, A, lda, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_cgetrs_npvt_64(handle::rocblas_handle,
+                                                        trans::rocblas_operation, n::Int64,
+                                                        nrhs::Int64,
+                                                        A::Ptr{rocblas_float_complex},
+                                                        lda::Int64,
+                                                        B::Ptr{rocblas_float_complex},
+                                                        ldb::Int64)::rocblas_status)
+end
+
+function rocsolver_zgetrs_npvt_64(handle, trans, n, nrhs, A, lda, B, ldb)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zgetrs_npvt_64(handle::rocblas_handle,
+                                                        trans::rocblas_operation, n::Int64,
+                                                        nrhs::Int64,
+                                                        A::Ptr{rocblas_double_complex},
+                                                        lda::Int64,
+                                                        B::Ptr{rocblas_double_complex},
+                                                        ldb::Int64)::rocblas_status)
+end
+
+function rocsolver_sgetrs_npvt_batched(handle, trans, n, nrhs, A, lda, B, ldb, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_sgetrs_npvt_batched(handle::rocblas_handle,
+                                                             trans::rocblas_operation,
+                                                             n::rocblas_int,
+                                                             nrhs::rocblas_int,
+                                                             A::Ptr{Ptr{Cfloat}},
+                                                             lda::rocblas_int,
+                                                             B::Ptr{Ptr{Cfloat}},
+                                                             ldb::rocblas_int,
+                                                             batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_dgetrs_npvt_batched(handle, trans, n, nrhs, A, lda, B, ldb, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dgetrs_npvt_batched(handle::rocblas_handle,
+                                                             trans::rocblas_operation,
+                                                             n::rocblas_int,
+                                                             nrhs::rocblas_int,
+                                                             A::Ptr{Ptr{Cdouble}},
+                                                             lda::rocblas_int,
+                                                             B::Ptr{Ptr{Cdouble}},
+                                                             ldb::rocblas_int,
+                                                             batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_cgetrs_npvt_batched(handle, trans, n, nrhs, A, lda, B, ldb, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_cgetrs_npvt_batched(handle::rocblas_handle,
+                                                             trans::rocblas_operation,
+                                                             n::rocblas_int,
+                                                             nrhs::rocblas_int,
+                                                             A::Ptr{Ptr{rocblas_float_complex}},
+                                                             lda::rocblas_int,
+                                                             B::Ptr{Ptr{rocblas_float_complex}},
+                                                             ldb::rocblas_int,
+                                                             batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_zgetrs_npvt_batched(handle, trans, n, nrhs, A, lda, B, ldb, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zgetrs_npvt_batched(handle::rocblas_handle,
+                                                             trans::rocblas_operation,
+                                                             n::rocblas_int,
+                                                             nrhs::rocblas_int,
+                                                             A::Ptr{Ptr{rocblas_double_complex}},
+                                                             lda::rocblas_int,
+                                                             B::Ptr{Ptr{rocblas_double_complex}},
+                                                             ldb::rocblas_int,
+                                                             batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_sgetrs_npvt_batched_64(handle, trans, n, nrhs, A, lda, B, ldb,
+                                          batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_sgetrs_npvt_batched_64(handle::rocblas_handle,
+                                                                trans::rocblas_operation,
+                                                                n::Int64, nrhs::Int64,
+                                                                A::Ptr{Ptr{Cfloat}},
+                                                                lda::Int64,
+                                                                B::Ptr{Ptr{Cfloat}},
+                                                                ldb::Int64,
+                                                                batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_dgetrs_npvt_batched_64(handle, trans, n, nrhs, A, lda, B, ldb,
+                                          batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dgetrs_npvt_batched_64(handle::rocblas_handle,
+                                                                trans::rocblas_operation,
+                                                                n::Int64, nrhs::Int64,
+                                                                A::Ptr{Ptr{Cdouble}},
+                                                                lda::Int64,
+                                                                B::Ptr{Ptr{Cdouble}},
+                                                                ldb::Int64,
+                                                                batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_cgetrs_npvt_batched_64(handle, trans, n, nrhs, A, lda, B, ldb,
+                                          batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_cgetrs_npvt_batched_64(handle::rocblas_handle,
+                                                                trans::rocblas_operation,
+                                                                n::Int64, nrhs::Int64,
+                                                                A::Ptr{Ptr{rocblas_float_complex}},
+                                                                lda::Int64,
+                                                                B::Ptr{Ptr{rocblas_float_complex}},
+                                                                ldb::Int64,
+                                                                batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_zgetrs_npvt_batched_64(handle, trans, n, nrhs, A, lda, B, ldb,
+                                          batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zgetrs_npvt_batched_64(handle::rocblas_handle,
+                                                                trans::rocblas_operation,
+                                                                n::Int64, nrhs::Int64,
+                                                                A::Ptr{Ptr{rocblas_double_complex}},
+                                                                lda::Int64,
+                                                                B::Ptr{Ptr{rocblas_double_complex}},
+                                                                ldb::Int64,
+                                                                batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_sgetrs_npvt_strided_batched(handle, trans, n, nrhs, A, lda, strideA, B,
+                                               ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_sgetrs_npvt_strided_batched(handle::rocblas_handle,
+                                                                     trans::rocblas_operation,
+                                                                     n::rocblas_int,
+                                                                     nrhs::rocblas_int,
+                                                                     A::Ptr{Cfloat},
+                                                                     lda::rocblas_int,
+                                                                     strideA::rocblas_stride,
+                                                                     B::Ptr{Cfloat},
+                                                                     ldb::rocblas_int,
+                                                                     strideB::rocblas_stride,
+                                                                     batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_dgetrs_npvt_strided_batched(handle, trans, n, nrhs, A, lda, strideA, B,
+                                               ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dgetrs_npvt_strided_batched(handle::rocblas_handle,
+                                                                     trans::rocblas_operation,
+                                                                     n::rocblas_int,
+                                                                     nrhs::rocblas_int,
+                                                                     A::Ptr{Cdouble},
+                                                                     lda::rocblas_int,
+                                                                     strideA::rocblas_stride,
+                                                                     B::Ptr{Cdouble},
+                                                                     ldb::rocblas_int,
+                                                                     strideB::rocblas_stride,
+                                                                     batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_cgetrs_npvt_strided_batched(handle, trans, n, nrhs, A, lda, strideA, B,
+                                               ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_cgetrs_npvt_strided_batched(handle::rocblas_handle,
+                                                                     trans::rocblas_operation,
+                                                                     n::rocblas_int,
+                                                                     nrhs::rocblas_int,
+                                                                     A::Ptr{rocblas_float_complex},
+                                                                     lda::rocblas_int,
+                                                                     strideA::rocblas_stride,
+                                                                     B::Ptr{rocblas_float_complex},
+                                                                     ldb::rocblas_int,
+                                                                     strideB::rocblas_stride,
+                                                                     batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_zgetrs_npvt_strided_batched(handle, trans, n, nrhs, A, lda, strideA, B,
+                                               ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zgetrs_npvt_strided_batched(handle::rocblas_handle,
+                                                                     trans::rocblas_operation,
+                                                                     n::rocblas_int,
+                                                                     nrhs::rocblas_int,
+                                                                     A::Ptr{rocblas_double_complex},
+                                                                     lda::rocblas_int,
+                                                                     strideA::rocblas_stride,
+                                                                     B::Ptr{rocblas_double_complex},
+                                                                     ldb::rocblas_int,
+                                                                     strideB::rocblas_stride,
+                                                                     batch_count::rocblas_int)::rocblas_status)
+end
+
+function rocsolver_sgetrs_npvt_strided_batched_64(handle, trans, n, nrhs, A, lda, strideA,
+                                                  B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_sgetrs_npvt_strided_batched_64(handle::rocblas_handle,
+                                                                        trans::rocblas_operation,
+                                                                        n::Int64,
+                                                                        nrhs::Int64,
+                                                                        A::Ptr{Cfloat},
+                                                                        lda::Int64,
+                                                                        strideA::rocblas_stride,
+                                                                        B::Ptr{Cfloat},
+                                                                        ldb::Int64,
+                                                                        strideB::rocblas_stride,
+                                                                        batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_dgetrs_npvt_strided_batched_64(handle, trans, n, nrhs, A, lda, strideA,
+                                                  B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_dgetrs_npvt_strided_batched_64(handle::rocblas_handle,
+                                                                        trans::rocblas_operation,
+                                                                        n::Int64,
+                                                                        nrhs::Int64,
+                                                                        A::Ptr{Cdouble},
+                                                                        lda::Int64,
+                                                                        strideA::rocblas_stride,
+                                                                        B::Ptr{Cdouble},
+                                                                        ldb::Int64,
+                                                                        strideB::rocblas_stride,
+                                                                        batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_cgetrs_npvt_strided_batched_64(handle, trans, n, nrhs, A, lda, strideA,
+                                                  B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_cgetrs_npvt_strided_batched_64(handle::rocblas_handle,
+                                                                        trans::rocblas_operation,
+                                                                        n::Int64,
+                                                                        nrhs::Int64,
+                                                                        A::Ptr{rocblas_float_complex},
+                                                                        lda::Int64,
+                                                                        strideA::rocblas_stride,
+                                                                        B::Ptr{rocblas_float_complex},
+                                                                        ldb::Int64,
+                                                                        strideB::rocblas_stride,
+                                                                        batch_count::Int64)::rocblas_status)
+end
+
+function rocsolver_zgetrs_npvt_strided_batched_64(handle, trans, n, nrhs, A, lda, strideA,
+                                                  B, ldb, strideB, batch_count)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsolver.rocsolver_zgetrs_npvt_strided_batched_64(handle::rocblas_handle,
+                                                                        trans::rocblas_operation,
+                                                                        n::Int64,
+                                                                        nrhs::Int64,
+                                                                        A::Ptr{rocblas_double_complex},
+                                                                        lda::Int64,
+                                                                        strideA::rocblas_stride,
+                                                                        B::Ptr{rocblas_double_complex},
+                                                                        ldb::Int64,
+                                                                        strideB::rocblas_stride,
+                                                                        batch_count::Int64)::rocblas_status)
 end
 
 function rocsolver_sgetri(handle, n, A, lda, ipiv, info)
@@ -12409,6 +13209,6 @@ end
 
 const ROCSOLVER_VERSION_MAJOR = 3
 
-const ROCSOLVER_VERSION_MINOR = 32
+const ROCSOLVER_VERSION_MINOR = 34
 
 const ROCSOLVER_VERSION_PATCH = 0

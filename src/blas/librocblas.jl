@@ -15115,6 +15115,19 @@ function rocblas_syrk_ex(handle, uplo, transA, n, k, alpha, A, a_type, lda, beta
                                              execution_type::rocblas_datatype)::rocblas_status)
 end
 
+function rocblas_herk_ex(handle, uplo, transA, n, k, alpha, A, a_type, lda, beta, C, c_type,
+                         ldc, execution_type)
+    AMDGPU.prepare_state()
+    @check @ccall(librocblas.rocblas_herk_ex(handle::rocblas_handle, uplo::rocblas_fill,
+                                             transA::rocblas_operation, n::rocblas_int,
+                                             k::rocblas_int, alpha::Ptr{Cvoid},
+                                             A::Ptr{Cvoid}, a_type::rocblas_datatype,
+                                             lda::rocblas_int, beta::Ptr{Cvoid},
+                                             C::Ptr{Cvoid}, c_type::rocblas_datatype,
+                                             ldc::rocblas_int,
+                                             execution_type::rocblas_datatype)::rocblas_status)
+end
+
 function rocblas_axpy_ex(handle, n, alpha, alpha_type, x, x_type, incx, y, y_type, incy,
                          execution_type)
     AMDGPU.prepare_state()
@@ -15331,25 +15344,6 @@ function rocblas_dot_strided_batched_ex(handle, n, x, x_type, incx, stride_x, y,
                                                             execution_type::rocblas_datatype)::rocblas_status)
 end
 
-function rocblas_dotc_strided_batched_ex(handle, n, x, x_type, incx, stride_x, y, y_type,
-                                         incy, stride_y, batch_count, result, result_type,
-                                         execution_type)
-    AMDGPU.prepare_state()
-    @check @ccall(librocblas.rocblas_dotc_strided_batched_ex(handle::rocblas_handle,
-                                                             n::rocblas_int, x::Ptr{Cvoid},
-                                                             x_type::rocblas_datatype,
-                                                             incx::rocblas_int,
-                                                             stride_x::rocblas_stride,
-                                                             y::Ptr{Cvoid},
-                                                             y_type::rocblas_datatype,
-                                                             incy::rocblas_int,
-                                                             stride_y::rocblas_stride,
-                                                             batch_count::rocblas_int,
-                                                             result::Ptr{Cvoid},
-                                                             result_type::rocblas_datatype,
-                                                             execution_type::rocblas_datatype)::rocblas_status)
-end
-
 function rocblas_dot_strided_batched_ex_64(handle, n, x, x_type, incx, stride_x, y, y_type,
                                            incy, stride_y, batch_count, result, result_type,
                                            execution_type)
@@ -15367,6 +15361,25 @@ function rocblas_dot_strided_batched_ex_64(handle, n, x, x_type, incx, stride_x,
                                                                result::Ptr{Cvoid},
                                                                result_type::rocblas_datatype,
                                                                execution_type::rocblas_datatype)::rocblas_status)
+end
+
+function rocblas_dotc_strided_batched_ex(handle, n, x, x_type, incx, stride_x, y, y_type,
+                                         incy, stride_y, batch_count, result, result_type,
+                                         execution_type)
+    AMDGPU.prepare_state()
+    @check @ccall(librocblas.rocblas_dotc_strided_batched_ex(handle::rocblas_handle,
+                                                             n::rocblas_int, x::Ptr{Cvoid},
+                                                             x_type::rocblas_datatype,
+                                                             incx::rocblas_int,
+                                                             stride_x::rocblas_stride,
+                                                             y::Ptr{Cvoid},
+                                                             y_type::rocblas_datatype,
+                                                             incy::rocblas_int,
+                                                             stride_y::rocblas_stride,
+                                                             batch_count::rocblas_int,
+                                                             result::Ptr{Cvoid},
+                                                             result_type::rocblas_datatype,
+                                                             execution_type::rocblas_datatype)::rocblas_status)
 end
 
 function rocblas_dotc_strided_batched_ex_64(handle, n, x, x_type, incx, stride_x, y, y_type,
@@ -15749,8 +15762,8 @@ end
 
 const ROCBLAS_VERSION_MAJOR = 5
 
-const ROCBLAS_VERSION_MINOR = 3
+const ROCBLAS_VERSION_MINOR = 4
 
 const ROCBLAS_VERSION_PATCH = 0
 
-const ROCBLAS_TENSILE_COMMIT_ID = ("eca29852846c55435f31ed3920b31072d9ea01a1", "")
+const ROCBLAS_TENSILE_COMMIT_ID = ("f664f44c90ae22e860738f8c9793a019eb1975e1", "")

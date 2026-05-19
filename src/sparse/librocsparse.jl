@@ -411,12 +411,13 @@ end
 
 const rocsparse_direction = rocsparse_direction_
 
-function rocsparse_create_bsr_descr(descr, mb, nb, nnzb, block_dir, block_dim, bsr_row_ptr,
-                                    bsr_col_ind, bsr_val, row_ptr_type, col_ind_type,
-                                    idx_base, data_type)
+function rocsparse_create_bsr_descr(descr, brows, bcols, bnnz, block_dir, block_dim,
+                                    bsr_row_ptr, bsr_col_ind, bsr_val, row_ptr_type,
+                                    col_ind_type, idx_base, data_type)
     AMDGPU.prepare_state()
     @check @ccall(librocsparse.rocsparse_create_bsr_descr(descr::Ptr{rocsparse_spmat_descr},
-                                                          mb::Int64, nb::Int64, nnzb::Int64,
+                                                          brows::Int64, bcols::Int64,
+                                                          bnnz::Int64,
                                                           block_dir::rocsparse_direction,
                                                           block_dim::Int64,
                                                           bsr_row_ptr::Ptr{Cvoid},
@@ -426,6 +427,24 @@ function rocsparse_create_bsr_descr(descr, mb, nb, nnzb, block_dir, block_dim, b
                                                           col_ind_type::rocsparse_indextype,
                                                           idx_base::rocsparse_index_base,
                                                           data_type::rocsparse_datatype)::rocsparse_status)
+end
+
+function rocsparse_create_const_bsr_descr(descr, brows, bcols, bnnz, block_dir, block_dim,
+                                          bsr_row_ptr, bsr_col_ind, bsr_val, row_ptr_type,
+                                          col_ind_type, idx_base, data_type)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_create_const_bsr_descr(descr::Ptr{rocsparse_const_spmat_descr},
+                                                                brows::Int64, bcols::Int64,
+                                                                bnnz::Int64,
+                                                                block_dir::rocsparse_direction,
+                                                                block_dim::Int64,
+                                                                bsr_row_ptr::Ptr{Cvoid},
+                                                                bsr_col_ind::Ptr{Cvoid},
+                                                                bsr_val::Ptr{Cvoid},
+                                                                row_ptr_type::rocsparse_indextype,
+                                                                col_ind_type::rocsparse_indextype,
+                                                                idx_base::rocsparse_index_base,
+                                                                data_type::rocsparse_datatype)::rocsparse_status)
 end
 
 function rocsparse_create_csr_descr(descr, rows, cols, nnz, csr_row_ptr, csr_col_ind,
@@ -722,6 +741,20 @@ mutable struct _rocsparse_sptrsv_descr end
 
 const rocsparse_sptrsv_descr = Ptr{_rocsparse_sptrsv_descr}
 
+function rocsparse_sptrsv_descr_create(handle, p_sptrsv_descr, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_sptrsv_descr_create(handle::rocsparse_handle,
+                                                             p_sptrsv_descr::Ptr{rocsparse_sptrsv_descr},
+                                                             p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+function rocsparse_sptrsv_descr_destroy(handle, sptrsv_descr, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_sptrsv_descr_destroy(handle::rocsparse_handle,
+                                                              sptrsv_descr::rocsparse_sptrsv_descr,
+                                                              p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
 function rocsparse_create_sptrsv_descr(descr)
     AMDGPU.prepare_state()
     @check @ccall(librocsparse.rocsparse_create_sptrsv_descr(descr::Ptr{rocsparse_sptrsv_descr})::rocsparse_status)
@@ -755,6 +788,8 @@ end
 
 @cenum rocsparse_sptrsv_output_::UInt32 begin
     rocsparse_sptrsv_output_zero_pivot_position = 0
+    rocsparse_sptrsv_output_singularity = 1
+    rocsparse_sptrsv_output_singularity_position = 2
 end
 
 const rocsparse_sptrsv_output = rocsparse_sptrsv_output_
@@ -820,6 +855,124 @@ function rocsparse_sptrsm_get_output(handle, descr, output, data, data_size_in_b
                                                            output::rocsparse_sptrsm_output,
                                                            data::Ptr{Cvoid},
                                                            data_size_in_bytes::Csize_t,
+                                                           p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+mutable struct _rocsparse_spic0_descr end
+
+const rocsparse_spic0_descr = Ptr{_rocsparse_spic0_descr}
+
+function rocsparse_spic0_descr_create(handle, p_spic0_descr, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spic0_descr_create(handle::rocsparse_handle,
+                                                            p_spic0_descr::Ptr{rocsparse_spic0_descr},
+                                                            p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+function rocsparse_spic0_descr_destroy(handle, spic0_descr, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spic0_descr_destroy(handle::rocsparse_handle,
+                                                             spic0_descr::rocsparse_spic0_descr,
+                                                             p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+@cenum rocsparse_spic0_input_::UInt32 begin
+    rocsparse_spic0_input_alg = 0
+    rocsparse_spic0_input_analysis_policy = 1
+    rocsparse_spic0_input_compute_datatype = 2
+    rocsparse_spic0_input_boost_enable = 3
+    rocsparse_spic0_input_boost_tolerance = 4
+    rocsparse_spic0_input_boost_value = 5
+    rocsparse_spic0_input_singularity_tolerance = 6
+end
+
+const rocsparse_spic0_input = rocsparse_spic0_input_
+
+function rocsparse_spic0_set_input(handle, spic0_descr, spic0_input, input,
+                                   input_size_in_bytes, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spic0_set_input(handle::rocsparse_handle,
+                                                         spic0_descr::rocsparse_spic0_descr,
+                                                         spic0_input::rocsparse_spic0_input,
+                                                         input::Ptr{Cvoid},
+                                                         input_size_in_bytes::Csize_t,
+                                                         p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+@cenum rocsparse_spic0_output_::UInt32 begin
+    rocsparse_spic0_output_singularity = 0
+    rocsparse_spic0_output_singularity_position = 1
+end
+
+const rocsparse_spic0_output = rocsparse_spic0_output_
+
+function rocsparse_spic0_get_output(handle, spic0_descr, spic0_output, output,
+                                    output_size_in_bytes, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spic0_get_output(handle::rocsparse_handle,
+                                                          spic0_descr::rocsparse_spic0_descr,
+                                                          spic0_output::rocsparse_spic0_output,
+                                                          output::Ptr{Cvoid},
+                                                          output_size_in_bytes::Csize_t,
+                                                          p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+mutable struct _rocsparse_spilu0_descr end
+
+const rocsparse_spilu0_descr = Ptr{_rocsparse_spilu0_descr}
+
+function rocsparse_spilu0_descr_create(handle, p_spilu0_descr, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spilu0_descr_create(handle::rocsparse_handle,
+                                                             p_spilu0_descr::Ptr{rocsparse_spilu0_descr},
+                                                             p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+function rocsparse_spilu0_descr_destroy(handle, spilu0_descr, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spilu0_descr_destroy(handle::rocsparse_handle,
+                                                              spilu0_descr::rocsparse_spilu0_descr,
+                                                              p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+@cenum rocsparse_spilu0_input_::UInt32 begin
+    rocsparse_spilu0_input_alg = 0
+    rocsparse_spilu0_input_analysis_policy = 1
+    rocsparse_spilu0_input_compute_datatype = 2
+    rocsparse_spilu0_input_boost_enable = 3
+    rocsparse_spilu0_input_boost_tolerance = 4
+    rocsparse_spilu0_input_boost_value = 5
+    rocsparse_spilu0_input_singularity_tolerance = 6
+end
+
+const rocsparse_spilu0_input = rocsparse_spilu0_input_
+
+function rocsparse_spilu0_set_input(handle, spilu0_descr, spilu0_input, input,
+                                    input_size_in_bytes, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spilu0_set_input(handle::rocsparse_handle,
+                                                          spilu0_descr::rocsparse_spilu0_descr,
+                                                          spilu0_input::rocsparse_spilu0_input,
+                                                          input::Ptr{Cvoid},
+                                                          input_size_in_bytes::Csize_t,
+                                                          p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+@cenum rocsparse_spilu0_output_::UInt32 begin
+    rocsparse_spilu0_output_singularity = 0
+    rocsparse_spilu0_output_singularity_position = 1
+end
+
+const rocsparse_spilu0_output = rocsparse_spilu0_output_
+
+function rocsparse_spilu0_get_output(handle, spilu0_descr, spilu0_output, output,
+                                     output_size_in_bytes, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spilu0_get_output(handle::rocsparse_handle,
+                                                           spilu0_descr::rocsparse_spilu0_descr,
+                                                           spilu0_output::rocsparse_spilu0_output,
+                                                           output::Ptr{Cvoid},
+                                                           output_size_in_bytes::Csize_t,
                                                            p_error::Ptr{rocsparse_error})::rocsparse_status)
 end
 
@@ -1031,14 +1184,15 @@ function rocsparse_const_sell_get(descr, rows, cols, nnz, sell_slice_size, sell_
                                                         data_type::Ptr{rocsparse_datatype})::rocsparse_status)
 end
 
-function rocsparse_bsr_get(descr, brows, bcols, bnnz, bdir, bdim, bsr_row_ptr, bsr_col_ind,
-                           bsr_val, row_ptr_type, col_ind_type, idx_base, data_type)
+function rocsparse_bsr_get(descr, brows, bcols, bnnz, block_dir, block_dim, bsr_row_ptr,
+                           bsr_col_ind, bsr_val, row_ptr_type, col_ind_type, idx_base,
+                           data_type)
     AMDGPU.prepare_state()
     @check @ccall(librocsparse.rocsparse_bsr_get(descr::rocsparse_spmat_descr,
                                                  brows::Ptr{Int64}, bcols::Ptr{Int64},
                                                  bnnz::Ptr{Int64},
-                                                 bdir::Ptr{rocsparse_direction},
-                                                 bdim::Ptr{Int64},
+                                                 block_dir::Ptr{rocsparse_direction},
+                                                 block_dim::Ptr{Int64},
                                                  bsr_row_ptr::Ptr{Ptr{Cvoid}},
                                                  bsr_col_ind::Ptr{Ptr{Cvoid}},
                                                  bsr_val::Ptr{Ptr{Cvoid}},
@@ -1048,15 +1202,15 @@ function rocsparse_bsr_get(descr, brows, bcols, bnnz, bdir, bdim, bsr_row_ptr, b
                                                  data_type::Ptr{rocsparse_datatype})::rocsparse_status)
 end
 
-function rocsparse_const_bsr_get(descr, brows, bcols, bnnz, bdir, bdim, bsr_row_ptr,
-                                 bsr_col_ind, bsr_val, row_ptr_type, col_ind_type, idx_base,
-                                 data_type)
+function rocsparse_const_bsr_get(descr, brows, bcols, bnnz, block_dir, block_dim,
+                                 bsr_row_ptr, bsr_col_ind, bsr_val, row_ptr_type,
+                                 col_ind_type, idx_base, data_type)
     AMDGPU.prepare_state()
     @check @ccall(librocsparse.rocsparse_const_bsr_get(descr::rocsparse_const_spmat_descr,
                                                        brows::Ptr{Int64}, bcols::Ptr{Int64},
                                                        bnnz::Ptr{Int64},
-                                                       bdir::Ptr{rocsparse_direction},
-                                                       bdim::Ptr{Int64},
+                                                       block_dir::Ptr{rocsparse_direction},
+                                                       block_dim::Ptr{Int64},
                                                        bsr_row_ptr::Ptr{Ptr{Cvoid}},
                                                        bsr_col_ind::Ptr{Ptr{Cvoid}},
                                                        bsr_val::Ptr{Ptr{Cvoid}},
@@ -1382,6 +1536,20 @@ end
 function rocsparse_dnmat_set_strided_batch(descr, batch_count, batch_stride)
     AMDGPU.prepare_state()
     @check @ccall(librocsparse.rocsparse_dnmat_set_strided_batch(descr::rocsparse_dnmat_descr,
+                                                                 batch_count::rocsparse_int,
+                                                                 batch_stride::Int64)::rocsparse_status)
+end
+
+function rocsparse_dnvec_get_strided_batch(descr, batch_count, batch_stride)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_dnvec_get_strided_batch(descr::rocsparse_const_dnvec_descr,
+                                                                 batch_count::Ptr{rocsparse_int},
+                                                                 batch_stride::Ptr{Int64})::rocsparse_status)
+end
+
+function rocsparse_dnvec_set_strided_batch(descr, batch_count, batch_stride)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_dnvec_set_strided_batch(descr::rocsparse_dnvec_descr,
                                                                  batch_count::rocsparse_int,
                                                                  batch_stride::Int64)::rocsparse_status)
 end
@@ -5073,6 +5241,70 @@ function rocsparse_spgemm(handle, trans_A, trans_B, alpha, A, B, beta, D, C, com
                                                 temp_buffer::Ptr{Cvoid})::rocsparse_status)
 end
 
+@cenum rocsparse_spic0_stage_::UInt32 begin
+    rocsparse_spic0_stage_analysis = 0
+    rocsparse_spic0_stage_compute = 1
+end
+
+const rocsparse_spic0_stage = rocsparse_spic0_stage_
+
+function rocsparse_spic0_buffer_size(handle, spic0_descr, A, P, spic0_stage,
+                                     p_buffer_size_in_bytes, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spic0_buffer_size(handle::rocsparse_handle,
+                                                           spic0_descr::rocsparse_spic0_descr,
+                                                           A::rocsparse_const_spmat_descr,
+                                                           P::rocsparse_const_spmat_descr,
+                                                           spic0_stage::rocsparse_spic0_stage,
+                                                           p_buffer_size_in_bytes::Ptr{Csize_t},
+                                                           p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+function rocsparse_spic0(handle, spic0_descr, A, P, spic0_stage, buffer_size_in_bytes,
+                         buffer, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spic0(handle::rocsparse_handle,
+                                               spic0_descr::rocsparse_spic0_descr,
+                                               A::rocsparse_const_spmat_descr,
+                                               P::rocsparse_spmat_descr,
+                                               spic0_stage::rocsparse_spic0_stage,
+                                               buffer_size_in_bytes::Csize_t,
+                                               buffer::Ptr{Cvoid},
+                                               p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+@cenum rocsparse_spilu0_stage_::UInt32 begin
+    rocsparse_spilu0_stage_analysis = 0
+    rocsparse_spilu0_stage_compute = 1
+end
+
+const rocsparse_spilu0_stage = rocsparse_spilu0_stage_
+
+function rocsparse_spilu0_buffer_size(handle, spilu0_descr, A, P, spilu0_stage,
+                                      p_buffer_size_in_bytes, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spilu0_buffer_size(handle::rocsparse_handle,
+                                                            spilu0_descr::rocsparse_spilu0_descr,
+                                                            A::rocsparse_const_spmat_descr,
+                                                            P::rocsparse_const_spmat_descr,
+                                                            spilu0_stage::rocsparse_spilu0_stage,
+                                                            p_buffer_size_in_bytes::Ptr{Csize_t},
+                                                            p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
+function rocsparse_spilu0(handle, spilu0_descr, A, P, spilu0_stage, buffer_size_in_bytes,
+                          buffer, p_error)
+    AMDGPU.prepare_state()
+    @check @ccall(librocsparse.rocsparse_spilu0(handle::rocsparse_handle,
+                                                spilu0_descr::rocsparse_spilu0_descr,
+                                                A::rocsparse_const_spmat_descr,
+                                                P::rocsparse_spmat_descr,
+                                                spilu0_stage::rocsparse_spilu0_stage,
+                                                buffer_size_in_bytes::Csize_t,
+                                                buffer::Ptr{Cvoid},
+                                                p_error::Ptr{rocsparse_error})::rocsparse_status)
+end
+
 @cenum rocsparse_spitsv_alg_::UInt32 begin
     rocsparse_spitsv_alg_default = 0
 end
@@ -5159,7 +5391,7 @@ end
     rocsparse_spmv_alg_csr_lrb = 7
     rocsparse_spmv_alg_csr_nnzsplit = 8
     rocsparse_spmv_alg_sell = 9
-    rocsparse_spmv_alg_csr_stream = 3
+    rocsparse_spmv_alg_csr_stream = 10
 end
 
 const rocsparse_spmv_alg = rocsparse_spmv_alg_
@@ -10890,6 +11122,15 @@ end
 
 const rocsparse_itilu0_option = rocsparse_itilu0_option_
 
+@cenum rocsparse_singularity_::UInt32 begin
+    rocsparse_singularity_none = 0
+    rocsparse_singularity_symbolic = 1
+    rocsparse_singularity_numeric_exact = 2
+    rocsparse_singularity_numeric_near = 3
+end
+
+const rocsparse_singularity = rocsparse_singularity_
+
 @cenum rocsparse_sptrsv_alg_::UInt32 begin
     rocsparse_sptrsv_alg_default = 0
 end
@@ -10901,6 +11142,18 @@ const rocsparse_sptrsv_alg = rocsparse_sptrsv_alg_
 end
 
 const rocsparse_sptrsm_alg = rocsparse_sptrsm_alg_
+
+@cenum rocsparse_spic0_alg_::UInt32 begin
+    rocsparse_spic0_alg_default = 0
+end
+
+const rocsparse_spic0_alg = rocsparse_spic0_alg_
+
+@cenum rocsparse_spilu0_alg_::UInt32 begin
+    rocsparse_spilu0_alg_default = 0
+end
+
+const rocsparse_spilu0_alg = rocsparse_spilu0_alg_
 
 @cenum rocsparse_spgeam_alg_::UInt32 begin
     rocsparse_spgeam_alg_default = 0
@@ -10922,6 +11175,6 @@ end
 
 const ROCSPARSE_VERSION_MAJOR = 4
 
-const ROCSPARSE_VERSION_MINOR = 3
+const ROCSPARSE_VERSION_MINOR = 6
 
 const ROCSPARSE_VERSION_PATCH = 0

@@ -335,7 +335,8 @@ end
     hipErrorUnknown = 999
     hipErrorRuntimeMemory = 1052
     hipErrorRuntimeOther = 1053
-    hipErrorTbd = 1054
+    hipErrorInvalidClusterSize = 1054
+    hipErrorTbd = 1055
 end
 
 function hipGetDevicePropertiesR0600(prop, deviceId)
@@ -353,9 +354,12 @@ mutable struct ihipStream_t end
 const hipStream_t = Ptr{ihipStream_t}
 
 @cenum hipLaunchAttributeID::UInt32 begin
+    hipLaunchAttributeIgnore = 0
     hipLaunchAttributeAccessPolicyWindow = 1
     hipLaunchAttributeCooperative = 2
     hipLaunchAttributeSynchronizationPolicy = 3
+    hipLaunchAttributeClusterDimension = 4
+    hipLaunchAttributeClusterSchedulingPolicyPreference = 5
     hipLaunchAttributePriority = 8
     hipLaunchAttributeMemSyncDomainMap = 9
     hipLaunchAttributeMemSyncDomain = 10
@@ -374,6 +378,9 @@ function Base.getproperty(x::Ptr{hipLaunchAttributeValue}, f::Symbol)
     f === :syncPolicy && return Ptr{hipSynchronizationPolicy}(x + 0)
     f === :memSyncDomainMap && return Ptr{hipLaunchMemSyncDomainMap}(x + 0)
     f === :memSyncDomain && return Ptr{hipLaunchMemSyncDomain}(x + 0)
+    f === :clusterDim && return Ptr{var"##Ctag#241"}(x + 0)
+    f === :clusterSchedulingPolicyPreference &&
+        return Ptr{hipClusterSchedulingPolicy}(x + 0)
     return getfield(x, f)
 end
 
@@ -390,7 +397,8 @@ end
 
 function Base.propertynames(x::hipLaunchAttributeValue, private::Bool=false)
     return (:pad, :accessPolicyWindow, :cooperative, :priority, :syncPolicy,
-            :memSyncDomainMap, :memSyncDomain, if private
+            :memSyncDomainMap, :memSyncDomain, :clusterDim,
+            :clusterSchedulingPolicyPreference, if private
                 fieldnames(typeof(x))
             else
                 ()
@@ -498,7 +506,7 @@ end
 
 const hipLibraryOption = hipLibraryOption_e
 
-@cenum var"##Ctag#277"::UInt32 begin
+@cenum var"##Ctag#232"::UInt32 begin
     HIP_SUCCESS = 0
     HIP_ERROR_INVALID_VALUE = 1
     HIP_ERROR_NOT_INITIALIZED = 2
@@ -619,6 +627,8 @@ end
     hipDeviceAttributeHostRegisterSupported = 90
     hipDeviceAttributeMemoryPoolSupportedHandleTypes = 91
     hipDeviceAttributeHostNumaId = 92
+    hipDeviceAttributeDmaBufSupported = 93
+    hipDeviceAttributeGPUDirectRDMAWithHipVMMSupported = 94
     hipDeviceAttributeCudaCompatibleEnd = 9999
     hipDeviceAttributeAmdSpecificBegin = 10000
     hipDeviceAttributeClockInstructionRate = 10000
@@ -642,6 +652,7 @@ end
     hipDeviceAttributeNumberOfXccs = 10018
     hipDeviceAttributeMaxAvailableVgprsPerThread = 10019
     hipDeviceAttributePciChipId = 10020
+    hipDeviceAttributeExpertSchedMode = 10021
     hipDeviceAttributeAmdSpecificEnd = 19999
     hipDeviceAttributeVendorSpecificBegin = 20000
 end
@@ -886,30 +897,30 @@ end
 
 const HIPresourceViewFormat = HIPresourceViewFormat_enum
 
-struct var"##Ctag#292"
+struct var"##Ctag#248"
     data::NTuple{56,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#292"}, f::Symbol)
-    f === :array && return Ptr{var"##Ctag#293"}(x + 0)
-    f === :mipmap && return Ptr{var"##Ctag#294"}(x + 0)
-    f === :linear && return Ptr{var"##Ctag#295"}(x + 0)
-    f === :pitch2D && return Ptr{var"##Ctag#296"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#248"}, f::Symbol)
+    f === :array && return Ptr{var"##Ctag#249"}(x + 0)
+    f === :mipmap && return Ptr{var"##Ctag#250"}(x + 0)
+    f === :linear && return Ptr{var"##Ctag#251"}(x + 0)
+    f === :pitch2D && return Ptr{var"##Ctag#252"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#292", f::Symbol)
-    r = Ref{var"##Ctag#292"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#292"}, r)
+function Base.getproperty(x::var"##Ctag#248", f::Symbol)
+    r = Ref{var"##Ctag#248"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#248"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#292"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#248"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#292", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#248", private::Bool=false)
     return (:array, :mipmap, :linear, :pitch2D, if private
                 fieldnames(typeof(x))
             else
@@ -923,7 +934,7 @@ end
 
 function Base.getproperty(x::Ptr{hipResourceDesc}, f::Symbol)
     f === :resType && return Ptr{hipResourceType}(x + 0)
-    f === :res && return Ptr{var"##Ctag#292"}(x + 8)
+    f === :res && return Ptr{var"##Ctag#248"}(x + 8)
     return getfield(x, f)
 end
 
@@ -946,31 +957,31 @@ function Base.propertynames(x::hipResourceDesc, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#299"
+struct var"##Ctag#255"
     data::NTuple{128,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#299"}, f::Symbol)
-    f === :array && return Ptr{var"##Ctag#300"}(x + 0)
-    f === :mipmap && return Ptr{var"##Ctag#301"}(x + 0)
-    f === :linear && return Ptr{var"##Ctag#302"}(x + 0)
-    f === :pitch2D && return Ptr{var"##Ctag#303"}(x + 0)
-    f === :reserved && return Ptr{var"##Ctag#304"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#255"}, f::Symbol)
+    f === :array && return Ptr{var"##Ctag#256"}(x + 0)
+    f === :mipmap && return Ptr{var"##Ctag#257"}(x + 0)
+    f === :linear && return Ptr{var"##Ctag#258"}(x + 0)
+    f === :pitch2D && return Ptr{var"##Ctag#259"}(x + 0)
+    f === :reserved && return Ptr{var"##Ctag#260"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#299", f::Symbol)
-    r = Ref{var"##Ctag#299"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#299"}, r)
+function Base.getproperty(x::var"##Ctag#255", f::Symbol)
+    r = Ref{var"##Ctag#255"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#255"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#299"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#255"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#299", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#255", private::Bool=false)
     return (:array, :mipmap, :linear, :pitch2D, :reserved, if private
                 fieldnames(typeof(x))
             else
@@ -984,7 +995,7 @@ end
 
 function Base.getproperty(x::Ptr{HIP_RESOURCE_DESC_st}, f::Symbol)
     f === :resType && return Ptr{HIPresourcetype}(x + 0)
-    f === :res && return Ptr{var"##Ctag#299"}(x + 8)
+    f === :res && return Ptr{var"##Ctag#255"}(x + 8)
     f === :flags && return Ptr{Cuint}(x + 136)
     return getfield(x, f)
 end
@@ -1117,6 +1128,8 @@ end
 @cenum hipMemcpyFlags::UInt32 begin
     hipMemcpyFlagDefault = 0
     hipMemcpyFlagPreferOverlapWithCompute = 1
+    hipMemcpyFlagExtPreferCE = 256
+    hipMemcpyFlagExtOpSwap = 512
 end
 
 @cenum hipMemcpySrcAccessOrder::UInt32 begin
@@ -1146,28 +1159,28 @@ struct hipOffset3D
     z::Csize_t
 end
 
-struct var"##Ctag#278"
+struct var"##Ctag#233"
     data::NTuple{32,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#278"}, f::Symbol)
-    f === :ptr && return Ptr{var"##Ctag#279"}(x + 0)
-    f === :array && return Ptr{var"##Ctag#280"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#233"}, f::Symbol)
+    f === :ptr && return Ptr{var"##Ctag#234"}(x + 0)
+    f === :array && return Ptr{var"##Ctag#235"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#278", f::Symbol)
-    r = Ref{var"##Ctag#278"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#278"}, r)
+function Base.getproperty(x::var"##Ctag#233", f::Symbol)
+    r = Ref{var"##Ctag#233"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#233"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#278"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#233"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#278", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#233", private::Bool=false)
     return (:ptr, :array, if private
                 fieldnames(typeof(x))
             else
@@ -1181,7 +1194,7 @@ end
 
 function Base.getproperty(x::Ptr{hipMemcpy3DOperand}, f::Symbol)
     f === :type && return Ptr{hipMemcpy3DOperandType}(x + 0)
-    f === :op && return Ptr{var"##Ctag#278"}(x + 8)
+    f === :op && return Ptr{var"##Ctag#233"}(x + 8)
     return getfield(x, f)
 end
 
@@ -1276,7 +1289,13 @@ end
     HIP_FUNC_ATTRIBUTE_CACHE_MODE_CA = 7
     HIP_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES = 8
     HIP_FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT = 9
-    HIP_FUNC_ATTRIBUTE_MAX = 10
+    HIP_FUNC_ATTRIBUTE_CLUSTER_DIM_MUST_BE_SET = 10
+    HIP_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_WIDTH = 11
+    HIP_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_HEIGHT = 12
+    HIP_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_DEPTH = 13
+    HIP_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED = 14
+    HIP_FUNC_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE = 15
+    HIP_FUNC_ATTRIBUTE_MAX = 16
 end
 
 @cenum hipPointer_attribute::UInt32 begin
@@ -2192,6 +2211,7 @@ end
 @cenum hipMemAllocationType::UInt32 begin
     hipMemAllocationTypeInvalid = 0
     hipMemAllocationTypePinned = 1
+    hipMemAllocationTypeManaged = 2
     hipMemAllocationTypeUncached = 1073741824
     hipMemAllocationTypeMax = 2147483647
 end
@@ -2268,7 +2288,13 @@ end
 @cenum hipFuncAttribute::UInt32 begin
     hipFuncAttributeMaxDynamicSharedMemorySize = 8
     hipFuncAttributePreferredSharedMemoryCarveout = 9
-    hipFuncAttributeMax = 10
+    hipFuncAttributeClusterDimMustBeSet = 10
+    hipFuncAttributeRequiredClusterWidth = 11
+    hipFuncAttributeRequiredClusterHeight = 12
+    hipFuncAttributeRequiredClusterDepth = 13
+    hipFuncAttributeNonPortableClusterSizeAllowed = 14
+    hipFuncAttributeClusterSchedulingPolicyPreference = 15
+    hipFuncAttributeMax = 16
 end
 
 @cenum hipFuncCache_t::UInt32 begin
@@ -2403,29 +2429,29 @@ end
 
 const hipExternalMemoryHandleType = hipExternalMemoryHandleType_enum
 
-struct var"##Ctag#297"
+struct var"##Ctag#253"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#297"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#253"}, f::Symbol)
     f === :fd && return Ptr{Cint}(x + 0)
-    f === :win32 && return Ptr{var"##Ctag#298"}(x + 0)
+    f === :win32 && return Ptr{var"##Ctag#254"}(x + 0)
     f === :nvSciBufObject && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#297", f::Symbol)
-    r = Ref{var"##Ctag#297"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#297"}, r)
+function Base.getproperty(x::var"##Ctag#253", f::Symbol)
+    r = Ref{var"##Ctag#253"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#253"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#297"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#253"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#297", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#253", private::Bool=false)
     return (:fd, :win32, :nvSciBufObject, if private
                 fieldnames(typeof(x))
             else
@@ -2439,7 +2465,7 @@ end
 
 function Base.getproperty(x::Ptr{hipExternalMemoryHandleDesc_st}, f::Symbol)
     f === :type && return Ptr{hipExternalMemoryHandleType}(x + 0)
-    f === :handle && return Ptr{var"##Ctag#297"}(x + 8)
+    f === :handle && return Ptr{var"##Ctag#253"}(x + 8)
     f === :size && return Ptr{Culonglong}(x + 24)
     f === :flags && return Ptr{Cuint}(x + 32)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 36)
@@ -2551,29 +2577,29 @@ end
 
 const hipExternalSemaphoreHandleType = hipExternalSemaphoreHandleType_enum
 
-struct var"##Ctag#290"
+struct var"##Ctag#246"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#290"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#246"}, f::Symbol)
     f === :fd && return Ptr{Cint}(x + 0)
-    f === :win32 && return Ptr{var"##Ctag#291"}(x + 0)
+    f === :win32 && return Ptr{var"##Ctag#247"}(x + 0)
     f === :NvSciSyncObj && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#290", f::Symbol)
-    r = Ref{var"##Ctag#290"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#290"}, r)
+function Base.getproperty(x::var"##Ctag#246", f::Symbol)
+    r = Ref{var"##Ctag#246"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#246"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#290"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#246"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#290", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#246", private::Bool=false)
     return (:fd, :win32, :NvSciSyncObj, if private
                 fieldnames(typeof(x))
             else
@@ -2587,7 +2613,7 @@ end
 
 function Base.getproperty(x::Ptr{hipExternalSemaphoreHandleDesc_st}, f::Symbol)
     f === :type && return Ptr{hipExternalSemaphoreHandleType}(x + 0)
-    f === :handle && return Ptr{var"##Ctag#290"}(x + 8)
+    f === :handle && return Ptr{var"##Ctag#246"}(x + 8)
     f === :flags && return Ptr{Cuint}(x + 24)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 28)
     return getfield(x, f)
@@ -2616,47 +2642,47 @@ const hipExternalSemaphoreHandleDesc = hipExternalSemaphoreHandleDesc_st
 
 const hipExternalSemaphore_t = Ptr{Cvoid}
 
-struct var"##Ctag#287"
+struct var"##Ctag#243"
     value::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#287"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#243"}, f::Symbol)
     f === :value && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#287", f::Symbol)
-    r = Ref{var"##Ctag#287"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#287"}, r)
+function Base.getproperty(x::var"##Ctag#243", f::Symbol)
+    r = Ref{var"##Ctag#243"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#243"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#287"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#243"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#288"
+struct var"##Ctag#244"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#288"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#244"}, f::Symbol)
     f === :fence && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :reserved && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#288", f::Symbol)
-    r = Ref{var"##Ctag#288"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#288"}, r)
+function Base.getproperty(x::var"##Ctag#244", f::Symbol)
+    r = Ref{var"##Ctag#244"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#244"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#288"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#244"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#288", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#244", private::Bool=false)
     return (:fence, :reserved, if private
                 fieldnames(typeof(x))
             else
@@ -2664,49 +2690,49 @@ function Base.propertynames(x::var"##Ctag#288", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#289"
+struct var"##Ctag#245"
     key::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#289"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#245"}, f::Symbol)
     f === :key && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#289", f::Symbol)
-    r = Ref{var"##Ctag#289"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#289"}, r)
+function Base.getproperty(x::var"##Ctag#245", f::Symbol)
+    r = Ref{var"##Ctag#245"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#245"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#289"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#245"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#286"
+struct var"##Ctag#242"
     data::NTuple{72,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#286"}, f::Symbol)
-    f === :fence && return Ptr{var"##Ctag#287"}(x + 0)
-    f === :nvSciSync && return Ptr{var"##Ctag#288"}(x + 8)
-    f === :keyedMutex && return Ptr{var"##Ctag#289"}(x + 16)
+function Base.getproperty(x::Ptr{var"##Ctag#242"}, f::Symbol)
+    f === :fence && return Ptr{var"##Ctag#243"}(x + 0)
+    f === :nvSciSync && return Ptr{var"##Ctag#244"}(x + 8)
+    f === :keyedMutex && return Ptr{var"##Ctag#245"}(x + 16)
     f === :reserved && return Ptr{NTuple{12,Cuint}}(x + 24)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#286", f::Symbol)
-    r = Ref{var"##Ctag#286"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#286"}, r)
+function Base.getproperty(x::var"##Ctag#242", f::Symbol)
+    r = Ref{var"##Ctag#242"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#242"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#286"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#242"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#286", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#242", private::Bool=false)
     return (:fence, :nvSciSync, :keyedMutex, :reserved, if private
                 fieldnames(typeof(x))
             else
@@ -2746,47 +2772,47 @@ end
 
 const hipExternalSemaphoreSignalParams = hipExternalSemaphoreSignalParams_st
 
-struct var"##Ctag#307"
+struct var"##Ctag#263"
     value::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#307"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#263"}, f::Symbol)
     f === :value && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#307", f::Symbol)
-    r = Ref{var"##Ctag#307"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#307"}, r)
+function Base.getproperty(x::var"##Ctag#263", f::Symbol)
+    r = Ref{var"##Ctag#263"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#263"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#307"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#263"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#308"
+struct var"##Ctag#264"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#308"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#264"}, f::Symbol)
     f === :fence && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :reserved && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#308", f::Symbol)
-    r = Ref{var"##Ctag#308"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#308"}, r)
+function Base.getproperty(x::var"##Ctag#264", f::Symbol)
+    r = Ref{var"##Ctag#264"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#264"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#308"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#264"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#308", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#264", private::Bool=false)
     return (:fence, :reserved, if private
                 fieldnames(typeof(x))
             else
@@ -2794,51 +2820,51 @@ function Base.propertynames(x::var"##Ctag#308", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#309"
+struct var"##Ctag#265"
     key::Culonglong
     timeoutMs::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#309"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#265"}, f::Symbol)
     f === :key && return Ptr{Culonglong}(x + 0)
     f === :timeoutMs && return Ptr{Cuint}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#309", f::Symbol)
-    r = Ref{var"##Ctag#309"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#309"}, r)
+function Base.getproperty(x::var"##Ctag#265", f::Symbol)
+    r = Ref{var"##Ctag#265"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#265"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#309"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#265"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#306"
+struct var"##Ctag#262"
     data::NTuple{72,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#306"}, f::Symbol)
-    f === :fence && return Ptr{var"##Ctag#307"}(x + 0)
-    f === :nvSciSync && return Ptr{var"##Ctag#308"}(x + 8)
-    f === :keyedMutex && return Ptr{var"##Ctag#309"}(x + 16)
+function Base.getproperty(x::Ptr{var"##Ctag#262"}, f::Symbol)
+    f === :fence && return Ptr{var"##Ctag#263"}(x + 0)
+    f === :nvSciSync && return Ptr{var"##Ctag#264"}(x + 8)
+    f === :keyedMutex && return Ptr{var"##Ctag#265"}(x + 16)
     f === :reserved && return Ptr{NTuple{10,Cuint}}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#306", f::Symbol)
-    r = Ref{var"##Ctag#306"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#306"}, r)
+function Base.getproperty(x::var"##Ctag#262", f::Symbol)
+    r = Ref{var"##Ctag#262"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#262"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#306"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#262"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#306", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#262", private::Bool=false)
     return (:fence, :nvSciSync, :keyedMutex, :reserved, if private
                 fieldnames(typeof(x))
             else
@@ -2932,7 +2958,7 @@ const hipUserObject_t = Ptr{hipUserObject}
     hipGraphNodeTypeCount = 15
 end
 
-# typedef void ( * hipHostFn_t ) ( void * userData )
+#  typedef void ( * hipHostFn_t ) ( void * userData )
 const hipHostFn_t = Ptr{Cvoid}
 
 struct hipHostNodeParams
@@ -3145,6 +3171,12 @@ end
     hipSyncPolicyBlockingSync = 4
 end
 
+@cenum hipClusterSchedulingPolicy::UInt32 begin
+    hipClusterSchedulingPolicyDefault = 0
+    hipClusterSchedulingPolicySpread = 1
+    hipClusterSchedulingPolicyLoadBalancing = 2
+end
+
 @cenum hipGraphExecUpdateResult::UInt32 begin
     hipGraphExecUpdateSuccess = 0
     hipGraphExecUpdateError = 1
@@ -3247,26 +3279,26 @@ function Base.propertynames(x::hipGraphInstantiateParams, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#305"
+struct var"##Ctag#261"
     compressionType::Cuchar
     gpuDirectRDMACapable::Cuchar
     usage::Cushort
 end
-function Base.getproperty(x::Ptr{var"##Ctag#305"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#261"}, f::Symbol)
     f === :compressionType && return Ptr{Cuchar}(x + 0)
     f === :gpuDirectRDMACapable && return Ptr{Cuchar}(x + 1)
     f === :usage && return Ptr{Cushort}(x + 2)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#305", f::Symbol)
-    r = Ref{var"##Ctag#305"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#305"}, r)
+function Base.getproperty(x::var"##Ctag#261", f::Symbol)
+    r = Ref{var"##Ctag#261"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#261"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#305"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#261"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -3280,7 +3312,7 @@ function Base.getproperty(x::Ptr{hipMemAllocationProp}, f::Symbol)
     f === :requestedHandleTypes && return Ptr{hipMemAllocationHandleType}(x + 4)
     f === :location && return Ptr{hipMemLocation}(x + 8)
     f === :win32HandleMetaData && return Ptr{Ptr{Cvoid}}(x + 16)
-    f === :allocFlags && return Ptr{var"##Ctag#305"}(x + 24)
+    f === :allocFlags && return Ptr{var"##Ctag#261"}(x + 24)
     return getfield(x, f)
 end
 
@@ -3387,28 +3419,28 @@ end
     hipArraySparseSubresourceTypeMiptail = 1
 end
 
-struct var"##Ctag#281"
+struct var"##Ctag#236"
     data::NTuple{64,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#281"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#236"}, f::Symbol)
     f === :mipmap && return Ptr{hipMipmappedArray}(x + 0)
     f === :array && return Ptr{hipArray_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#281", f::Symbol)
-    r = Ref{var"##Ctag#281"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#281"}, r)
+function Base.getproperty(x::var"##Ctag#236", f::Symbol)
+    r = Ref{var"##Ctag#236"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#236"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#281"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#236"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#281", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#236", private::Bool=false)
     return (:mipmap, :array, if private
                 fieldnames(typeof(x))
             else
@@ -3416,28 +3448,28 @@ function Base.propertynames(x::var"##Ctag#281", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#282"
+struct var"##Ctag#237"
     data::NTuple{32,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#282"}, f::Symbol)
-    f === :sparseLevel && return Ptr{var"##Ctag#283"}(x + 0)
-    f === :miptail && return Ptr{var"##Ctag#284"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#237"}, f::Symbol)
+    f === :sparseLevel && return Ptr{var"##Ctag#238"}(x + 0)
+    f === :miptail && return Ptr{var"##Ctag#239"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#282", f::Symbol)
-    r = Ref{var"##Ctag#282"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#282"}, r)
+function Base.getproperty(x::var"##Ctag#237", f::Symbol)
+    r = Ref{var"##Ctag#237"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#237"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#282"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#237"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#282", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#237", private::Bool=false)
     return (:sparseLevel, :miptail, if private
                 fieldnames(typeof(x))
             else
@@ -3445,27 +3477,27 @@ function Base.propertynames(x::var"##Ctag#282", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#285"
+struct var"##Ctag#240"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#285"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#240"}, f::Symbol)
     f === :memHandle && return Ptr{hipMemGenericAllocationHandle_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#285", f::Symbol)
-    r = Ref{var"##Ctag#285"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#285"}, r)
+function Base.getproperty(x::var"##Ctag#240", f::Symbol)
+    r = Ref{var"##Ctag#240"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#240"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#285"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#240"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#285", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#240", private::Bool=false)
     return (:memHandle, if private
                 fieldnames(typeof(x))
             else
@@ -3479,12 +3511,12 @@ end
 
 function Base.getproperty(x::Ptr{hipArrayMapInfo}, f::Symbol)
     f === :resourceType && return Ptr{hipResourceType}(x + 0)
-    f === :resource && return Ptr{var"##Ctag#281"}(x + 8)
+    f === :resource && return Ptr{var"##Ctag#236"}(x + 8)
     f === :subresourceType && return Ptr{hipArraySparseSubresourceType}(x + 72)
-    f === :subresource && return Ptr{var"##Ctag#282"}(x + 80)
+    f === :subresource && return Ptr{var"##Ctag#237"}(x + 80)
     f === :memOperationType && return Ptr{hipMemOperationType}(x + 112)
     f === :memHandleType && return Ptr{hipMemHandleType}(x + 116)
-    f === :memHandle && return Ptr{var"##Ctag#285"}(x + 120)
+    f === :memHandle && return Ptr{var"##Ctag#240"}(x + 120)
     f === :offset && return Ptr{Culonglong}(x + 128)
     f === :deviceBitMask && return Ptr{Cuint}(x + 136)
     f === :flags && return Ptr{Cuint}(x + 140)
@@ -3811,6 +3843,35 @@ end
 
 const HIP_LAUNCH_CONFIG = HIP_LAUNCH_CONFIG_st
 
+struct hipArrayMemoryRequirements
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{hipArrayMemoryRequirements}, f::Symbol)
+    f === :alignment && return Ptr{Csize_t}(x + 0)
+    f === :size && return Ptr{Csize_t}(x + 8)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::hipArrayMemoryRequirements, f::Symbol)
+    r = Ref{hipArrayMemoryRequirements}(x)
+    ptr = Base.unsafe_convert(Ptr{hipArrayMemoryRequirements}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{hipArrayMemoryRequirements}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::hipArrayMemoryRequirements, private::Bool=false)
+    return (:alignment, :size, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
 @cenum hipMemRangeHandleType::UInt32 begin
     hipMemRangeHandleTypeDmaBufFd = 1
     hipMemRangeHandleTypeMax = 2147483647
@@ -4027,6 +4088,19 @@ function hipFuncSetAttribute(func, attr, value)
                                                     value::Cint)::hipError_t)
 end
 
+function hipKernelSetAttribute(attrib, value, kernel, dev)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipKernelSetAttribute(attrib::hipFunction_attribute,
+                                                      value::Cint, kernel::hipKernel_t,
+                                                      dev::hipDevice_t)::hipError_t)
+end
+
+function hipKernelGetFunction(pFunc, kernel)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipKernelGetFunction(pFunc::Ptr{hipFunction_t},
+                                                     kernel::hipKernel_t)::hipError_t)
+end
+
 function hipFuncSetCacheConfig(func, config)
     AMDGPU.prepare_state()
     @check @gcsafe_ccall(libhip.hipFuncSetCacheConfig(func::Ptr{Cvoid},
@@ -4159,7 +4233,7 @@ function hipExtStreamGetCUMask(stream, cuMaskSize, cuMask)
                                                       cuMask::Ptr{UInt32})::hipError_t)
 end
 
-# typedef void ( * hipStreamCallback_t ) ( hipStream_t stream , hipError_t status , void * userData )
+#  typedef void ( * hipStreamCallback_t ) ( hipStream_t stream , hipError_t status , void * userData )
 const hipStreamCallback_t = Ptr{Cvoid}
 
 function hipStreamAddCallback(stream, callback, userData, flags)
@@ -4430,6 +4504,19 @@ function hipMemPrefetchAsync_v2(dev_ptr, count, location, flags, stream)
                                                        stream::hipStream_t)::hipError_t)
 end
 
+function hipMemPrefetchBatchAsync(dev_ptrs, sizes, count, prefetch_locs, prefetch_loc_idxs,
+                                  num_prefetch_locs, flags, stream)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipMemPrefetchBatchAsync(dev_ptrs::Ptr{Ptr{Cvoid}},
+                                                         sizes::Ptr{Csize_t},
+                                                         count::Csize_t,
+                                                         prefetch_locs::Ptr{hipMemLocation},
+                                                         prefetch_loc_idxs::Ptr{Csize_t},
+                                                         num_prefetch_locs::Csize_t,
+                                                         flags::Culonglong,
+                                                         stream::hipStream_t)::hipError_t)
+end
+
 function hipMemAdvise(dev_ptr, count, advice, device)
     AMDGPU.prepare_state()
     @check @gcsafe_ccall(libhip.hipMemAdvise(dev_ptr::Ptr{Cvoid}, count::Csize_t,
@@ -4564,6 +4651,20 @@ function hipMemPoolImportPointer(dev_ptr, mem_pool, export_data)
     @check @gcsafe_ccall(libhip.hipMemPoolImportPointer(dev_ptr::Ptr{Ptr{Cvoid}},
                                                         mem_pool::hipMemPool_t,
                                                         export_data::Ptr{hipMemPoolPtrExportData})::hipError_t)
+end
+
+function hipMemSetMemPool(location, type, pool)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipMemSetMemPool(location::Ptr{hipMemLocation},
+                                                 type::hipMemAllocationType,
+                                                 pool::hipMemPool_t)::hipError_t)
+end
+
+function hipMemGetMemPool(pool, location, type)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipMemGetMemPool(pool::Ptr{hipMemPool_t},
+                                                 location::Ptr{hipMemLocation},
+                                                 type::hipMemAllocationType)::hipError_t)
 end
 
 function hipHostAlloc(ptr, size, flags)
@@ -5153,6 +5254,13 @@ function hipMemcpy3DPeerAsync(p, stream)
                                                      stream::hipStream_t)::hipError_t)
 end
 
+function hipMipmappedArrayGetMemoryRequirements(memoryRequirements, mipmap, device)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipMipmappedArrayGetMemoryRequirements(memoryRequirements::Ptr{hipArrayMemoryRequirements},
+                                                                       mipmap::hipMipmappedArray_t,
+                                                                       device::hipDevice_t)::hipError_t)
+end
+
 function hipDeviceCanAccessPeer(canAccessPeer, deviceId, peerDeviceId)
     AMDGPU.prepare_state()
     @check @gcsafe_ccall(libhip.hipDeviceCanAccessPeer(canAccessPeer::Ptr{Cint},
@@ -5322,6 +5430,14 @@ function hipModuleGetFunctionCount(count, mod)
     AMDGPU.prepare_state()
     @check @gcsafe_ccall(libhip.hipModuleGetFunctionCount(count::Ptr{Cuint},
                                                           mod::hipModule_t)::hipError_t)
+end
+
+function hipKernelGetAttribute(pi, attrib, kernel, dev)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipKernelGetAttribute(pi::Ptr{Cint},
+                                                      attrib::hipFunction_attribute,
+                                                      kernel::hipKernel_t,
+                                                      dev::hipDevice_t)::hipError_t)
 end
 
 function hipLibraryLoadData(library, code, jitOptions, jitOptionsValues, numJitOptions,
@@ -5644,13 +5760,27 @@ function hipOccupancyAvailableDynamicSMemPerBlock(dynamicSmemSize, f, numBlocks,
                                                                          blockSize::Cint)::hipError_t)
 end
 
-# no prototype is found for this function at hip_runtime_api.h:6989:12, please use with caution
+function hipOccupancyMaxActiveClusters(numClusters, f, config)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipOccupancyMaxActiveClusters(numClusters::Ptr{Cint},
+                                                              f::Ptr{Cvoid},
+                                                              config::Ptr{hipLaunchConfig_t})::hipError_t)
+end
+
+function hipOccupancyMaxPotentialClusterSize(clusterSize, f, config)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipOccupancyMaxPotentialClusterSize(clusterSize::Ptr{Cint},
+                                                                    f::Ptr{Cvoid},
+                                                                    config::Ptr{hipLaunchConfig_t})::hipError_t)
+end
+
+# no prototype is found for this function at hip_runtime_api.h:7168:12, please use with caution
 function hipProfilerStart()
     AMDGPU.prepare_state()
     @check @gcsafe_ccall(libhip.hipProfilerStart()::hipError_t)
 end
 
-# no prototype is found for this function at hip_runtime_api.h:6997:12, please use with caution
+# no prototype is found for this function at hip_runtime_api.h:7176:12, please use with caution
 function hipProfilerStop()
     AMDGPU.prepare_state()
     @check @gcsafe_ccall(libhip.hipProfilerStop()::hipError_t)
@@ -6971,6 +7101,25 @@ function hipDestroySurfaceObject(surfaceObject)
     @check @gcsafe_ccall(libhip.hipDestroySurfaceObject(surfaceObject::hipSurfaceObject_t)::hipError_t)
 end
 
+# no prototype is found for this function at hip_runtime_api.h:9827:12, please use with caution
+function hipExtEnableLogging()
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipExtEnableLogging()::hipError_t)
+end
+
+# no prototype is found for this function at hip_runtime_api.h:9838:12, please use with caution
+function hipExtDisableLogging()
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipExtDisableLogging()::hipError_t)
+end
+
+function hipExtSetLoggingParams(log_level, log_size, log_mask)
+    AMDGPU.prepare_state()
+    @check @gcsafe_ccall(libhip.hipExtSetLoggingParams(log_level::Csize_t,
+                                                       log_size::Csize_t,
+                                                       log_mask::Csize_t)::hipError_t)
+end
+
 function hipMemcpy_spt(dst, src, sizeBytes, kind)
     AMDGPU.prepare_state()
     @check @gcsafe_ccall(libhip.hipMemcpy_spt(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
@@ -7268,13 +7417,13 @@ function hipGetProcAddress_spt(symbol, pfn, hipVersion, flags, symbolStatus)
                                                       symbolStatus::Ptr{hipDriverProcAddressQueryResult})::hipError_t)
 end
 
-struct var"##Ctag#279"
+struct var"##Ctag#234"
     ptr::Ptr{Cvoid}
     rowLength::Csize_t
     layerHeight::Csize_t
     locHint::hipMemLocation
 end
-function Base.getproperty(x::Ptr{var"##Ctag#279"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#234"}, f::Symbol)
     f === :ptr && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :rowLength && return Ptr{Csize_t}(x + 8)
     f === :layerHeight && return Ptr{Csize_t}(x + 16)
@@ -7282,39 +7431,39 @@ function Base.getproperty(x::Ptr{var"##Ctag#279"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#279", f::Symbol)
-    r = Ref{var"##Ctag#279"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#279"}, r)
+function Base.getproperty(x::var"##Ctag#234", f::Symbol)
+    r = Ref{var"##Ctag#234"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#234"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#279"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#234"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#280"
+struct var"##Ctag#235"
     array::hipArray_t
     offset::hipOffset3D
 end
-function Base.getproperty(x::Ptr{var"##Ctag#280"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#235"}, f::Symbol)
     f === :array && return Ptr{hipArray_t}(x + 0)
     f === :offset && return Ptr{hipOffset3D}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#280", f::Symbol)
-    r = Ref{var"##Ctag#280"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#280"}, r)
+function Base.getproperty(x::var"##Ctag#235", f::Symbol)
+    r = Ref{var"##Ctag#235"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#235"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#280"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#235"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#283"
+struct var"##Ctag#238"
     level::Cuint
     layer::Cuint
     offsetX::Cuint
@@ -7324,7 +7473,7 @@ struct var"##Ctag#283"
     extentHeight::Cuint
     extentDepth::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#283"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#238"}, f::Symbol)
     f === :level && return Ptr{Cuint}(x + 0)
     f === :layer && return Ptr{Cuint}(x + 4)
     f === :offsetX && return Ptr{Cuint}(x + 8)
@@ -7336,130 +7485,153 @@ function Base.getproperty(x::Ptr{var"##Ctag#283"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#283", f::Symbol)
-    r = Ref{var"##Ctag#283"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#283"}, r)
+function Base.getproperty(x::var"##Ctag#238", f::Symbol)
+    r = Ref{var"##Ctag#238"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#238"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#283"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#238"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#284"
+struct var"##Ctag#239"
     layer::Cuint
     offset::Culonglong
     size::Culonglong
 end
-function Base.getproperty(x::Ptr{var"##Ctag#284"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#239"}, f::Symbol)
     f === :layer && return Ptr{Cuint}(x + 0)
     f === :offset && return Ptr{Culonglong}(x + 8)
     f === :size && return Ptr{Culonglong}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#284", f::Symbol)
-    r = Ref{var"##Ctag#284"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#284"}, r)
+function Base.getproperty(x::var"##Ctag#239", f::Symbol)
+    r = Ref{var"##Ctag#239"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#239"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#284"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#239"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#291"
+struct var"##Ctag#241"
+    x::Cuint
+    y::Cuint
+    z::Cuint
+end
+function Base.getproperty(x::Ptr{var"##Ctag#241"}, f::Symbol)
+    f === :x && return Ptr{Cuint}(x + 0)
+    f === :y && return Ptr{Cuint}(x + 4)
+    f === :z && return Ptr{Cuint}(x + 8)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#241", f::Symbol)
+    r = Ref{var"##Ctag#241"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#241"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#241"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"##Ctag#247"
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#291"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#247"}, f::Symbol)
     f === :handle && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :name && return Ptr{Ptr{Cvoid}}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#291", f::Symbol)
-    r = Ref{var"##Ctag#291"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#291"}, r)
+function Base.getproperty(x::var"##Ctag#247", f::Symbol)
+    r = Ref{var"##Ctag#247"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#247"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#291"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#247"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#293"
+struct var"##Ctag#249"
     array::hipArray_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#293"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#249"}, f::Symbol)
     f === :array && return Ptr{hipArray_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#293", f::Symbol)
-    r = Ref{var"##Ctag#293"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#293"}, r)
+function Base.getproperty(x::var"##Ctag#249", f::Symbol)
+    r = Ref{var"##Ctag#249"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#249"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#293"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#249"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#294"
+struct var"##Ctag#250"
     mipmap::hipMipmappedArray_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#294"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#250"}, f::Symbol)
     f === :mipmap && return Ptr{hipMipmappedArray_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#294", f::Symbol)
-    r = Ref{var"##Ctag#294"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#294"}, r)
+function Base.getproperty(x::var"##Ctag#250", f::Symbol)
+    r = Ref{var"##Ctag#250"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#250"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#294"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#250"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#295"
+struct var"##Ctag#251"
     devPtr::Ptr{Cvoid}
     desc::hipChannelFormatDesc
     sizeInBytes::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#295"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#251"}, f::Symbol)
     f === :devPtr && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :desc && return Ptr{hipChannelFormatDesc}(x + 8)
     f === :sizeInBytes && return Ptr{Csize_t}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#295", f::Symbol)
-    r = Ref{var"##Ctag#295"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#295"}, r)
+function Base.getproperty(x::var"##Ctag#251", f::Symbol)
+    r = Ref{var"##Ctag#251"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#251"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#295"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#251"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#296"
+struct var"##Ctag#252"
     devPtr::Ptr{Cvoid}
     desc::hipChannelFormatDesc
     width::Csize_t
     height::Csize_t
     pitchInBytes::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#296"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#252"}, f::Symbol)
     f === :devPtr && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :desc && return Ptr{hipChannelFormatDesc}(x + 8)
     f === :width && return Ptr{Csize_t}(x + 32)
@@ -7468,14 +7640,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#296"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#296", f::Symbol)
-    r = Ref{var"##Ctag#296"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#296"}, r)
+function Base.getproperty(x::var"##Ctag#252", f::Symbol)
+    r = Ref{var"##Ctag#252"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#252"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#296"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#252"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -7605,72 +7777,72 @@ function Base.propertynames(x::hipStreamMemOpMemoryBarrierParams_t, private::Boo
             end...)
 end
 
-struct var"##Ctag#298"
+struct var"##Ctag#254"
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#298"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#254"}, f::Symbol)
     f === :handle && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :name && return Ptr{Ptr{Cvoid}}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#298", f::Symbol)
-    r = Ref{var"##Ctag#298"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#298"}, r)
+function Base.getproperty(x::var"##Ctag#254", f::Symbol)
+    r = Ref{var"##Ctag#254"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#254"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#298"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#254"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#300"
+struct var"##Ctag#256"
     hArray::hipArray_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#300"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#256"}, f::Symbol)
     f === :hArray && return Ptr{hipArray_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#300", f::Symbol)
-    r = Ref{var"##Ctag#300"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#300"}, r)
+function Base.getproperty(x::var"##Ctag#256", f::Symbol)
+    r = Ref{var"##Ctag#256"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#256"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#300"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#256"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#301"
+struct var"##Ctag#257"
     hMipmappedArray::hipMipmappedArray_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#301"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#257"}, f::Symbol)
     f === :hMipmappedArray && return Ptr{hipMipmappedArray_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#301", f::Symbol)
-    r = Ref{var"##Ctag#301"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#301"}, r)
+function Base.getproperty(x::var"##Ctag#257", f::Symbol)
+    r = Ref{var"##Ctag#257"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#257"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#301"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#257"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#302"
+struct var"##Ctag#258"
     devPtr::hipDeviceptr_t
     format::hipArray_Format
     numChannels::Cuint
     sizeInBytes::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#302"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#258"}, f::Symbol)
     f === :devPtr && return Ptr{hipDeviceptr_t}(x + 0)
     f === :format && return Ptr{hipArray_Format}(x + 8)
     f === :numChannels && return Ptr{Cuint}(x + 12)
@@ -7678,18 +7850,18 @@ function Base.getproperty(x::Ptr{var"##Ctag#302"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#302", f::Symbol)
-    r = Ref{var"##Ctag#302"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#302"}, r)
+function Base.getproperty(x::var"##Ctag#258", f::Symbol)
+    r = Ref{var"##Ctag#258"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#258"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#302"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#258"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#303"
+struct var"##Ctag#259"
     devPtr::hipDeviceptr_t
     format::hipArray_Format
     numChannels::Cuint
@@ -7697,7 +7869,7 @@ struct var"##Ctag#303"
     height::Csize_t
     pitchInBytes::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#303"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#259"}, f::Symbol)
     f === :devPtr && return Ptr{hipDeviceptr_t}(x + 0)
     f === :format && return Ptr{hipArray_Format}(x + 8)
     f === :numChannels && return Ptr{Cuint}(x + 12)
@@ -7707,43 +7879,43 @@ function Base.getproperty(x::Ptr{var"##Ctag#303"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#303", f::Symbol)
-    r = Ref{var"##Ctag#303"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#303"}, r)
+function Base.getproperty(x::var"##Ctag#259", f::Symbol)
+    r = Ref{var"##Ctag#259"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#259"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#303"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#259"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#304"
+struct var"##Ctag#260"
     reserved::NTuple{32,Cint}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#304"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#260"}, f::Symbol)
     f === :reserved && return Ptr{NTuple{32,Cint}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#304", f::Symbol)
-    r = Ref{var"##Ctag#304"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#304"}, r)
+function Base.getproperty(x::var"##Ctag#260", f::Symbol)
+    r = Ref{var"##Ctag#260"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#260"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#304"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#260"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
 const HIP_VERSION_MAJOR = 7
 
-const HIP_VERSION_MINOR = 2
+const HIP_VERSION_MINOR = 13
 
-const HIP_VERSION_PATCH = 53150
+const HIP_VERSION_PATCH = 99004
 
-const HIP_VERSION_GITHASH = "494cbb3b9b"
+const HIP_VERSION_GITHASH = "3309c6114a"
 
 const HIP_VERSION_BUILD_ID = 0
 
@@ -7984,6 +8156,12 @@ const hipStreamWaitValueEq = 0x01
 const hipStreamWaitValueAnd = 0x02
 
 const hipStreamWaitValueNor = 0x03
+
+const hipStreamWriteValueDefault = 0x00
+
+const hipExtStreamWriteValueIncrement = 0x1000
+
+const hipExtStreamWriteValueDecrement = 0x1001
 
 const hipStreamPerThread = hipStream_t(2)
 

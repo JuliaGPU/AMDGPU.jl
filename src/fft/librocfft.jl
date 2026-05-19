@@ -280,4 +280,4 @@ const rocfft_version_major = 1
 
 const rocfft_version_minor = 0
 
-const rocfft_version_patch = 36
+const rocfft_version_patch = 37
