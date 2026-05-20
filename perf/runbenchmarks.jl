@@ -28,7 +28,6 @@ include("kernel.jl")
 include("array.jl")
 
 @info "Preparing main benchmarks"
-warmup(SUITE; verbose=false)
 tune!(SUITE)
 
 # reclaim memory that might have been used by the tuning process
@@ -41,7 +40,7 @@ addgroup!(SUITE, "integration")
 @info "Running main benchmarks"
 results = run(SUITE, verbose=true)
 
-# integration tests (that do nasty things, so need to be run last)
+# integration tests (that need to be run last)
 @info "Running integration benchmarks"
 integration_results = BenchmarkGroup()
 integration_results["volumerhs"] = include("volumerhs.jl")

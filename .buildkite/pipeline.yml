@@ -191,7 +191,7 @@ steps:
   - label: ":racehorse: Benchmarks"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.10"
+          version: "1.12"
     command: |
       julia --project=perf -e '
         println("--- :julia: Instantiating benchmark project")
@@ -206,7 +206,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "*"
+      rocmgpu: "gfx1100"
     if: build.message !~ /\[skip benchmarks\]/
     timeout_in_minutes: 120
     env:

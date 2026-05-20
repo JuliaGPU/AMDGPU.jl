@@ -118,7 +118,6 @@ let group = addgroup!(group, "reductions")
             group["dims=2L"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat_long_ints; dims=2)
         end
     end
-
     # used by sum, prod, minimum, maximum, all, any, count
 end
 
@@ -144,8 +143,9 @@ end
 
 let group = addgroup!(group, "sorting")
     group["1d"] = @async_benchmarkable sort($gpu_vec)
-    group["2d"] = @async_benchmarkable sort($gpu_mat; dims=1)
-    group["by"] = @async_benchmarkable sort($gpu_vec; by=sin)
+    #  there's no GPU-side support for dims= or by=. Both fall back to Base's CPU sort path, which triggers scalar indexing
+    # group["2d"] = @async_benchmarkable sort($gpu_mat; dims=1)
+    # group["by"] = @async_benchmarkable sort($gpu_vec; by=sin)
 end
 
 let group = addgroup!(group, "permutedims")
