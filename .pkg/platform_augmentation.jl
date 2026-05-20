@@ -55,7 +55,7 @@ function rocm_arch_matches(pattern::AbstractString, arch::AbstractString)
 
     length(pattern) == length(arch) || return false
     for (pattern_char, arch_char) in zip(pattern, arch)
-        if pattern_char == 'X'
+        if lowercase(pattern_char) == 'x'
             isxdigit(arch_char) || return false
         elseif pattern_char != arch_char
             return false
