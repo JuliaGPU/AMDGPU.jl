@@ -22,7 +22,7 @@ jobs:
             "gfx90a",
             "gfx94X-dcgpu",
             "gfx950-dcgpu",
-            "gfx101X-dcgpu",
+            "gfx101X-dgpu",
             "gfx103X-all",
             "gfx110X-all",
             "gfx1150",
