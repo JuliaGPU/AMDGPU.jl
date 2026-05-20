@@ -31,7 +31,7 @@ jobs:
             "gfx120X-all",
           ]
             @info rocm_arch
-            platform = Platform("x86_64", "linux", Dict("libc" => "glibc", "rocm_arch" => rocm_arch))
+            platform = Platform("x86_64", "linux", Dict("libc" => "glibc", "rocm_arch" => replace(rocm_arch, "-" => "_")))
             add_artifact!("Artifacts.toml", "ROCm", "https://repo.amd.com/rocm/tarball/therock-dist-linux-$rocm_arch-7.13.0.tar.gz"; lazy = true, platform)
           end
       - name: Upload hash report
