@@ -11,7 +11,7 @@ jobs:
         with:
           version: "1.12"
       - name: Download tarballs and compute hashes
-        shell: julia -e {0}
+        shell: julia {0}
         run: |
           import Pkg
           Pkg.add("ArtifactUtils")
