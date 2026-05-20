@@ -28,10 +28,10 @@ function HIPStream(priority::Symbol = :normal)
     d = device()
     stream = HIPStream(stream_ref[], priority, d, HIPContext(d), true)
     return finalizer(stream) do s
+        Base.@atomic s.valid = false
         AMDGPU.context!(s.ctx) do
             hipStreamDestroy(s.stream)
         end
-        Base.@atomic s.valid = false
     end
 end
 
@@ -51,6 +51,7 @@ function HIPStream(stream::hipStream_t)
 end
 
 function isdone(stream::HIPStream)
+    isvalid(stream) || return true
     query = hipStreamQuery(stream)
     if query == hipSuccess
         return true
@@ -111,7 +112,7 @@ function nonblocking_synchronize(stream::HIPStream)
                     err isa EOFError && break
                     rethrow()
                 end
-                hipStreamQuery(stream) != hipErrorNotReady && break
+                (!isvalid(stream) || hipStreamQuery(stream) != hipErrorNotReady) && break
             end
         finally
             notify(event)
