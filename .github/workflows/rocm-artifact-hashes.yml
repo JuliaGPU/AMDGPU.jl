@@ -11,8 +11,8 @@ jobs:
         with:
           version: "1.12"
       - name: Download tarballs and compute hashes
+        shell: julia -e {0}
         run: |
-          julia --project=. <<'JULIA'
           import Pkg
           Pkg.add("ArtifactUtils")
           using ArtifactUtils, Base.BinaryPlatforms
@@ -34,7 +34,6 @@ jobs:
             platform = Platform("x86_64", "linux", Dict("libc" => "glibc", "rocm_arch" => rocm_arch))
             add_artifact!("Artifacts.toml", "ROCm", "https://repo.amd.com/rocm/tarball/therock-dist-linux-$rocm_arch-7.13.0.tar.gz"; lazy = true, platform)
           end
-          JULIA
       - name: Upload hash report
         uses: actions/upload-artifact@v4
         with:
