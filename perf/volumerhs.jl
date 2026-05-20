@@ -40,9 +40,10 @@ Base.@irrational grav  9.81 BigFloat(9.81)
 Base.@irrational gdm1  0.4  BigFloat(0.4)
 
 function volumerhs!(rhs, Q, vgeo, gravity, D, nelem)
-    Q    = Base.Experimental.Const(Q)
-    vgeo = Base.Experimental.Const(vgeo)
-    D    = Base.Experimental.Const(D)
+    # not supported on AMDGPU currently
+    # Q    = Base.Experimental.Const(Q)
+    # vgeo = Base.Experimental.Const(vgeo)
+    # D    = Base.Experimental.Const(D)
 
     nvar = _nstate + nmoist + ntrace
     Nq   = N + 1
