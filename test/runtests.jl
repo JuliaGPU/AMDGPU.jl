@@ -26,6 +26,20 @@ end
 InteractiveUtils.versioninfo()
 AMDGPU.versioninfo()
 
+include(joinpath(@__DIR__, "..", ".pkg", "platform_augmentation.jl"))
+
+@testset "platform augmentation" begin
+    @test rocm_arch_string(120000) == "gfx1200"
+    @test rocm_arch_string(120001) == "gfx1201"
+    @test rocm_arch_string(90010) == "gfx90a"
+    @test rocm_arch_comparison_strategy("gfx120X_all", "gfx1200", false, false)
+    @test rocm_arch_comparison_strategy("gfx120X_all", "gfx1201", false, false)
+    @test rocm_arch_comparison_strategy("gfx90X_dcgpu", "gfx90a", false, false)
+    @test rocm_arch_comparison_strategy("gfx94X_dcgpu", "gfx942", false, false)
+    @test !rocm_arch_comparison_strategy("gfx120X_all", "gfx1100", false, false)
+    @test !rocm_arch_comparison_strategy("none", "gfx1200", false, false)
+end
+
 # Autodiscovered tests
 testsuite = find_tests(@__DIR__)
 
