@@ -1,0 +1,11 @@
+[[ROCm]]
+arch = "x86_64"
+git-tree-sha1 = "822a5a89b56180806f3c7e7d870254684fbeda00"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm_arch = "gfx1150"
+
+    [[ROCm.download]]
+    sha256 = "49ab239f372901fbd2975285471cf5550de55a7bcd81602044cff426904c2ade"
+    url = "https://repo.amd.com/rocm/tarball/therock-dist-linux-gfx1150-7.13.0.tar.gz"
