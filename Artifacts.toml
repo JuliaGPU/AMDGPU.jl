@@ -1,6 +1,6 @@
 [[ROCm]]
 arch = "x86_64"
-git-tree-sha1 = "822a5a89b56180806f3c7e7d870254684fbeda00"
+git-tree-sha1 = "4684f33015a110d83fcfe9f52a5aa9f6c6ceb0a8"
 lazy = true
 libc = "glibc"
 os = "linux"
