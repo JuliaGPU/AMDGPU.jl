@@ -35,11 +35,11 @@ let group = addgroup!(group, "iteration")
         [$gpu_vec[i] for i in 1:10]
     end
 
-    group["logical"] = @benchmarkable $gpu_vec[$gpu_vec_bools]
+    group["logical"] = @async_benchmarkable $gpu_vec[$gpu_vec_bools]
 
     let group = addgroup!(group, "findall")
-        group["bool"] = @benchmarkable findall($gpu_vec_bools)
-        group["int"]  = @benchmarkable findall(isodd, $gpu_vec_ints)
+        group["bool"] = @async_benchmarkable findall($gpu_vec_bools)
+        group["int"]  = @async_benchmarkable findall(isodd, $gpu_vec_ints)
     end
 
     let group = addgroup!(group, "findfirst")

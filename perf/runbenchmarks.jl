@@ -9,10 +9,14 @@ rng = StableRNG(123)
 # print system information
 AMDGPU.versioninfo()
 
-# convenience macro to create a benchmark that requires synchronizing the GPU
+# convenience macro to create a benchmark that requires synchronizing the GPU.
+# The setup=(GC+sync) runs before each sample (outside the timing window) to
+# drain pending hipFreeAsync calls before the next allocation, preventing
+# HIP memory pool exhaustion on discrete GPUs.
 macro async_benchmarkable(ex...)
     quote
-        @benchmarkable AMDGPU.@sync $(ex...)
+        @benchmarkable(AMDGPU.@sync($(ex...)),
+                       setup=(GC.gc(false); AMDGPU.synchronize()))
     end
 end
 
@@ -28,7 +32,21 @@ include("kernel.jl")
 include("array.jl")
 
 @info "Preparing main benchmarks"
-tune!(SUITE)
+# tune!() uses a doubling strategy (maxevals=1,2,4,…) that exhausts the HIP
+# memory pool on discrete GPUs. Instead, warmup for compilation and fix evals=1:
+# one GPU round-trip per sample is the right granularity anyway.
+warmup(SUITE; verbose=false)
+
+function set_evals!(group::BenchmarkGroup, evals::Int=1)
+    for (_, b) in group
+        if b isa BenchmarkGroup
+            set_evals!(b, evals)
+        else
+            b.params.evals = evals
+        end
+    end
+end
+set_evals!(SUITE)
 
 # reclaim memory that might have been used by the tuning process
 GC.gc(true)
