@@ -55,6 +55,16 @@ rocm_arch = "gfx101x_dgpu"
     url = "https://repo.amd.com/rocm/tarball/therock-dist-linux-gfx101X-dgpu-7.13.0.tar.gz"
 [[ROCm]]
 arch = "x86_64"
+git-tree-sha1 = "2351804874d5724fa82a74007d46f9a15951a9be"
+lazy = true
+os = "windows"
+rocm_arch = "gfx101x_dgpu"
+
+    [[ROCm.download]]
+    sha256 = "0f13040ed76d00fafe0540d5e23bf7b06ee96c7f341edf13d637f176c24508cc"
+    url = "https://repo.amd.com/rocm/tarball/therock-dist-windows-gfx101X-dgpu-7.13.0.tar.gz"
+[[ROCm]]
+arch = "x86_64"
 git-tree-sha1 = "472b6d4f2186b8363e4621b00d6e7a3d16d4a5ea"
 lazy = true
 libc = "glibc"
@@ -64,6 +74,16 @@ rocm_arch = "gfx103x_all"
     [[ROCm.download]]
     sha256 = "7049d3d934699226ea58ce821f64f7042f41467281f4d099ca123fd912592f23"
     url = "https://repo.amd.com/rocm/tarball/therock-dist-linux-gfx103X-all-7.13.0.tar.gz"
+[[ROCm]]
+arch = "x86_64"
+git-tree-sha1 = "5cc5dbbf08958113bec3e77b81ebf3254fc5e59b"
+lazy = true
+os = "windows"
+rocm_arch = "gfx103x_all"
+
+    [[ROCm.download]]
+    sha256 = "479ccc5318a092023338800cbac3fcc604afd6dd5a8582856705d558ae7f3035"
+    url = "https://repo.amd.com/rocm/tarball/therock-dist-windows-gfx103X-all-7.13.0.tar.gz"
 [[ROCm]]
 arch = "x86_64"
 git-tree-sha1 = "7c7e3170d31e5360030a4c8bfbab39cf7bdb230b"
@@ -77,6 +97,16 @@ rocm_arch = "gfx110x_all"
     url = "https://repo.amd.com/rocm/tarball/therock-dist-linux-gfx110X-all-7.13.0.tar.gz"
 [[ROCm]]
 arch = "x86_64"
+git-tree-sha1 = "b502d69d1b873444498d3c398987e664212efffa"
+lazy = true
+os = "windows"
+rocm_arch = "gfx110x_all"
+
+    [[ROCm.download]]
+    sha256 = "3a27e7aa079c1c4ccc502be3aa1d89f9d2094726e4a75b731b9d590b075abf16"
+    url = "https://repo.amd.com/rocm/tarball/therock-dist-windows-gfx110X-all-7.13.0.tar.gz"
+[[ROCm]]
+arch = "x86_64"
 git-tree-sha1 = "4684f33015a110d83fcfe9f52a5aa9f6c6ceb0a8"
 lazy = true
 libc = "glibc"
@@ -86,6 +116,16 @@ rocm_arch = "gfx1150"
     [[ROCm.download]]
     sha256 = "49ab239f372901fbd2975285471cf5550de55a7bcd81602044cff426904c2ade"
     url = "https://repo.amd.com/rocm/tarball/therock-dist-linux-gfx1150-7.13.0.tar.gz"
+[[ROCm]]
+arch = "x86_64"
+git-tree-sha1 = "4221777696eb7833ca9fcfd4b56a7703a92f87c5"
+lazy = true
+os = "windows"
+rocm_arch = "gfx1150"
+
+    [[ROCm.download]]
+    sha256 = "7fae82e61375fdcd9c8eb83761e91d0603e26a5cf45ade62aa3aa92afd28495b"
+    url = "https://repo.amd.com/rocm/tarball/therock-dist-windows-gfx1150-7.13.0.tar.gz"
 [[ROCm]]
 arch = "x86_64"
 git-tree-sha1 = "4d8726c11c5fa4f406cb151a8c729cf593d99afe"
@@ -99,6 +139,16 @@ rocm_arch = "gfx1151"
     url = "https://repo.amd.com/rocm/tarball/therock-dist-linux-gfx1151-7.13.0.tar.gz"
 [[ROCm]]
 arch = "x86_64"
+git-tree-sha1 = "e6012913f4e5b177bb61862b7d56b6037683aa47"
+lazy = true
+os = "windows"
+rocm_arch = "gfx1151"
+
+    [[ROCm.download]]
+    sha256 = "9171d4bb2fdf9f7228c9658f5de93652d9c6e95974fe14de13b66ce77e8e0999"
+    url = "https://repo.amd.com/rocm/tarball/therock-dist-windows-gfx1151-7.13.0.tar.gz"
+[[ROCm]]
+arch = "x86_64"
 git-tree-sha1 = "6060cf1f79c122f9ed5ccc27f43ddcac0203b7ce"
 lazy = true
 libc = "glibc"
@@ -110,6 +160,16 @@ rocm_arch = "gfx1152"
     url = "https://repo.amd.com/rocm/tarball/therock-dist-linux-gfx1152-7.13.0.tar.gz"
 [[ROCm]]
 arch = "x86_64"
+git-tree-sha1 = "d557c97f913bf700e8f6125a417fb29ce313621e"
+lazy = true
+os = "windows"
+rocm_arch = "gfx1152"
+
+    [[ROCm.download]]
+    sha256 = "3aeff35172973b174c379072c51a39cfce20a1695f2679691ea0567e68ba836a"
+    url = "https://repo.amd.com/rocm/tarball/therock-dist-windows-gfx1152-7.13.0.tar.gz"
+[[ROCm]]
+arch = "x86_64"
 git-tree-sha1 = "8b8d69691b2469e8f890fe977fe9c01e33233b64"
 lazy = true
 libc = "glibc"
@@ -119,3 +179,13 @@ rocm_arch = "gfx120x_all"
     [[ROCm.download]]
     sha256 = "150c3ed6eb51cda451a96d588ca04a15af2c8724fd5e692b705cba30faf4efcf"
     url = "https://repo.amd.com/rocm/tarball/therock-dist-linux-gfx120X-all-7.13.0.tar.gz"
+[[ROCm]]
+arch = "x86_64"
+git-tree-sha1 = "389c9194587a0fda638ac38ff71bb5e9c9e88f34"
+lazy = true
+os = "windows"
+rocm_arch = "gfx120x_all"
+
+    [[ROCm.download]]
+    sha256 = "4496f1e4667f162b1fc03dc94a9465d139f5a8dc1cc1dc472b43e594fb8db68d"
+    url = "https://repo.amd.com/rocm/tarball/therock-dist-windows-gfx120X-all-7.13.0.tar.gz"
