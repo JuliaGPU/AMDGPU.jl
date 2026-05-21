@@ -46,7 +46,7 @@ function rocm_arch_comparison_strategy(a::String, b::String, a_requested::Bool, 
 end
 
 function rocm_arch_core(arch::AbstractString)
-    return first(split(arch, r"[_-]", limit = 2))
+    return match(r"gfx(.*)", first(split(arch, r"[_-]", limit = 2)))[1]
 end
 
 function rocm_arch_matches(pattern::AbstractString, arch::AbstractString)
@@ -71,6 +71,7 @@ function augment_platform!(platform::Platform)
     end
 
     BinaryPlatforms.set_compare_strategy!(platform, "rocm_arch", rocm_arch_comparison_strategy)
+    @info platform
 
     return platform
 end

@@ -26,10 +26,6 @@ function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
     return (LLD_jll.lld_path, true)
 end
 
-function get_device_libs(rocm_path::String)
-    return find_device_libs(rocm_path)
-end
-
 function _hip_runtime_version()
     v_ref = Ref{Cint}()
     res = ccall((:hipRuntimeGetVersion, libhip), UInt32, (Ptr{Cint},), v_ref)
@@ -84,7 +80,7 @@ function __init__()
         global lld_artifact = lld_artifact
         global libhip = find_rocm_library(Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
 
-        global libdevice_libs = get_device_libs(rocm_path)
+        global libdevice_libs = find_device_libs(rocm_path)
 
         # HIP-based libraries.
         global librocblas = find_rocm_library(lib_prefix * "rocblas"; rocm_path)
