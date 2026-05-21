@@ -29,23 +29,16 @@ GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
 GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
 
-function GPUCompiler.link_libraries!(
-    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
-    undefined_fns::Vector{String},
-)
+function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
     invoke(GPUCompiler.link_libraries!,
-        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
-        job, mod, undefined_fns)
+        Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
 
     # Detect global hostcalls here, before optimizations & cleanup occur.
     _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
 
-    # Link only if there are undefined functions.
-    # Everything else was loaded in `finish_module!` stage.
     link_device_libs!(
-        job.config.target, mod, undefined_fns;
-        wavefrontsize64=job.config.params.wavefrontsize64,
-        only_undefined=true)
+        job.config.target, mod;
+        wavefrontsize64=job.config.params.wavefrontsize64)
 end
 
 function GPUCompiler.finish_module!(
@@ -55,16 +48,12 @@ function GPUCompiler.finish_module!(
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
 
-    # Link libraries early to include options libraries in the runtime.
-    # Otherwise we get wave64 specific instructions on wave32 hardware
-    # which results in ICE.
-    undefined_fns = GPUCompiler.decls(mod)
-    if !isempty(undefined_fns)
-        link_device_libs!(
-            job.config.target, mod, LLVM.name.(undefined_fns);
-            wavefrontsize64=job.config.params.wavefrontsize64,
-            only_undefined=false)
-    end
+    # Re-link device libs to resolve references introduced by the GPUCompiler
+    # runtime (e.g. boxing → malloc → hostcall → __ockl_hsa_signal*) which are
+    # added after link_libraries! has already run.
+    link_device_libs!(
+        job.config.target, mod;
+        wavefrontsize64=job.config.params.wavefrontsize64)
 
     # Set kernel target cpu and features.
     if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
