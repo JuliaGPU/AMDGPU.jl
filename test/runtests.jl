@@ -32,8 +32,13 @@ include(joinpath(@__DIR__, "..", ".pkg", "platform_augmentation.jl"))
     @test rocm_arch_string(120000) == "gfx1200"
     @test rocm_arch_string(120001) == "gfx1201"
     @test rocm_arch_string(90010) == "gfx90a"
+    @test rocm_arch_from_device_name("AMD Radeon 8050S Graphics") == "gfx1151"
+    @test rocm_arch_from_device_name("AMD Radeon 890M Graphics") == "gfx1150"
+    @test rocm_arch_from_device_name("AMD Radeon RX 9070 XT") == "gfx120X"
+    @test rocm_arch_from_device_name("NVIDIA GeForce RTX 4090") == ""
     @test rocm_arch_comparison_strategy("gfx120X_all", "gfx1200", false, false)
     @test rocm_arch_comparison_strategy("gfx120X_all", "gfx1201", false, false)
+    @test rocm_arch_comparison_strategy("gfx120X_all", "gfx120X", false, false)
     @test rocm_arch_comparison_strategy("gfx90X_dcgpu", "gfx90a", false, false)
     @test rocm_arch_comparison_strategy("gfx94X_dcgpu", "gfx942", false, false)
     @test !rocm_arch_comparison_strategy("gfx120X_all", "gfx1100", false, false)
