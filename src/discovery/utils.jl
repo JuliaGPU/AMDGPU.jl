@@ -1,7 +1,8 @@
 # Resolve an artifact-backed ROCm root, if one has been installed.
 function artifact_rocm_path()::String
     try
-        return artifact"ROCm"
+        p = augment_platform!(HostPlatform())
+        return @artifact_str("ROCm", p)
     catch
         return ""
     end

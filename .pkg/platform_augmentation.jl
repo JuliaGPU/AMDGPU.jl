@@ -71,7 +71,6 @@ function augment_platform!(platform::Platform)
     end
 
     BinaryPlatforms.set_compare_strategy!(platform, "rocm_arch", rocm_arch_comparison_strategy)
-    @info platform
 
     return platform
 end
