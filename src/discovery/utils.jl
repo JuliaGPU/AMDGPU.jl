@@ -7,15 +7,6 @@ function artifact_rocm_path()::String
     end
 end
 
-function rocm_search_dirs(rocm_path::String)
-    return unique((
-        rocm_path,
-        joinpath(rocm_path, "lib"),
-        joinpath(rocm_path, "lib64"),
-        joinpath(rocm_path, "bin"),
-    ))
-end
-
 # use amdhip as query for a valid rocm_path
 function check_rocm_path(path::String)
     libname = (Sys.islinux() ? "libamdhip64" : "amdhip64") * "." * dlext
@@ -93,11 +84,9 @@ end
 function find_device_libs(rocm_path::String)::String
     env_dir = get(ENV, "ROCM_PATH", "")
     if isdir(env_dir)
-        for root in rocm_search_dirs(env_dir)
-            path = joinpath(root, "amdgcn", "bitcode")
-            path = check_device_libs(path)
-            isdir(path) && return path
-        end
+        path = joinpath(env_dir, "amdgcn", "bitcode")
+        path = check_device_libs(path)
+        isdir(path) && return path
     end
     # Might be set by tools like Spack or the user
     hip_devlibs_path = get(ENV, "HIP_DEVICE_LIB_PATH", "")
@@ -106,22 +95,19 @@ function find_device_libs(rocm_path::String)::String
     devlibs_path !== "" && return devlibs_path
     # Try using hipconfig to find the device libraries.
     # Try the canonical location.
-    for root in rocm_search_dirs(rocm_path)
-        canonical_dir = joinpath(root, "amdgcn", "bitcode")
-        canonical_dir = check_device_libs(canonical_dir)
-        isdir(canonical_dir) && return canonical_dir
-    end
+    canonical_dir = joinpath(rocm_path, "amdgcn", "bitcode")
+    canonical_dir = check_device_libs(canonical_dir)
+    isdir(canonical_dir) && return canonical_dir
     # Fedora might put it in a weird place
     hipconfig = Sys.which("hipconfig")
     if !isnothing(hipconfig)
         clang_path = read(`$hipconfig --hipclangpath`, String)
         lib_path = joinpath(clang_path ,".." , "lib","clang")
         if isdir(lib_path)
-            for version_dir in sort(readdir(lib_path; join=true))
-                bitcode_path = joinpath(version_dir, "amdgcn", "bitcode")
-                bitcode_path = check_device_libs(bitcode_path)
-                isdir(bitcode_path) && return bitcode_path
-            end
+            lib_path = joinpath(lib_path, only(readdir(lib_path)))
+            lib_path = joinpath(lib_path, "amdgcn", "bitcode")
+            lib_path = check_device_libs(lib_path)
+            isdir(lib_path) && return lib_path
         end
     end
     return ""
@@ -129,14 +115,14 @@ end
 
 function find_rocm_library(libs::Vector; rocm_path::String, ext::String = dlext)::String
     for lib in libs
-        path = find_rocm_library(lib, rocm_path, ext)
+        path = find_rocm_library(lib; rocm_path, ext)
         isempty(path) || return path
     end
     return ""
 end
 
 function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext)::String
-    for libdir in rocm_search_dirs(rocm_path)
+    for libdir in [joinpath(rocm_path, rel_libdir), joinpath(rocm_path, "lib")]
         isdir(libdir) || continue
         for file in readdir(libdir; join=true)
             fname = basename(file)
@@ -150,12 +136,7 @@ end
 function find_ld_lld(rocm_path::String)::String
     lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
 
-    dirs = (
-        joinpath(rocm_path, "llvm", "bin"),
-        joinpath(rocm_path, "bin"),
-        joinpath(rocm_path, "lib", "llvm", "bin"),
-        joinpath(rocm_path, "lib", "bin"),
-    )
+    dirs = (joinpath(rocm_path,"llvm", "bin"), joinpath(rocm_path,"bin"))
     hipconfig = Sys.which("hipconfig")
     if !isnothing(hipconfig)
         clang_path = read(`$hipconfig --hipclangpath`, String)
