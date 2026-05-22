@@ -202,7 +202,7 @@ steps:
         println("+++ :julia: Running benchmarks")
         include("perf/runbenchmarks.jl")'
     artifact_paths:
-      - "perf/benchmarkresults.json"
+      - "benchmarkresults.json"
     agents:
       queue: "juliagpu"
       rocm: "*"
