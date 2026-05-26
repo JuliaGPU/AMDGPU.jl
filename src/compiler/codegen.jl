@@ -200,7 +200,7 @@ function hipcompile(@nospecialize(job::CompilerJob))
         GPUCompiler.compile(:obj, job)
     end
 
-    global_hostcalls = pop!(_global_hostcalls, hash(job))
+    global_hostcalls = pop!(_global_hostcalls, hash(job), Symbol[])
     # Late global hostcalls detection.
     append!(global_hostcalls, find_global_hostcalls(meta.ir))
 
