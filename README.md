@@ -22,6 +22,9 @@
 [downloads-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FAMDGPU&query=total_requests&suffix=%2Fmonth&label=Downloads
 [downloads-url]: https://juliapkgstats.com/pkg/AMDGPU
 
+[benchmark-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
+[benchmark-url]: https://amdgpu.juliagpu.org/bench/
+
 ## Quick start
 
 AMDGPU.jl can be installed with the Julia package manager.
