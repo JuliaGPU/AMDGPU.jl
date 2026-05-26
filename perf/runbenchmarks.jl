@@ -32,9 +32,8 @@ include("kernel.jl")
 include("array.jl")
 
 @info "Preparing main benchmarks"
-# tune!() uses a doubling strategy (maxevals=1,2,4,…) that exhausts the HIP
-# memory pool on discrete GPUs. Instead, warmup for compilation and fix evals=1:
-# one GPU round-trip per sample is the right granularity anyway.
+# tune!() uses a strategy that exhausts the HIP memory pool on discrete GPUs.
+# Instead, warmup for compilation and fix evals=1: one GPU round-trip per sample.
 warmup(SUITE; verbose=false)
 
 function set_evals!(group::BenchmarkGroup, evals::Int=1)
