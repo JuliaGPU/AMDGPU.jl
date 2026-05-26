@@ -91,6 +91,19 @@ function GPUCompiler.finish_module!(
         end
     end
 
+    # LLVM 20+ requires !amdgpu.no.fine.grained.memory per-instruction metadata
+    # on FP atomicrmw to select native hardware atomics (e.g. global_atomic_add_f32)
+    # instead of expanding to a CAS loop on some targets (e.g. gfx1100).
+    if job.config.params.unsafe_fp_atomics
+        fp_binops = (LLVM.API.LLVMAtomicRMWBinOpFAdd, LLVM.API.LLVMAtomicRMWBinOpFSub,
+                     LLVM.API.LLVMAtomicRMWBinOpFMax, LLVM.API.LLVMAtomicRMWBinOpFMin)
+        empty_md = MDNode(Metadata[])
+        for fn in LLVM.functions(mod), bb in LLVM.blocks(fn), inst in LLVM.instructions(bb)
+            inst isa LLVM.AtomicRMWInst && LLVM.binop(inst) ∈ fp_binops &&
+                (LLVM.metadata(inst)["amdgpu.no.fine.grained.memory"] = empty_md)
+        end
+    end
+
     return entry
 end
 
