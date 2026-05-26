@@ -5,6 +5,7 @@ export librocblas, librocsparse, librocsolver
 export librocrand, librocfft, libMIOpen_path
 
 using LLD_jll
+using ROCmDeviceLibs_jll
 using LazyArtifacts
 using Preferences
 using Libdl
@@ -24,6 +25,14 @@ function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
     isempty(lld_path) || return (lld_path, false)
     LLD_jll.is_available() || return (lld_path, false)
     return (LLD_jll.lld_path, true)
+end
+
+function get_device_libs(from_artifact::Bool; rocm_path::String)
+    if from_artifact && ROCmDeviceLibs_jll.is_available()
+        ROCmDeviceLibs_jll.bitcode_path
+    else
+        find_device_libs(rocm_path)
+    end
 end
 
 function _hip_runtime_version()
@@ -80,7 +89,9 @@ function __init__()
         global lld_artifact = lld_artifact
         global libhip = find_rocm_library(Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
 
-        global libdevice_libs = find_device_libs(rocm_path)
+        # Always load artifact device libraries.
+        from_artifact = true
+        global libdevice_libs = get_device_libs(from_artifact; rocm_path)
 
         # HIP-based libraries.
         global librocblas = find_rocm_library(lib_prefix * "rocblas"; rocm_path)
