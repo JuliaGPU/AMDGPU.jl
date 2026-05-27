@@ -162,3 +162,20 @@ function find_ld_lld(rocm_path::String)::String
     end
     return ""
 end
+
+function find_clang(rocm_path::String)::String
+    clang_name = "clang" * (Sys.iswindows() ? ".exe" : "")
+
+    dirs = (joinpath(rocm_path, "llvm", "bin"), joinpath(rocm_path, "bin"))
+    hipconfig = Sys.which("hipconfig")
+    if !isnothing(hipconfig)
+        clang_path = read(`$hipconfig --hipclangpath`, String)
+        dirs = (dirs..., clang_path)
+    end
+    for dir in dirs
+        exp_clang_path = joinpath(dir, clang_name)
+        ispath(exp_clang_path) || continue
+        return exp_clang_path
+    end
+    return ""
+end

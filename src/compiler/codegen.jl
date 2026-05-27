@@ -42,6 +42,44 @@ function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LL
         wavefrontsize64=job.config.params.wavefrontsize64)
 end
 
+
+GPUCompiler.@unlocked function GPUCompiler.mcgen(
+    @nospecialize(job::CompilerJob{<:GCNCompilerTarget}), mod::LLVM.Module, format=LLVM.API.LLVMAssemblyFile,
+)
+    clang_path = AMDGPU.ROCmDiscovery.clang_path
+    if isempty(clang_path)
+        # Fallback to GPUCompiler default if no external clang is found
+        return invoke(GPUCompiler.mcgen, Tuple{CompilerJob, LLVM.Module, typeof(format)}, job, mod, format)
+    end
+
+    target = job.config.target
+    filetype = if format == LLVM.API.LLVMAssemblyFile
+        "asm"
+    elseif format == LLVM.API.LLVMObjectFile
+        "obj"
+    else
+        error("Unsupported GCN output format $format")
+    end
+
+    input  = tempname(cleanup=false) * ".bc"
+    output = tempname(cleanup=false) * (filetype == "asm" ? ".s" : ".o")
+    write(input, mod)
+
+    cmd = `$clang_path -x ir $input -mcpu=$(target.dev_isa) --target=$(GPUCompiler.llvm_triple(target)) -nogpulib $(filetype == "asm" ? "-S" : "-c") -o $output`
+
+    try
+        run(cmd)
+    catch
+        error("""Failed to compile to GCN with external clang.
+                 If you think this is a bug, please file an issue and attach $(input).""")
+    end
+
+    code = filetype == "asm" ? read(output, String) : String(read(output))
+    rm(input)
+    rm(output)
+    return code
+end
+
 function GPUCompiler.finish_module!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
