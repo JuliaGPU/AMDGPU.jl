@@ -28,6 +28,9 @@ function link_device_libs!(
     wavefrontsize64::Bool,
 )
     isnothing(libdevice_libs) && return
+    if !isempty(AMDGPU.ROCmDiscovery.clang_path)
+        return
+    end
 
     # 1. Load other libraries.
     lib_names = ("hc", "hip", "irif", "ockl", "opencl", "ocml")
