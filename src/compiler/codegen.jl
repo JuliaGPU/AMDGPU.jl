@@ -92,6 +92,25 @@ function GPUCompiler.finish_module!(
         end
     end
 
+    # LLVM 20+ requires !amdgpu.no.fine.grained.memory on FP atomicrmw to emit
+    # native hardware atomics (e.g. global_atomic_add_f32) instead of a CAS loop.
+    # Mirrors Clang's setTargetAtomicMetadata; unsafe_fp_atomics is the opt-in.
+    if job.config.params.unsafe_fp_atomics
+        fp_binops = (LLVM.API.LLVMAtomicRMWBinOpFAdd, LLVM.API.LLVMAtomicRMWBinOpFSub,
+                     LLVM.API.LLVMAtomicRMWBinOpFMax, LLVM.API.LLVMAtomicRMWBinOpFMin)
+        empty_md = MDNode(Metadata[])
+        for fn in LLVM.functions(mod), bb in LLVM.blocks(fn), inst in LLVM.instructions(bb)
+            inst isa LLVM.AtomicRMWInst || continue
+            op = LLVM.binop(inst)
+            op ∈ fp_binops || continue
+            md = LLVM.metadata(inst)
+            md["amdgpu.no.fine.grained.memory"] = empty_md
+            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && LLVM.value_type(inst) == LLVM.FloatType()
+                md["amdgpu.ignore.denormal.mode"] = empty_md
+            end
+        end
+    end
+
     return entry
 end
 
