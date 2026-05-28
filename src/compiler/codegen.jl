@@ -16,8 +16,6 @@ const _hip_compiler_cache = Dict{HIP.HIPDevice, Dict{Any, HIP.HIPFunction}}()
 
 # hash(fun, hash(f, hash(tt))) => HIPKernel
 const _kernel_instances = Dict{UInt, Runtime.HIPKernel}()
-# UInt (hash(job)) => Vector{Symbol} (global hostcall names)
-const _global_hostcalls = Dict{UInt, Vector{Symbol}}()
 
 function compiler_cache(dev::HIP.HIPDevice)
     get!(() -> Dict{UInt, Any}(), _hip_compiler_cache, dev)
@@ -29,23 +27,19 @@ GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
 GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
 
-function GPUCompiler.link_libraries!(
-    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
-    undefined_fns::Vector{String},
-)
+function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
     invoke(GPUCompiler.link_libraries!,
-        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(undefined_fns)},
-        job, mod, undefined_fns)
+        Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
 
     # Detect global hostcalls here, before optimizations & cleanup occur.
-    _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
+    # Accumulate into task-local storage so hipcompile can retrieve them
+    # on the same task, without any global dict or hash-collision race.
+    tls_hostcalls = get!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
+    append!(tls_hostcalls, find_global_hostcalls(mod))
 
-    # Link only if there are undefined functions.
-    # Everything else was loaded in `finish_module!` stage.
     link_device_libs!(
-        job.config.target, mod, undefined_fns;
-        wavefrontsize64=job.config.params.wavefrontsize64,
-        only_undefined=true)
+        job.config.target, mod;
+        wavefrontsize64=job.config.params.wavefrontsize64)
 end
 
 function GPUCompiler.finish_module!(
@@ -55,16 +49,12 @@ function GPUCompiler.finish_module!(
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
 
-    # Link libraries early to include options libraries in the runtime.
-    # Otherwise we get wave64 specific instructions on wave32 hardware
-    # which results in ICE.
-    undefined_fns = GPUCompiler.decls(mod)
-    if !isempty(undefined_fns)
-        link_device_libs!(
-            job.config.target, mod, LLVM.name.(undefined_fns);
-            wavefrontsize64=job.config.params.wavefrontsize64,
-            only_undefined=false)
-    end
+    # Re-link device libs to resolve references introduced by the GPUCompiler
+    # runtime (e.g. boxing → malloc → hostcall → __ockl_hsa_signal*) which are
+    # added after link_libraries! has already run.
+    link_device_libs!(
+        job.config.target, mod;
+        wavefrontsize64=job.config.params.wavefrontsize64)
 
     # Set kernel target cpu and features.
     if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
@@ -99,6 +89,25 @@ function GPUCompiler.finish_module!(
 
             do_inline && inline_attr ∉ collect(attrs) &&
                 push!(attrs, inline_attr)
+        end
+    end
+
+    # LLVM 20+ requires !amdgpu.no.fine.grained.memory on FP atomicrmw to emit
+    # native hardware atomics (e.g. global_atomic_add_f32) instead of a CAS loop.
+    # Mirrors Clang's setTargetAtomicMetadata; unsafe_fp_atomics is the opt-in.
+    if job.config.params.unsafe_fp_atomics
+        fp_binops = (LLVM.API.LLVMAtomicRMWBinOpFAdd, LLVM.API.LLVMAtomicRMWBinOpFSub,
+                     LLVM.API.LLVMAtomicRMWBinOpFMax, LLVM.API.LLVMAtomicRMWBinOpFMin)
+        empty_md = MDNode(Metadata[])
+        for fn in LLVM.functions(mod), bb in LLVM.blocks(fn), inst in LLVM.instructions(bb)
+            inst isa LLVM.AtomicRMWInst || continue
+            op = LLVM.binop(inst)
+            op ∈ fp_binops || continue
+            md = LLVM.metadata(inst)
+            md["amdgpu.no.fine.grained.memory"] = empty_md
+            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && LLVM.value_type(inst) == LLVM.FloatType()
+                md["amdgpu.ignore.denormal.mode"] = empty_md
+            end
         end
     end
 
@@ -211,7 +220,9 @@ function hipcompile(@nospecialize(job::CompilerJob))
         GPUCompiler.compile(:obj, job)
     end
 
-    global_hostcalls = pop!(_global_hostcalls, hash(job))
+    # Collect early-detected hostcalls written by link_libraries! on this task.
+    # Falls back gracefully to empty if link_libraries! was not called.
+    global_hostcalls = pop!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     # Late global hostcalls detection.
     append!(global_hostcalls, find_global_hostcalls(meta.ir))
 

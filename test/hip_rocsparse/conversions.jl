@@ -4,6 +4,7 @@ using AMDGPU: ROCVector, ROCMatrix, ROCArray, roc
 using AMDGPU.rocSPARSE
 using SparseArrays
 using LinearAlgebra
+using Adapt
 
 @assert AMDGPU.functional(:rocsparse)
 
@@ -43,6 +44,24 @@ using LinearAlgebra
     end
 end
 
+@testset "sparse with Int32 indices" begin
+    I = Int32[1,2,3] |> roc
+    J = Int32[2,3,4] |> roc
+    V = Float32[1,2,3] |> roc
+
+    @test sparse(I, J, V) isa ROCSparseMatrixCSC
+    for fmt in (:coo, :csc, :csr)
+        x = sparse(I, J, V; fmt=fmt)
+        @test size(x) == (3, 4)
+    end
+
+    m, n = Int32(4), Int32(4)
+    for fmt in (:coo, :csc, :csr)
+        x = sparse(I, J, V, m, n; fmt=fmt)
+        @test size(x) == (4, 4)
+    end
+end
+
 @testset "unsorted sparse (AMDGPU.jl#1407)" begin
     I = [1, 1, 2, 3, 3, 4, 5, 4, 6, 4, 5, 6, 6, 6]
     J = [4, 6, 4, 5, 6, 6, 6, 1, 1, 2, 3, 3, 4, 5]
@@ -53,6 +72,17 @@ end
         Agpu = sparse(I |> roc, J |> roc, ones(typ, length(I)) |> roc, 6, 6)
         @test SparseMatrixCSC(Agpu) == A
     end
+end
+
+@testset "Adapt sparse arrays to ROCBackend" begin
+    A = spdiagm(0 => ones(5), -1 => -ones(4), 1 => -ones(4))
+    @test adapt(ROCBackend(), A) isa ROCSparseMatrixCSC
+
+    v = sparsevec([1, 3, 5], [1.0, 2.0, 3.0], 5)
+    @test adapt(ROCBackend(), v) isa ROCSparseVector
+
+    dA = adapt(ROCBackend(), A)
+    @test adapt(ROCBackend(), dA) === dA
 end
 
 @testset "ROCSparseMatrix(::Diagonal)" begin

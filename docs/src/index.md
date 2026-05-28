@@ -112,4 +112,4 @@ contributors to [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) and
 ## License
 
 AMDGPU.jl is licensed under the
-[MIT License](https://github.com/JuliaGPU/AMDGPU.jl/blob/master/LICENSE.md).
+[MIT License](https://github.com/JuliaGPU/AMDGPU.jl/blob/main/LICENSE.md).

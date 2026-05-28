@@ -1,9 +1,22 @@
 [general]
-module_name = "libMIOpen"
 library_name = "libMIOpen_path"
-output_file_path = "./libMIOpen.jl"
-jll_pkg_name = "MIOpen_jll"
+output_file_path = "../src/dnn/libMIOpen.jl"
 export_symbol_prefixes = []
+output_ignorelist = [
+    "miopenAcceleratorQueue_t",
+    "MIOPEN_DEPRECATED_EXPORT",
+    "MIOPEN_DEPRECATED_NO_EXPORT",
+    "MIOPEN_INTERNALS_DEPRECATED_EXPORT",
+    "MIOPEN_INTERNALS_DEPRECATED_NO_EXPORT",
+    "MIOPEN_VERSION_TWEAK",
+    "MIOPEN_USE_GEMM",
+    "MIOPEN_INSTALLABLE",
+    # HIP compat aliases pulled in transitively; the aliased R0600 functions are
+    # not emitted in this file so these would reference undefined symbols.
+    "hipGetDeviceProperties",
+    "hipDeviceProp_t",
+    "hipChooseDevice",
+]
 
 [codegen]
 use_ccall_macro = true

@@ -8,6 +8,7 @@ import AMDGPU: libMIOpen_path
 import AMDGPU: check, @check
 import .HIP: hipStream_t
 
+const miopenAcceleratorQueue_t = hipStream_t
 include("libMIOpen.jl")
 
 const STATUS_DESCRIPTORS = Dict(

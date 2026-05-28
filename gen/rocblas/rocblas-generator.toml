@@ -1,8 +1,21 @@
 [general]
 library_name = "librocblas"
-output_file_path = "./librocblas.jl"
+output_file_path = "../src/blas/librocblas.jl"
 export_symbol_prefixes = []
 print_using_CEnum = false
+output_ignorelist = [
+    "hipEvent_t",
+    "ihipEvent_t",
+    "hipStream_t",
+    "ihipStream_t",
+    "rocblas_half",
+    "rocblas_float_complex",
+    "rocblas_double_complex",
+    "ROCBLAS_DEPRECATED_EXPORT",
+    "ROCBLAS_DEPRECATED_NO_EXPORT",
+    "ROCBLAS_INTERNAL_EXPORT",
+    "ROCBLAS_VERSION_TWEAK",
+]
 
 [codegen]
 use_ccall_macro = true
