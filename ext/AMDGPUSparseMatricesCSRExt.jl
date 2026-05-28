@@ -9,19 +9,32 @@ import SparseMatricesCSR: SparseMatrixCSR
 import Adapt
 
 # CPU → GPU
-AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(Mat::SparseMatrixCSR) where {T} =
+# NOTE: `SparseMatricesCSR.SparseMatrixCSR{Bi,Tv,Ti}` has a type parameter `Bi` for the index base (0 or 1),
+# but `ROCSPARSE` expects 1-based pointer. Therefore, we restrict dispatch to `SparseMatrixCSR{1}`.
+AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(Mat::SparseMatrixCSR{1}) where {T} =
     AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(
         AMDGPU.ROCVector{Cint}(Mat.rowptr),
         AMDGPU.ROCVector{Cint}(Mat.colval),
         AMDGPU.ROCVector{T}(Mat.nzval),
         size(Mat),
     )
-AMDGPU.rocSPARSE.ROCSparseMatrixCSR(Mat::SparseMatrixCSR{<:Any, T}) where {T} =
+AMDGPU.rocSPARSE.ROCSparseMatrixCSR(Mat::SparseMatrixCSR{1, T}) where {T} =
     AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(Mat)
 
-AMDGPU.rocSPARSE.ROCSparseMatrixCSC{T}(Mat::SparseMatrixCSR) where {T} = ROCSparseMatrixCSC(ROCSparseMatrixCSR{T}(Mat))
-AMDGPU.rocSPARSE.ROCSparseMatrixCOO{T}(Mat::SparseMatrixCSR) where {T} = ROCSparseMatrixCOO(ROCSparseMatrixCSR{T}(Mat))
-AMDGPU.rocSPARSE.ROCSparseMatrixBSR{T}(Mat::SparseMatrixCSR, blockdim) where {T} = ROCSparseMatrixBSR(ROCSparseMatrixCSR{T}(Mat), blockdim)
+AMDGPU.rocSPARSE.ROCSparseMatrixCSC{T}(Mat::SparseMatrixCSR{1}) where {T} = ROCSparseMatrixCSC(ROCSparseMatrixCSR{T}(Mat))
+AMDGPU.rocSPARSE.ROCSparseMatrixCOO{T}(Mat::SparseMatrixCSR{1}) where {T} = ROCSparseMatrixCOO(ROCSparseMatrixCSR{T}(Mat))
+AMDGPU.rocSPARSE.ROCSparseMatrixBSR{T}(Mat::SparseMatrixCSR{1}, blockdim) where {T} = ROCSparseMatrixBSR(ROCSparseMatrixCSR{T}(Mat), blockdim)
+
+# Error for unsupported index base.
+@noinline _unsupported_index_base(::SparseMatrixCSR{Bi}) where {Bi} = throw(ArgumentError(
+    "`ROCSPARSE` expects 1-based index `SparseMatrixCSR{1}` to be converted to rocSPARSE types, " *
+    "but got a $Bi-based `SparseMatrixCSR{$Bi}`."))
+
+AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(Mat::SparseMatrixCSR) where {T} = _unsupported_index_base(Mat)
+AMDGPU.rocSPARSE.ROCSparseMatrixCSR(Mat::SparseMatrixCSR) = _unsupported_index_base(Mat)
+AMDGPU.rocSPARSE.ROCSparseMatrixCSC{T}(Mat::SparseMatrixCSR) where {T} = _unsupported_index_base(Mat)
+AMDGPU.rocSPARSE.ROCSparseMatrixCOO{T}(Mat::SparseMatrixCSR) where {T} = _unsupported_index_base(Mat)
+AMDGPU.rocSPARSE.ROCSparseMatrixBSR{T}(Mat::SparseMatrixCSR, ::Any) where {T} = _unsupported_index_base(Mat)
 
 # GPU → CPU
 SparseMatricesCSR.SparseMatrixCSR(A::ROCSparseMatrixCSR) = SparseMatrixCSR{1}(size(A)..., Array(A.rowPtr), Array(A.colVal), Array(A.nzVal))
