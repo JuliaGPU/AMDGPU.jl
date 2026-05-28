@@ -222,18 +222,13 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
 end
 
 function create_executable(obj)
-    lld = if AMDGPU.lld_artifact
-        `$(LLD_jll.lld()) -flavor gnu`
-    else
-        @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
-        `$(AMDGPU.lld_path)`
-    end
+    @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
 
     path_o = tempname(;cleanup=false) * ".obj"
     path_exe = tempname(;cleanup=false) * ".exe"
 
     write(path_o, obj)
-    run(`$lld -shared -o $path_exe $path_o`)
+    run(`$(AMDGPU.lld_path) -shared -o $path_exe $path_o`)
     bin = read(path_exe)
 
     rm(path_o)
