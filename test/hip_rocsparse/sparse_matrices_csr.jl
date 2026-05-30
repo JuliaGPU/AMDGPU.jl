@@ -2,6 +2,7 @@ using SparseMatricesCSR
 using SparseArrays
 using AMDGPU
 using AMDGPU.rocSPARSE
+using Adapt
 using Test
 
 @assert AMDGPU.functional(:rocsparse)
@@ -27,5 +28,14 @@ using Test
                 end
             end
         end
+    end
+
+    @testset "non-1-based SparseMatrixCSR is rejected" begin
+        A0 = SparseMatrixCSR{0}(3, 3, Cint[0, 1, 2, 3], Cint[0, 1, 2], [1.0, 2.0, 3.0])
+        @test_throws ArgumentError ROCSparseMatrixCSR(A0)
+        @test_throws ArgumentError ROCSparseMatrixCSC(A0)
+        @test_throws ArgumentError ROCSparseMatrixCOO(A0)
+        @test_throws ArgumentError ROCSparseMatrixBSR(A0, 1)
+        @test_throws ArgumentError adapt(ROCArray, A0)
     end
 end
