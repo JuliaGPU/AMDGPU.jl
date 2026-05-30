@@ -3,6 +3,9 @@ uuid = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 version = "2.4.1"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.churavy@gmail.com>", "Anton Smirnov <tonysmn97@gmail.com>"]
 
+[workspace]
+projects = ["test", "docs", "perf"]
+
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 AcceleratedKernels = "6a4ca0a5-0e36-4168-a932-d9be78d558f1"
