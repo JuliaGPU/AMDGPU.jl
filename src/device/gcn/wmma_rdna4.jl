@@ -203,8 +203,8 @@ Load matrix `A` (M×K) from memory and return the resulting fragment.
 
 For RDNA4, each lane loads 8 elements of the matrix (vs 16 in RDNA3 with duplication).
 The distribution is:
-- lanes 0-15 (half=0): rows 0-15, columns 0-7
-- lanes 16-31 (half=1): rows 0-15, columns 8-15
+- lane 0-15: rows 0-15, columns 0-7 (half 0) and 8-15 (half 1)
+- lane 16-31: rows 0-15, columns 16-23 and 24-31
 
 This results in a clean distribution with no data duplication.
 
@@ -213,10 +213,10 @@ This results in a clean distribution with no data duplication.
 """
 function load_a(ptr::LLVMPtr{T}, stride::Int32, ::Type{ColMajor}) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
-    col = lane & Int32(15)
+    row = lane & Int32(15)
     half = lane >> 4
     data = ntuple(Val(8)) do k
-        row = Int32(k - 1) + (half * 8)
+        col = Int32(k - 1) + (half * 8)
         offset = (col * stride + row) * Int32(sizeof(T))
         VecElement(_llvm_inttype(unsafe_load(ptr + offset)))
     end
@@ -258,12 +258,12 @@ end
 
 function load_b(ptr::LLVMPtr{T}, stride::Int32, ::Type{RowMajor}) where T <: Union{Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
-    row = lane & Int32(15)
+    col = lane & Int32(15)
     half = lane >> 4
+    base = ptr + col * Int32(sizeof(T))
     data = ntuple(Val(8)) do k
-        col = Int32(k - 1) + (half * 8)
-        offset = (row * stride + col) * Int32(sizeof(T))
-        VecElement(_llvm_inttype(unsafe_load(ptr + offset)))
+        row = Int32(k - 1) + (half * 8)
+        VecElement(_llvm_inttype(unsafe_load(base + row * stride * Int32(sizeof(T)))))
     end
     return FragmentB{_llvm_inttype(T)}(data)
 end
@@ -293,10 +293,10 @@ end
 
 function load_c(ptr::LLVMPtr{T}, stride::Int32, ::Type{RowMajor})::FragmentC_F32 where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
-    row = lane & Int32(15)
+    col = lane & Int32(15)
     half = lane >> 4
     data = ntuple(Val(8)) do k
-        col = Int32(k - 1) + (half * 8)
+        row = Int32(k - 1) + (half * 8)
         offset = (row * stride + col) * Int32(sizeof(T))
         VecElement(Float32(unsafe_load(ptr + offset)))
     end
@@ -334,10 +334,10 @@ end
 
 function store_d(ptr::LLVMPtr{T}, frag::FragmentC_F32, stride::Int32, ::Type{RowMajor}) where T <: Union{Float32, Float16, BFloat16}
     lane = unsafe_trunc(Int32, activelane())
-    row = lane & Int32(15)
+    col = lane & Int32(15)
     half = lane >> 4
     for k in 1:8
-        col = Int32(k - 1) + (half * 8)
+        row = Int32(k - 1) + (half * 8)
         offset = (row * stride + col) * Int32(sizeof(T))
         unsafe_store!(ptr + offset, T(frag.data[k].value))
     end

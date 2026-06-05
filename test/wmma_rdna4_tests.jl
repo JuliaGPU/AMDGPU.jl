@@ -53,8 +53,14 @@ else
     end
 
     c_frag = c_frag .* scale
-    c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(R))
-    WMMA_RDNA4.store_d(c_ptr, c_frag, M, layout)
+    if layout == WMMA_RDNA4.ColMajor
+      c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(R))
+      stride = M
+    else
+      c_ptr = C_ptr + (tile_row * N + tile_col) * Int32(sizeof(R))
+      stride = N
+    end
+    WMMA_RDNA4.store_d(c_ptr, c_frag, stride, layout)
     return
   end
 
@@ -91,22 +97,23 @@ else
       @test maximum(abs.(Float32.(C) .- expected)) < 0.05
     end
 
-    @testset "RowMajor $M\u00d7$N: $arg_T" for (M, N, K) in (
+    @testset "RowMajor $M\u00d7$N: $arg_T -> $res_T" for (M, N, K) in (
         (64, 64, 64), (128, 128, 128),
       ), arg_T in (Float16, BFloat16), res_T in (Float16, BFloat16, Float32)
       A_host = arg_T.(rand(M, K))
       B_host = arg_T.(rand(K, N))
-      # Transpose to get row-major storage.
+      # For RowMajor storage, we need to transpose since AMDGPU uses ColMajor by default
       A = ROCArray(A_host')
       B = ROCArray(B_host')
-      C = ROCArray(zeros(res_T, M, N))
+      C = ROCArray(zeros(res_T, N, M))
       tol = sizeof(res_T) == 4 ? 0.05 : 0.3
 
       tiles_m, tiles_n = M ÷ WMMA_RDNA4.M, N ÷ WMMA_RDNA4.N
       @roc gridsize = (tiles_m, tiles_n) groupsize = 32 wmma_rdna4_kernel!(
         C, A, B, Int32(M), Int32(N), Int32(K), WMMA_RDNA4.RowMajor, 1.0f0)
+      C_mat = copy(Float32.(C)')
       @test maximum(abs.(
-        Float32.(C) .- ROCArray(Float32.(A_host)) * ROCArray(Float32.(B_host))
+        C_mat .- ROCArray(Float32.(A_host)) * ROCArray(Float32.(B_host))
       )) < tol
     end
 
