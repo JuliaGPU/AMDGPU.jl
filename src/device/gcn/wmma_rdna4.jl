@@ -4,6 +4,7 @@
 # - AMD GPUOpen: https://gpuopen.com/learn/using_matrix_core_amd_rdna4/
 # - LLVM: https://github.com/llvm/llvm-project/commit/829afc4c91fcac3823cdf06baf683fe3356a9e91
 # - LLVM intrinsics: llvm.amdgcn.wmma.* with _gfx12 suffix
+# - RDNA3 implementation of WMMA
 
 """
 WMMA module for AMD RDNA4 architecture GPUs.
