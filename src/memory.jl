@@ -508,7 +508,44 @@ function Base.convert(::Type{Mem.AbstractAMDBuffer}, managed::Managed{M}) where 
     return managed.mem
 end
 
+# Task-local binned pool — nothing means "use standard hipMallocFromPoolAsync path"
+const _BINNED_POOL_KEY = :__AMDGPU_binned_pool__
+
+_get_binned_pool() = get(task_local_storage(), _BINNED_POOL_KEY, nothing)
+_set_binned_pool!(pool) = task_local_storage(_BINNED_POOL_KEY, pool)
+
+"""
+    with_binned_pool(f, pool::Mem.BinnedPool)
+
+Execute `f()` with `pool` active as the task-local allocator. All
+`pool_alloc` calls for sizes ≤ `Mem._BIN_CEILING` will sub-allocate from
+`pool` via `hipMalloc`-backed slabs (SDMA-eligible) instead of calling
+`hipMallocFromPoolAsync`. Larger allocations fall through to the standard path.
+
+The caller is responsible for calling `AMDGPU.synchronize()` before
+`Mem.destroy!(pool)` to ensure all GPU work has completed.
+"""
+function with_binned_pool(f, pool::Mem.BinnedPool)
+    _set_binned_pool!(pool)
+    try
+        f()
+    finally
+        _set_binned_pool!(nothing)
+    end
+end
+
 function pool_alloc(::Type{B}, bytesize) where B
+    # Fast path: sub-allocate from task-local binned pool (zero HIP calls)
+    bp = _get_binned_pool()
+    if bp !== nothing
+        buf = Mem.alloc!(bp, bytesize)
+        if buf !== nothing
+            s = AMDGPU.stream()
+            return Managed(buf; stream=s, captured=AMDGPU.is_capturing())
+        end
+        # buf === nothing means bytesize > BIN_CEILING — fall through to HIP pool
+    end
+
     maybe_collect()
     time = Base.@elapsed begin
         s = AMDGPU.stream()
@@ -531,6 +568,13 @@ end
 function pool_free(managed::Managed{M}) where M
     sz = Int(sizeof(managed.mem))
     sz == 0 && return
+
+    # Fast path: return slot to binned pool (zero HIP calls)
+    bp = _get_binned_pool()
+    if bp !== nothing && !managed.mem.own
+        Mem.pool_free!(bp, managed.mem)
+        return
+    end
 
     try
         time = Base.@elapsed _pool_free(managed.mem, managed.stream)

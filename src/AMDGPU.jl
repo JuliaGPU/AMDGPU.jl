@@ -73,8 +73,11 @@ include("cache.jl")
 include("runtime/Runtime.jl")
 import .Runtime
 import .Runtime: Mem, ROCDim, ROCDim3
+import .Runtime.Mem: BinnedPool, binned_pool_stats, print_histogram
 
 include("memory.jl")
+
+export BinnedPool, with_binned_pool, binned_pool_stats, print_histogram
 
 Base.Experimental.@MethodTable(method_table)
 

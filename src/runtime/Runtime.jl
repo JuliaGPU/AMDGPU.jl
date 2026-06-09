@@ -32,6 +32,7 @@ module Mem
 
     include(joinpath("memory", "utils.jl"))
     include(joinpath("memory", "hip.jl"))
+    include(joinpath("memory", "pool.jl"))
 end
 
 include("execution.jl")
