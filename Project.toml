@@ -1,7 +1,10 @@
 name = "AMDGPU"
 uuid = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-version = "2.4.0"
+version = "2.5.1"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.churavy@gmail.com>", "Anton Smirnov <tonysmn97@gmail.com>"]
+
+[workspace]
+projects = ["test", "docs", "perf"]
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -37,10 +40,12 @@ UnsafeAtomics = "013be700-e6cd-48c3-b4a1-df204f14c38f"
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
+SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 
 [extensions]
 AMDGPUChainRulesCoreExt = "ChainRulesCore"
 AMDGPUEnzymeCoreExt = "EnzymeCore"
+AMDGPUSparseMatricesCSRExt = "SparseMatricesCSR"
 
 [compat]
 AbstractFFTs = "1.0"
@@ -61,9 +66,10 @@ LLVM = "9"
 LLVM_jll = "15, 16, 17, 18, 19, 20"
 Preferences = "1"
 PrettyTables = "3"
-ROCmDeviceLibs_jll = "=5.6.1, =6.2.1"
+ROCmDeviceLibs_jll = "=5.6.1, =6.2.1, =7.0.2"
 Random123 = "1.6"
 RandomNumbers = "1.5"
+SparseMatricesCSR = "0.6.9"
 SpecialFunctions = "2"
 StaticArraysCore = "1"
 UnsafeAtomics = "0.3"

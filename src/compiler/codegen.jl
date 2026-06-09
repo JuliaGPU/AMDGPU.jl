@@ -16,8 +16,6 @@ const _hip_compiler_cache = Dict{HIP.HIPDevice, Dict{Any, HIP.HIPFunction}}()
 
 # hash(fun, hash(f, hash(tt))) => HIPKernel
 const _kernel_instances = Dict{UInt, Runtime.HIPKernel}()
-# UInt (hash(job)) => Vector{Symbol} (global hostcall names)
-const _global_hostcalls = Dict{UInt, Vector{Symbol}}()
 
 function compiler_cache(dev::HIP.HIPDevice)
     get!(() -> Dict{UInt, Any}(), _hip_compiler_cache, dev)
@@ -34,7 +32,10 @@ function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LL
         Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
 
     # Detect global hostcalls here, before optimizations & cleanup occur.
-    _global_hostcalls[hash(job)] = find_global_hostcalls(mod)
+    # Accumulate into task-local storage so hipcompile can retrieve them
+    # on the same task, without any global dict or hash-collision race.
+    tls_hostcalls = get!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
+    append!(tls_hostcalls, find_global_hostcalls(mod))
 
     link_device_libs!(
         job.config.target, mod;
@@ -88,6 +89,25 @@ function GPUCompiler.finish_module!(
 
             do_inline && inline_attr ∉ collect(attrs) &&
                 push!(attrs, inline_attr)
+        end
+    end
+
+    # LLVM 20+ requires !amdgpu.no.fine.grained.memory on FP atomicrmw to emit
+    # native hardware atomics (e.g. global_atomic_add_f32) instead of a CAS loop.
+    # Mirrors Clang's setTargetAtomicMetadata; unsafe_fp_atomics is the opt-in.
+    if job.config.params.unsafe_fp_atomics
+        fp_binops = (LLVM.API.LLVMAtomicRMWBinOpFAdd, LLVM.API.LLVMAtomicRMWBinOpFSub,
+                     LLVM.API.LLVMAtomicRMWBinOpFMax, LLVM.API.LLVMAtomicRMWBinOpFMin)
+        empty_md = MDNode(Metadata[])
+        for fn in LLVM.functions(mod), bb in LLVM.blocks(fn), inst in LLVM.instructions(bb)
+            inst isa LLVM.AtomicRMWInst || continue
+            op = LLVM.binop(inst)
+            op ∈ fp_binops || continue
+            md = LLVM.metadata(inst)
+            md["amdgpu.no.fine.grained.memory"] = empty_md
+            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && LLVM.value_type(inst) == LLVM.FloatType()
+                md["amdgpu.ignore.denormal.mode"] = empty_md
+            end
         end
     end
 
@@ -200,7 +220,9 @@ function hipcompile(@nospecialize(job::CompilerJob))
         GPUCompiler.compile(:obj, job)
     end
 
-    global_hostcalls = pop!(_global_hostcalls, hash(job))
+    # Collect early-detected hostcalls written by link_libraries! on this task.
+    # Falls back gracefully to empty if link_libraries! was not called.
+    global_hostcalls = pop!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     # Late global hostcalls detection.
     append!(global_hostcalls, find_global_hostcalls(meta.ir))
 

@@ -167,7 +167,7 @@ end
 @static if VERSION ≥ v"1.12.0-rc"
     function LinearAlgebra.generic_matmatmul_wrapper!(
         C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCVecOrMat{T}, B::StridedROCVecOrMat{T},
-        alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:ROCBLASFloat}
+        alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:ROCBLASFloatWithHalf}
         LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
     end
     function LinearAlgebra._symm_hemm_generic!(

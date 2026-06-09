@@ -338,6 +338,11 @@ ROCSparseMatrixCOO(csc::ROCSparseMatrixCSC) = ROCSparseMatrixCOO(ROCSparseMatrix
 ROCSparseMatrixBSR(coo::ROCSparseMatrixCOO, blockdim) = ROCSparseMatrixBSR(ROCSparseMatrixCSR(coo), blockdim) # no direct conversion
 ROCSparseMatrixCOO(bsr::ROCSparseMatrixBSR) = ROCSparseMatrixCOO(ROCSparseMatrixCSR(bsr)) # no direct conversion
 
+### BSR to CSC and vice-versa
+
+ROCSparseMatrixBSR(csc::ROCSparseMatrixCSC, blockdim) = ROCSparseMatrixBSR(ROCSparseMatrixCSR(csc), blockdim) # no direct conversion
+ROCSparseMatrixCSC(bsr::ROCSparseMatrixBSR) = ROCSparseMatrixCSC(ROCSparseMatrixCSR(bsr)) # no direct conversion
+
 ## sparse to dense, and vice-versa
 
 for (cname,rname,elty) in (
