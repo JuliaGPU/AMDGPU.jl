@@ -242,7 +242,7 @@ B_host = Float16.(rand(K, N))
 A, B = ROCArray(A_host), ROCArray(B_host)
 C = ROCArray(zeros(Float32, M, N))
 
-tiles_m, tiles_n = M \u00f7 WMMA_RDNA4.M, N \u00f7 WMMA_RDNA4.N
+tiles_m, tiles_n = M ÷ WMMA_RDNA4.M, N ÷ WMMA_RDNA4.N
 @roc groupsize=32 gridsize=(tiles_m, tiles_n) wmma_rdna4_kernel!(
     C, A, B, Int32(M), Int32(N), Int32(K), WMMA_RDNA4.ColMajor)
 
