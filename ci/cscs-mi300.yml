@@ -10,7 +10,7 @@ unit_test:
     SLURM_NTASKS_PER_NODE: 1
     SLURM_GPUS_PER_TASK: 2
     SLURM_TIMELIMIT: "00:45:00"
-    JULIA_NUM_THREADS: 8
+    JULIA_NUM_THREADS: 4
     JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia"
     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
@@ -24,4 +24,4 @@ unit_test:
         using AMDGPU;
         AMDGPU.versioninfo();
         println("Running tests");
-        Pkg.test("AMDGPU");'
+        Pkg.test("AMDGPU"; test_args=`--jobs=32`);'
