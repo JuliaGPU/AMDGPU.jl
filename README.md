@@ -27,7 +27,7 @@
 [benchmark-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
 [benchmark-url]: https://amdgpu.juliagpu.org/bench/
 
-[cscs-ci-img]: https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/3266148763123078/6677263153381401/badges/main/pipeline.svg?ignore_skipped=true)
+[cscs-ci-img]: https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/3266148763123078/6677263153381401/badges/main/pipeline.svg?ignore_skipped=true
 [cscs-ci-url]: https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/3266148763123078/6677263153381401/-/pipelines
 
 ## Quick start
