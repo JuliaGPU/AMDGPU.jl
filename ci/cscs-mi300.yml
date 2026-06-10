@@ -19,6 +19,7 @@ unit_test:
         println("Instantiating project");
         using Pkg;
         Pkg.activate(pwd());
+        Pkg.instantiate();
         using AMDGPU; AMDGPU.versioninfo();'
     - srun -n 1 --uenv $UENV --view=default $JULIA --project -e '
         println("Running tests");
