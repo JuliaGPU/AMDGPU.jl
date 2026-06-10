@@ -8,9 +8,9 @@ unit_test:
     UENV: b2550889de318ab5
     SLURM_JOB_NUM_NODES: 1
     SLURM_NTASKS_PER_NODE: 1
-    SLURM_GPUS_PER_TASK: 1
+    SLURM_GPUS_PER_TASK: 2
     SLURM_TIMELIMIT: "00:45:00"
-    JULIA_NUM_THREADS: 4
+    JULIA_NUM_THREADS: 8
     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
     JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
@@ -20,9 +20,7 @@ unit_test:
         using Pkg;
         Pkg.activate(pwd());
         Pkg.instantiate();
-        using AMDGPU; AMDGPU.versioninfo();'
-    - srun -n 1 --uenv $UENV --view=default $JULIA --project -e '
+        using AMDGPU;
+        AMDGPU.versioninfo();
         println("Running tests");
-        using Pkg;
-        Pkg.activate(pwd());
-        Pkg.test("AMDGPU"; test_args=["--jobs=4"]);'
+        Pkg.test("AMDGPU");'
