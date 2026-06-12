@@ -6,8 +6,11 @@ export librocrand, librocfft, libMIOpen_path
 
 using LLD_jll
 using ROCmDeviceLibs_jll
+using LazyArtifacts
 using Preferences
 using Libdl
+
+Base.include(@__MODULE__, joinpath(@__DIR__, "..", "..", ".pkg", "platform_augmentation.jl"))
 
 include("utils.jl")
 

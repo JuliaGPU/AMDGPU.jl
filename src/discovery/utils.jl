@@ -1,3 +1,13 @@
+# Resolve an artifact-backed ROCm root, if one has been installed.
+function artifact_rocm_path()::String
+    try
+        p = augment_platform!(HostPlatform())
+        return @artifact_str("ROCm", p)
+    catch
+        return ""
+    end
+end
+
 # use amdhip as query for a valid rocm_path
 function check_rocm_path(path::String)
     libname = (Sys.islinux() ? "libamdhip64" : "amdhip64") * "." * dlext
@@ -23,6 +33,9 @@ function find_roc_path()::String
         rocm_path = check_rocm_path(env_dir)
         rocm_path != "" && return rocm_path
     end
+
+    artifact_dir = artifact_rocm_path()
+    isdir(artifact_dir) && return artifact_dir
 
     if Sys.islinux()
         hipconfig = Sys.which("hipconfig")
@@ -103,19 +116,20 @@ end
 
 function find_rocm_library(libs::Vector; rocm_path::String, ext::String = dlext)::String
     for lib in libs
-        path = find_rocm_library(lib, rocm_path, ext)
+        path = find_rocm_library(lib; rocm_path, ext)
         isempty(path) || return path
     end
     return ""
 end
 
 function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext)::String
-    libdir = joinpath(rocm_path, rel_libdir)
-    isdir(libdir) || return ""
-    for file in readdir(libdir; join=true)
-        fname = basename(file)
-        matched = startswith(fname, lib) && contains(fname, ext)
-        matched && return file
+    for libdir in [joinpath(rocm_path, rel_libdir), joinpath(rocm_path, "lib")]
+        isdir(libdir) || continue
+        for file in readdir(libdir; join=true)
+            fname = basename(file)
+            matched = startswith(fname, lib) && contains(fname, ext)
+            matched && return file
+        end
     end
     return ""
 end
