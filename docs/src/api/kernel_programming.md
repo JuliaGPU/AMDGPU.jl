@@ -236,6 +236,16 @@ function wmma_rdna4_kernel!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::In
     return
 end
 
+# Tile pointer + stride helpers — dispatched on layout, DCE'd by the compiler.
+_a_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_row, k, M, K, ::Type{T}) where T =
+    ptr + (k * M + tile_row) * Int32(sizeof(T)), M
+_a_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_row, k, M, K, ::Type{T}) where T =
+    ptr + (tile_row * K + k) * Int32(sizeof(T)), K
+_b_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_col, k, N, K, ::Type{T}) where T =
+    ptr + (tile_col * K + k) * Int32(sizeof(T)), K
+_b_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_col, k, N, K, ::Type{T}) where T =
+    ptr + (k * N + tile_col) * Int32(sizeof(T)), N
+
 M, N, K = 32, 32, 32
 A_host = Float16.(rand(M, K))
 B_host = Float16.(rand(K, N))
