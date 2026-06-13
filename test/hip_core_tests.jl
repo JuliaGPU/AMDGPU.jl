@@ -24,7 +24,7 @@ end
 
 if length(AMDGPU.devices()) > 1
     @testset "HIP Peer Access" begin
-        dev1, dev2, _ = AMDGPU.devices()
+        dev1, dev2 = AMDGPU.devices()[1:2]
         @test AMDGPU.HIP.can_access_peer(dev1, dev2) isa Bool
     end
 end
