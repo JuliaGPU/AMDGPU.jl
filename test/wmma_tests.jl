@@ -10,7 +10,8 @@ AMDGPU.allowscalar(false)
 _arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
 gfx = parse(Int, _arch_str[4:end])
 is_rdna3 = 1100 ≤ gfx < 1200
-if !is_rdna3
+is_rdna4 = 1200 ≤ gfx < 1300
+if !is_rdna3 && !is_rdna4
     @info "Skipping WMMA tests (requires RDNA3+)"
 else
     # Tile base pointer + stride for A (M×K) by layout.

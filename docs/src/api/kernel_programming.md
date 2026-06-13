@@ -71,21 +71,47 @@ target = ROCArray(zeros(UInt32, bins))
 ## Wave Matrix Multiply Accumulate (WMMA)
 
 Perform following computation `D = A ⋅ B + C`.
-Currently only RDNA 3 is supported and following types:
+
+### RDNA 3 (gfx1100-gfx1199)
+
+Currently RDNA 3 supports the following types:
 - `FP16 ⋅ FP16 + FP32 -> FP32`;
 - `BFP16 ⋅ BFP16 + FP32 -> FP32`.
 
-All WMMA functionality is in the `AMDGPU.Device.WMMA` submodule.
+All WMMA functionality for RDNA 3 is in the `AMDGPU.Device.WMMA` submodule.
 The tile dimensions are fixed at 16×16×16 (`WMMA.M`, `WMMA.N`, `WMMA.K`).
+
+### RDNA 4 (gfx1200+)
+
+RDNA 4 introduces a simplified VGPR layout for WMMA operations with the following improvements:
+- Cleaner data distribution with no duplication (128-bit vs 256-bit in RDNA 3)
+- Each lane handles 8 elements for A and B fragments (vs 16 with duplication in RDNA 3)
+- Support for FP8 and BF8 types (requires LLVM 18+ and ROCm 6.0+)
+- New intrinsic names with `_gfx12` suffix
+
+All WMMA functionality for RDNA 4 is in the `AMDGPU.Device.WMMA_RDNA4` submodule.
+The tile dimensions remain at 16×16×16 (`WMMA_RDNA4.M`, `WMMA_RDNA4.N`, `WMMA_RDNA4.K`).
+
+**Supported types on RDNA 4:**
+- `FP16 ⋅ FP16 + FP32 -> FP32`
+- `BFP16 ⋅ BFP16 + FP32 -> FP32`
+- `FP8 ⋅ FP8 + FP32 -> FP32` (experimental)
+- `BF8 ⋅ BF8 + FP32 -> FP32` (experimental)
+
+### Common Features
+
+Both RDNA 3 and RDNA 4 support the following layout types:
 
 ### Layout types
 
 Two layout types control how matrices are read from and written to memory:
 
-- `WMMA.ColMajor` — column-major (Julia/Fortran) order: element `(row, col)` is at `ptr[col * stride + row]`.
-- `WMMA.RowMajor` — row-major (C) order: element `(row, col)` is at `ptr[row * stride + col]`.
+- `WMMA.ColMajor` / `WMMA_RDNA4.ColMajor` — column-major (Julia/Fortran) order: element `(row, col)` is at `ptr[col * stride + row]`.
+- `WMMA.RowMajor` / `WMMA_RDNA4.RowMajor` — row-major (C) order: element `(row, col)` is at `ptr[row * stride + col]`.
 
 ### API
+
+#### RDNA 3 API
 
 ```@docs
 AMDGPU.Device.WMMA.Fragment
@@ -97,10 +123,25 @@ AMDGPU.Device.WMMA.store_d
 AMDGPU.Device.WMMA.mma
 ```
 
+#### RDNA 4 API
+
+```@docs
+AMDGPU.Device.WMMA_RDNA4.Fragment
+AMDGPU.Device.WMMA_RDNA4.fill_c
+AMDGPU.Device.WMMA_RDNA4.load_a
+AMDGPU.Device.WMMA_RDNA4.load_b
+AMDGPU.Device.WMMA_RDNA4.load_c
+AMDGPU.Device.WMMA_RDNA4.store_d
+AMDGPU.Device.WMMA_RDNA4.mma
+```
+
 `load_c` and `store_d` accept pointer types `Float32`, `Float16`, and `BFloat16`.
 When `T` is `Float16` or `BFloat16`, values are widened to `Float32` on load and
 narrowed back on store, so the `FragmentC_F32` accumulator type is always `Float32`
 regardless of the backing buffer type.
+
+**Note:** For RDNA 4, the same behavior applies, but the underlying LLVM intrinsics
+use the new `_gfx12` suffix and have a simplified VGPR layout.
 
 ### Example
 
@@ -157,6 +198,63 @@ C = ROCArray(zeros(Float32, M, N))
 tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
 @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
     C, A, B, Int32(M), Int32(N), Int32(K), WMMA.ColMajor)
+
+@assert maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < 0.1
+```
+
+### RDNA 4 Example
+
+Here's the same example adapted for RDNA 4:
+
+```julia
+using AMDGPU
+using AMDGPU.Device: WMMA_RDNA4
+
+function wmma_rdna4_kernel!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32, layout) where T
+    tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMMA_RDNA4.M)
+    tile_col = (workgroupIdx().y - Int32(1)) * Int32(WMMA_RDNA4.N)
+
+    C_ptr = pointer(C)
+    A_ptr = pointer(A)
+    B_ptr = pointer(B)
+
+    c_frag = WMMA_RDNA4.fill_c(Float32, 0f0)
+    k = Int32(0)
+    while k < K
+        a_ptr, a_stride = _a_tile(A_ptr, layout, tile_row, k, M, K, T)
+        b_ptr, b_stride = _b_tile(B_ptr, layout, tile_col, k, N, K, T)
+
+        a_frag = WMMA_RDNA4.load_a(a_ptr, a_stride, layout)
+        b_frag = WMMA_RDNA4.load_b(b_ptr, b_stride, layout)
+        c_frag = WMMA_RDNA4.mma(a_frag, b_frag, c_frag)
+
+        k += Int32(WMMA_RDNA4.K)
+    end
+
+    c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(Float32))
+    WMMA_RDNA4.store_d(c_ptr, c_frag, M, WMMA_RDNA4.ColMajor)
+    return
+end
+
+# Tile pointer + stride helpers — dispatched on layout, DCE'd by the compiler.
+_a_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_row, k, M, K, ::Type{T}) where T =
+    ptr + (k * M + tile_row) * Int32(sizeof(T)), M
+_a_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_row, k, M, K, ::Type{T}) where T =
+    ptr + (tile_row * K + k) * Int32(sizeof(T)), K
+_b_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_col, k, N, K, ::Type{T}) where T =
+    ptr + (tile_col * K + k) * Int32(sizeof(T)), K
+_b_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_col, k, N, K, ::Type{T}) where T =
+    ptr + (k * N + tile_col) * Int32(sizeof(T)), N
+
+M, N, K = 32, 32, 32
+A_host = Float16.(rand(M, K))
+B_host = Float16.(rand(K, N))
+A, B = ROCArray(A_host), ROCArray(B_host)
+C = ROCArray(zeros(Float32, M, N))
+
+tiles_m, tiles_n = M ÷ WMMA_RDNA4.M, N ÷ WMMA_RDNA4.N
+@roc groupsize=32 gridsize=(tiles_m, tiles_n) wmma_rdna4_kernel!(
+    C, A, B, Int32(M), Int32(N), Int32(K), WMMA_RDNA4.ColMajor)
 
 @assert maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < 0.1
 ```
