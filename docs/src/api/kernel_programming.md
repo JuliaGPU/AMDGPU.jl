@@ -206,7 +206,7 @@ tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
 
 Here's the same example adapted for RDNA 4:
 
-```@example wmma-matmul-rdna4
+```julia
 using AMDGPU
 using AMDGPU.Device: WMMA_RDNA4
 
