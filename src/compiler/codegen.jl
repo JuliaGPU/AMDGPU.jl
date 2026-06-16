@@ -65,7 +65,19 @@ GPUCompiler.@unlocked function GPUCompiler.mcgen(
     output = tempname(cleanup=false) * (filetype == "asm" ? ".s" : ".o")
     write(input, mod)
 
-    cmd = `$clang_path -x ir $input -mcpu=$(target.dev_isa) --target=$(GPUCompiler.llvm_triple(target)) -nogpulib $(filetype == "asm" ? "-S" : "-c") -o $output`
+    wavefrontsize64 = if hasproperty(job.config.params, :wavefrontsize64)
+        job.config.params.wavefrontsize64
+    else
+        true # Default fallback
+    end
+
+    devlib_paths = get_device_libs_paths(target; wavefrontsize64)
+    devlib_flags = String[]
+    for path in devlib_paths
+        push!(devlib_flags, "-Xclang", "-mlink-builtin-bitcode", "-Xclang", path)
+    end
+
+    cmd = `$clang_path -x ir $input -mcpu=$(target.dev_isa) --target=$(GPUCompiler.llvm_triple(target)) -nogpulib $devlib_flags $(filetype == "asm" ? "-S" : "-c") -o $output`
 
     try
         run(cmd)
@@ -180,7 +192,7 @@ function compiler_config(dev::HIP.HIPDevice;
 
     target = GCNCompilerTarget(; dev_isa, features)
     params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics)
-    CompilerConfig(target, params; kernel, name, always_inline=true)
+    CompilerConfig(target, params; kernel, name, always_inline=true, validate=false)
 end
 
 const hipfunction_lock = ReentrantLock()
