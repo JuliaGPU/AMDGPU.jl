@@ -52,6 +52,13 @@ GPUCompiler.@unlocked function GPUCompiler.mcgen(
         return invoke(GPUCompiler.mcgen, Tuple{CompilerJob, LLVM.Module, typeof(format)}, job, mod, format)
     end
 
+    dl = GPUCompiler.llvm_datalayout(job.config.target)
+    if dl !== nothing
+        # Union of Julia's GC address spaces (10:11:12:13) and
+        # AMDGPU device lib's buffer/resource address spaces (7:8:9)
+        LLVM.datalayout!(mod, LLVM.DataLayout(replace(string(dl), "-ni:10:11:12:13" => "-ni:7:8:9:10:11:12:13")))
+    end
+
     target = job.config.target
     filetype = if format == LLVM.API.LLVMAssemblyFile
         "asm"
