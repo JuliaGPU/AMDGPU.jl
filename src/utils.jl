@@ -1,5 +1,5 @@
 function versioninfo(io::IO=stdout)
-    @info "AMDGPU versioninfo"
+    println(io, "AMDGPU versioninfo")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
