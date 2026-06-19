@@ -51,7 +51,6 @@ mutable struct cROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T, K, inplace}
         rocfft_execution_info_create(info_ref)
         info = info_ref[]
 
-        # assign to the current stream
         stream = AMDGPU.stream()
         rocfft_execution_info_set_stream(info, stream)
         if length(workarea) > 0
@@ -99,11 +98,8 @@ end
 
 function update_stream!(plan::ROCFFTPlan)
     new_stream = AMDGPU.stream()
-    if plan.stream != new_stream
-        plan.stream = new_stream
-        info = plan.execution_info
-        rocfft_execution_info_set_stream(info, new_stream)
-    end
+    plan.stream = new_stream
+    rocfft_execution_info_set_stream(plan.execution_info, new_stream)
     return
 end
 
