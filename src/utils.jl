@@ -21,7 +21,7 @@ function versioninfo(io::IO=stdout)
 
     if functional(:hip)
         println(io)
-        @info "AMDGPU devices"
+        println(io, "AMDGPU devices")
         show(io, MIME"text/plain"(), AMDGPU.devices())
         println(io)
     end
