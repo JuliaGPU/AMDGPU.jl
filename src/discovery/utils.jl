@@ -144,8 +144,7 @@ function find_ld_lld(rocm_path::String)::String
             run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
             vstr = read(tmpfile, String)
             rm(tmpfile)
-            # Match first version number in the output, e.g.:
-            # "AMD LLD 15.0.0 ..." or "Ubuntu LLD 21.0.0 ..."
+            # Match first version number in the output, e.g. "AMD LLD 15.0.0 ..." or "Ubuntu LLD 21.0.0 ..."
             m = match(r"(\d+\.\d+(?:\.\d+)?)", vstr)
             if m !== nothing && VersionNumber(m.captures[1]) >= v"6.0.0"
                 return exp_ld_path
