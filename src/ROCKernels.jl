@@ -58,6 +58,8 @@ function KA.copyto!(::ROCBackend, A, B)
     return
 end
 
+KA.versioninfo(io::IO, ::ROCBackend) = AMDGPU.versioninfo(io)
+
 function KA.pagelock!(::ROCBackend, x::Array)
     AMDGPU.Mem.pin(pointer(x), sizeof(x))
     return
