@@ -2,7 +2,7 @@ using Test
 using AMDGPU
 using AMDGPU: ROCArray, @roc
 using BFloat16s
-using AMDGPU.Device: WMMA_RDNA3_RDNA3, workitemIdx, workgroupIdx
+using AMDGPU.Device: WMMA_RDNA3, workitemIdx, workgroupIdx
 
 AMDGPU.allowscalar(false)
 
