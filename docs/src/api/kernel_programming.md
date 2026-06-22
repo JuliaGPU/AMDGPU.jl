@@ -79,7 +79,7 @@ Currently RDNA 3 supports the following types:
 - `BFP16 ⋅ BFP16 + FP32 -> FP32`.
 
 All WMMA functionality for RDNA 3 is in the `AMDGPU.Device.WMMA` submodule.
-The tile dimensions are fixed at 16×16×16 (`WMAA_RDNA3.M`, `WMAA_RDNA3.N`, `WMAA_RDNA3.K`).
+The tile dimensions are fixed at 16×16×16 (`WMMA_RDNA3.M`, `WMMA_RDNA3.N`, `WMMA_RDNA3.K`).
 
 ### RDNA 4 (gfx1200+)
 
@@ -146,7 +146,7 @@ use the new `_gfx12` suffix and have a simplified VGPR layout.
 ### Example
 
 Below is a matrix multiplication kernel using WMMA with column-major inputs.
-Pass `WMAA_RDNA3.RowMajor` instead to load from row-major (C-style) buffers.
+Pass `WMMA_RDNA3.RowMajor` instead to load from row-major (C-style) buffers.
 
 !!! note "Hardware Requirements"
     WMMA instructions require RDNA 3 (gfx11) or newer GPUs. This code will only execute
@@ -157,40 +157,40 @@ using AMDGPU
 using AMDGPU.Device: WMMA_RDNA3
 
 function wmma_kernel!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32, layout) where T
-    tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMAA_RDNA3.M)
-    tile_col = (workgroupIdx().y - Int32(1)) * Int32(WMAA_RDNA3.N)
+    tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMMA_RDNA3.M)
+    tile_col = (workgroupIdx().y - Int32(1)) * Int32(WMMA_RDNA3.N)
 
     C_ptr = pointer(C)
     A_ptr = pointer(A)
     B_ptr = pointer(B)
 
-    c_frag = WMAA_RDNA3.fill_c(Float32, 0f0)
+    c_frag = WMMA_RDNA3.fill_c(Float32, 0f0)
     k = Int32(0)
     while k < K
         a_ptr, a_stride = _a_tile(A_ptr, layout, tile_row, k, M, K, T)
         b_ptr, b_stride = _b_tile(B_ptr, layout, tile_col, k, N, K, T)
 
-        a_frag = WMAA_RDNA3.load_a(a_ptr, a_stride, layout)
-        b_frag = WMAA_RDNA3.load_b(b_ptr, b_stride, layout)
-        c_frag = WMAA_RDNA3.mma(a_frag, b_frag, c_frag)
+        a_frag = WMMA_RDNA3.load_a(a_ptr, a_stride, layout)
+        b_frag = WMMA_RDNA3.load_b(b_ptr, b_stride, layout)
+        c_frag = WMMA_RDNA3.mma(a_frag, b_frag, c_frag)
 
-        k += Int32(WMAA_RDNA3.K)
+        k += Int32(WMMA_RDNA3.K)
     end
 
     c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(Float32))
-    WMAA_RDNA3.store_d(c_ptr, c_frag, M, WMAA_RDNA3.ColMajor)
+    WMMA_RDNA3.store_d(c_ptr, c_frag, M, WMMA_RDNA3.ColMajor)
     return
 end
 
 # Tile pointer + stride helpers — dispatched on layout, DCE'd by the compiler.
-_a_tile(ptr, ::Type{WMAA_RDNA3.ColMajor}, tile_row, k, M, K, ::Type{T}) where T =
+_a_tile(ptr, ::Type{WMMA_RDNA3.ColMajor}, tile_row, k, M, K, ::Type{T}) where T =
     ptr + (k * M + tile_row) * Int32(sizeof(T)), M
-_a_tile(ptr, ::Type{WMAA_RDNA3.RowMajor}, tile_row, k, M, K, ::Type{T}) where T =
+_a_tile(ptr, ::Type{WMMA_RDNA3.RowMajor}, tile_row, k, M, K, ::Type{T}) where T =
     ptr + (tile_row * K + k) * Int32(sizeof(T)), K
 
-_b_tile(ptr, ::Type{WMAA_RDNA3.ColMajor}, tile_col, k, N, K, ::Type{T}) where T =
+_b_tile(ptr, ::Type{WMMA_RDNA3.ColMajor}, tile_col, k, N, K, ::Type{T}) where T =
     ptr + (tile_col * K + k) * Int32(sizeof(T)), K
-_b_tile(ptr, ::Type{WMAA_RDNA3.RowMajor}, tile_col, k, N, K, ::Type{T}) where T =
+_b_tile(ptr, ::Type{WMMA_RDNA3.RowMajor}, tile_col, k, N, K, ::Type{T}) where T =
     ptr + (k * N + tile_col) * Int32(sizeof(T)), N
 
 M, N, K = 32, 32, 32
@@ -199,9 +199,9 @@ B_host = Float16.(rand(K, N))
 A, B = ROCArray(A_host), ROCArray(B_host)
 C = ROCArray(zeros(Float32, M, N))
 
-tiles_m, tiles_n = M ÷ WMAA_RDNA3.M, N ÷ WMAA_RDNA3.N
+tiles_m, tiles_n = M ÷ WMMA_RDNA3.M, N ÷ WMMA_RDNA3.N
 @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
-    C, A, B, Int32(M), Int32(N), Int32(K), WMAA_RDNA3.ColMajor)
+    C, A, B, Int32(M), Int32(N), Int32(K), WMMA_RDNA3.ColMajor)
 
 @assert maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < 0.1
 ```
