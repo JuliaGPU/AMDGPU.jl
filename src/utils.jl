@@ -1,5 +1,5 @@
-function versioninfo()
-    @info "AMDGPU versioninfo"
+function versioninfo(io::IO=stdout)
+    println(io, "AMDGPU versioninfo")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
@@ -15,14 +15,15 @@ function versioninfo()
         _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
     ]
 
-    PrettyTables.pretty_table(data; column_labels=[
+    PrettyTables.pretty_table(io, data; column_labels=[
         "Available", "Name", "Version", "Path"],
         alignment=[:c, :l, :l, :l])
 
     if functional(:hip)
-        println()
-        @info "AMDGPU devices"
-        display(AMDGPU.devices())
+        println(io)
+        println(io, "AMDGPU devices")
+        show(io, MIME"text/plain"(), AMDGPU.devices())
+        println(io)
     end
     return
 end
