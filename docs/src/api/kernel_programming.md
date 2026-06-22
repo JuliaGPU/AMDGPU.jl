@@ -79,7 +79,7 @@ Currently RDNA 3 supports the following types:
 - `BFP16 ⋅ BFP16 + FP32 -> FP32`.
 
 All WMMA functionality for RDNA 3 is in the `AMDGPU.Device.WMMA` submodule.
-The tile dimensions are fixed at 16×16×16 (`WMMA.M`, `WMMA.N`, `WMMA.K`).
+The tile dimensions are fixed at 16×16×16 (`WMAA_RDNA3.M`, `WMAA_RDNA3.N`, `WMAA_RDNA3.K`).
 
 ### RDNA 4 (gfx1200+)
 
@@ -106,21 +106,21 @@ Both RDNA 3 and RDNA 4 support the following layout types:
 
 Two layout types control how matrices are read from and written to memory:
 
-- `WMMA.ColMajor` / `WMMA_RDNA4.ColMajor` — column-major (Julia/Fortran) order: element `(row, col)` is at `ptr[col * stride + row]`.
-- `WMMA.RowMajor` / `WMMA_RDNA4.RowMajor` — row-major (C) order: element `(row, col)` is at `ptr[row * stride + col]`.
+- `WMAA_RDNA3.ColMajor` / `WMMA_RDNA4.ColMajor` — column-major (Julia/Fortran) order: element `(row, col)` is at `ptr[col * stride + row]`.
+- `WMAA_RDNA3.RowMajor` / `WMMA_RDNA4.RowMajor` — row-major (C) order: element `(row, col)` is at `ptr[row * stride + col]`.
 
 ### API
 
 #### RDNA 3 API
 
 ```@docs
-AMDGPU.Device.WMMA.Fragment
-AMDGPU.Device.WMMA.fill_c
-AMDGPU.Device.WMMA.load_a
-AMDGPU.Device.WMMA.load_b
-AMDGPU.Device.WMMA.load_c
-AMDGPU.Device.WMMA.store_d
-AMDGPU.Device.WMMA.mma
+AMDGPU.Device.WMMA_RDNA3.Fragment
+AMDGPU.Device.WMMA_RDNA3.fill_c
+AMDGPU.Device.WMMA_RDNA3.load_a
+AMDGPU.Device.WMMA_RDNA3.load_b
+AMDGPU.Device.WMMA_RDNA3.load_c
+AMDGPU.Device.WMMA_RDNA3.store_d
+AMDGPU.Device.WMMA_RDNA3.mma
 ```
 
 #### RDNA 4 API
@@ -146,47 +146,51 @@ use the new `_gfx12` suffix and have a simplified VGPR layout.
 ### Example
 
 Below is a matrix multiplication kernel using WMMA with column-major inputs.
-Pass `WMMA.RowMajor` instead to load from row-major (C-style) buffers.
+Pass `WMAA_RDNA3.RowMajor` instead to load from row-major (C-style) buffers.
 
-```@example wmma-matmul
+!!! note "Hardware Requirements"
+    WMMA instructions require RDNA 3 (gfx11) or newer GPUs. This code will only execute
+    successfully on compatible hardware with appropriate ROCm/LLVM support.
+
+```julia
 using AMDGPU
-using AMDGPU.Device: WMMA
+using AMDGPU.Device: WMMA_RDNA3
 
 function wmma_kernel!(C, A::AbstractArray{T}, B, M::Int32, N::Int32, K::Int32, layout) where T
-    tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMMA.M)
-    tile_col = (workgroupIdx().y - Int32(1)) * Int32(WMMA.N)
+    tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMAA_RDNA3.M)
+    tile_col = (workgroupIdx().y - Int32(1)) * Int32(WMAA_RDNA3.N)
 
     C_ptr = pointer(C)
     A_ptr = pointer(A)
     B_ptr = pointer(B)
 
-    c_frag = WMMA.fill_c(Float32, 0f0)
+    c_frag = WMAA_RDNA3.fill_c(Float32, 0f0)
     k = Int32(0)
     while k < K
         a_ptr, a_stride = _a_tile(A_ptr, layout, tile_row, k, M, K, T)
         b_ptr, b_stride = _b_tile(B_ptr, layout, tile_col, k, N, K, T)
 
-        a_frag = WMMA.load_a(a_ptr, a_stride, layout)
-        b_frag = WMMA.load_b(b_ptr, b_stride, layout)
-        c_frag = WMMA.mma(a_frag, b_frag, c_frag)
+        a_frag = WMAA_RDNA3.load_a(a_ptr, a_stride, layout)
+        b_frag = WMAA_RDNA3.load_b(b_ptr, b_stride, layout)
+        c_frag = WMAA_RDNA3.mma(a_frag, b_frag, c_frag)
 
-        k += Int32(WMMA.K)
+        k += Int32(WMAA_RDNA3.K)
     end
 
     c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(Float32))
-    WMMA.store_d(c_ptr, c_frag, M, WMMA.ColMajor)
+    WMAA_RDNA3.store_d(c_ptr, c_frag, M, WMAA_RDNA3.ColMajor)
     return
 end
 
 # Tile pointer + stride helpers — dispatched on layout, DCE'd by the compiler.
-_a_tile(ptr, ::Type{WMMA.ColMajor}, tile_row, k, M, K, ::Type{T}) where T =
+_a_tile(ptr, ::Type{WMAA_RDNA3.ColMajor}, tile_row, k, M, K, ::Type{T}) where T =
     ptr + (k * M + tile_row) * Int32(sizeof(T)), M
-_a_tile(ptr, ::Type{WMMA.RowMajor}, tile_row, k, M, K, ::Type{T}) where T =
+_a_tile(ptr, ::Type{WMAA_RDNA3.RowMajor}, tile_row, k, M, K, ::Type{T}) where T =
     ptr + (tile_row * K + k) * Int32(sizeof(T)), K
 
-_b_tile(ptr, ::Type{WMMA.ColMajor}, tile_col, k, N, K, ::Type{T}) where T =
+_b_tile(ptr, ::Type{WMAA_RDNA3.ColMajor}, tile_col, k, N, K, ::Type{T}) where T =
     ptr + (tile_col * K + k) * Int32(sizeof(T)), K
-_b_tile(ptr, ::Type{WMMA.RowMajor}, tile_col, k, N, K, ::Type{T}) where T =
+_b_tile(ptr, ::Type{WMAA_RDNA3.RowMajor}, tile_col, k, N, K, ::Type{T}) where T =
     ptr + (k * N + tile_col) * Int32(sizeof(T)), N
 
 M, N, K = 32, 32, 32
@@ -195,9 +199,9 @@ B_host = Float16.(rand(K, N))
 A, B = ROCArray(A_host), ROCArray(B_host)
 C = ROCArray(zeros(Float32, M, N))
 
-tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
+tiles_m, tiles_n = M ÷ WMAA_RDNA3.M, N ÷ WMAA_RDNA3.N
 @roc gridsize=(tiles_m, tiles_n) groupsize=32 wmma_kernel!(
-    C, A, B, Int32(M), Int32(N), Int32(K), WMMA.ColMajor)
+    C, A, B, Int32(M), Int32(N), Int32(K), WMAA_RDNA3.ColMajor)
 
 @assert maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < 0.1
 ```
@@ -206,6 +210,13 @@ tiles_m, tiles_n = M ÷ WMMA.M, N ÷ WMMA.N
 
 Here's the same example adapted for RDNA 4:
 
+<<<<<<< HEAD
+=======
+!!! note "Hardware Requirements"
+    WMMA instructions for RDNA 4 require gfx1200+ GPUs. This code will only execute
+    successfully on compatible hardware with ROCm 6.0+ and LLVM 18+.
+
+>>>>>>> 2ebd2c14 (Renamed WMMA to WMMA_RDNA3 for consistency)
 ```julia
 using AMDGPU
 using AMDGPU.Device: WMMA_RDNA4
@@ -241,6 +252,10 @@ _a_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_row, k, M, K, ::Type{T}) where T 
     ptr + (k * M + tile_row) * Int32(sizeof(T)), M
 _a_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_row, k, M, K, ::Type{T}) where T =
     ptr + (tile_row * K + k) * Int32(sizeof(T)), K
+<<<<<<< HEAD
+=======
+
+>>>>>>> 2ebd2c14 (Renamed WMMA to WMMA_RDNA3 for consistency)
 _b_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_col, k, N, K, ::Type{T}) where T =
     ptr + (tile_col * K + k) * Int32(sizeof(T)), K
 _b_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_col, k, N, K, ::Type{T}) where T =
