@@ -106,8 +106,8 @@ Both RDNA 3 and RDNA 4 support the following layout types:
 
 Two layout types control how matrices are read from and written to memory:
 
-- `WMAA_RDNA3.ColMajor` / `WMMA_RDNA4.ColMajor` — column-major (Julia/Fortran) order: element `(row, col)` is at `ptr[col * stride + row]`.
-- `WMAA_RDNA3.RowMajor` / `WMMA_RDNA4.RowMajor` — row-major (C) order: element `(row, col)` is at `ptr[row * stride + col]`.
+- `WMMA_RDNA3.ColMajor` / `WMMA_RDNA4.ColMajor` — column-major (Julia/Fortran) order: element `(row, col)` is at `ptr[col * stride + row]`.
+- `WMMA_RDNA3.RowMajor` / `WMMA_RDNA4.RowMajor` — row-major (C) order: element `(row, col)` is at `ptr[row * stride + col]`.
 
 ### API
 
@@ -152,7 +152,7 @@ Pass `WMAA_RDNA3.RowMajor` instead to load from row-major (C-style) buffers.
     WMMA instructions require RDNA 3 (gfx11) or newer GPUs. This code will only execute
     successfully on compatible hardware with appropriate ROCm/LLVM support.
 
-```julia
+```@example
 using AMDGPU
 using AMDGPU.Device: WMMA_RDNA3
 
@@ -210,13 +210,10 @@ tiles_m, tiles_n = M ÷ WMAA_RDNA3.M, N ÷ WMAA_RDNA3.N
 
 Here's the same example adapted for RDNA 4:
 
-<<<<<<< HEAD
-=======
 !!! note "Hardware Requirements"
     WMMA instructions for RDNA 4 require gfx1200+ GPUs. This code will only execute
     successfully on compatible hardware with ROCm 6.0+ and LLVM 18+.
 
->>>>>>> 2ebd2c14 (Renamed WMMA to WMMA_RDNA3 for consistency)
 ```julia
 using AMDGPU
 using AMDGPU.Device: WMMA_RDNA4
@@ -252,10 +249,7 @@ _a_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_row, k, M, K, ::Type{T}) where T 
     ptr + (k * M + tile_row) * Int32(sizeof(T)), M
 _a_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_row, k, M, K, ::Type{T}) where T =
     ptr + (tile_row * K + k) * Int32(sizeof(T)), K
-<<<<<<< HEAD
-=======
 
->>>>>>> 2ebd2c14 (Renamed WMMA to WMMA_RDNA3 for consistency)
 _b_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_col, k, N, K, ::Type{T}) where T =
     ptr + (tile_col * K + k) * Int32(sizeof(T)), K
 _b_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_col, k, N, K, ::Type{T}) where T =
