@@ -50,7 +50,7 @@ function Base.showerror(io::IO, exception::MIOpenException)
     """)
 end
 
-function check(status)
+function check(status::miopenStatus_t)
     if status != miopenStatusSuccess
         throw(MIOpenException(status))
     end
