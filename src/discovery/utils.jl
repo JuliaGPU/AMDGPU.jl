@@ -1,3 +1,13 @@
+# Resolve an artifact-backed ROCm root, if one has been installed.
+function artifact_rocm_path()::String
+    try
+        p = augment_platform!(HostPlatform())
+        return @artifact_str("ROCm", p)
+    catch
+        return ""
+    end
+end
+
 # use amdhip as query for a valid rocm_path
 function check_rocm_path(path::String)
     libname = (Sys.islinux() ? "libamdhip64" : "amdhip64") * "." * dlext
@@ -23,6 +33,9 @@ function find_roc_path()::String
         rocm_path = check_rocm_path(env_dir)
         rocm_path != "" && return rocm_path
     end
+
+    artifact_dir = artifact_rocm_path()
+    isdir(artifact_dir) && return artifact_dir
 
     if Sys.islinux()
         hipconfig = Sys.which("hipconfig")
@@ -103,19 +116,20 @@ end
 
 function find_rocm_library(libs::Vector; rocm_path::String, ext::String = dlext)::String
     for lib in libs
-        path = find_rocm_library(lib, rocm_path, ext)
+        path = find_rocm_library(lib; rocm_path, ext)
         isempty(path) || return path
     end
     return ""
 end
 
 function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext)::String
-    libdir = joinpath(rocm_path, rel_libdir)
-    isdir(libdir) || return ""
-    for file in readdir(libdir; join=true)
-        fname = basename(file)
-        matched = startswith(fname, lib) && contains(fname, ext)
-        matched && return file
+    for libdir in [joinpath(rocm_path, rel_libdir), joinpath(rocm_path, "lib")]
+        isdir(libdir) || continue
+        for file in readdir(libdir; join=true)
+            fname = basename(file)
+            matched = startswith(fname, lib) && contains(fname, ext)
+            matched && return file
+        end
     end
     return ""
 end
@@ -145,6 +159,23 @@ function find_ld_lld(rocm_path::String)::String
         catch
             @warn "bindeps: Failed running ld.lld in $exp_ld_path"
         end
+    end
+    return ""
+end
+
+function find_clang(rocm_path::String)::String
+    clang_name = "clang" * (Sys.iswindows() ? ".exe" : "")
+
+    dirs = (joinpath(rocm_path, "llvm", "bin"), joinpath(rocm_path, "bin"))
+    hipconfig = Sys.which("hipconfig")
+    if !isnothing(hipconfig)
+        clang_path = read(`$hipconfig --hipclangpath`, String)
+        dirs = (dirs..., clang_path)
+    end
+    for dir in dirs
+        exp_clang_path = joinpath(dir, clang_name)
+        ispath(exp_clang_path) || continue
+        return exp_clang_path
     end
     return ""
 end
