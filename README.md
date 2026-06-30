@@ -4,7 +4,7 @@
 
 [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] [![][buildkite-img]][buildkite-url] [![][cscs-ci-img]][cscs-ci-url] [![][codecov-img]][codecov-url] [![][benchmark-img]][benchmark-url]
 
-[![][doi-img]][doi-url] [![][downloads-img]][downloads-url]
+[![][downloads-img]][downloads-url] [![][doi-img]][doi-url]
 
 [doi-img]: https://zenodo.org/badge/DOI/10.5281/zenodo.10040461.svg
 [doi-url]: https://doi.org/10.5281/zenodo.10040461
