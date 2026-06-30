@@ -134,6 +134,14 @@ for SparseMatrixType in [:ROCSparseMatrixCSC, :ROCSparseMatrixCSR]
     end
 end
 
+ROCSparseMatrixCOO(S::Diagonal) = ROCSparseMatrixCOO(roc(S))
+ROCSparseMatrixCOO(S::Diagonal{T, <:ROCArray}) where {T} = ROCSparseMatrixCOO{T}(S)
+ROCSparseMatrixCOO{Tv}(S::Diagonal{T, <:ROCArray}) where {Tv, T} = ROCSparseMatrixCOO{Tv, Cint}(S)
+function ROCSparseMatrixCOO{Tv, Ti}(S::Diagonal{T, <:ROCArray}) where {Tv, Ti, T}
+    m = size(S, 1)
+    return ROCSparseMatrixCOO{Tv, Ti}(ROCVector(1:m), ROCVector(1:m), Tv.(S.diag), (m, m), m)
+end
+
 # by flipping rows and columns, we can use that to get CSC to CSR too
 for (elty, fname) in ((:Float32, :rocsparse_scsr2csc), (:Float64, :rocsparse_dcsr2csc),
                      (:ComplexF32, :rocsparse_ccsr2csc), (:ComplexF64, :rocsparse_zcsr2csc))
@@ -323,6 +331,8 @@ function ROCSparseMatrixCSR(coo::ROCSparseMatrixCOO{Tv}, ind::SparseChar='O') wh
     rocsparse_coo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, ind)
     ROCSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
+# Typed forwarding constructors: allow ROCSparseMatrixCSR{Tv,Ti}(coo) as called by GPUArrays generics
+ROCSparseMatrixCSR{Tv,Ti}(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv,Ti} = ROCSparseMatrixCSR(coo)
 
 function ROCSparseMatrixCOO(csr::ROCSparseMatrixCSR{Tv}, ind::SparseChar='O') where Tv
     m,n = size(csr)
@@ -334,6 +344,7 @@ end
 ### CSC/BSR to COO and viceversa
 
 ROCSparseMatrixCSC(coo::ROCSparseMatrixCOO) = ROCSparseMatrixCSC(ROCSparseMatrixCSR(coo)) # no direct conversion
+ROCSparseMatrixCSC{Tv,Ti}(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv,Ti} = ROCSparseMatrixCSC(coo)
 ROCSparseMatrixCOO(csc::ROCSparseMatrixCSC) = ROCSparseMatrixCOO(ROCSparseMatrixCSR(csc)) # no direct conversion
 ROCSparseMatrixBSR(coo::ROCSparseMatrixCOO, blockdim) = ROCSparseMatrixBSR(ROCSparseMatrixCSR(coo), blockdim) # no direct conversion
 ROCSparseMatrixCOO(bsr::ROCSparseMatrixBSR) = ROCSparseMatrixCOO(ROCSparseMatrixCSR(bsr)) # no direct conversion
