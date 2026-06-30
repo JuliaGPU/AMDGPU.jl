@@ -84,7 +84,12 @@ precompile(Tuple{typeof(Compiler.hiplink), Compiler.HIPCompilerJob,
 # Hot entry points of the bundled ROCm libraries, mirroring CUDA.jl's per-library
 # precompile directives. These compile the (GPU-free) Julia wrappers so the first
 # `A * B`, factorization, FFT plan, etc. doesn't pay full first-use compilation.
-let RM = (T) -> ROCArray{T, 2, Mem.HIPBuffer}
+let RM   = (T) -> ROCArray{T, 2, Mem.HIPBuffer},
+    RV   = (T) -> ROCArray{T, 1, Mem.HIPBuffer},
+    RCSR = (T) -> rocSPARSE.ROCSparseMatrixCSR{T, Int32},
+    RCSC = (T) -> rocSPARSE.ROCSparseMatrixCSC{T, Int32},
+    RCOO = (T) -> rocSPARSE.ROCSparseMatrixCOO{T, Int32}
+
     # rocBLAS: handle creation, GEMM and high-level matmul.
     precompile(Tuple{typeof(rocBLAS.create_handle)})
     precompile(Tuple{typeof(rocBLAS.lib_state)})
@@ -114,4 +119,46 @@ let RM = (T) -> ROCArray{T, 2, Mem.HIPBuffer}
     # rocRAND / random.
     precompile(Tuple{typeof(rand), Type{Float32}, Dims{2}})
     precompile(Tuple{typeof(Random.rand!), RM(Float32)})
+
+    # rocSPARSE: handle creation, SpMV, SpMM, sparse-sparse gemm and sparse addition.
+    precompile(Tuple{typeof(rocSPARSE.create_handle)})
+    precompile(Tuple{typeof(rocSPARSE.lib_state)})
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        # SpMV: sparse matrix × dense vector (covers A * x and mul!(y, A, x))
+        precompile(Tuple{typeof(rocSPARSE.mv!), Char, T, RCSR(T), RV(T), T, RV(T), Char})
+        # SpMM: sparse matrix × dense matrix (covers A * B and mul!(C, A, B))
+        precompile(Tuple{typeof(rocSPARSE.mm!), Char, Char, T, RCSR(T), RM(T), T, RM(T), Char})
+    end
+    for T in (Float32, Float64)
+        # SpGEMM: sparse × sparse matrix multiplication
+        precompile(Tuple{typeof(rocSPARSE.gemm!), Char, Char, T, RCSR(T), RCSR(T), T, RCSR(T), Char})
+        # geam: sparse matrix addition/subtraction (backing + and - on CSR matrices)
+        precompile(Tuple{typeof(rocSPARSE.geam), T, RCSR(T), T, RCSR(T), Char})
+        # High-level LinearAlgebra.mul! and * for sparse × dense vector
+        precompile(Tuple{typeof(LinearAlgebra.mul!), RV(T), RCSR(T), RV(T)})
+        precompile(Tuple{typeof(*), RCSR(T), RV(T)})
+        # High-level LinearAlgebra.mul! and * for sparse × dense matrix
+        precompile(Tuple{typeof(LinearAlgebra.mul!), RM(T), RCSR(T), RM(T)})
+        precompile(Tuple{typeof(*), RCSR(T), RM(T)})
+        # geam for CSC (used by CSC +/- overloads)
+        precompile(Tuple{typeof(rocSPARSE.geam), T, RCSC(T), T, RCSC(T), Char})
+    end
+
+    # PR #937 – transpose/adjoint materialisation, triu/tril, kron.
+    # _sptranspose / _spadjoint are the hot path behind `transpose(A) * x` and
+    # `adjoint(A) * x` for sparse matrices: the SpMV/SpMM wrappers call them to
+    # materialise the transposed/adjoint matrix before the rocSPARSE kernel.
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        precompile(Tuple{typeof(GPUArrays._sptranspose), RCSR(T)})
+        precompile(Tuple{typeof(GPUArrays._spadjoint), RCSR(T)})
+        precompile(Tuple{typeof(GPUArrays._sptranspose), RCSC(T)})
+        precompile(Tuple{typeof(GPUArrays._spadjoint), RCSC(T)})
+    end
+    for T in (Float32, Float64)
+        # triu/tril for COO (linalg.jl)
+        precompile(Tuple{typeof(LinearAlgebra.triu), RCOO(T), Int})
+        precompile(Tuple{typeof(LinearAlgebra.tril), RCOO(T), Int})
+        # kron for COO×COO and COO×Diagonal (linalg.jl)
+        precompile(Tuple{typeof(LinearAlgebra.kron), RCOO(T), RCOO(T)})
+    end
 end
