@@ -663,6 +663,15 @@ function Base.:\(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCMatrix{T}) where 
     ldiv!(F, copy(B))
 end
 
+function LinearAlgebra.lu!(
+    A::ROCMatrix{T}, ::LinearAlgebra.RowMaximum = LinearAlgebra.RowMaximum();
+    check::Bool = true,
+) where T <: rocBLAS.ROCBLASFloat
+    factors, ipiv, info = rocSOLVER.getrf!(A)
+    check && LinearAlgebra.checknonsingular(BlasInt(info))
+    return LU{T,typeof(factors),typeof(ipiv)}(factors, ipiv, BlasInt(info))
+end
+
 # LAPACK
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
