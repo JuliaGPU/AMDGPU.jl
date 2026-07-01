@@ -561,23 +561,23 @@ LinearAlgebra.lmul!(
 ) where T =
     ormqr!('L', 'N', A.factors, A.τ, B)
 
+# Julia 1.10+ returns AdjointQ (not Adjoint/Transpose) from adjoint(::AbstractQ) and
+# transpose(::AbstractQ{<:Real}).  Julia 1.12 added a BLAS-backed
+# lmul!(::AdjointQ{…,<:QRPackedQ{T,<:StridedMatrix}}, ::StridedVecOrMat{T}) that
+# matches ROCArrays (ROCArray <: DenseArray <: StridedArray) and calls CPU OpenBLAS
+# with a GPU pointer → segfault.  The Adjoint/Transpose wrappers are never produced
+# for AbstractQ on Julia ≥ 1.10 (AMDGPU's minimum), so only AdjointQ overloads are needed.
 LinearAlgebra.lmul!(
-    adjA::Adjoint{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    adjA::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
     B::ROCVecOrMat{T},
 ) where T <: rocBLAS.ROCBLASReal =
-    ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
+    ormqr!('L', 'T', adjA.Q.factors, adjA.Q.τ, B)
 
 LinearAlgebra.lmul!(
-    adjA::Adjoint{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    adjA::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
     B::ROCVecOrMat{T},
 ) where T <: rocBLAS.ROCBLASComplex =
-    ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
-
-LinearAlgebra.lmul!(
-    trA::Transpose{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-    B::ROCVecOrMat{T},
-) where T <: rocBLAS.ROCBLASFloat =
-    ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
+    ormqr!('L', 'C', adjA.Q.factors, adjA.Q.τ, B)
 
 LinearAlgebra.rmul!(
     A::ROCVecOrMat{T},
@@ -587,21 +587,15 @@ LinearAlgebra.rmul!(
 
 LinearAlgebra.rmul!(
     A::ROCVecOrMat{T},
-    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    adjB::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
 ) where T <: rocBLAS.ROCBLASReal =
-    ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
+    ormqr!('R', 'T', adjB.Q.factors, adjB.Q.τ, A)
 
 LinearAlgebra.rmul!(
     A::ROCVecOrMat{T},
-    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    adjB::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
 ) where T <: rocBLAS.ROCBLASComplex =
-    ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
-
-LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
-    trA::Transpose{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-) where T <: rocBLAS.ROCBLASFloat =
-    ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
+    ormqr!('R', 'C', adjB.Q.factors, adjB.Q.τ, A)
 
 function LinearAlgebra.ldiv!(_qr::QR, b::ROCVector)
     m, n = size(_qr)
