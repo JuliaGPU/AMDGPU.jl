@@ -561,12 +561,6 @@ LinearAlgebra.lmul!(
 ) where T =
     ormqr!('L', 'N', A.factors, A.τ, B)
 
-# Julia 1.10+ returns AdjointQ (not Adjoint/Transpose) from adjoint(::AbstractQ) and
-# transpose(::AbstractQ{<:Real}).  Julia 1.12 added a BLAS-backed
-# lmul!(::AdjointQ{…,<:QRPackedQ{T,<:StridedMatrix}}, ::StridedVecOrMat{T}) that
-# matches ROCArrays (ROCArray <: DenseArray <: StridedArray) and calls CPU OpenBLAS
-# with a GPU pointer → segfault.  The Adjoint/Transpose wrappers are never produced
-# for AbstractQ on Julia ≥ 1.10 (AMDGPU's minimum), so only AdjointQ overloads are needed.
 LinearAlgebra.lmul!(
     adjA::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
     B::ROCVecOrMat{T},
