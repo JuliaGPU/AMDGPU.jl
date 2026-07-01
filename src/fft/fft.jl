@@ -15,7 +15,6 @@ function AMDGPU.unsafe_free!(plan::ROCFFTPlan)
         unsafe_free!(plan.buffer)
     end
     unsafe_free!(plan.workarea)
-    rocfft_execution_info_destroy(plan.execution_info)
 end
 
 const ROCFFT_FORWARD = true
@@ -27,9 +26,7 @@ const ROCFFT_INVERSE = false
 # K is flag for forward/inverse
 mutable struct cROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T, K, inplace}
     handle::rocfft_plan
-    stream::HIPStream
     workarea::ROCVector{Int8}
-    execution_info::rocfft_execution_info
     sz::NTuple{N, Int} # Julia size of input array
     osz::NTuple{N, Int} # Julia size of output array
     xtype::rocfft_transform_type
@@ -47,25 +44,14 @@ mutable struct cROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T, K, inplace}
         xtype::rocfft_transform_type, region::NTuple{R,Int},
         buffer::B, input_sz_as_key::Bool, key_T::Type,
     ) where {T,K,inplace,N,R,B}
-        info_ref = Ref{rocfft_execution_info}()
-        rocfft_execution_info_create(info_ref)
-        info = info_ref[]
-
-        stream = AMDGPU.stream()
-        rocfft_execution_info_set_stream(info, stream)
-        if length(workarea) > 0
-            rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
-        end
-        p = new(handle, stream, workarea, info, size(X), sizey, xtype, region, buffer, input_sz_as_key, key_T)
+        p = new(handle, workarea, size(X), sizey, xtype, region, buffer, input_sz_as_key, key_T)
         return finalizer(AMDGPU.unsafe_free!, p)
     end
 end
 
 mutable struct rROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T,K,inplace}
     handle::rocfft_plan
-    stream::HIPStream
     workarea::ROCVector{Int8}
-    execution_info::rocfft_execution_info
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
     xtype::rocfft_transform_type
@@ -82,25 +68,23 @@ mutable struct rROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T,K,inplace}
         sizey::Tuple, xtype::rocfft_transform_type, region::NTuple{R,Int},
         buffer::B, input_sz_as_key::Bool, key_T::Type,
     ) where {T,inplace,N,K,R,B}
-        info_ref = Ref{rocfft_execution_info}()
-        rocfft_execution_info_create(info_ref)
-        info = info_ref[]
-
-        stream = AMDGPU.stream()
-        rocfft_execution_info_set_stream(info, stream)
-        if length(workarea) > 0
-            rocfft_execution_info_set_work_buffer(info, workarea, length(workarea))
-        end
-        p = new(handle, stream, workarea, info, size(X), sizey, xtype, region, buffer, input_sz_as_key, key_T)
+        p = new(handle, workarea, size(X), sizey, xtype, region, buffer, input_sz_as_key, key_T)
         return finalizer(unsafe_free!, p)
     end
 end
 
-function update_stream!(plan::ROCFFTPlan)
-    new_stream = AMDGPU.stream()
-    plan.stream = new_stream
-    rocfft_execution_info_set_stream(plan.execution_info, new_stream)
-    return
+# Create a per-call execution_info with the current task's stream and workbuffer.
+# rocfft_execution_info_set_stream must be called on the same OS thread as rocfft_execute;
+# creating it fresh per-call avoids any OS-thread binding issues from task migration.
+function make_execution_info(plan::ROCFFTPlan)
+    info_ref = Ref{rocfft_execution_info}()
+    rocfft_execution_info_create(info_ref)
+    info = info_ref[]
+    rocfft_execution_info_set_stream(info, AMDGPU.stream())
+    if length(plan.workarea) > 0
+        rocfft_execution_info_set_work_buffer(info, plan.workarea, length(plan.workarea))
+    end
+    return info
 end
 
 const xtypenames = ("complex forward", "complex inverse", "real forward", "real inverse")
@@ -254,15 +238,17 @@ function assert_applicable(p::ROCFFTPlan{T,K}, X::ROCArray{T}, Y::ROCArray{Ty}) 
 end
 
 function unsafe_execute!(plan::cROCFFTPlan{T,K,true,N}, X::ROCArray{T,N}) where {T,K,N}
-    update_stream!(plan)
-    rocfft_execute(plan, [pointer(X),], C_NULL, plan.execution_info)
+    info = make_execution_info(plan)
+    rocfft_execute(plan, [pointer(X),], C_NULL, info)
+    rocfft_execution_info_destroy(info)
 end
 
 function unsafe_execute!(
     plan::cROCFFTPlan{T,K,false,N}, X::ROCArray{T,N}, Y::ROCArray{T},
 ) where {T,N,K}
-    update_stream!(plan)
-    rocfft_execute(plan, [pointer(X),], [pointer(Y),], plan.execution_info)
+    info = make_execution_info(plan)
+    rocfft_execute(plan, [pointer(X),], [pointer(Y),], info)
+    rocfft_execution_info_destroy(info)
 end
 
 function unsafe_execute!(
@@ -270,8 +256,9 @@ function unsafe_execute!(
     X::ROCArray{T,N}, Y::ROCArray{<:rocfftComplexes,N},
 ) where {T<:rocfftReals,N}
     @assert plan.xtype == rocfft_transform_type_real_forward
-    update_stream!(plan)
-    rocfft_execute(plan, [pointer(X),], [pointer(Y),], plan.execution_info)
+    info = make_execution_info(plan)
+    rocfft_execute(plan, [pointer(X),], [pointer(Y),], info)
+    rocfft_execution_info_destroy(info)
 end
 
 function unsafe_execute!(
@@ -279,8 +266,9 @@ function unsafe_execute!(
     X::ROCArray{T,N}, Y::ROCArray{<:rocfftReals,N},
 ) where {T<:rocfftComplexes,N}
     @assert plan.xtype == rocfft_transform_type_real_inverse
-    update_stream!(plan)
-    rocfft_execute(plan, [pointer(X),], [pointer(Y),], plan.execution_info)
+    info = make_execution_info(plan)
+    rocfft_execute(plan, [pointer(X),], [pointer(Y),], info)
+    rocfft_execution_info_destroy(info)
 end
 
 function LinearAlgebra.mul!(y::ROCArray{Ty}, p::ROCFFTPlan{T,K,false}, x::ROCArray{T}) where {T,Ty,K}
