@@ -203,8 +203,30 @@ end
         LAPACK.potrs!('U',copy(view(A,1:n,1:n)),B)
         @test B ≈ collect(d_B)
     end
+end
 
-        
+@testset "cholesky \\ b" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty, n, n); A = A * A' + n * I
+        b = rand(elty, n)
+        B = rand(elty, n, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(cholesky(dA) \ db) ≈ cholesky(A) \ b
+        @test Array(cholesky(dA) \ dB) ≈ cholesky(A) \ B
+    end
+end
+
+@testset "lu \\ b" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty, n, n)
+        b = rand(elty, n)
+        B = rand(elty, n, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(lu(dA) \ db) ≈ lu(A) \ b
+        @test Array(lu(dA) \ dB) ≈ lu(A) \ B
+    end
 end
 
 @testset "sytrf!" begin

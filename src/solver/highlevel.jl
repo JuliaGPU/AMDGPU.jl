@@ -29,13 +29,14 @@ for (fname, elty) in (
     (:rocsolver_zpotrs, :ComplexF64),
 )
     @eval begin
-        function potrs!(uplo::Char, A::ROCMatrix{$elty}, B::ROCVecOrMat{$elty})
+        function potrs!(uplo::Char, A::ROCMatrix{$elty}, B::StridedROCVecOrMat{$elty})
             chkuplo(uplo)
             n = checksquare(A)
-            m, nrhs = size(B)
+            m = size(B, 1)
+            nrhs = size(B, 2)
             (m == n) || throw(DimensionMismatch("first dimension of B, $m, must match second dimension of A, $n"))
-            lda  = max(1, stride(A, 2))
-            ldb  = max(1, stride(B, 2))
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
             $fname(rocBLAS.handle(), uplo, n, nrhs, A, lda, B, ldb)
 
             B
@@ -191,7 +192,7 @@ for (fname, elty) in (
     @eval begin
         function getrs!(
             trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint},
-            B::ROCVecOrMat{$elty}
+            B::StridedROCVecOrMat{$elty}
         )
             trans = ($elty <: Real && trans == 'C') ? 'T' : trans
             chktrans(trans)
@@ -626,19 +627,48 @@ function LinearAlgebra.ldiv!(x::ROCArray, _qr::QR, b::ROCArray)
     return x
 end
 
+# Cholesky
+
+function LinearAlgebra.ldiv!(C::Cholesky{T,<:ROCMatrix}, B::ROCVecOrMat{T}) where T <: rocBLAS.ROCBLASFloat
+    rocSOLVER.potrs!(C.uplo, C.factors, B)
+    return B
+end
+
+function Base.:\(F::Cholesky{T,<:ROCMatrix}, b::ROCVector{T}) where T
+    ldiv!(F, copy(b))
+end
+
+function Base.:\(F::Cholesky{T,<:ROCMatrix}, B::ROCMatrix{T}) where T
+    ldiv!(F, copy(B))
+end
+
+# LU
+function LinearAlgebra.ldiv!(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCVecOrMat{T}) where T <: rocBLAS.ROCBLASFloat
+    rocSOLVER.getrs!('N', F.factors, F.ipiv, B)
+    return B
+end
+
+function Base.:\(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, b::ROCVector{T}) where T
+    ldiv!(F, copy(b))
+end
+
+function Base.:\(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCMatrix{T}) where T
+    ldiv!(F, copy(B))
+end
+
 # LAPACK
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         LinearAlgebra.LAPACK.potrf!(uplo::Char, A::StridedROCMatrix{$elty}) = rocSOLVER.potrf!(uplo, A)
-        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::ROCMatrix{$elty}, B::ROCVecOrMat{$elty}) = rocSOLVER.potrs!(uplo, A, B)
+        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::ROCMatrix{$elty}, B::StridedROCVecOrMat{$elty}) = rocSOLVER.potrs!(uplo, A, B)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}) = rocSOLVER.sytrf!(uplo, A)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.sytrf!(uplo, A, ipiv)
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}) = rocSOLVER.geqrf!(A)
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.geqrf!(A, tau)
-        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}) = rocSOLVER.getrf!(A)
-        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.getrf!(A, ipiv)
-        LinearAlgebra.LAPACK.getrs!(trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}, B::ROCVecOrMat{$elty}) = rocSOLVER.getrs!(trans, A, ipiv, B)
+        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}; check::Bool = true) = rocSOLVER.getrf!(A)
+        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}; check::Bool = true) = rocSOLVER.getrf!(A, ipiv)
+        LinearAlgebra.LAPACK.getrs!(trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}, B::StridedROCVecOrMat{$elty}) = rocSOLVER.getrs!(trans, A, ipiv, B)
         LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::ROCMatrix{$elty}, tau::ROCVector{$elty}, C::ROCVecOrMat{$elty}) = rocSOLVER.ormqr!(side, trans, A, tau, C)
         LinearAlgebra.LAPACK.orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.orgqr!(A, tau)
         LinearAlgebra.LAPACK.gebrd!(A::ROCMatrix{$elty}) = rocSOLVER.gebrd!(A)
