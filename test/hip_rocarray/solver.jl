@@ -227,6 +227,12 @@ end
         @test Array(lu(dA) \ db) ≈ lu(A) \ b
         @test Array(lu(dA) \ dB) ≈ lu(A) \ B
     end
+
+    @testset "check kwarg" begin
+        dS = ROCArray(zeros(Float32, n, n))
+        @test_throws LinearAlgebra.SingularException lu(dS)
+        @test_nowarn lu(dS; check=false)
+    end
 end
 
 @testset "sytrf!" begin

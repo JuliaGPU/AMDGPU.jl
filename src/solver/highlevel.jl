@@ -656,6 +656,15 @@ function Base.:\(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCMatrix{T}) where 
     ldiv!(F, copy(B))
 end
 
+function LinearAlgebra.lu!(
+    A::ROCMatrix{T}, ::LinearAlgebra.RowMaximum = LinearAlgebra.RowMaximum();
+    check::Bool = true,
+) where T <: rocBLAS.ROCBLASFloat
+    factors, ipiv, info = rocSOLVER.getrf!(A)
+    check && LinearAlgebra.checknonsingular(BlasInt(info))
+    return LU{T,typeof(factors),typeof(ipiv)}(factors, ipiv, BlasInt(info))
+end
+
 # LAPACK
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
@@ -666,8 +675,8 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.sytrf!(uplo, A, ipiv)
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}) = rocSOLVER.geqrf!(A)
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.geqrf!(A, tau)
-        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}; check::Bool = true) = rocSOLVER.getrf!(A)
-        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}; check::Bool = true) = rocSOLVER.getrf!(A, ipiv)
+        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}) = rocSOLVER.getrf!(A)
+        LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.getrf!(A, ipiv)
         LinearAlgebra.LAPACK.getrs!(trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}, B::StridedROCVecOrMat{$elty}) = rocSOLVER.getrs!(trans, A, ipiv, B)
         LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::ROCMatrix{$elty}, tau::ROCVector{$elty}, C::ROCVecOrMat{$elty}) = rocSOLVER.ormqr!(side, trans, A, tau, C)
         LinearAlgebra.LAPACK.orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.orgqr!(A, tau)
