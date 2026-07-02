@@ -645,8 +645,18 @@ function Base.:\(F::Cholesky{T,<:ROCMatrix}, b::ROCVector{T}) where T
     ldiv!(F, copy(b))
 end
 
+function Base.:\(F::Cholesky{<:Any,<:ROCMatrix}, b::ROCVector)
+    factors, b = copy_rocblasfloat(F.factors, b)
+    ldiv!(Cholesky(factors, F.uplo, F.info), b)
+end
+
 function Base.:\(F::Cholesky{T,<:ROCMatrix}, B::ROCMatrix{T}) where T
     ldiv!(F, copy(B))
+end
+
+function Base.:\(F::Cholesky{<:Any,<:ROCMatrix}, B::ROCMatrix)
+    factors, B = copy_rocblasfloat(F.factors, B)
+    ldiv!(Cholesky(factors, F.uplo, F.info), B)
 end
 
 # LU
@@ -659,16 +669,27 @@ function Base.:\(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, b::ROCVector{T}) where 
     ldiv!(F, copy(b))
 end
 
+function Base.:\(F::LU{<:Any,<:ROCMatrix,<:ROCVector{Cint}}, b::ROCVector)
+    factors, b = copy_rocblasfloat(F.factors, b)
+    ldiv!(LU{eltype(factors),typeof(factors),typeof(F.ipiv)}(factors, F.ipiv, F.info), b)
+end
+
 function Base.:\(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCMatrix{T}) where T
     ldiv!(F, copy(B))
+end
+
+function Base.:\(F::LU{<:Any,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCMatrix)
+    factors, B = copy_rocblasfloat(F.factors, B)
+    ldiv!(LU{eltype(factors),typeof(factors),typeof(F.ipiv)}(factors, F.ipiv, F.info), B)
 end
 
 function LinearAlgebra.lu!(
     A::ROCMatrix{T}, ::LinearAlgebra.RowMaximum = LinearAlgebra.RowMaximum();
     check::Bool = true,
+    allowsingular::Bool = false,
 ) where T <: rocBLAS.ROCBLASFloat
     factors, ipiv, info = rocSOLVER.getrf!(A)
-    check && LinearAlgebra.checknonsingular(BlasInt(info))
+    check && !allowsingular && LinearAlgebra.checknonsingular(BlasInt(info))
     return LU{T,typeof(factors),typeof(ipiv)}(factors, ipiv, BlasInt(info))
 end
 

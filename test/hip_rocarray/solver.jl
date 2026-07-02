@@ -221,6 +221,7 @@ end
         LAPACK.potrs!('U',A,B)
         @test B ≈ collect(d_B)
     end
+
     @testset "elty = $elty strided" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A    = rand(elty,n*2,n*2)
         A    = A*A' + I
@@ -247,6 +248,16 @@ end
         @test Array(cholesky(dA) \ db) ≈ cholesky(A) \ b
         @test Array(cholesky(dA) \ dB) ≈ cholesky(A) \ B
     end
+
+    @testset "mixed eltypes" begin
+        A = rand(Float32, n, n); A = A * A' + n * I
+        b = rand(Float64, n)
+        B = rand(Float64, n, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(cholesky(dA) \ db) ≈ cholesky(A) \ b rtol=sqrt(eps(Float32))
+        @test Array(cholesky(dA) \ dB) ≈ cholesky(A) \ B rtol=sqrt(eps(Float32))
+    end
 end
 
 @testset "lu \\ b" begin
@@ -260,10 +271,24 @@ end
         @test Array(lu(dA) \ dB) ≈ lu(A) \ B
     end
 
+    @testset "mixed eltypes" begin
+        A = rand(Float32, n, n)
+        b = rand(Float64, n)
+        B = rand(Float64, n, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(lu(dA) \ db) ≈ lu(A) \ b rtol=sqrt(eps(Float32))
+        @test Array(lu(dA) \ dB) ≈ lu(A) \ B rtol=sqrt(eps(Float32))
+    end
+
     @testset "check kwarg" begin
         dS = ROCArray(zeros(Float32, n, n))
         @test_throws LinearAlgebra.SingularException lu(dS)
         @test_nowarn lu(dS; check=false)
+        @test_nowarn lu!(copy(dS); allowsingular=true)
+        if VERSION >= v"1.12.0-DEV.0"
+            @test_nowarn lu(dS; allowsingular=true)
+        end
     end
 end
 
