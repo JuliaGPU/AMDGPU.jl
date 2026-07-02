@@ -50,6 +50,17 @@ p = 5
         @test collect(dQ * dR) ≈ A
         @test collect(dR * dQ') ≈ (R * Q')
 
+        # Explicit lmul!/rmul! coverage for AdjointQ paths (Julia 1.10+).
+        dC = ROCMatrix{elty}(I, m, m)
+        @test collect(lmul!(dF.Q, copy(dC)))  ≈ lmul!(F.Q, Matrix{elty}(I, m, m))
+        @test collect(lmul!(dF.Q', copy(dC))) ≈ lmul!(F.Q', Matrix{elty}(I, m, m))
+        @test collect(rmul!(copy(dC), dF.Q))  ≈ rmul!(Matrix{elty}(I, m, m), F.Q)
+        @test collect(rmul!(copy(dC), dF.Q')) ≈ rmul!(Matrix{elty}(I, m, m), F.Q')
+        if elty <: Real
+            @test collect(lmul!(transpose(dF.Q), copy(dC))) ≈ lmul!(transpose(F.Q), Matrix{elty}(I, m, m))
+            @test collect(rmul!(copy(dC), transpose(dF.Q))) ≈ rmul!(Matrix{elty}(I, m, m), transpose(F.Q))
+        end
+
         A = rand(elty, n, m)
         dA = ROCArray(A)
         dF = qr(dA)
@@ -137,6 +148,16 @@ end
         db = ldiv!(dy, qr(dA), dx)
         @test Array(db) ≈ b
     end
+
+    @testset "qr(dA) \\ b, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty, m, n)
+        b = rand(elty, m)
+        B = rand(elty, m, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(qr(dA) \ db) ≈ qr(A) \ b
+        @test Array(qr(dA) \ dB) ≈ qr(A) \ B
+    end
 end
 
 @testset "geqrf! -- omgqr!" begin
@@ -204,7 +225,7 @@ end
         @test B ≈ collect(d_B)
     end
 
-        
+
 end
 
 @testset "sytrf!" begin

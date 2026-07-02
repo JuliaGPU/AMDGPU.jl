@@ -104,7 +104,7 @@ for (fname, elty) in (
     @eval begin
         function ormqr!(
             side::Char, trans::Char, A::ROCMatrix{$elty},
-            τ::ROCVector{$elty}, C::ROCVecOrMat{$elty},
+            τ::ROCVector{$elty}, C::StridedROCVecOrMat{$elty},
         )
             $elty <: Complex && trans == 'T' && throw(ArgumentError(
                 "rocSOLVER.ormqr! supports only 'N' or 'C' for Complex types, " *
@@ -557,51 +557,39 @@ end
 LinearAlgebra.qr!(A::ROCMatrix{T}) where T = QR(geqrf!(A)...)
 
 LinearAlgebra.lmul!(
-    A::QRPackedQ{T,<:ROCArray,<:ROCArray}, B::ROCVecOrMat{T},
+    A::QRPackedQ{T,<:ROCArray,<:ROCArray}, B::StridedROCVecOrMat{T},
 ) where T =
     ormqr!('L', 'N', A.factors, A.τ, B)
 
 LinearAlgebra.lmul!(
-    adjA::Adjoint{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-    B::ROCVecOrMat{T},
+    adjA::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    B::StridedROCVecOrMat{T},
 ) where T <: rocBLAS.ROCBLASReal =
-    ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
+    ormqr!('L', 'T', adjA.Q.factors, adjA.Q.τ, B)
 
 LinearAlgebra.lmul!(
-    adjA::Adjoint{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-    B::ROCVecOrMat{T},
+    adjA::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    B::StridedROCVecOrMat{T},
 ) where T <: rocBLAS.ROCBLASComplex =
-    ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
-
-LinearAlgebra.lmul!(
-    trA::Transpose{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-    B::ROCVecOrMat{T},
-) where T <: rocBLAS.ROCBLASFloat =
-    ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
+    ormqr!('L', 'C', adjA.Q.factors, adjA.Q.τ, B)
 
 LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
+    A::StridedROCVecOrMat{T},
     B::QRPackedQ{T,<:ROCArray,<:ROCArray},
 ) where T <: rocBLAS.ROCBLASFloat =
     ormqr!('R', 'N', B.factors, B.τ, A)
 
 LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
-    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    A::StridedROCVecOrMat{T},
+    adjB::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
 ) where T <: rocBLAS.ROCBLASReal =
-    ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
+    ormqr!('R', 'T', adjB.Q.factors, adjB.Q.τ, A)
 
 LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
-    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    A::StridedROCVecOrMat{T},
+    adjB::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
 ) where T <: rocBLAS.ROCBLASComplex =
-    ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
-
-LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
-    trA::Transpose{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-) where T <: rocBLAS.ROCBLASFloat =
-    ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
+    ormqr!('R', 'C', adjB.Q.factors, adjB.Q.τ, A)
 
 function LinearAlgebra.ldiv!(_qr::QR, b::ROCVector)
     m, n = size(_qr)
@@ -626,6 +614,15 @@ function LinearAlgebra.ldiv!(x::ROCArray, _qr::QR, b::ROCArray)
     return x
 end
 
+# Override \ for GPU QR to avoid stdlib's _zeros() allocating CPU arrays.
+function Base.:\(F::QR{T,<:ROCMatrix,<:ROCVector}, b::ROCVector{T}) where T
+    ldiv!(F, copy(b))
+end
+
+function Base.:\(F::QR{T,<:ROCMatrix,<:ROCVector}, B::ROCMatrix{T}) where T
+    ldiv!(F, copy(B))
+end
+
 # LAPACK
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
@@ -639,7 +636,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}) = rocSOLVER.getrf!(A)
         LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.getrf!(A, ipiv)
         LinearAlgebra.LAPACK.getrs!(trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}, B::ROCVecOrMat{$elty}) = rocSOLVER.getrs!(trans, A, ipiv, B)
-        LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::ROCMatrix{$elty}, tau::ROCVector{$elty}, C::ROCVecOrMat{$elty}) = rocSOLVER.ormqr!(side, trans, A, tau, C)
+        LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::ROCMatrix{$elty}, tau::ROCVector{$elty}, C::StridedROCVecOrMat{$elty}) = rocSOLVER.ormqr!(side, trans, A, tau, C)
         LinearAlgebra.LAPACK.orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.orgqr!(A, tau)
         LinearAlgebra.LAPACK.gebrd!(A::ROCMatrix{$elty}) = rocSOLVER.gebrd!(A)
         LinearAlgebra.LAPACK.gesvd!(jobu::Char, jobvt::Char, A::ROCMatrix{$elty}) = rocSOLVER.gesvd!(jobu, jobvt, A)
