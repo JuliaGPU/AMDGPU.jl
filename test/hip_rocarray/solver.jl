@@ -158,6 +158,16 @@ end
         @test Array(qr(dA) \ db) ≈ qr(A) \ b
         @test Array(qr(dA) \ dB) ≈ qr(A) \ B
     end
+
+    @testset "qr(dA) \\ b mixed eltypes" begin
+        A = rand(Float32, m, n)
+        b = rand(Float64, m)
+        B = rand(Float64, m, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(qr(dA) \ db) ≈ qr(A) \ b rtol=sqrt(eps(Float32))
+        @test Array(qr(dA) \ dB) ≈ qr(A) \ B rtol=sqrt(eps(Float32))
+    end
 end
 
 @testset "geqrf! -- omgqr!" begin

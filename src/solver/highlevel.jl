@@ -619,8 +619,18 @@ function Base.:\(F::QR{T,<:ROCMatrix,<:ROCVector}, b::ROCVector{T}) where T
     ldiv!(F, copy(b))
 end
 
+function Base.:\(F::QR{<:Any,<:ROCMatrix,<:ROCVector}, b::ROCVector)
+    factors, τ, b = copy_rocblasfloat(F.factors, F.τ, b)
+    ldiv!(QR(factors, τ), b)
+end
+
 function Base.:\(F::QR{T,<:ROCMatrix,<:ROCVector}, B::ROCMatrix{T}) where T
     ldiv!(F, copy(B))
+end
+
+function Base.:\(F::QR{<:Any,<:ROCMatrix,<:ROCVector}, B::ROCMatrix)
+    factors, τ, B = copy_rocblasfloat(F.factors, F.τ, B)
+    ldiv!(QR(factors, τ), B)
 end
 
 # LAPACK
