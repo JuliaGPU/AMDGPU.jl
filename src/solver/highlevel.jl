@@ -615,9 +615,6 @@ function LinearAlgebra.ldiv!(x::ROCArray, _qr::QR, b::ROCArray)
 end
 
 # Override \ for GPU QR to avoid stdlib's _zeros() allocating CPU arrays.
-# LinearAlgebra's generic ldiv() calls _zeros(T, b, n) = zeros(T, n) which
-# always produces a CPU Vector regardless of b's type, causing the subsequent
-# ldiv!/lmul! chain to mix GPU factors with CPU data → segfault via OpenBLAS.
 function Base.:\(F::QR{T,<:ROCMatrix,<:ROCVector}, b::ROCVector{T}) where T
     ldiv!(F, copy(b))
 end
