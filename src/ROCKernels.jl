@@ -9,7 +9,7 @@ using AMDGPU: GPUArrays, rocSPARSE, HIP
 
 import Adapt
 import KernelAbstractions as KA
-import KernelAbstractions.KernelIntrinsics as KI
+import KernelAbstractions.KernelInterface as KI
 import LLVM
 
 using StaticArraysCore: MArray
