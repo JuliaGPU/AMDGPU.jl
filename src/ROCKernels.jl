@@ -23,6 +23,8 @@ obtain it from an array with `KernelAbstractions.get_backend(::ROCArray)`.
 """
 struct ROCBackend <: KA.GPU end
 
+KA.versioninfo(io::IO, ::ROCBackend) = AMDGPU.versioninfo(io)
+
 KA.functional(::ROCBackend) = AMDGPU.functional()
 KA.ndevices(::ROCBackend) = AMDGPU.HIP.ndevices()
 KA.device(::ROCBackend) = AMDGPU.device_id()
