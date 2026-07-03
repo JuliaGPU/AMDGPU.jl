@@ -241,7 +241,8 @@ for (wrapa, unwrapa) in adjtrans_wrappers
         @eval begin
             Base.:(*)(A::$TypeA, λ::Union{Real,Complex}) where {T <: BlasFloat} = $(unwrapa(:A)) .* λ
             Base.:(*)(λ::Union{Real,Complex}, A::$TypeA) where {T <: BlasFloat} = λ .* $(unwrapa(:A))
-            Base.:(*)(A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} = $(unwrapa(:A)) * B
+            Base.:(*)(A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} =
+                gemm('N', 'N', one(T), ROCSparseMatrixCSR($(unwrapa(:A))), ROCSparseMatrixCSR(B), 'O')
             Base.:(*)(λ::Union{Real,Complex}, A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} =
                 gemm('N', 'N', λ, ROCSparseMatrixCSR($(unwrapa(:A))), ROCSparseMatrixCSR(B), 'O')
         end
@@ -251,7 +252,8 @@ for (wrapa, unwrapa) in adjtrans_wrappers
     @eval begin
         Base.:(*)(A::$TypeA, λ::Union{Real,Complex}) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
         Base.:(*)(λ::Union{Real,Complex}, A::$TypeA) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
-        Base.:(*)(A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} = $(unwrapa(:A)) * B
+        Base.:(*)(A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} =
+            gemm('N', 'N', one(T), ROCSparseMatrixCSR($(unwrapa(:A))), ROCSparseMatrixCSR(B), 'O')
         Base.:(*)(λ::Union{Real,Complex}, A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} =
             gemm('N', 'N', λ, ROCSparseMatrixCSR($(unwrapa(:A))), ROCSparseMatrixCSR(B), 'O')
     end
