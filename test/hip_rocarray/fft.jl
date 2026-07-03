@@ -357,10 +357,15 @@ end
 
     Y = p * X
 
-    task = Threads.@spawn d_p * d_X  # executes FFT on separate AMDGPU stream
-    d_Y = fetch(task)
+    for _ in 1:10
+        task = Threads.@spawn begin # executes FFT on separate AMDGPU stream
+            yield()
+            d_p * d_X
+        end
+        d_Y = fetch(task)
 
-    @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+        @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+    end
 end
 
 end # testset FFT
