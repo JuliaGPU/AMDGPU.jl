@@ -787,6 +787,14 @@ function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMa
     eigen(Symmetric(A), Symmetric(B))
 end
 
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Symmetric{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(Symmetric(A), B)
+end
+
+function LinearAlgebra.eigen(A::Symmetric{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(A, Symmetric(B))
+end
+
 function LinearAlgebra.eigen(A::ROCMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
     issymmetric(A) ? Eigen(syevd!('U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
