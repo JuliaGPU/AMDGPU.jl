@@ -232,21 +232,28 @@ end
 _coo_scale(A::ROCSparseMatrixCOO{T}, λ) where {T} =
     ROCSparseMatrixCOO(A.rowInd, A.colInd, A.nzVal .* λ, size(A), nnz(A))
 
+Base.:(*)(A::ROCSparseMatrix{T}, B::ROCSparseMatrix{T}) where {T <: BlasFloat} =
+    gemm('N', 'N', one(T), ROCSparseMatrixCSR(A), ROCSparseMatrixCSR(B), 'O')
+
 for (wrapa, unwrapa) in adjtrans_wrappers
     for SparseMatrixType in (:(ROCSparseMatrixCSC{T}), :(ROCSparseMatrixCSR{T}))
         TypeA = wrapa(SparseMatrixType)
         @eval begin
-            Base.:(*)(A::$TypeA, λ::Number) where {T <: BlasFloat} = $(unwrapa(:A)) .* λ
-            Base.:(*)(λ::Number, A::$TypeA) where {T <: BlasFloat} = λ .* $(unwrapa(:A))
-            Base.:(*)(λ::Number, A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} = (λ * A) * B
+            Base.:(*)(A::$TypeA, λ::Union{Real,Complex}) where {T <: BlasFloat} = $(unwrapa(:A)) .* λ
+            Base.:(*)(λ::Union{Real,Complex}, A::$TypeA) where {T <: BlasFloat} = λ .* $(unwrapa(:A))
+            Base.:(*)(A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} = $(unwrapa(:A)) * B
+            Base.:(*)(λ::Union{Real,Complex}, A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} =
+                gemm('N', 'N', λ, ROCSparseMatrixCSR($(unwrapa(:A))), ROCSparseMatrixCSR(B), 'O')
         end
     end
 
     TypeA = wrapa(:(ROCSparseMatrixCOO{T}))
     @eval begin
-        Base.:(*)(A::$TypeA, λ::Number) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
-        Base.:(*)(λ::Number, A::$TypeA) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
-        Base.:(*)(λ::Number, A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} = (λ * A) * B
+        Base.:(*)(A::$TypeA, λ::Union{Real,Complex}) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
+        Base.:(*)(λ::Union{Real,Complex}, A::$TypeA) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
+        Base.:(*)(A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} = $(unwrapa(:A)) * B
+        Base.:(*)(λ::Union{Real,Complex}, A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} =
+            gemm('N', 'N', λ, ROCSparseMatrixCSR($(unwrapa(:A))), ROCSparseMatrixCSR(B), 'O')
     end
 end
 
