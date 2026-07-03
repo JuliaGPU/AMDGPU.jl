@@ -410,6 +410,9 @@ for (jname, fname, elty, relty) in (
 
             AMDGPU.unsafe_free!(E)
 
+            chkargsok(BlasInt(info))
+            info > 0 && throw(LinearAlgebra.PosDefException(BlasInt(info)))
+
             D, A
         end
     end
@@ -770,14 +773,14 @@ end
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:ROCMatrix}, B::Symmetric{T,<:ROCMatrix}) where {T<:BlasReal}
     A2 = copy(A.data)
-    B2 = copy(B.data)
-    Eigen(sygvd!('U', A2, B2)...)
+    B2 = copy(B.uplo == A.uplo ? B.data : B.data')
+    Eigen(sygvd!(A.uplo, A2, B2)...)
 end
 
 function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasComplex}
     A2 = copy(A.data)
-    B2 = copy(B.data)
-    Eigen(hegvd!('U', A2, B2)...)
+    B2 = copy(B.uplo == A.uplo ? B.data : B.data')
+    Eigen(hegvd!(A.uplo, A2, B2)...)
 end
 
 function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
