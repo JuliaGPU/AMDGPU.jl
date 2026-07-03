@@ -331,6 +331,12 @@ function ROCSparseMatrixCSR(coo::ROCSparseMatrixCOO{Tv}, ind::SparseChar='O') wh
     rocsparse_coo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, ind)
     ROCSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
+
+ROCSparseMatrixCSR{Tv,Ti}(csr::ROCSparseMatrixCSR{<:Any,Ti}) where {Tv,Ti} =
+    ROCSparseMatrixCSR{Tv,Ti}(csr.rowPtr, csr.colVal, convert(ROCVector{Tv}, nonzeros(csr)), size(csr))
+ROCSparseMatrixCSR{Tv}(csr::ROCSparseMatrixCSR{<:Any,Ti}) where {Tv,Ti} =
+    ROCSparseMatrixCSR{Tv,Ti}(csr)
+
 # Typed forwarding constructors: allow ROCSparseMatrixCSR{Tv,Ti}(coo) as called by GPUArrays generics
 ROCSparseMatrixCSR{Tv,Ti}(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv,Ti} = ROCSparseMatrixCSR(coo)
 
@@ -345,7 +351,15 @@ end
 
 ROCSparseMatrixCSC(coo::ROCSparseMatrixCOO) = ROCSparseMatrixCSC(ROCSparseMatrixCSR(coo)) # no direct conversion
 ROCSparseMatrixCSC{Tv,Ti}(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv,Ti} = ROCSparseMatrixCSC(coo)
+ROCSparseMatrixCSC{Tv,Ti}(csc::ROCSparseMatrixCSC{<:Any,Ti}) where {Tv,Ti} =
+    ROCSparseMatrixCSC{Tv,Ti}(
+        csc.colPtr, rowvals(csc), convert(ROCVector{Tv}, nonzeros(csc)), size(csc))
+ROCSparseMatrixCSC{Tv}(csc::ROCSparseMatrixCSC{<:Any,Ti}) where {Tv,Ti} = ROCSparseMatrixCSC{Tv,Ti}(csc)
 ROCSparseMatrixCOO(csc::ROCSparseMatrixCSC) = ROCSparseMatrixCOO(ROCSparseMatrixCSR(csc)) # no direct conversion
+ROCSparseMatrixCOO{Tv,Ti}(coo::ROCSparseMatrixCOO{<:Any,Ti}) where {Tv,Ti} =
+    ROCSparseMatrixCOO{Tv,Ti}(
+        coo.rowInd, coo.colInd, convert(ROCVector{Tv}, nonzeros(coo)), size(coo), nnz(coo))
+ROCSparseMatrixCOO{Tv}(coo::ROCSparseMatrixCOO{<:Any,Ti}) where {Tv,Ti} = ROCSparseMatrixCOO{Tv,Ti}(coo)
 ROCSparseMatrixBSR(coo::ROCSparseMatrixCOO, blockdim) = ROCSparseMatrixBSR(ROCSparseMatrixCSR(coo), blockdim) # no direct conversion
 ROCSparseMatrixCOO(bsr::ROCSparseMatrixBSR) = ROCSparseMatrixCOO(ROCSparseMatrixCSR(bsr)) # no direct conversion
 

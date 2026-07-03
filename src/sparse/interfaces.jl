@@ -82,6 +82,52 @@ function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::ROCSparseM
     mm_wrapper(tA, tB, alpha, A, B, beta, C)
 end
 
+function Base.:(*)(
+    A::Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}},
+    B::DenseROCMatrix{TB},
+) where {TA <: BlasComplex, TB <: BlasReal}
+    C = ROCMatrix{promote_type(TA, TB)}(undef, size(A, 1), size(B, 2))
+    LinearAlgebra.mul!(C, A, B)
+end
+
+function Base.:(*)(
+    A::Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}},
+    B::DenseROCMatrix{TB},
+) where {TA <: BlasReal, TB <: BlasComplex}
+    C = ROCMatrix{promote_type(TA, TB)}(undef, size(A, 1), size(B, 2))
+    LinearAlgebra.mul!(C, A, B)
+end
+
+function LinearAlgebra.generic_matmatmul!(
+    C::ROCMatrix{T}, tA, tB,
+    A::Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}},
+    B::DenseROCMatrix{TB},
+    alpha::Number, beta::Number,
+) where {T <: BlasComplex, TA <: BlasComplex, TB <: BlasReal}
+    promote_type(TA, TB) === T || throw(ArgumentError("output element type must match promoted input element type"))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    A = A isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(A) :
+        A isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(A) : ROCSparseMatrixCOO{T}(A)
+    B = ROCMatrix{T}(B)
+    mm_wrapper(tA, tB, alpha, A, B, beta, C)
+end
+
+function LinearAlgebra.generic_matmatmul!(
+    C::ROCMatrix{T}, tA, tB,
+    A::Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}},
+    B::DenseROCMatrix{TB},
+    alpha::Number, beta::Number,
+) where {T <: BlasComplex, TA <: BlasReal, TB <: BlasComplex}
+    promote_type(TA, TB) === T || throw(ArgumentError("output element type must match promoted input element type"))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    A = A isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(A) :
+        A isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(A) : ROCSparseMatrixCOO{T}(A)
+    B = TB === T ? B : ROCMatrix{T}(B)
+    mm_wrapper(tA, tB, alpha, A, B, beta, C)
+end
+
 # legacy methods with final MulAddMul argument
 LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSC{T}, _add::MulAddMul) where T <: BlasFloat =
     LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
@@ -103,6 +149,50 @@ end
 function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCOO{T}, alpha::Number, beta::Number) where T <: BlasFloat
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    mm!(tA, tB, alpha, A, B, beta, C, 'O')
+end
+
+function Base.:(*)(
+    A::DenseROCMatrix{TA},
+    B::Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}},
+) where {TA <: BlasComplex, TB <: BlasReal}
+    C = ROCMatrix{promote_type(TA, TB)}(undef, size(A, 1), size(B, 2))
+    LinearAlgebra.mul!(C, A, B)
+end
+
+function Base.:(*)(
+    A::DenseROCMatrix{TA},
+    B::Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}},
+) where {TA <: BlasReal, TB <: BlasComplex}
+    C = ROCMatrix{promote_type(TA, TB)}(undef, size(A, 1), size(B, 2))
+    LinearAlgebra.mul!(C, A, B)
+end
+
+function LinearAlgebra.generic_matmatmul!(
+    C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{TA},
+    B::Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}},
+    alpha::Number, beta::Number,
+) where {T <: BlasComplex, TA <: BlasComplex, TB <: BlasReal}
+    promote_type(TA, TB) === T || throw(ArgumentError("output element type must match promoted input element type"))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    A = TA === T ? A : ROCMatrix{T}(A)
+    B = B isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(B) :
+        B isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(B) : ROCSparseMatrixCOO{T}(B)
+    mm!(tA, tB, alpha, A, B, beta, C, 'O')
+end
+
+function LinearAlgebra.generic_matmatmul!(
+    C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{TA},
+    B::Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}},
+    alpha::Number, beta::Number,
+) where {T <: BlasComplex, TA <: BlasReal, TB <: BlasComplex}
+    promote_type(TA, TB) === T || throw(ArgumentError("output element type must match promoted input element type"))
+    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    A = ROCMatrix{T}(A)
+    B = B isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(B) :
+        B isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(B) : ROCSparseMatrixCOO{T}(B)
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
 
