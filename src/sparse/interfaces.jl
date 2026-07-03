@@ -238,6 +238,7 @@ for (wrapa, unwrapa) in adjtrans_wrappers
         @eval begin
             Base.:(*)(A::$TypeA, λ::Number) where {T <: BlasFloat} = $(unwrapa(:A)) .* λ
             Base.:(*)(λ::Number, A::$TypeA) where {T <: BlasFloat} = λ .* $(unwrapa(:A))
+            Base.:(*)(λ::Number, A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} = (λ * A) * B
         end
     end
 
@@ -245,6 +246,7 @@ for (wrapa, unwrapa) in adjtrans_wrappers
     @eval begin
         Base.:(*)(A::$TypeA, λ::Number) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
         Base.:(*)(λ::Number, A::$TypeA) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
+        Base.:(*)(λ::Number, A::$TypeA, B::ROCSparseMatrix{T}) where {T <: BlasFloat} = (λ * A) * B
     end
 end
 
