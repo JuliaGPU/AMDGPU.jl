@@ -481,6 +481,26 @@ end
             end
         end
     end
+
+    @testset "generalized matrix type = $matrix_type" for (matrix_type, eltypes) in [
+        (Symmetric, [Float32, Float64]),
+        (Hermitian, [Float32, Float64, ComplexF32, ComplexF64]),
+    ]
+        @testset "elty = $elty" for elty in eltypes
+            A = rand(elty, m, m); A = matrix_type(A * A' + m * I)
+            B = rand(elty, m, m); B = matrix_type(B * B' + m * I)
+            dA = matrix_type(ROCMatrix(Matrix(A)))
+            dB = matrix_type(ROCMatrix(Matrix(B)))
+
+            E = eigen(dA, dB)
+
+            @test Array(E.values) ≈ eigen(A, B).values
+            for k in 1:length(E.values)
+                @allowscalar lambda = E.values[k]
+                @test dA * E.vectors[:, k] ≈ lambda .* (dB * E.vectors[:, k])
+            end
+        end
+    end
 end
 
 end
