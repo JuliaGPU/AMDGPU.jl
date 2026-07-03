@@ -257,6 +257,24 @@ using Adapt
         end
     end
 
+    @testset "sparse-sparse multiplication ($typ, $elty)" for (typ, elty) in (
+        (ROCSparseMatrixCSR, Float32),
+        (ROCSparseMatrixCSR, ComplexF32),
+        (ROCSparseMatrixCSC, Float64),
+        (ROCSparseMatrixCSC, ComplexF64),
+        (ROCSparseMatrixCOO, Float32),
+        (ROCSparseMatrixCOO, ComplexF64),
+    )
+        S = sprand(elty, 10, 10, 0.4)
+        dA = typ(S)
+        α = rand()
+
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(dA * dA)) ≈ S * S
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(transpose(dA) * dA)) ≈ transpose(S) * S
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(adjoint(dA) * dA)) ≈ adjoint(S) * S
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(α * adjoint(dA) * dA)) ≈ α * adjoint(S) * S
+    end
+
     @testset "Diagonal with $typ(10, 10)" for typ in (
         ROCSparseMatrixCSR, ROCSparseMatrixCSC,
     )
