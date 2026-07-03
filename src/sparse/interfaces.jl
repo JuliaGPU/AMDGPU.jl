@@ -232,6 +232,22 @@ end
 _coo_scale(A::ROCSparseMatrixCOO{T}, λ) where {T} =
     ROCSparseMatrixCOO(A.rowInd, A.colInd, A.nzVal .* λ, size(A), nnz(A))
 
+for (wrapa, unwrapa) in adjtrans_wrappers
+    for SparseMatrixType in (:(ROCSparseMatrixCSC{T}), :(ROCSparseMatrixCSR{T}))
+        TypeA = wrapa(SparseMatrixType)
+        @eval begin
+            Base.:(*)(A::$TypeA, λ::Number) where {T <: BlasFloat} = $(unwrapa(:A)) .* λ
+            Base.:(*)(λ::Number, A::$TypeA) where {T <: BlasFloat} = λ .* $(unwrapa(:A))
+        end
+    end
+
+    TypeA = wrapa(:(ROCSparseMatrixCOO{T}))
+    @eval begin
+        Base.:(*)(A::$TypeA, λ::Number) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
+        Base.:(*)(λ::Number, A::$TypeA) where {T <: BlasFloat} = _coo_scale($(unwrapa(:A)), λ)
+    end
+end
+
 # UniformScaling +/-/* for all formats/wrappers; typeof(A′) passes a concrete type to _sparse_identity
 # (SparseMatrixType is a UnionAll with Ti unbound at runtime and won't match its signatures).
 for (wrapa, unwrapa) in adjtrans_wrappers
