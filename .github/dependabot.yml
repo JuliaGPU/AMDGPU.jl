@@ -1,6 +1,14 @@
 # https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 version: 2
 updates:
+  - package-ecosystem: "julia"
+    directory: "/" # Update [compat] in Project.toml and the checked-in Manifest.toml
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 100
+    labels:
+      - "dependencies"
+      - "julia"
   - package-ecosystem: "github-actions"
     groups:
       # Group all GitHub Actions PRs into a single PR:
