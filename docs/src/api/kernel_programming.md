@@ -78,8 +78,11 @@ Currently RDNA 3 supports the following types:
 - `FP16 ⋅ FP16 + FP32 -> FP32`;
 - `BFP16 ⋅ BFP16 + FP32 -> FP32`.
 
-All WMMA functionality for RDNA 3 is in the `AMDGPU.Device.WMMA` submodule.
+All WMMA functionality for RDNA 3 is in the `AMDGPU.Device.WMMA_RDNA3` submodule.
 The tile dimensions are fixed at 16×16×16 (`WMMA_RDNA3.M`, `WMMA_RDNA3.N`, `WMMA_RDNA3.K`).
+
+!!! compat "AMDGPU v2"
+    The `AMDGPU.Device.WMMA_RDNA3` module is also exported as `AMDGPU.Device.WMMA` for the AMDGPU v2 release cycle.
 
 ### RDNA 4 (gfx1200+)
 
