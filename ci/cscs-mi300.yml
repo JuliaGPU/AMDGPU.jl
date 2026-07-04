@@ -29,23 +29,6 @@ include:
       println("Running tests");
       Pkg.test("AMDGPU"; test_args=`--jobs=32`);'
 
-UnitTest julia 1.11:
-  extends: .baremetal-runner-beverin-mi300
-  variables:
-    JULIA: /users/lraess/julia_amd/juliaup/julia-1.11.9+0.x64.linux.gnu/bin/julia
-    UENV: ab517d8a08f537d2
-    MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-22x3pq72goxi4xwkknlspqhxbx72owes
-    SLURM_JOB_NUM_NODES: 1
-    SLURM_NTASKS_PER_NODE: 1
-    SLURM_GPUS_PER_TASK: 2
-    SLURM_TIMELIMIT: "00:45:00"
-    JULIA_NUM_THREADS: 4
-    JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia"
-    JULIA_AMDGPU_CORE_MUST_LOAD: "1"
-    JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-    JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
-  script: *unit_test_script
-
 UnitTest julia 1.12:
   extends: .baremetal-runner-beverin-mi300
   variables:
