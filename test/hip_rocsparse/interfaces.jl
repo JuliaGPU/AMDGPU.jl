@@ -164,6 +164,33 @@ using Adapt
         @test B ≈ collect(dB)
     end
 
+    @testset "mixed complex/real sparse-dense matmul" begin
+        m, k, n = 8, 10, 6
+        for SparseMatrixType in (ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO),
+            (TA, TB) in ((ComplexF32, Float32), (ComplexF64, Float64),
+                         (Float32, ComplexF32), (Float64, ComplexF64))
+
+            T = promote_type(TA, TB)
+            A = sprand(TA, m, k, 0.2)
+            B = rand(TB, k, n)
+            D = sprand(TA, n, n, 0.2)
+            E = rand(TB, n, n)
+
+            dA = SparseMatrixType(A)
+            dB = ROCArray(B)
+            dD = SparseMatrixType(D)
+            dE = ROCArray(E)
+
+            dC = dA * dB
+            @test dC isa ROCMatrix{T}
+            @test Array(dC) ≈ A * B
+
+            dC = dE * dD
+            @test dC isa ROCMatrix{T}
+            @test Array(dC) ≈ E * D
+        end
+    end
+
     @testset "ROCSparseMatrixCSR($f) $elty" for f in (
         transpose, adjoint,
     ), elty in (
