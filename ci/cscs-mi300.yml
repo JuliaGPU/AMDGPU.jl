@@ -27,7 +27,7 @@ include:
       using AMDGPU;
       AMDGPU.versioninfo();
       println("Running tests");
-      Pkg.test("AMDGPU"; test_args=`--jobs=32`);'
+      Pkg.test("AMDGPU"; test_args=`--jobs=32 hip_dnn`);'
 
 UnitTest julia 1.12:
   extends: .baremetal-runner-beverin-mi300
