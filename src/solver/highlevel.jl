@@ -374,6 +374,50 @@ for (jname, fname, elty, relty) in (
     end
 end
 
+for (jname, fname, elty, relty) in (
+    (:sygvd!, :rocsolver_dsygvd, :Float64   , :Float64),
+    (:sygvd!, :rocsolver_ssygvd, :Float32   , :Float32),
+    (:hegvd!, :rocsolver_zhegvd, :ComplexF64, :Float64),
+    (:hegvd!, :rocsolver_chegvd, :ComplexF32, :Float32),
+)
+    @eval begin
+        function $jname(uplo::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
+            chkuplo(uplo)
+
+            n = checksquare(A)
+            checksquare(B) == n || throw(DimensionMismatch("A and B must have the same size"))
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+
+            D = ROCVector{$relty}(undef, n)
+            E = ROCVector{$relty}(undef, n)
+
+            dev_info = ROCVector{Cint}(undef, 1)
+
+            $fname(
+                rocBLAS.handle(),
+                rocblas_eform_ax,
+                rocblas_evect_original,
+                uplo,
+                n, A, lda,
+                B, ldb,
+                D, E,
+                dev_info
+            )
+
+            info = AMDGPU.@allowscalar dev_info[1]
+            AMDGPU.unsafe_free!(dev_info)
+
+            AMDGPU.unsafe_free!(E)
+
+            chkargsok(BlasInt(info))
+            info > 0 && throw(LinearAlgebra.PosDefException(BlasInt(info)))
+
+            D, A
+        end
+    end
+end
+
 for (fname, matrix_elty, vector_elty) in (
     (:rocsolver_zgesvdj, :ComplexF64, :Float64),
     (:rocsolver_cgesvdj, :ComplexF32, :Float32),
@@ -725,6 +769,30 @@ end
 
 function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
     eigen(Symmetric(A))
+end
+
+function LinearAlgebra.eigen(A::Symmetric{T,<:ROCMatrix}, B::Symmetric{T,<:ROCMatrix}) where {T<:BlasReal}
+    A2 = copy(A.data)
+    B2 = copy(B.uplo == A.uplo ? B.data : B.data')
+    Eigen(sygvd!(A.uplo, A2, B2)...)
+end
+
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasComplex}
+    A2 = copy(A.data)
+    B2 = copy(B.uplo == A.uplo ? B.data : B.data')
+    Eigen(hegvd!(A.uplo, A2, B2)...)
+end
+
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(Symmetric(A), Symmetric(B))
+end
+
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Symmetric{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(Symmetric(A), B)
+end
+
+function LinearAlgebra.eigen(A::Symmetric{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(A, Symmetric(B))
 end
 
 function LinearAlgebra.eigen(A::ROCMatrix{T}) where {T<:BlasReal}

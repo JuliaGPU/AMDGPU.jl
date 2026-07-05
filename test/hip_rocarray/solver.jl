@@ -481,6 +481,48 @@ end
             end
         end
     end
+
+    @testset "generalized matrix type = $matrix_type" for (matrix_type, eltypes) in [
+        (Symmetric, [Float32, Float64]),
+        (Hermitian, [Float32, Float64, ComplexF32, ComplexF64]),
+    ]
+        @testset "elty = $elty" for elty in eltypes
+            A = rand(elty, m, m); A = matrix_type(A * A' + m * I)
+            B = rand(elty, m, m); B = matrix_type(B * B' + m * I)
+            dA = matrix_type(ROCMatrix(Matrix(A)))
+            dB = matrix_type(ROCMatrix(Matrix(B)))
+
+            E = eigen(dA, dB)
+
+            @test Array(E.values) ≈ eigen(A, B).values
+            for k in 1:length(E.values)
+                @allowscalar lambda = E.values[k]
+                @test dA * E.vectors[:, k] ≈ lambda .* (dB * E.vectors[:, k])
+            end
+        end
+    end
+
+    @testset "generalized mixed real wrappers" begin
+        @testset "elty = $elty" for elty in [Float32, Float64]
+            A = rand(elty, m, m); A = A * A' + m * I
+            B = rand(elty, m, m); B = B * B' + m * I
+            dA = ROCMatrix(A)
+            dB = ROCMatrix(B)
+
+            for (gpu_A, gpu_B, cpu_A, cpu_B) in (
+                (Hermitian(dA), Symmetric(dB), Hermitian(A), Symmetric(B)),
+                (Symmetric(dA), Hermitian(dB), Symmetric(A), Hermitian(B)),
+            )
+                E = eigen(gpu_A, gpu_B)
+
+                @test Array(E.values) ≈ eigen(cpu_A, cpu_B).values
+                for k in 1:length(E.values)
+                    @allowscalar lambda = E.values[k]
+                    @test gpu_A * E.vectors[:, k] ≈ lambda .* (gpu_B * E.vectors[:, k])
+                end
+            end
+        end
+    end
 end
 
 end
