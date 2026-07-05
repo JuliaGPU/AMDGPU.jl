@@ -238,6 +238,43 @@ using Adapt
         @test SparseMatrixCSC(ROCSparseMatrixCSC(I * dAt)) ≈ Array(Sw)
     end
 
+    @testset "scalar multiplication with wrapped sparse ($wrap, $typ, $elty)" for
+        wrap in (identity, transpose, adjoint),
+        typ in (ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrixCOO),
+        elty in (Float32, Float64, ComplexF32, ComplexF64)
+
+        S = sprand(elty, 10, 10, 0.5)
+        α = rand()
+        dA = typ(S)
+        dAt = wrap(dA)
+        Sw = wrap(S)
+
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(α * dAt)) ≈ α * Sw
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(dAt * α)) ≈ Sw * α
+
+        if wrap !== identity
+            @test SparseMatrixCSC(ROCSparseMatrixCSC(α * dAt * dA)) ≈ α * Sw * S
+        end
+    end
+
+    @testset "sparse-sparse multiplication ($typ, $elty)" for (typ, elty) in (
+        (ROCSparseMatrixCSR, Float32),
+        (ROCSparseMatrixCSR, ComplexF32),
+        (ROCSparseMatrixCSC, Float64),
+        (ROCSparseMatrixCSC, ComplexF64),
+        (ROCSparseMatrixCOO, Float32),
+        (ROCSparseMatrixCOO, ComplexF64),
+    )
+        S = sprand(elty, 10, 10, 0.4)
+        dA = typ(S)
+        α = rand()
+
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(dA * dA)) ≈ S * S
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(transpose(dA) * dA)) ≈ transpose(S) * S
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(adjoint(dA) * dA)) ≈ adjoint(S) * S
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(α * adjoint(dA) * dA)) ≈ α * adjoint(S) * S
+    end
+
     @testset "Diagonal with $typ(10, 10)" for typ in (
         ROCSparseMatrixCSR, ROCSparseMatrixCSC,
     )
