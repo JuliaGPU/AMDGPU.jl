@@ -262,4 +262,4 @@ for (fname, arg_T) in ((_f32_16x16x16_f16, Float16), (_f32_16x16x16_bf16, Int16)
         FragmentC_F32($fname(a.data, b.data, c.data))
 end
 
-end # module WMMA
+end # module WMMA_RDNA3
