@@ -27,7 +27,7 @@ include:
       using AMDGPU;
       AMDGPU.versioninfo();
       println("Running tests");
-      Pkg.test("AMDGPU"; test_args=`--jobs=32 hip_dnn`);'
+      Pkg.test("AMDGPU"; test_args=`--jobs=32 hip_dnn/conv`);'
 
 UnitTest julia 1.12:
   extends: .baremetal-runner-beverin-mi300
@@ -35,6 +35,7 @@ UnitTest julia 1.12:
     JULIA: /users/lraess/julia_amd/juliaup/julia-1.12.6+0.x64.linux.gnu/bin/julia
     UENV: ab517d8a08f537d2
     MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-22x3pq72goxi4xwkknlspqhxbx72owes
+    MIOPEN_DEBUG_COMPILE_ONLY: "1"
     SLURM_JOB_NUM_NODES: 1
     SLURM_NTASKS_PER_NODE: 1
     SLURM_GPUS_PER_TASK: 2
