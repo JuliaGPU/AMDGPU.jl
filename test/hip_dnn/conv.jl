@@ -5,10 +5,11 @@ using AMDGPU.MIOpen
 
 @assert AMDGPU.functional(:MIOpen)
 
-function _mark(label)
-    println("=== ISOLATE: ", label, " ===")
-    flush(stdout)
-end
+# ConvHipImplicitGemmGroupBwdXdlops segfaults on gfx942 (MI300, MIOpen 7.2.3)
+# and ignores its own MIOPEN_DEBUG disable flag. Skip until fixed upstream.
+_arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
+_skip_bwd_data = _arch_str == "gfx942"
+_skip_bwd_data && @info "Skipping convolution backward-data tests (MIOpen bug on gfx942)"
 
 @testset "Simple Convolution" begin
     for T in (Float16, Float32), nd in 2:3
@@ -23,20 +24,21 @@ end
 
         x = AMDGPU.ones(T, (spatial_size..., 1, 1))
         w = AMDGPU.ones(T, (spatial_size..., 1, 1))
-        _mark("Simple Convolution: T=$T nd=$nd forward")
         y = MIOpen.convolution(x, w; padding, stride, dilation, groups)
         @test eltype(y) == T
         @test size(y) == (target_size..., 1, 1)
         @test Array(y)[1] == prod(spatial_size)
 
         Δ = AMDGPU.ones(T, size(y))
-        _mark("Simple Convolution: T=$T nd=$nd weight grad")
         ∇w = MIOpen.∇convolution_weight(Δ, x, w; padding, stride, dilation, groups)
         @test size(∇w) == size(w)
 
-        _mark("Simple Convolution: T=$T nd=$nd data grad")
-        ∇x = MIOpen.∇convolution_data(Δ, x, w; padding, stride, dilation, groups)
-        @test size(∇x) == size(x)
+        if _skip_bwd_data
+            @test_skip false
+        else
+            ∇x = MIOpen.∇convolution_data(Δ, x, w; padding, stride, dilation, groups)
+            @test size(∇x) == size(x)
+        end
     end
 end
 
@@ -48,26 +50,21 @@ end
     wh2 = rand(Float32, 3, 4, 3, 16)
     x, w1, w2 = ROCArray.((xh, wh1, wh2))
 
-    _mark("padding/stride/dilation: case 1")
     y = MIOpen.convolution(x, w1; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=1)
     @test size(y) == (9, 9, 16, 10)
 
-    _mark("padding/stride/dilation: case 2")
     y = MIOpen.convolution(x, w1; padding=(2, 2), stride=(2, 2), dilation=(1, 1), groups=1)
     @test size(y) == (7, 7, 16, 10)
 
-    _mark("padding/stride/dilation: case 3")
     y = MIOpen.convolution(x, w2; padding=(2, 3), stride=(1, 2), dilation=(1, 1), groups=1)
     @test size(y) == (12, 7, 16, 10)
 
-    _mark("padding/stride/dilation: case 4")
     y = MIOpen.convolution(x, w1; padding=(2, 3), stride=(1, 2), dilation=(2, 2), groups=1)
     @test size(y) == (12, 7, 16, 10)
 
     # Depthwise convolution.
     wdh1 = rand(Float32, 2, 2, 1, 3)
     wd1 = ROCArray(wdh1)
-    _mark("depthwise convolution")
     y = MIOpen.convolution(x, wd1; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=3)
     @test size(y) == (9, 9, 3, 10)
 
@@ -75,7 +72,6 @@ end
     xh = ones(Float32, 10, 10, 4, 10)
     wdh2 = ones(Float32, 2, 2, 2, 4)
     x, wd2 = ROCArray.((xh, wdh2))
-    _mark("grouped convolution")
     y = MIOpen.convolution(x, wd2; padding=(0, 0), stride=(1, 1), dilation=(1, 1), groups=2)
     @test size(y) == (9, 9, 4, 10)
 end
