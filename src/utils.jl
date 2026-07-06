@@ -1,3 +1,10 @@
+"""
+    versioninfo(io::IO=stdout)
+
+Print a report of the AMDGPU.jl setup: detected ROCm libraries and their
+versions, tool paths, and the available GPU devices. Useful as a first
+diagnostic when something is missing or not working.
+"""
 function versioninfo(io::IO=stdout)
     println(io, "AMDGPU versioninfo")
     _status(st::Bool) = st ? "+" : "-"
@@ -102,6 +109,13 @@ function functional(component::Symbol)
     end
 end
 
+"""
+    has_rocm_gpu() -> Bool
+
+Return `true` if HIP is functional and at least one GPU device is present.
+Use this to guard code that specifically requires GPU hardware; for a general
+"can AMDGPU.jl run here" check prefer [`AMDGPU.functional`](@ref).
+"""
 has_rocm_gpu() = functional(:hip) && length(devices()) > 0
 
 function print_build_diagnostics()

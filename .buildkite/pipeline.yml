@@ -2,7 +2,7 @@ steps:
   - label: "Documentation"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.10"
+          version: "1.12"
       - sv-oss/node-n#v0.1.2:
           node-version: v20
     command: |
@@ -18,7 +18,7 @@ steps:
         Pkg.build()
 
         Pkg.activate("docs")
-        Pkg.add(; path=".")
+        Pkg.develop(PackageSpec(path="."))
         Pkg.instantiate()
 
         push!(LOAD_PATH, @__DIR__)

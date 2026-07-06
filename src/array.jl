@@ -1,3 +1,21 @@
+"""
+    ROCArray{T,N,B} <: AbstractGPUArray{T,N}
+
+`N`-dimensional dense array of element type `T` stored in GPU memory (backed by
+buffer type `B`). `ROCArray` implements Julia's `AbstractArray` interface, so
+broadcasting, reductions, and linear algebra run on the GPU.
+
+Copy a host array to the device by wrapping it, or allocate directly:
+
+```julia
+ROCArray([1, 2, 3])             # copy a host array to the device
+ROCArray{Float32}(undef, 4, 4)  # uninitialized 4×4 device matrix
+```
+
+Move data back to the host with `Array(x)`. See also [`roc`](@ref), which
+copies to the device while narrowing floating-point types to 32-bit, and the
+`AMDGPU.zeros` / `AMDGPU.ones` / `AMDGPU.rand` constructors.
+"""
 mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     buf::DataRef{Managed{B}}
     dims::Dims{N}
@@ -295,6 +313,24 @@ Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloa
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
     isbits(xs) ? xs : convert(ROCArray, xs)
 
+"""
+    roc(x)
+
+Adapt `x` for the GPU: convert arrays to [`ROCArray`](@ref) while **narrowing
+floating-point element types to 32-bit** (`Float64`→`Float32`,
+`ComplexF64`→`ComplexF32`; `Float16` is left unchanged, other element types are
+preserved). Like `Adapt.adapt`, it recurses into custom structs and converts
+their array fields.
+
+This mirrors CUDA.jl's `cu`. Reach for it when single precision is preferred
+(e.g. for performance); use the [`ROCArray`](@ref) constructor directly to keep
+the original element type.
+
+```julia
+roc([1.0, 2.0])    # 2-element ROCArray{Float32}
+roc(1:3)           # non-float eltype preserved: ROCArray{Int64}
+```
+"""
 roc(xs) = adapt(Float32Adaptor(), xs)
 
 Base.unsafe_convert(typ::Type{Ptr{T}}, x::ROCArray{T}) where T =
