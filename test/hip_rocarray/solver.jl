@@ -477,6 +477,54 @@ end
     end
 end
 
+@testset "svd / svdvals" begin
+    using AMDGPU.rocSOLVER: QRAlgorithm, JacobiAlgorithm
+
+    # Regression test for JuliaGPU/AMDGPU.jl#837: `svd`/`cond` were wrong or crashed via the divide-and-conquer (`gesdd!`) path. Was intermittent, so loop a few times.
+    @testset "#837 regression" begin
+        cpu = randn(10, 10)
+        gpu = ROCArray(cpu)
+        for _ in 1:5
+            @test Vector(svd(gpu).S) ≈ svd(cpu).S
+            @test cond(gpu) ≈ cond(cpu)
+        end
+    end
+
+    @testset "elty=$elty $(dm)x$(dn)" for elty in (Float32, Float64, ComplexF32, ComplexF64),
+                                          (dm, dn) in ((8, 8), (10, 6), (6, 10))
+        k = min(dm, dn)
+        A = rand(elty, dm, dn)
+        dA = ROCMatrix(A)
+        refS = svdvals(A)
+
+        @testset "alg=$alg" for alg in (JacobiAlgorithm(), QRAlgorithm())
+            F = svd(dA; alg)
+            @test Vector(F.S) ≈ refS
+            @test Array(F.U) * Diagonal(Vector(F.S)) * Array(F.Vt) ≈ A
+            @test size(F.U) == (dm, k) && size(F.Vt) == (k, dn)
+            @test Vector(svdvals(dA; alg)) ≈ refS
+
+            FF = svd(dA; full = true, alg)
+            @test size(FF.U) == (dm, dm) && size(FF.Vt) == (dn, dn)
+            @test Array(FF.U)[:, 1:k] * Diagonal(Vector(FF.S)) * Array(FF.Vt)[1:k, :] ≈ A
+        end
+
+        # svd! is destructive; the non-destructive svd leaves dA intact
+        @test Vector(svd!(copy(dA)).S) ≈ refS
+        @test Array(dA) ≈ A
+
+        @test cond(dA) ≈ cond(A)
+    end
+
+    # LinearAlgebra's algorithm singletons remain accepted
+    @testset "alg-singleton compat" begin
+        A = randn(Float64, 8, 8); dA = ROCMatrix(A); refS = svdvals(A)
+        @test Vector(svd(dA; alg = LinearAlgebra.QRIteration()).S) ≈ refS
+        @test Vector(svd(dA; alg = LinearAlgebra.DivideAndConquer()).S) ≈ refS
+        @test Vector(svdvals(dA; alg = LinearAlgebra.QRIteration())) ≈ refS
+    end
+end
+
 @testset "eigen" begin
     @testset "matrix type = $matrix_type" for (matrix_type, eltypes) in [
         (Symmetric, [Float32, Float64]),
