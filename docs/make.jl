@@ -53,6 +53,13 @@ function main()
                 "Printing" => "api/printing.md",
                 "Intrinsics" => "api/intrinsics.md",
             ],
+            "Libraries" => [
+                "Linear Algebra" => "libraries/linalg.md",
+                "Sparse Arrays" => "libraries/sparse.md",
+                "Fourier Transforms" => "libraries/fft.md",
+                "Random Numbers" => "libraries/rand.md",
+                "Deep Learning (MIOpen)" => "libraries/dnn.md",
+            ],
             "FAQ" => "faq.md",
         ],
         doctest=true,

@@ -122,4 +122,4 @@ julia> Array(view(a, :, 2))
 
 ## Linear algebra
 
-Matrix multiplication and factorizations dispatch to the vendor libraries (rocBLAS, rocSOLVER). Standard `LinearAlgebra` functions — `*`, `mul!`, `\`, `cholesky`, `lu`, `qr`, `svd` — work directly on `ROCArray`.
+Matrix multiplication and factorizations dispatch to the vendor libraries (rocBLAS, rocSOLVER). Standard `LinearAlgebra` functions — `*`, `mul!`, `\`, `cholesky`, `lu`, `qr` — work directly on `ROCArray`. See [Linear Algebra](@ref) for the list of accelerated operations.
