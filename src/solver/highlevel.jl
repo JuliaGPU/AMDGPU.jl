@@ -786,9 +786,7 @@ on AMD GPUs.
 """
 struct JacobiAlgorithm <: SVDAlgorithm end
 
-# NOTE: LinearAlgebra's default SVD path calls `LAPACK.gesdd!`, which rocSOLVER
-# does not implement, so we own the whole `svd`/`svdvals` family for ROCMatrix
-# and dispatch to `gesvd!`/`gesvdj!` (see JuliaGPU/AMDGPU.jl#837).
+# NOTE: LinearAlgebra's default SVD path calls `LAPACK.gesdd!`, which rocSOLVER does not implement, so we own the whole `svd`/`svdvals` family for ROCMatrix and dispatch to `gesvd!`/`gesvdj!` (see JuliaGPU/AMDGPU.jl#837).
 
 function LinearAlgebra.svd!(
     A::ROCMatrix{T}; full::Bool = false, alg = JacobiAlgorithm(),
@@ -811,9 +809,7 @@ function _svd!(A::ROCMatrix{T}, full::Bool, ::JacobiAlgorithm) where T <: rocBLA
     return LinearAlgebra.SVD(U, S, Vt)
 end
 
-# Accept LinearAlgebra's own algorithm singletons: `QRIteration` maps to our QR
-# path (keeps the old `svd(A; alg=QRIteration())` workaround working), and
-# `DivideAndConquer` (whose `gesdd!` is unavailable) maps to Jacobi.
+# Accept LinearAlgebra's own algorithm singletons: `QRIteration` maps to our QR path (keeps the old `svd(A; alg=QRIteration())` workaround working), and `DivideAndConquer` (whose `gesdd!` is unavailable) maps to Jacobi.
 _svd!(A::ROCMatrix, full::Bool, ::LinearAlgebra.QRIteration) = _svd!(A, full, QRAlgorithm())
 _svd!(A::ROCMatrix, full::Bool, ::LinearAlgebra.DivideAndConquer) = _svd!(A, full, JacobiAlgorithm())
 _svd!(A::ROCMatrix, full::Bool, alg) =
