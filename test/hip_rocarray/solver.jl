@@ -455,12 +455,73 @@ end
         (Float32, Float32),
     ]
         A = rand(elty, m, n)
-        dA = ROCMatrix(A)
-        abstol = tol_type(-1.0)
-        max_sweeps::Int32 = 100
+        k = min(m, n)
+        refS = svdvals(A)
 
-        U, S, V, residual, n_sweeps, info = AMDGPU.rocSOLVER.gesvdj!(dA, abstol, max_sweeps)
-        @test U * Diagonal(S) * V' ≈ dA
+        # economy factorization (default job modes)
+        U, S, Vt, residual, n_sweeps, info = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A))
+        @test info == 0
+        @test size(U) == (m, k) && size(Vt) == (k, n)
+        @test Vector(S) ≈ refS
+        @test U * Diagonal(S) * Vt ≈ ROCMatrix(A)
+
+        # full factorization
+        U, S, Vt, = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A); jobu='A', jobvt='A')
+        @test size(U) == (m, m) && size(Vt) == (n, n)
+        @test Array(U)[:, 1:k] * Diagonal(Vector(S)) * Array(Vt)[1:k, :] ≈ A
+
+        # singular values only
+        U, S, Vt, = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A); jobu='N', jobvt='N')
+        @test U === C_NULL && Vt === C_NULL
+        @test Vector(S) ≈ refS
+    end
+end
+
+@testset "svd / svdvals" begin
+    using AMDGPU.rocSOLVER: QRAlgorithm, JacobiAlgorithm
+
+    # Regression test for JuliaGPU/AMDGPU.jl#837: `svd`/`cond` were wrong or crashed via the divide-and-conquer (`gesdd!`) path. Was intermittent, so loop a few times.
+    @testset "#837 regression" begin
+        cpu = randn(10, 10)
+        gpu = ROCArray(cpu)
+        for _ in 1:5
+            @test Vector(svd(gpu).S) ≈ svd(cpu).S
+            @test cond(gpu) ≈ cond(cpu)
+        end
+    end
+
+    @testset "elty=$elty $(dm)x$(dn)" for elty in (Float32, Float64, ComplexF32, ComplexF64),
+                                          (dm, dn) in ((8, 8), (10, 6), (6, 10))
+        k = min(dm, dn)
+        A = rand(elty, dm, dn)
+        dA = ROCMatrix(A)
+        refS = svdvals(A)
+
+        @testset "alg=$alg" for alg in (JacobiAlgorithm(), QRAlgorithm())
+            F = svd(dA; alg)
+            @test Vector(F.S) ≈ refS
+            @test Array(F.U) * Diagonal(Vector(F.S)) * Array(F.Vt) ≈ A
+            @test size(F.U) == (dm, k) && size(F.Vt) == (k, dn)
+            @test Vector(svdvals(dA; alg)) ≈ refS
+
+            FF = svd(dA; full = true, alg)
+            @test size(FF.U) == (dm, dm) && size(FF.Vt) == (dn, dn)
+            @test Array(FF.U)[:, 1:k] * Diagonal(Vector(FF.S)) * Array(FF.Vt)[1:k, :] ≈ A
+        end
+
+        # svd! is destructive; the non-destructive svd leaves dA intact
+        @test Vector(svd!(copy(dA)).S) ≈ refS
+        @test Array(dA) ≈ A
+
+        @test cond(dA) ≈ cond(A)
+    end
+
+    # LinearAlgebra's algorithm singletons remain accepted
+    @testset "alg-singleton compat" begin
+        A = randn(Float64, 8, 8); dA = ROCMatrix(A); refS = svdvals(A)
+        @test Vector(svd(dA; alg = LinearAlgebra.QRIteration()).S) ≈ refS
+        @test Vector(svd(dA; alg = LinearAlgebra.DivideAndConquer()).S) ≈ refS
+        @test Vector(svdvals(dA; alg = LinearAlgebra.QRIteration())) ≈ refS
     end
 end
 
