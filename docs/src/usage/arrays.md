@@ -28,6 +28,23 @@ julia> AMDGPU.ones(Float32, 2, 2) |> Array
 
 The device-side constructors mirror `Base`: `AMDGPU.zeros`, `AMDGPU.ones`, `AMDGPU.fill`, `AMDGPU.rand`, `AMDGPU.randn`, and `similar`. All take an optional element type and dimensions.
 
+Alternatively, `roc` copies to the device while narrowing floating-point element types to 32-bit — handy when single precision is preferred for performance. It also recurses into custom structs, converting their array fields:
+
+```jldoctest arrays
+julia> x = roc([1.0, 2.0, 3.0]);   # Float64 host array
+
+julia> eltype(x)                   # narrowed to Float32 on the device
+Float32
+
+julia> x isa ROCArray
+true
+```
+
+```@docs
+AMDGPU.ROCArray
+AMDGPU.roc
+```
+
 ## Host ↔ device transfer
 
 Wrapping a host array in `ROCArray` copies it to the GPU; calling `Array` on a `ROCArray` copies it back:
