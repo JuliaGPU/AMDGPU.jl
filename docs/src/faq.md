@@ -44,6 +44,10 @@ AMDGPU.functional(:all)         # true only if every component is available
 
 Run `AMDGPU.versioninfo()` and check that `hip` and the library you need report as functional. Missing components usually mean the corresponding ROCm package is not installed. See [Installation Info](@ref) for platform-specific setup, including the package list for distributions such as Fedora.
 
+## I'm on Arch Linux and ROCm isn't working
+
+For the last few ROCm releases, users have reported problems with the distro-provided ROCm builds and associated tools ([#770](https://github.com/JuliaGPU/AMDGPU.jl/issues/770), [#696](https://github.com/JuliaGPU/AMDGPU.jl/issues/696), [#767](https://github.com/JuliaGPU/AMDGPU.jl/issues/767)). Some have had success with the [`opencl-amd-dev`](https://aur.archlinux.org/packages/opencl-amd-dev) AUR package instead.
+
 ## How do I control GPU memory usage?
 
 `ROCArray`s are managed by Julia's garbage collector, and a HIP memory pool caches freed allocations. You can free eagerly, cap usage, and query current usage — see the [Memory Allocation and Intrinsics](@ref) page for `AMDGPU.unsafe_free!`, memory limits, and the caching allocator.

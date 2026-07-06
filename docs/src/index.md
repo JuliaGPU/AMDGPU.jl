@@ -99,7 +99,7 @@ gridsize = cld(length(c), groupsize)
 |:--|:--|:--|
 | Arrays | Dense `ROCArray`, broadcasting, reductions, sorting | [Array Programming](usage/arrays.md) |
 | Kernels | Native `@roc` kernels and portable [KernelAbstractions](usage/kernelabstractions.md) | [Kernel Programming](api/kernel_programming.md) |
-| Multi-GPU | Task-local devices and streams | [Tasks, Streams and Multiple GPUs](usage/multitasking.md) |
+| Multi-GPU | Task-local devices and streams | [Tasks and Streams](usage/multitasking.md) |
 | Linear algebra | `*`, `\`, `cholesky`, `lu`, `qr` via rocBLAS/rocSOLVER | [Linear Algebra](libraries/linalg.md) |
 | Sparse | CSR/CSC/COO arrays, SpMV/SpMM via rocSPARSE | [Sparse Arrays](libraries/sparse.md) |
 | FFT | `fft`/`plan_fft` via rocFFT | [Fourier Transforms](libraries/fft.md) |

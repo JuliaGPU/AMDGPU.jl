@@ -1,4 +1,4 @@
-# Tasks, Streams and Multiple GPUs
+# Tasks and Streams
 
 AMDGPU.jl follows a **task-local** execution model: the active device and stream are properties of the current Julia task. Switching either one affects only the task that makes the switch, so concurrent tasks can drive different devices or streams without interfering with each other. This makes ordinary Julia task-based parallelism the natural way to overlap work and to use several GPUs at once.
 

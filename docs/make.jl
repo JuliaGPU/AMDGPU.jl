@@ -40,7 +40,7 @@ function main()
             ],
             "Usage" => [
                 "Array Programming" => "usage/arrays.md",
-                "Tasks, Streams and Multiple GPUs" => "usage/multitasking.md",
+                "Tasks and Streams" => "usage/multitasking.md",
                 "KernelAbstractions" => "usage/kernelabstractions.md",
             ],
             "API" => [
