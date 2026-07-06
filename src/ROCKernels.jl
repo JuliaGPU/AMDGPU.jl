@@ -12,6 +12,13 @@ import LLVM
 
 using StaticArraysCore: MArray
 
+"""
+    ROCBackend <: KernelAbstractions.GPU
+
+KernelAbstractions backend that executes kernels on an AMD GPU via AMDGPU.jl.
+Pass `ROCBackend()` to a KernelAbstractions kernel to run it on the GPU, or
+obtain it from an array with `KernelAbstractions.get_backend(::ROCArray)`.
+"""
 struct ROCBackend <: KA.GPU end
 
 KA.functional(::ROCBackend) = AMDGPU.functional()

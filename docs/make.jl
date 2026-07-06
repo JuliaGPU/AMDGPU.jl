@@ -37,6 +37,11 @@ function main()
                 "Installation Tips" => "install_tips.md",
                 "Testing" => "testing.md",
             ],
+            "Usage" => [
+                "Array Programming" => "usage/arrays.md",
+                "Tasks, Streams and Multiple GPUs" => "usage/multitasking.md",
+                "KernelAbstractions" => "usage/kernelabstractions.md",
+            ],
             "API" => [
                 "Devices" => "api/devices.md",
                 "Streams" => "api/streams.md",
@@ -48,6 +53,7 @@ function main()
                 "Printing" => "api/printing.md",
                 "Intrinsics" => "api/intrinsics.md",
             ],
+            "FAQ" => "faq.md",
         ],
         doctest=true,
         warnonly=[:missing_docs],
