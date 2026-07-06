@@ -32,6 +32,7 @@ function main()
             "Home" => "index.md",
             "Tutorials" => [
                 "Quick Start" => "tutorials/quickstart.md",
+                "Custom Structs in Kernels" => "tutorials/custom_structs.md",
                 "Performance Tips" => "tutorials/perf.md",
                 "Profiling" => "tutorials/profiling.md",
                 "Installation Tips" => "install_tips.md",
