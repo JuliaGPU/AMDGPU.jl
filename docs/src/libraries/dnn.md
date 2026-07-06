@@ -12,4 +12,3 @@ AMDGPU.functional(:MIOpen)
 ```
 
 If it reports `false`, install the MIOpen ROCm package for your platform (see [Installation Info](@ref)).
-```

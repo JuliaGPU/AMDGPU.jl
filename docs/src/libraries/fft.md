@@ -33,4 +33,3 @@ p! * x
 ```
 
 Multidimensional transforms and transforms over selected dimensions work as usual, e.g. `fft(x, (1, 2))` for a 2D transform of a higher-dimensional array.
-```

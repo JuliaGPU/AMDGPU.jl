@@ -32,4 +32,3 @@ Y = dS * B                        # SpMM
 ```
 
 Incomplete-factorization preconditioners (`ic0`, `ilu0`) and further sparse routines (conversions between formats, triangular solves, gather/scatter) are available in the `AMDGPU.rocSPARSE` submodule for building iterative solvers on the GPU.
-```

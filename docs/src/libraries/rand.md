@@ -29,4 +29,3 @@ AMDGPU.seed!(1234)
 ```
 
 This seeds both the rocRAND generator (used by `AMDGPU.rand`/`randn`) and the GPUArrays fallback generator, so results are reproducible regardless of which path a given operation takes.
-```
