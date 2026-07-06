@@ -6,7 +6,8 @@ using AMDGPU.MIOpen
 @assert AMDGPU.functional(:MIOpen)
 
 # ConvHipImplicitGemmGroupBwdXdlops segfaults on gfx942 (MI300, MIOpen 7.2.3)
-# and ignores its own MIOPEN_DEBUG disable flag. Skip until fixed upstream.
+# and ignores its own MIOPEN_DEBUG disable flag. Skip until fixed upstream:
+# https://github.com/ROCm/rocm-libraries/issues/9088
 _arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
 _skip_bwd_data = _arch_str == "gfx942"
 _skip_bwd_data && @info "Skipping convolution backward-data tests (MIOpen bug on gfx942)"
