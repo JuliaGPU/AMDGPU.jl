@@ -455,12 +455,25 @@ end
         (Float32, Float32),
     ]
         A = rand(elty, m, n)
-        dA = ROCMatrix(A)
-        abstol = tol_type(-1.0)
-        max_sweeps::Int32 = 100
+        k = min(m, n)
+        refS = svdvals(A)
 
-        U, S, V, residual, n_sweeps, info = AMDGPU.rocSOLVER.gesvdj!(dA, abstol, max_sweeps)
-        @test U * Diagonal(S) * V' ≈ dA
+        # economy factorization (default job modes)
+        U, S, Vt, residual, n_sweeps, info = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A))
+        @test info == 0
+        @test size(U) == (m, k) && size(Vt) == (k, n)
+        @test Vector(S) ≈ refS
+        @test U * Diagonal(S) * Vt ≈ ROCMatrix(A)
+
+        # full factorization
+        U, S, Vt, = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A); jobu='A', jobvt='A')
+        @test size(U) == (m, m) && size(Vt) == (n, n)
+        @test Array(U)[:, 1:k] * Diagonal(Vector(S)) * Array(Vt)[1:k, :] ≈ A
+
+        # singular values only
+        U, S, Vt, = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A); jobu='N', jobvt='N')
+        @test U === C_NULL && Vt === C_NULL
+        @test Vector(S) ≈ refS
     end
 end
 
