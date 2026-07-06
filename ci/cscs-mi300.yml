@@ -1,11 +1,46 @@
 include:
   - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
 
-unit_test:
+.unit_test_script: &unit_test_script
+  - srun -n 1 --uenv $UENV --view=default bash -c '
+      set -euo pipefail;
+      shopt -s nullglob;
+      MERGED_ROCM="$CI_PROJECT_DIR/.rocm-miopen";
+      rm -rf "$MERGED_ROCM";
+      mkdir -p "$MERGED_ROCM/lib";
+      for entry in "$ROCM_PATH"/*; do
+        name=$(basename "$entry");
+        [ "$name" = "lib" ] && continue;
+        ln -s "$entry" "$MERGED_ROCM/$name";
+      done;
+      ln -s "$ROCM_PATH"/lib/* "$MERGED_ROCM/lib/";
+      for libdir in "$MIOPEN_PREFIX/lib" "$MIOPEN_PREFIX/lib64"; do
+        ln -s "$libdir"/libMIOpen* "$MERGED_ROCM/lib/" 2>/dev/null || true;
+      done;
+      export ROCM_PATH="$MERGED_ROCM";
+      exec "$0" "$@"
+    ' $JULIA --project -e '
+      println("Instantiating project");
+      using Pkg;
+      Pkg.activate(pwd());
+      Pkg.instantiate();
+      using AMDGPU;
+      println("Running tests");
+      Pkg.test("AMDGPU"; test_args=`--jobs=32`);'
+
+UnitTest julia 1.12:
   extends: .baremetal-runner-beverin-mi300
   variables:
     JULIA: /users/lraess/julia_amd/juliaup/julia-1.12.6+0.x64.linux.gnu/bin/julia
-    UENV: b2550889de318ab5
+    UENV: ab517d8a08f537d2
+    MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-22x3pq72goxi4xwkknlspqhxbx72owes
+    # Workaround for MIOpen CK Group-Xdlops solvers segfaulting on gfx942 (MI300).
+    # Remove once fixed upstream: https://github.com/ROCm/rocm-libraries/issues/9088
+    MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC: "0"
+    MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
+    MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
+    MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
+    MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
     SLURM_JOB_NUM_NODES: 1
     SLURM_NTASKS_PER_NODE: 1
     SLURM_GPUS_PER_TASK: 2
@@ -15,13 +50,4 @@ unit_test:
     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
     JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
-  script:
-    - srun -n 1 --uenv $UENV --view=default $JULIA --project -e '
-        println("Instantiating project");
-        using Pkg;
-        Pkg.activate(pwd());
-        Pkg.instantiate();
-        using AMDGPU;
-        AMDGPU.versioninfo();
-        println("Running tests");
-        Pkg.test("AMDGPU"; test_args=`--jobs=32`);'
+  script: *unit_test_script
