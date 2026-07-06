@@ -44,8 +44,10 @@ function main()
             ],
             "API" => [
                 "Devices" => "api/devices.md",
+                "System and Configuration" => "api/system.md",
                 "Streams" => "api/streams.md",
                 "Kernel Programming" => "api/kernel_programming.md",
+                "Reflection" => "api/reflection.md",
                 "Graphs" => "api/graphs.md",
                 "Exceptions" => "api/exceptions.md",
                 "Memory" => "api/memory.md",
