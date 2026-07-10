@@ -12,14 +12,32 @@ end
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
 const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
 
-const _hip_compiler_cache = Dict{HIP.HIPDevice, Dict{Any, HIP.HIPFunction}}()
+"""
+    HIPResults
+
+Cached compilation results for a HIP kernel job, managed by
+`GPUCompiler.cached_results`. Session-portable artifacts (the lld-linked shared
+object `obj`, the entry-point name `entry`, and the detected `global_hostcalls`)
+are populated after codegen and persist across sessions (e.g. through package
+precompilation). The session-local `functions` are `HIPFunction` handles linked
+onto a specific device; they are device-specific and never populated during
+precompilation. `obj === nothing` identifies a job that has not been compiled yet.
+
+`functions` is a small linear cache of `(HIPDevice, HIPFunction)` pairs, matching the
+old per-device cache semantics; the scan is almost always over a single entry.
+"""
+mutable struct HIPResults
+    # session-portable artifacts
+    obj::Union{Nothing,Vector{UInt8}}       # lld-linked shared object
+    entry::Union{Nothing,String}
+    global_hostcalls::Vector{Symbol}
+    # session-local handles (never populated during precompilation)
+    functions::Vector{Tuple{HIP.HIPDevice,HIP.HIPFunction}}
+    HIPResults() = new(nothing, nothing, Symbol[], Tuple{HIP.HIPDevice,HIP.HIPFunction}[])
+end
 
 # hash(fun, hash(f, hash(tt))) => HIPKernel
 const _kernel_instances = Dict{UInt, Runtime.HIPKernel}()
-
-function compiler_cache(dev::HIP.HIPDevice)
-    get!(() -> Dict{UInt, Any}(), _hip_compiler_cache, dev)
-end
 
 GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
 
@@ -168,12 +186,33 @@ The following kwargs are supported:
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
     Base.@lock hipfunction_lock begin
         dev = AMDGPU.device()
-        cache = compiler_cache(dev)
         config = compiler_config(dev; kwargs...)
 
         source = methodinstance(F, tt)
-        fun = GPUCompiler.cached_compilation(
-            cache, source, config, hipcompile, hiplink)
+        job = CompilerJob(source, config)
+        res = compile_or_lookup(job)
+
+        # Resolve the `HIPFunction` for the active device. This is a session-local
+        # handle, so it lives in the results struct's linear cache rather than being
+        # persisted; the scan is almost always over a single entry, matching the old
+        # per-device cache (`==` compare, as `HIPDevice` was the Dict key before).
+        fun = nothing
+        for (cached_dev, cached_fun) in res.functions
+            if cached_dev == dev
+                fun = cached_fun
+                break
+            end
+        end
+        if fun === nothing
+            fun = hiplink(job, res.obj::Vector{UInt8}, res.entry::String,
+                          res.global_hostcalls)
+            # Don't cache session-local handles while generating output: the results
+            # struct is serialized into the package image along with its CodeInstance,
+            # and the handles would come back dangling.
+            if ccall(:jl_generating_output, Cint, ()) != 1
+                push!(res.functions, (dev, fun))
+            end
+        end
 
         h = hash(fun, hash(f, hash(tt)))
         kernel = get!(_kernel_instances, h) do
@@ -181,6 +220,25 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
         end
         return kernel::Runtime.HIPKernel{F, tt}
     end
+end
+
+# Look up the cached compilation artifacts for `job`, running the compiler on a miss.
+#
+# Storage is managed by `GPUCompiler.cached_results`: Julia's integrated code cache on
+# 1.11+ (which also persists artifacts through precompilation), or a session-local store
+# on 1.10. `obj === nothing` identifies a freshly-created `HIPResults` that hasn't been
+# compiled yet; the `compile_hook` check additionally forces the compile path so that
+# reflection consumers (`@device_code_*`) observe the compilation even on a cache hit.
+function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
+    res = GPUCompiler.cached_results(HIPResults, job)
+    if res === nothing || res.obj === nothing || GPUCompiler.compile_hook[] !== nothing
+        compiled = hipcompile(job)
+        res = @something res GPUCompiler.cached_results(HIPResults, job)
+        res.obj = compiled.obj
+        res.entry = compiled.entry
+        res.global_hostcalls = compiled.global_hostcalls
+    end
+    return res
 end
 
 function create_executable(obj)
@@ -250,8 +308,8 @@ function hipcompile(@nospecialize(job::CompilerJob))
     (; obj=create_executable(codeunits(obj)), entry, global_hostcalls)
 end
 
-function hiplink(@nospecialize(job::CompilerJob), compiled)
-    (; obj, entry, global_hostcalls) = compiled
+# link a compiled shared object into a session-local `HIPFunction` on the active device.
+function hiplink(@nospecialize(job::CompilerJob), obj, entry, global_hostcalls)
     mod = HIP.HIPModule(obj)
     HIP.HIPFunction(mod, entry, global_hostcalls)
 end
