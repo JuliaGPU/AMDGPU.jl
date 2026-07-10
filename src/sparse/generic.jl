@@ -335,6 +335,59 @@ function gemm!(
     return C
 end
 
+function gemm(
+    transa::SparseChar, transb::SparseChar, α::Number,
+    A::ROCSparseMatrixCSR{T,Ti}, B::ROCSparseMatrixCSR{T,Ti},
+    index::SparseChar,
+) where {T,Ti}
+    m, k = size(A)
+    k == size(B, 1) || throw(DimensionMismatch(
+        "A has dimensions $(size(A)) but B has dimensions $(size(B))"))
+    n = size(B, 2)
+    alpha = convert(T, α)
+    beta = zero(T)
+
+    if transa != 'N' || transb != 'N'
+        throw(ArgumentError("Sparse gemm only supports transa ($transa) = 'N' and transb ($transb) = 'N'"))
+    end
+
+    descA = ROCSparseMatrixDescriptor(A, index)
+    descB = ROCSparseMatrixDescriptor(B, index)
+    rowPtrC = ROCVector{Ti}(undef, m + 1)
+    descC = ROCSparseMatrixDescriptor(ROCSparseMatrixCSR, rowPtrC, T, Ti, m, n, index)
+
+    function bufferSize()
+        out = Ref{Csize_t}(0)
+        rocsparse_spgemm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, descC, T, rocsparse_spgemm_alg_default,
+            rocsparse_spgemm_stage_buffer_size, out, C_NULL)
+        return out[]
+    end
+
+    local C
+    with_workspace(bufferSize) do buffer
+        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
+        rocsparse_spgemm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, descC, T, rocsparse_spgemm_alg_default,
+            rocsparse_spgemm_stage_nnz, buffer_len_ref, buffer)
+
+        nnzC = Ref{Int64}()
+        rocsparse_spmat_get_size(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
+        colValC = ROCVector{Ti}(undef, nnzC[])
+        nzValC = ROCVector{T}(undef, nnzC[])
+        C = ROCSparseMatrixCSR{T,Ti}(rowPtrC, colValC, nzValC, (m, n))
+        rocsparse_csr_set_pointers(descC, C.rowPtr, C.colVal, C.nzVal)
+
+        rocsparse_spgemm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, descC, T, rocsparse_spgemm_alg_default,
+            rocsparse_spgemm_stage_compute, buffer_len_ref, buffer)
+    end
+    return C
+end
+
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{ROCSparseMatrixCSC{T},ROCSparseMatrixCSR{T},ROCSparseMatrixCOO{T}}, X::DenseROCVector{T},
              Y::DenseROCVector{T}, index::SparseChar, algo::rocsparse_spsv_alg=rocsparse_spsv_alg_default) where T

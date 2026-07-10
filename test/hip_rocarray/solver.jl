@@ -50,6 +50,17 @@ p = 5
         @test collect(dQ * dR) ≈ A
         @test collect(dR * dQ') ≈ (R * Q')
 
+        # Explicit lmul!/rmul! coverage for AdjointQ paths (Julia 1.10+).
+        dC = ROCMatrix{elty}(I, m, m)
+        @test collect(lmul!(dF.Q, copy(dC)))  ≈ lmul!(F.Q, Matrix{elty}(I, m, m))
+        @test collect(lmul!(dF.Q', copy(dC))) ≈ lmul!(F.Q', Matrix{elty}(I, m, m))
+        @test collect(rmul!(copy(dC), dF.Q))  ≈ rmul!(Matrix{elty}(I, m, m), F.Q)
+        @test collect(rmul!(copy(dC), dF.Q')) ≈ rmul!(Matrix{elty}(I, m, m), F.Q')
+        if elty <: Real
+            @test collect(lmul!(transpose(dF.Q), copy(dC))) ≈ lmul!(transpose(F.Q), Matrix{elty}(I, m, m))
+            @test collect(rmul!(copy(dC), transpose(dF.Q))) ≈ rmul!(Matrix{elty}(I, m, m), transpose(F.Q))
+        end
+
         A = rand(elty, n, m)
         dA = ROCArray(A)
         dF = qr(dA)
@@ -137,6 +148,26 @@ end
         db = ldiv!(dy, qr(dA), dx)
         @test Array(db) ≈ b
     end
+
+    @testset "qr(dA) \\ b, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty, m, n)
+        b = rand(elty, m)
+        B = rand(elty, m, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(qr(dA) \ db) ≈ qr(A) \ b
+        @test Array(qr(dA) \ dB) ≈ qr(A) \ B
+    end
+
+    @testset "qr(dA) \\ b mixed eltypes" begin
+        A = rand(Float32, m, n)
+        b = rand(Float64, m)
+        B = rand(Float64, m, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(qr(dA) \ db) ≈ qr(A) \ b rtol=sqrt(eps(Float32))
+        @test Array(qr(dA) \ dB) ≈ qr(A) \ B rtol=sqrt(eps(Float32))
+    end
 end
 
 @testset "geqrf! -- omgqr!" begin
@@ -190,6 +221,7 @@ end
         LAPACK.potrs!('U',A,B)
         @test B ≈ collect(d_B)
     end
+
     @testset "elty = $elty strided" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A    = rand(elty,n*2,n*2)
         A    = A*A' + I
@@ -203,8 +235,61 @@ end
         LAPACK.potrs!('U',copy(view(A,1:n,1:n)),B)
         @test B ≈ collect(d_B)
     end
+end
 
-        
+
+@testset "cholesky \\ b" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty, n, n); A = A * A' + n * I
+        b = rand(elty, n)
+        B = rand(elty, n, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(cholesky(dA) \ db) ≈ cholesky(A) \ b
+        @test Array(cholesky(dA) \ dB) ≈ cholesky(A) \ B
+    end
+
+    @testset "mixed eltypes" begin
+        A = rand(Float32, n, n); A = A * A' + n * I
+        b = rand(Float64, n)
+        B = rand(Float64, n, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(cholesky(dA) \ db) ≈ cholesky(A) \ b rtol=sqrt(eps(Float32))
+        @test Array(cholesky(dA) \ dB) ≈ cholesky(A) \ B rtol=sqrt(eps(Float32))
+    end
+end
+
+@testset "lu \\ b" begin
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty, n, n)
+        b = rand(elty, n)
+        B = rand(elty, n, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(lu(dA) \ db) ≈ lu(A) \ b
+        @test Array(lu(dA) \ dB) ≈ lu(A) \ B
+    end
+
+    @testset "mixed eltypes" begin
+        A = rand(Float32, n, n)
+        b = rand(Float64, n)
+        B = rand(Float64, n, p)
+        dA, db, dB = ROCArray(A), ROCArray(b), ROCArray(B)
+
+        @test Array(lu(dA) \ db) ≈ lu(A) \ b rtol=sqrt(eps(Float32))
+        @test Array(lu(dA) \ dB) ≈ lu(A) \ B rtol=sqrt(eps(Float32))
+    end
+
+    @testset "check kwarg" begin
+        dS = ROCArray(zeros(Float32, n, n))
+        @test_throws LinearAlgebra.SingularException lu(dS)
+        @test_nowarn lu(dS; check=false)
+        @test_nowarn lu!(copy(dS); allowsingular=true)
+        if VERSION >= v"1.12.0-DEV.0"
+            @test_nowarn lu(dS; allowsingular=true)
+        end
+    end
 end
 
 @testset "sytrf!" begin
@@ -370,12 +455,73 @@ end
         (Float32, Float32),
     ]
         A = rand(elty, m, n)
-        dA = ROCMatrix(A)
-        abstol = tol_type(-1.0)
-        max_sweeps::Int32 = 100
+        k = min(m, n)
+        refS = svdvals(A)
 
-        U, S, V, residual, n_sweeps, info = AMDGPU.rocSOLVER.gesvdj!(dA, abstol, max_sweeps)
-        @test U * Diagonal(S) * V' ≈ dA
+        # economy factorization (default job modes)
+        U, S, Vt, residual, n_sweeps, info = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A))
+        @test info == 0
+        @test size(U) == (m, k) && size(Vt) == (k, n)
+        @test Vector(S) ≈ refS
+        @test U * Diagonal(S) * Vt ≈ ROCMatrix(A)
+
+        # full factorization
+        U, S, Vt, = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A); jobu='A', jobvt='A')
+        @test size(U) == (m, m) && size(Vt) == (n, n)
+        @test Array(U)[:, 1:k] * Diagonal(Vector(S)) * Array(Vt)[1:k, :] ≈ A
+
+        # singular values only
+        U, S, Vt, = AMDGPU.rocSOLVER.gesvdj!(ROCMatrix(A); jobu='N', jobvt='N')
+        @test U === C_NULL && Vt === C_NULL
+        @test Vector(S) ≈ refS
+    end
+end
+
+@testset "svd / svdvals" begin
+    using AMDGPU.rocSOLVER: QRAlgorithm, JacobiAlgorithm
+
+    # Regression test for JuliaGPU/AMDGPU.jl#837: `svd`/`cond` were wrong or crashed via the divide-and-conquer (`gesdd!`) path. Was intermittent, so loop a few times.
+    @testset "#837 regression" begin
+        cpu = randn(10, 10)
+        gpu = ROCArray(cpu)
+        for _ in 1:5
+            @test Vector(svd(gpu).S) ≈ svd(cpu).S
+            @test cond(gpu) ≈ cond(cpu)
+        end
+    end
+
+    @testset "elty=$elty $(dm)x$(dn)" for elty in (Float32, Float64, ComplexF32, ComplexF64),
+                                          (dm, dn) in ((8, 8), (10, 6), (6, 10))
+        k = min(dm, dn)
+        A = rand(elty, dm, dn)
+        dA = ROCMatrix(A)
+        refS = svdvals(A)
+
+        @testset "alg=$alg" for alg in (JacobiAlgorithm(), QRAlgorithm())
+            F = svd(dA; alg)
+            @test Vector(F.S) ≈ refS
+            @test Array(F.U) * Diagonal(Vector(F.S)) * Array(F.Vt) ≈ A
+            @test size(F.U) == (dm, k) && size(F.Vt) == (k, dn)
+            @test Vector(svdvals(dA; alg)) ≈ refS
+
+            FF = svd(dA; full = true, alg)
+            @test size(FF.U) == (dm, dm) && size(FF.Vt) == (dn, dn)
+            @test Array(FF.U)[:, 1:k] * Diagonal(Vector(FF.S)) * Array(FF.Vt)[1:k, :] ≈ A
+        end
+
+        # svd! is destructive; the non-destructive svd leaves dA intact
+        @test Vector(svd!(copy(dA)).S) ≈ refS
+        @test Array(dA) ≈ A
+
+        @test cond(dA) ≈ cond(A)
+    end
+
+    # LinearAlgebra's algorithm singletons remain accepted
+    @testset "alg-singleton compat" begin
+        A = randn(Float64, 8, 8); dA = ROCMatrix(A); refS = svdvals(A)
+        @test Vector(svd(dA; alg = LinearAlgebra.QRIteration()).S) ≈ refS
+        @test Vector(svd(dA; alg = LinearAlgebra.DivideAndConquer()).S) ≈ refS
+        @test Vector(svdvals(dA; alg = LinearAlgebra.QRIteration())) ≈ refS
     end
 end
 
@@ -393,6 +539,48 @@ end
             for k in 1:length(E.values)
                 @allowscalar lambda = E.values[k]
                 @test dA * E.vectors[:, k] ≈ lambda .* E.vectors[:, k]
+            end
+        end
+    end
+
+    @testset "generalized matrix type = $matrix_type" for (matrix_type, eltypes) in [
+        (Symmetric, [Float32, Float64]),
+        (Hermitian, [Float32, Float64, ComplexF32, ComplexF64]),
+    ]
+        @testset "elty = $elty" for elty in eltypes
+            A = rand(elty, m, m); A = matrix_type(A * A' + m * I)
+            B = rand(elty, m, m); B = matrix_type(B * B' + m * I)
+            dA = matrix_type(ROCMatrix(Matrix(A)))
+            dB = matrix_type(ROCMatrix(Matrix(B)))
+
+            E = eigen(dA, dB)
+
+            @test Array(E.values) ≈ eigen(A, B).values
+            for k in 1:length(E.values)
+                @allowscalar lambda = E.values[k]
+                @test dA * E.vectors[:, k] ≈ lambda .* (dB * E.vectors[:, k])
+            end
+        end
+    end
+
+    @testset "generalized mixed real wrappers" begin
+        @testset "elty = $elty" for elty in [Float32, Float64]
+            A = rand(elty, m, m); A = A * A' + m * I
+            B = rand(elty, m, m); B = B * B' + m * I
+            dA = ROCMatrix(A)
+            dB = ROCMatrix(B)
+
+            for (gpu_A, gpu_B, cpu_A, cpu_B) in (
+                (Hermitian(dA), Symmetric(dB), Hermitian(A), Symmetric(B)),
+                (Symmetric(dA), Hermitian(dB), Symmetric(A), Hermitian(B)),
+            )
+                E = eigen(gpu_A, gpu_B)
+
+                @test Array(E.values) ≈ eigen(cpu_A, cpu_B).values
+                for k in 1:length(E.values)
+                    @allowscalar lambda = E.values[k]
+                    @test gpu_A * E.vectors[:, k] ≈ lambda .* (gpu_B * E.vectors[:, k])
+                end
             end
         end
     end

@@ -1,9 +1,9 @@
 # WMMA (Wavefront Matrix Multiply-Accumulate) intrinsics for RDNA 3 (GFX11)
 # https://github.com/llvm/llvm-project/blob/main/llvm/test/CodeGen/AMDGPU/llvm.amdgcn.wmma_32.ll
 
-export WMMA
+export WMMA_RDNA3
 
-module WMMA
+module WMMA_RDNA3
 
 export Fragment, M, N, K
 export ColMajor, RowMajor
@@ -262,4 +262,4 @@ for (fname, arg_T) in ((_f32_16x16x16_f16, Float16), (_f32_16x16x16_bf16, Int16)
         FragmentC_F32($fname(a.data, b.data, c.data))
 end
 
-end # module WMMA
+end # module WMMA_RDNA3

@@ -1,5 +1,4 @@
 import Base: FastMath
-import SpecialFunctions
 
 const DEFINED_UNARY_INTRNISICS = [
     (:Base, :acos), (:Base, :acosh), (nothing, :acospi), (:Base, :cos), (:Base, :cosh), (:Base, :cospi),
@@ -11,7 +10,10 @@ const DEFINED_UNARY_INTRNISICS = [
     (:Base, :floor), (:Base, :ceil), (:Base, :trunc),
     (nothing, :nearbyint), (nothing, :nextafter),
 ]
-# SpecialFunctions (SF.fname, OCML intrinsic).
+# SpecialFunctions (SF.fname, OCML intrinsic). The device overrides themselves
+# live in `AMDGPUSpecialFunctionsExt`; this list stays here (it is just symbol
+# pairs, with no SpecialFunctions dependency) as the single source of truth used
+# both by the extension and by the test suite.
 const DEFINED_SF_INTRINSICS = [
     (:loggamma, :lgamma), (:gamma, :tgamma),
     (:bessely0, :y0), (:bessely1, :y1), (:besselj0, :j0), (:besselj1, :j1),
@@ -34,11 +36,6 @@ for jltype in (Float64, Float32, Float16)
         else
             @eval @device_override $mod.$intrinsic(x::$jltype) = ccall($fname, llvmcall, $jltype, ($jltype,), x)
         end
-    end
-
-    for (fname, intrinsic) in DEFINED_SF_INTRINSICS
-        @eval @device_override SpecialFunctions.$(fname)(x::$jltype) = ccall(
-            $("extern __ocml_$(intrinsic)_$(type_suffix)"), llvmcall, $jltype, ($jltype,), x)
     end
 
     @eval @device_override Base.abs(x::$jltype) = ccall(

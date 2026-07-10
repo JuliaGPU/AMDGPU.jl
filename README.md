@@ -2,9 +2,9 @@
 
 *AMD GPU (ROCm) programming in Julia*
 
-[![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] [![][benchmark-img]][benchmark-url]
+[![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] [![][buildkite-img]][buildkite-url] [![][cscs-ci-img]][cscs-ci-url] [![][codecov-img]][codecov-url] [![][benchmark-img]][benchmark-url]
 
-[![][doi-img]][doi-url] [![][downloads-img]][downloads-url]
+[![][downloads-img]][downloads-url] [![][doi-img]][doi-url]
 
 [doi-img]: https://zenodo.org/badge/DOI/10.5281/zenodo.10040461.svg
 [doi-url]: https://doi.org/10.5281/zenodo.10040461
@@ -26,6 +26,9 @@
 
 [benchmark-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
 [benchmark-url]: https://amdgpu.juliagpu.org/bench/
+
+[cscs-ci-img]: https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/3266148763123078/6677263153381401/badges/main/pipeline.svg?ignore_skipped=true
+[cscs-ci-url]: https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/3266148763123078/6677263153381401/-/pipelines
 
 ## Quick start
 

@@ -10,4 +10,8 @@ include(joinpath("gcn", "execution_control.jl"))
 include(joinpath("gcn", "hostcall.jl"))
 include(joinpath("gcn", "output.jl"))
 include(joinpath("gcn", "memory_dynamic.jl"))
-include(joinpath("gcn", "wmma.jl"))
+include(joinpath("gcn", "wmma_rdna3.jl"))
+# TODO Remove this alias for the next major release
+const WMMA = WMMA_RDNA3
+export WMMA
+include(joinpath("gcn", "wmma_rdna4.jl"))

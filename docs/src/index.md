@@ -93,6 +93,19 @@ gridsize = cld(length(c), groupsize)
 @assert (a .+ b) ≈ c
 ```
 
+## Feature overview
+
+| Area | What you get | Learn more |
+|:--|:--|:--|
+| Arrays | Dense `ROCArray`, broadcasting, reductions, sorting | [Array Programming](usage/arrays.md) |
+| Kernels | Native `@roc` kernels and portable [KernelAbstractions](usage/kernelabstractions.md) | [Kernel Programming](api/kernel_programming.md) |
+| Multi-GPU | Task-local devices and streams | [Tasks and Streams](usage/multitasking.md) |
+| Linear algebra | `*`, `\`, `cholesky`, `lu`, `qr` via rocBLAS/rocSOLVER | [Linear Algebra](libraries/linalg.md) |
+| Sparse | CSR/CSC/COO arrays, SpMV/SpMM via rocSPARSE | [Sparse Arrays](libraries/sparse.md) |
+| FFT | `fft`/`plan_fft` via rocFFT | [Fourier Transforms](libraries/fft.md) |
+| Random | `rand`/`randn` via rocRAND | [Random Numbers](libraries/rand.md) |
+| Deep learning | Conv/pooling/softmax via MIOpen (NNlib/Flux) | [Deep Learning (MIOpen)](libraries/dnn.md) |
+
 ## Questions and Contributions
 
 Usage questions can be posted on the

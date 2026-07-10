@@ -12,6 +12,7 @@ using ..AMDGPU
 using ..AMDGPU: @allowscalar
 using ..AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
 
+import GPUArrays: _sptranspose, _spadjoint
 import SparseArrays: SparseVector, SparseMatrixCSC
 import AMDGPU: librocsparse, HandleCache, HIP, library_state, ROCVector
 import AMDGPU.Device: ROCDeviceVector

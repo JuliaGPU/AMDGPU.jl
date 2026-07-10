@@ -1,0 +1,125 @@
+using Test
+using AMDGPU
+using AMDGPU: ROCArray, @roc
+using BFloat16s
+using AMDGPU.Device: WMMA_RDNA4, workitemIdx, workgroupIdx
+
+AMDGPU.allowscalar(false)
+
+# Only run WMMA_RDNA4 tests on RDNA4+ (gfx1200+)
+_arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
+gfx = parse(Int, _arch_str[4:end])
+is_rdna4 = 1200 <= gfx < 1300
+
+if !is_rdna4
+  @info "Skipping WMMA_RDNA4 tests (requires RDNA4+ / gfx1200+)"
+else
+  # Tile base pointer + stride for A (M×K) by layout.
+  _a_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_row, k, M, K, ::Type{T}) where {T} =
+    ptr + (k * M + tile_row) * Int32(sizeof(T)), M
+  _a_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_row, k, M, K, ::Type{T}) where {T} =
+    ptr + (tile_row * K + k) * Int32(sizeof(T)), K
+
+  # Tile base pointer + stride for B (K×N) by layout.
+  _b_tile(ptr, ::Type{WMMA_RDNA4.ColMajor}, tile_col, k, N, K, ::Type{T}) where {T} =
+    ptr + (tile_col * K + k) * Int32(sizeof(T)), K
+  _b_tile(ptr, ::Type{WMMA_RDNA4.RowMajor}, tile_col, k, N, K, ::Type{T}) where {T} =
+    ptr + (k * N + tile_col) * Int32(sizeof(T)), N
+
+  function wmma_rdna4_kernel!(
+    C::AbstractArray{R},
+    A::AbstractArray{T}, B,
+    M::Int32, N::Int32, K::Int32,
+    layout, scale::Float32,
+  ) where {R,T}
+    tile_row = (workgroupIdx().x - Int32(1)) * Int32(WMMA_RDNA4.M)
+    tile_col = (workgroupIdx().y - Int32(1)) * Int32(WMMA_RDNA4.N)
+
+    C_ptr = pointer(C)
+    A_ptr = pointer(A)
+    B_ptr = pointer(B)
+
+    c_frag = WMMA_RDNA4.fill_c(Float32, 0.0f0)
+    k = Int32(0)
+    while k < K
+      a_ptr, a_stride = _a_tile(A_ptr, layout, tile_row, k, M, K, T)
+      b_ptr, b_stride = _b_tile(B_ptr, layout, tile_col, k, N, K, T)
+
+      a_frag = WMMA_RDNA4.load_a(a_ptr, a_stride, layout)
+      b_frag = WMMA_RDNA4.load_b(b_ptr, b_stride, layout)
+      c_frag = WMMA_RDNA4.mma(a_frag, b_frag, c_frag)
+
+      k += Int32(WMMA_RDNA4.K)
+    end
+
+    c_frag = c_frag .* scale
+    if layout == WMMA_RDNA4.ColMajor
+      c_ptr = C_ptr + (tile_col * M + tile_row) * Int32(sizeof(R))
+      stride = M
+    else
+      c_ptr = C_ptr + (tile_row * N + tile_col) * Int32(sizeof(R))
+      stride = N
+    end
+    WMMA_RDNA4.store_d(c_ptr, c_frag, stride, layout)
+    return
+  end
+
+  @testset "WMMA_RDNA4" begin
+    @testset "ColMajor $M×$N: $arg_T -> $res_T" for (M, N, K) in (
+        (64, 64, 64), (128, 128, 128),
+      ), arg_T in (Float16, BFloat16), res_T in (Float16, BFloat16, Float32)
+      A_host = arg_T.(rand(M, K))
+      B_host = arg_T.(rand(K, N))
+      A, B = ROCArray(A_host), ROCArray(B_host)
+      C = ROCArray(zeros(res_T, M, N))
+      # RDNA4 should have similar or better accuracy than RDNA3
+      tol = sizeof(res_T) == 4 ? 0.05 : 0.3
+
+      tiles_m, tiles_n = M ÷ WMMA_RDNA4.M, N ÷ WMMA_RDNA4.N
+      @roc gridsize = (tiles_m, tiles_n) groupsize = 32 wmma_rdna4_kernel!(
+        C, A, B, Int32(M), Int32(N), Int32(K), WMMA_RDNA4.ColMajor, 1.0f0)
+      @test maximum(abs.(Float32.(C) .- (Float32.(A) * Float32.(B)))) < tol
+    end
+
+    @testset "Fragment broadcast: $M\u00d7$N $arg_T" for (M, N, K) in (
+        (64, 64, 64), (128, 128, 128),
+      ), arg_T in (Float16, BFloat16)
+      scale = rand(Float32)
+      A_host = arg_T.(rand(M, K))
+      B_host = arg_T.(rand(K, N))
+      A, B = ROCArray(A_host), ROCArray(B_host)
+      C = ROCArray(zeros(Float32, M, N))
+
+      tiles_m, tiles_n = M ÷ WMMA_RDNA4.M, N ÷ WMMA_RDNA4.N
+      @roc gridsize = (tiles_m, tiles_n) groupsize = 32 wmma_rdna4_kernel!(
+        C, A, B, Int32(M), Int32(N), Int32(K), WMMA_RDNA4.ColMajor, scale)
+      expected = scale .* (Float32.(A) * Float32.(B))
+      @test maximum(abs.(Float32.(C) .- expected)) < 0.05
+    end
+
+    @testset "RowMajor $M\u00d7$N: $arg_T -> $res_T" for (M, N, K) in (
+        (64, 64, 64), (128, 128, 128),
+      ), arg_T in (Float16, BFloat16), res_T in (Float16, BFloat16, Float32)
+      A_host = arg_T.(rand(M, K))
+      B_host = arg_T.(rand(K, N))
+      # For RowMajor storage, we need to transpose since AMDGPU uses ColMajor by default
+      A = ROCArray(A_host')
+      B = ROCArray(B_host')
+      C = ROCArray(zeros(res_T, N, M))
+      tol = sizeof(res_T) == 4 ? 0.05 : 0.3
+
+      tiles_m, tiles_n = M ÷ WMMA_RDNA4.M, N ÷ WMMA_RDNA4.N
+      @roc gridsize = (tiles_m, tiles_n) groupsize = 32 wmma_rdna4_kernel!(
+        C, A, B, Int32(M), Int32(N), Int32(K), WMMA_RDNA4.RowMajor, 1.0f0)
+      C_mat = copy(Float32.(C)')
+      @test maximum(abs.(
+        C_mat .- ROCArray(Float32.(A_host)) * ROCArray(Float32.(B_host))
+      )) < tol
+    end
+
+    # Test that tile dimensions are correct
+    @test WMMA_RDNA4.M == 16
+    @test WMMA_RDNA4.N == 16
+    @test WMMA_RDNA4.K == 16
+  end
+end

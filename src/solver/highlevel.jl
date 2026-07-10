@@ -29,13 +29,14 @@ for (fname, elty) in (
     (:rocsolver_zpotrs, :ComplexF64),
 )
     @eval begin
-        function potrs!(uplo::Char, A::ROCMatrix{$elty}, B::ROCVecOrMat{$elty})
+        function potrs!(uplo::Char, A::ROCMatrix{$elty}, B::StridedROCVecOrMat{$elty})
             chkuplo(uplo)
             n = checksquare(A)
-            m, nrhs = size(B)
+            m = size(B, 1)
+            nrhs = size(B, 2)
             (m == n) || throw(DimensionMismatch("first dimension of B, $m, must match second dimension of A, $n"))
-            lda  = max(1, stride(A, 2))
-            ldb  = max(1, stride(B, 2))
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
             $fname(rocBLAS.handle(), uplo, n, nrhs, A, lda, B, ldb)
 
             B
@@ -104,7 +105,7 @@ for (fname, elty) in (
     @eval begin
         function ormqr!(
             side::Char, trans::Char, A::ROCMatrix{$elty},
-            τ::ROCVector{$elty}, C::ROCVecOrMat{$elty},
+            τ::ROCVector{$elty}, C::StridedROCVecOrMat{$elty},
         )
             $elty <: Complex && trans == 'T' && throw(ArgumentError(
                 "rocSOLVER.ormqr! supports only 'N' or 'C' for Complex types, " *
@@ -191,7 +192,7 @@ for (fname, elty) in (
     @eval begin
         function getrs!(
             trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint},
-            B::ROCVecOrMat{$elty}
+            B::StridedROCVecOrMat{$elty}
         )
             trans = ($elty <: Real && trans == 'C') ? 'T' : trans
             chktrans(trans)
@@ -373,6 +374,50 @@ for (jname, fname, elty, relty) in (
     end
 end
 
+for (jname, fname, elty, relty) in (
+    (:sygvd!, :rocsolver_dsygvd, :Float64   , :Float64),
+    (:sygvd!, :rocsolver_ssygvd, :Float32   , :Float32),
+    (:hegvd!, :rocsolver_zhegvd, :ComplexF64, :Float64),
+    (:hegvd!, :rocsolver_chegvd, :ComplexF32, :Float32),
+)
+    @eval begin
+        function $jname(uplo::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
+            chkuplo(uplo)
+
+            n = checksquare(A)
+            checksquare(B) == n || throw(DimensionMismatch("A and B must have the same size"))
+            lda = max(1, stride(A, 2))
+            ldb = max(1, stride(B, 2))
+
+            D = ROCVector{$relty}(undef, n)
+            E = ROCVector{$relty}(undef, n)
+
+            dev_info = ROCVector{Cint}(undef, 1)
+
+            $fname(
+                rocBLAS.handle(),
+                rocblas_eform_ax,
+                rocblas_evect_original,
+                uplo,
+                n, A, lda,
+                B, ldb,
+                D, E,
+                dev_info
+            )
+
+            info = AMDGPU.@allowscalar dev_info[1]
+            AMDGPU.unsafe_free!(dev_info)
+
+            AMDGPU.unsafe_free!(E)
+
+            chkargsok(BlasInt(info))
+            info > 0 && throw(LinearAlgebra.PosDefException(BlasInt(info)))
+
+            D, A
+        end
+    end
+end
+
 for (fname, matrix_elty, vector_elty) in (
     (:rocsolver_zgesvdj, :ComplexF64, :Float64),
     (:rocsolver_cgesvdj, :ComplexF32, :Float32),
@@ -380,35 +425,58 @@ for (fname, matrix_elty, vector_elty) in (
     (:rocsolver_sgesvdj, :Float32, :Float32),
 )
     @eval begin
-        function gesvdj!(A::ROCMatrix{$matrix_elty}, abstol::$vector_elty, max_sweeps::Cint)
+        function gesvdj!(
+            A::ROCMatrix{$matrix_elty};
+            jobu::Char='S', jobvt::Char='S',
+            abstol::$vector_elty=eps($vector_elty), max_sweeps::Integer=100,
+        )
             m, n = size(A)
+            k = min(m, n)
             lda = max(1, stride(A, 2))
+
+            # `U` holds the left singular vectors (m×m for 'A', m×k for 'S').
+            U = if jobu === 'A'
+                ROCMatrix{$matrix_elty}(undef, m, m)
+            elseif jobu === 'S'
+                ROCMatrix{$matrix_elty}(undef, m, k)
+            elseif jobu === 'N'
+                C_NULL
+            else
+                error("jobu must be one of 'A', 'S', or 'N'")
+            end
+            ldu = U == C_NULL ? 1 : max(1, stride(U, 2))
+
+            S = ROCVector{$vector_elty}(undef, k)
+
+            # `Vt` holds the (conjugate-)transposed right singular vectors, laid
+            # out exactly as `gesvd!` returns them (n×n for 'A', k×n for 'S'),
+            # so both routines share the `(U, S, Vt)` convention.
+            Vt = if jobvt === 'A'
+                ROCMatrix{$matrix_elty}(undef, n, n)
+            elseif jobvt === 'S'
+                ROCMatrix{$matrix_elty}(undef, k, n)
+            elseif jobvt === 'N'
+                C_NULL
+            else
+                error("jobvt must be one of 'A', 'S', or 'N'")
+            end
+            ldvt = Vt == C_NULL ? 1 : max(1, stride(Vt, 2))
+
             dev_residual = ROCVector{$vector_elty}(undef, 1)
-
             dev_n_sweeps = ROCVector{Cint}(undef, 1)
-
-            S = ROCArray{$vector_elty}(undef, min(m, n))
-            U = ROCMatrix{$matrix_elty}(undef, (m, min(m, n)))
-            ldu = m
-            @assert stride(U, 2) == ldu
-            V = ROCMatrix{$matrix_elty}(undef, (min(m, n), n))
-            ldv = min(m, n)
-            @assert stride(V, 2) == ldv
-
             dev_info = ROCVector{Cint}(undef, 1)
 
             $fname(
                 rocBLAS.handle(),
-                rocblas_svect_singular,
-                rocblas_svect_singular,
+                jobu, jobvt,
                 m, n, A, lda,
                 abstol,
                 dev_residual,
-                max_sweeps,
+                Cint(max_sweeps),
                 dev_n_sweeps,
                 S,
                 U, ldu,
-                V, ldv,
+                Vt, ldvt,
                 dev_info
             )
             residual = AMDGPU.@allowscalar dev_residual[1]
@@ -420,7 +488,7 @@ for (fname, matrix_elty, vector_elty) in (
             info = AMDGPU.@allowscalar dev_info[1]
             AMDGPU.unsafe_free!(dev_info)
 
-            U, S, V', residual, n_sweeps, info
+            return U, S, Vt, residual, n_sweeps, info
         end
     end
 end
@@ -557,51 +625,39 @@ end
 LinearAlgebra.qr!(A::ROCMatrix{T}) where T = QR(geqrf!(A)...)
 
 LinearAlgebra.lmul!(
-    A::QRPackedQ{T,<:ROCArray,<:ROCArray}, B::ROCVecOrMat{T},
+    A::QRPackedQ{T,<:ROCArray,<:ROCArray}, B::StridedROCVecOrMat{T},
 ) where T =
     ormqr!('L', 'N', A.factors, A.τ, B)
 
 LinearAlgebra.lmul!(
-    adjA::Adjoint{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-    B::ROCVecOrMat{T},
+    adjA::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    B::StridedROCVecOrMat{T},
 ) where T <: rocBLAS.ROCBLASReal =
-    ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
+    ormqr!('L', 'T', adjA.Q.factors, adjA.Q.τ, B)
 
 LinearAlgebra.lmul!(
-    adjA::Adjoint{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-    B::ROCVecOrMat{T},
+    adjA::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    B::StridedROCVecOrMat{T},
 ) where T <: rocBLAS.ROCBLASComplex =
-    ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
-
-LinearAlgebra.lmul!(
-    trA::Transpose{T,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-    B::ROCVecOrMat{T},
-) where T <: rocBLAS.ROCBLASFloat =
-    ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
+    ormqr!('L', 'C', adjA.Q.factors, adjA.Q.τ, B)
 
 LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
+    A::StridedROCVecOrMat{T},
     B::QRPackedQ{T,<:ROCArray,<:ROCArray},
 ) where T <: rocBLAS.ROCBLASFloat =
     ormqr!('R', 'N', B.factors, B.τ, A)
 
 LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
-    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    A::StridedROCVecOrMat{T},
+    adjB::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
 ) where T <: rocBLAS.ROCBLASReal =
-    ormqr!('R', 'T', parent(adjB).factors, parent(adjB).τ, A)
+    ormqr!('R', 'T', adjB.Q.factors, adjB.Q.τ, A)
 
 LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
-    adjB::Adjoint{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
+    A::StridedROCVecOrMat{T},
+    adjB::LinearAlgebra.AdjointQ{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
 ) where T <: rocBLAS.ROCBLASComplex =
-    ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
-
-LinearAlgebra.rmul!(
-    A::ROCVecOrMat{T},
-    trA::Transpose{<:Any,<:QRPackedQ{T,<:ROCArray,<:ROCArray}},
-) where T <: rocBLAS.ROCBLASFloat =
-    ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
+    ormqr!('R', 'C', adjB.Q.factors, adjB.Q.τ, A)
 
 function LinearAlgebra.ldiv!(_qr::QR, b::ROCVector)
     m, n = size(_qr)
@@ -626,23 +682,174 @@ function LinearAlgebra.ldiv!(x::ROCArray, _qr::QR, b::ROCArray)
     return x
 end
 
+# Override \ for GPU QR to avoid stdlib's _zeros() allocating CPU arrays.
+function Base.:\(F::QR{T,<:ROCMatrix,<:ROCVector}, b::ROCVector{T}) where T
+    ldiv!(F, copy(b))
+end
+
+function Base.:\(F::QR{<:Any,<:ROCMatrix,<:ROCVector}, b::ROCVector)
+    factors, τ, b = copy_rocblasfloat(F.factors, F.τ, b)
+    ldiv!(QR(factors, τ), b)
+end
+
+function Base.:\(F::QR{T,<:ROCMatrix,<:ROCVector}, B::ROCMatrix{T}) where T
+    ldiv!(F, copy(B))
+end
+
+function Base.:\(F::QR{<:Any,<:ROCMatrix,<:ROCVector}, B::ROCMatrix)
+    factors, τ, B = copy_rocblasfloat(F.factors, F.τ, B)
+    ldiv!(QR(factors, τ), B)
+end
+
+# Cholesky
+
+function LinearAlgebra.ldiv!(C::Cholesky{T,<:ROCMatrix}, B::ROCVecOrMat{T}) where T <: rocBLAS.ROCBLASFloat
+    rocSOLVER.potrs!(C.uplo, C.factors, B)
+    return B
+end
+
+function Base.:\(F::Cholesky{T,<:ROCMatrix}, b::ROCVector{T}) where T
+    ldiv!(F, copy(b))
+end
+
+function Base.:\(F::Cholesky{<:Any,<:ROCMatrix}, b::ROCVector)
+    factors, b = copy_rocblasfloat(F.factors, b)
+    ldiv!(Cholesky(factors, F.uplo, F.info), b)
+end
+
+function Base.:\(F::Cholesky{T,<:ROCMatrix}, B::ROCMatrix{T}) where T
+    ldiv!(F, copy(B))
+end
+
+function Base.:\(F::Cholesky{<:Any,<:ROCMatrix}, B::ROCMatrix)
+    factors, B = copy_rocblasfloat(F.factors, B)
+    ldiv!(Cholesky(factors, F.uplo, F.info), B)
+end
+
+# LU
+function LinearAlgebra.ldiv!(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCVecOrMat{T}) where T <: rocBLAS.ROCBLASFloat
+    rocSOLVER.getrs!('N', F.factors, F.ipiv, B)
+    return B
+end
+
+function Base.:\(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, b::ROCVector{T}) where T
+    ldiv!(F, copy(b))
+end
+
+function Base.:\(F::LU{<:Any,<:ROCMatrix,<:ROCVector{Cint}}, b::ROCVector)
+    factors, b = copy_rocblasfloat(F.factors, b)
+    ldiv!(LU{eltype(factors),typeof(factors),typeof(F.ipiv)}(factors, F.ipiv, F.info), b)
+end
+
+function Base.:\(F::LU{T,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCMatrix{T}) where T
+    ldiv!(F, copy(B))
+end
+
+function Base.:\(F::LU{<:Any,<:ROCMatrix,<:ROCVector{Cint}}, B::ROCMatrix)
+    factors, B = copy_rocblasfloat(F.factors, B)
+    ldiv!(LU{eltype(factors),typeof(factors),typeof(F.ipiv)}(factors, F.ipiv, F.info), B)
+end
+
+function LinearAlgebra.lu!(
+    A::ROCMatrix{T}, ::LinearAlgebra.RowMaximum = LinearAlgebra.RowMaximum();
+    check::Bool = true,
+    allowsingular::Bool = false,
+) where T <: rocBLAS.ROCBLASFloat
+    factors, ipiv, info = rocSOLVER.getrf!(A)
+    check && !allowsingular && LinearAlgebra.checknonsingular(BlasInt(info))
+    return LU{T,typeof(factors),typeof(ipiv)}(factors, ipiv, BlasInt(info))
+end
+
+# SVD
+
+"""
+    SVDAlgorithm
+
+Abstract supertype selecting which rocSOLVER routine backs `svd`/`svdvals` on a
+`ROCArray`: [`QRAlgorithm`](@ref) or [`JacobiAlgorithm`](@ref).
+"""
+abstract type SVDAlgorithm end
+
+"""
+    QRAlgorithm <: SVDAlgorithm
+
+Compute the SVD with rocSOLVER's QR iteration (`gesvd!`).
+"""
+struct QRAlgorithm <: SVDAlgorithm end
+
+"""
+    JacobiAlgorithm <: SVDAlgorithm
+
+Compute the SVD with rocSOLVER's one-sided Jacobi method (`gesvdj!`). This is
+the default for `ROCArray`, as it is typically faster than [`QRAlgorithm`](@ref)
+on AMD GPUs.
+"""
+struct JacobiAlgorithm <: SVDAlgorithm end
+
+# NOTE: LinearAlgebra's default SVD path calls `LAPACK.gesdd!`, which rocSOLVER does not implement, so we own the whole `svd`/`svdvals` family for ROCMatrix and dispatch to `gesvd!`/`gesvdj!` (see JuliaGPU/AMDGPU.jl#837).
+
+function LinearAlgebra.svd!(
+    A::ROCMatrix{T}; full::Bool = false, alg = JacobiAlgorithm(),
+) where T <: rocBLAS.ROCBLASFloat
+    return _svd!(A, full, alg)
+end
+
+LinearAlgebra.svd(A::ROCMatrix; full::Bool = false, alg = JacobiAlgorithm()) =
+    svd!(copy_rocblasfloat(A); full, alg)
+
+function _svd!(A::ROCMatrix{T}, full::Bool, ::QRAlgorithm) where T <: rocBLAS.ROCBLASFloat
+    job = full ? 'A' : 'S'
+    U, S, Vt = gesvd!(job, job, A)
+    return LinearAlgebra.SVD(U, S, Vt)
+end
+
+function _svd!(A::ROCMatrix{T}, full::Bool, ::JacobiAlgorithm) where T <: rocBLAS.ROCBLASFloat
+    job = full ? 'A' : 'S'
+    U, S, Vt = gesvdj!(A; jobu = job, jobvt = job)
+    return LinearAlgebra.SVD(U, S, Vt)
+end
+
+# Accept LinearAlgebra's own algorithm singletons: `QRIteration` maps to our QR path (keeps the old `svd(A; alg=QRIteration())` workaround working), and `DivideAndConquer` (whose `gesdd!` is unavailable) maps to Jacobi.
+_svd!(A::ROCMatrix, full::Bool, ::LinearAlgebra.QRIteration) = _svd!(A, full, QRAlgorithm())
+_svd!(A::ROCMatrix, full::Bool, ::LinearAlgebra.DivideAndConquer) = _svd!(A, full, JacobiAlgorithm())
+_svd!(A::ROCMatrix, full::Bool, alg) =
+    throw(ArgumentError("Unsupported SVD algorithm `$alg` for ROCArray."))
+
+function LinearAlgebra.svdvals!(A::ROCMatrix{T}; alg = JacobiAlgorithm()) where T <: rocBLAS.ROCBLASFloat
+    return _svdvals!(A, alg)
+end
+
+LinearAlgebra.svdvals(A::ROCMatrix; alg = JacobiAlgorithm()) =
+    svdvals!(copy_rocblasfloat(A); alg)
+
+_svdvals!(A::ROCMatrix{T}, ::QRAlgorithm) where T <: rocBLAS.ROCBLASFloat =
+    gesvd!('N', 'N', A)[2]
+_svdvals!(A::ROCMatrix{T}, ::JacobiAlgorithm) where T <: rocBLAS.ROCBLASFloat =
+    gesvdj!(A; jobu = 'N', jobvt = 'N')[2]
+_svdvals!(A::ROCMatrix, ::LinearAlgebra.QRIteration) = _svdvals!(A, QRAlgorithm())
+_svdvals!(A::ROCMatrix, ::LinearAlgebra.DivideAndConquer) = _svdvals!(A, JacobiAlgorithm())
+_svdvals!(A::ROCMatrix, alg) =
+    throw(ArgumentError("Unsupported SVD algorithm `$alg` for ROCArray."))
+
 # LAPACK
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         LinearAlgebra.LAPACK.potrf!(uplo::Char, A::StridedROCMatrix{$elty}) = rocSOLVER.potrf!(uplo, A)
-        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::ROCMatrix{$elty}, B::ROCVecOrMat{$elty}) = rocSOLVER.potrs!(uplo, A, B)
+        LinearAlgebra.LAPACK.potrs!(uplo::Char, A::ROCMatrix{$elty}, B::StridedROCVecOrMat{$elty}) = rocSOLVER.potrs!(uplo, A, B)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}) = rocSOLVER.sytrf!(uplo, A)
         LinearAlgebra.LAPACK.sytrf!(uplo::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.sytrf!(uplo, A, ipiv)
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}) = rocSOLVER.geqrf!(A)
         LinearAlgebra.LAPACK.geqrf!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.geqrf!(A, tau)
         LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}) = rocSOLVER.getrf!(A)
         LinearAlgebra.LAPACK.getrf!(A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}) = rocSOLVER.getrf!(A, ipiv)
-        LinearAlgebra.LAPACK.getrs!(trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}, B::ROCVecOrMat{$elty}) = rocSOLVER.getrs!(trans, A, ipiv, B)
-        LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::ROCMatrix{$elty}, tau::ROCVector{$elty}, C::ROCVecOrMat{$elty}) = rocSOLVER.ormqr!(side, trans, A, tau, C)
+        LinearAlgebra.LAPACK.getrs!(trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint}, B::StridedROCVecOrMat{$elty}) = rocSOLVER.getrs!(trans, A, ipiv, B)
+        LinearAlgebra.LAPACK.ormqr!(side::Char, trans::Char, A::ROCMatrix{$elty}, tau::ROCVector{$elty}, C::StridedROCVecOrMat{$elty}) = rocSOLVER.ormqr!(side, trans, A, tau, C)
         LinearAlgebra.LAPACK.orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty}) = rocSOLVER.orgqr!(A, tau)
         LinearAlgebra.LAPACK.gebrd!(A::ROCMatrix{$elty}) = rocSOLVER.gebrd!(A)
         LinearAlgebra.LAPACK.gesvd!(jobu::Char, jobvt::Char, A::ROCMatrix{$elty}) = rocSOLVER.gesvd!(jobu, jobvt, A)
+        # rocSOLVER has no divide-and-conquer SVD; route any generic path that still reaches `gesdd!` to `gesvd!` so it runs on-device (see #837).
+        LinearAlgebra.LAPACK.gesdd!(job::Char, A::ROCMatrix{$elty}) = rocSOLVER.gesvd!(job, job, A)
 
         # Julia 1.13+ restricts svd!/svd! to StridedMatrix, breaking the LAPACK.gesvd!
         # dispatch for ROCMatrix. Override svd! directly so svd(::ROCMatrix; alg) works.
@@ -666,6 +873,30 @@ end
 
 function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
     eigen(Symmetric(A))
+end
+
+function LinearAlgebra.eigen(A::Symmetric{T,<:ROCMatrix}, B::Symmetric{T,<:ROCMatrix}) where {T<:BlasReal}
+    A2 = copy(A.data)
+    B2 = copy(B.uplo == A.uplo ? B.data : B.data')
+    Eigen(sygvd!(A.uplo, A2, B2)...)
+end
+
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasComplex}
+    A2 = copy(A.data)
+    B2 = copy(B.uplo == A.uplo ? B.data : B.data')
+    Eigen(hegvd!(A.uplo, A2, B2)...)
+end
+
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(Symmetric(A), Symmetric(B))
+end
+
+function LinearAlgebra.eigen(A::Hermitian{T,<:ROCMatrix}, B::Symmetric{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(Symmetric(A), B)
+end
+
+function LinearAlgebra.eigen(A::Symmetric{T,<:ROCMatrix}, B::Hermitian{T,<:ROCMatrix}) where {T<:BlasReal}
+    eigen(A, Symmetric(B))
 end
 
 function LinearAlgebra.eigen(A::ROCMatrix{T}) where {T<:BlasReal}

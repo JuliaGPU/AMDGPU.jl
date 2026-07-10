@@ -410,6 +410,10 @@ ROCSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = ROCSparseMatrixCSR(ROCSp
 ROCSparseMatrixBSR{T}(Mat::SparseMatrixCSC, blockdim) where {T} = ROCSparseMatrixBSR(ROCSparseMatrixCSR{T}(Mat), blockdim)
 ROCSparseMatrixCOO{T}(Mat::SparseMatrixCSC) where {T} = ROCSparseMatrixCOO(ROCSparseMatrixCSR{T}(Mat))
 
+# CPU sparse transpose/adjoint → ROC (Transpose/Adjoint of a CPU CSC)
+ROCSparseMatrixCOO{T}(Mat::Transpose{Tv, <:SparseMatrixCSC}) where {T, Tv} = ROCSparseMatrixCOO{T}(ROCSparseMatrixCSR{T}(Mat))
+ROCSparseMatrixCOO{T}(Mat::Adjoint{Tv, <:SparseMatrixCSC}) where {T, Tv} = ROCSparseMatrixCOO{T}(ROCSparseMatrixCSR{T}(Mat))
+
 # untyped variants
 ROCSparseVector(x::AbstractSparseArray{T}) where {T} = ROCSparseVector{T}(x)
 ROCSparseMatrixCSC(x::AbstractSparseArray{T}) where {T} = ROCSparseMatrixCSC{T}(x)
@@ -420,8 +424,23 @@ ROCSparseMatrixCSR(x::Transpose{T}) where {T} = ROCSparseMatrixCSR{T}(x)
 ROCSparseMatrixCSR(x::Adjoint{T}) where {T} = ROCSparseMatrixCSR{T}(x)
 ROCSparseMatrixCSC(x::Transpose{T}) where {T} = ROCSparseMatrixCSC{T}(x)
 ROCSparseMatrixCSC(x::Adjoint{T}) where {T} = ROCSparseMatrixCSC{T}(x)
+ROCSparseMatrixCOO(x::Transpose{T}) where {T} = ROCSparseMatrixCOO{T}(x)
+ROCSparseMatrixCOO(x::Adjoint{T}) where {T} = ROCSparseMatrixCOO{T}(x)
 
-# TODO adjoint / transpose: GPUArrays._sptranspose
+# GPU-to-GPU transpose/adjoint constructors:
+# materialize the transposed/conjugate-transposed matrix using GPUArrays._sptranspose / _spadjoint (implemented in interfaces.jl).
+ROCSparseMatrixCSR(x::Transpose{T,<:Union{ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO}}) where {T} =
+    ROCSparseMatrixCSR(GPUArrays._sptranspose(parent(x)))
+ROCSparseMatrixCSC(x::Transpose{T,<:Union{ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO}}) where {T} =
+    ROCSparseMatrixCSC(GPUArrays._sptranspose(parent(x)))
+ROCSparseMatrixCOO(x::Transpose{T,<:Union{ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO}}) where {T} =
+    ROCSparseMatrixCOO(GPUArrays._sptranspose(parent(x)))
+ROCSparseMatrixCSR(x::Adjoint{T,<:Union{ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO}}) where {T} =
+    ROCSparseMatrixCSR(GPUArrays._spadjoint(parent(x)))
+ROCSparseMatrixCSC(x::Adjoint{T,<:Union{ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO}}) where {T} =
+    ROCSparseMatrixCSC(GPUArrays._spadjoint(parent(x)))
+ROCSparseMatrixCOO(x::Adjoint{T,<:Union{ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO}}) where {T} =
+    ROCSparseMatrixCOO(GPUArrays._spadjoint(parent(x)))
 
 # gpu to cpu
 SparseVector(x::ROCSparseVector) = SparseVector(length(x), Array(SparseArrays.nonzeroinds(x)), Array(SparseArrays.nonzeros(x)))
