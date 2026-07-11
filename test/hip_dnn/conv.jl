@@ -5,6 +5,13 @@ using AMDGPU.MIOpen
 
 @assert AMDGPU.functional(:MIOpen)
 
+# ConvHipImplicitGemmGroupBwdXdlops segfaults on gfx942 (MI300, MIOpen 7.2.3)
+# and ignores its own MIOPEN_DEBUG disable flag. Skip until fixed upstream:
+# https://github.com/ROCm/rocm-libraries/issues/9088
+_arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
+_skip_bwd_data = _arch_str == "gfx942"
+_skip_bwd_data && @info "Skipping convolution backward-data tests (MIOpen bug on gfx942)"
+
 @testset "Simple Convolution" begin
     for T in (Float16, Float32), nd in 2:3
         ndims = Val{nd}()
@@ -27,8 +34,12 @@ using AMDGPU.MIOpen
         ∇w = MIOpen.∇convolution_weight(Δ, x, w; padding, stride, dilation, groups)
         @test size(∇w) == size(w)
 
-        ∇x = MIOpen.∇convolution_data(Δ, x, w; padding, stride, dilation, groups)
-        @test size(∇x) == size(x)
+        if _skip_bwd_data
+            @test_skip false
+        else
+            ∇x = MIOpen.∇convolution_data(Δ, x, w; padding, stride, dilation, groups)
+            @test size(∇x) == size(x)
+        end
     end
 end
 
