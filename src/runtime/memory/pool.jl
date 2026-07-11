@@ -15,10 +15,15 @@
 #             serve step N+1 with no HIP calls
 #   - Thread safety: designed for single-stream workloads; no locking
 
-const _MIN_BIN_SIZE = 256           # bytes — smallest bin
-const _BIN_CEILING  = 8 * 1024^2    # 8 MiB — above this, fall through to HIP pool
-const _SLAB_SIZE    = 64 * 1024^2   # 64 MiB per slab growth
-const _NUM_BINS     = Int(log2(_BIN_CEILING ÷ _MIN_BIN_SIZE)) + 1  # = 16
+const _MIN_BIN_SIZE  = 256          # bytes — smallest bin
+const _MAX_bin_ceiling() = 64 * 1024^2  # 64 MiB — hard upper limit for NUM_BINS sizing
+const _SLAB_SIZE     = 64 * 1024^2  # 64 MiB per slab growth
+const _NUM_BINS      = Int(log2(_MAX_bin_ceiling() ÷ _MIN_BIN_SIZE)) + 1  # = 19 (covers all possible ceilings)
+
+function _bin_ceiling()
+    mib = parse(Int, get(ENV, "AMDGPU_BINNED_POOL_CEILING_MIB", "4"))
+    return mib * 1024^2
+end
 
 mutable struct _Bin
     slot_size::Int
@@ -31,15 +36,15 @@ mutable struct BinnedPool
     bins::Vector{_Bin}
     device::HIPDevice
     total_allocated::Int
-    overflow_count::Int            # allocations > _BIN_CEILING (fell through to HIP pool)
+    overflow_count::Int            # allocations > _bin_ceiling() (fell through to HIP pool)
 end
 
 function _bin_index(bytesize::Int)
     sz = max(bytesize, _MIN_BIN_SIZE)
-    # ceil(log2(sz / _MIN_BIN_SIZE)) gives 0 for sz == _MIN_BIN_SIZE,
-    # 1 for (MIN_BIN_SIZE, 2*MIN_BIN_SIZE], etc. Add 1 for 1-based indexing.
     idx = Int(ceil(log2(sz / _MIN_BIN_SIZE))) + 1
-    return min(idx, _NUM_BINS)
+    # Cap at the number of bins that cover the active ceiling
+    active_num_bins = Int(log2(_bin_ceiling() ÷ _MIN_BIN_SIZE)) + 1
+    return min(idx, active_num_bins)
 end
 
 function BinnedPool(dev::HIPDevice = AMDGPU.device())
@@ -64,7 +69,7 @@ end
 """
     alloc!(pool::BinnedPool, bytesize::Int) -> HIPBuffer or nothing
 
-Return a `HIPBuffer` backed by the pool for allocations ≤ `_BIN_CEILING`.
+Return a `HIPBuffer` backed by the pool for allocations ≤ `_bin_ceiling()`.
 Returns `nothing` for large allocations — the caller should fall through to
 the standard `hipMallocFromPoolAsync` path.
 
@@ -72,7 +77,7 @@ The returned buffer has `own = false` so it will not call `hipFreeAsync` when
 freed; the caller must return the slot via `pool_free!(pool, buf)`.
 """
 function alloc!(pool::BinnedPool, bytesize::Int)
-    if bytesize > _BIN_CEILING
+    if bytesize > _bin_ceiling()
         pool.overflow_count += 1
         return nothing
     end
@@ -96,7 +101,7 @@ in single-stream workloads).
 """
 function pool_free!(pool::BinnedPool, buf::HIPBuffer)
     (buf.bytesize == 0 || buf.ptr == C_NULL) && return
-    buf.bytesize > _BIN_CEILING && return  # large bufs are owned by HIP pool
+    buf.bytesize > _bin_ceiling() && return  # large bufs are owned by HIP pool
 
     idx = _bin_index(buf.bytesize)
     push!(pool.bins[idx].freelist, buf.ptr)  # O(1) — no HIP call
@@ -146,7 +151,7 @@ end
     print_histogram(pool::BinnedPool; io=stdout)
 
 Print an allocation histogram showing the size distribution across bins and
-the overflow (>BIN_CEILING) count. Use this to tune `_BIN_CEILING`:
+the overflow (>BIN_CEILING) count. Use this to tune `_bin_ceiling()`:
 - If overflow_count is large relative to bin totals, raise the ceiling.
 - If the top few bins have near-zero counts, lower the ceiling to save VRAM.
 """
