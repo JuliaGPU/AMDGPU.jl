@@ -242,7 +242,11 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
 end
 
 function create_executable(obj)
-    lld = if AMDGPU.lld_artifact
+    # ROCm discovery does not run while generating package output.
+    use_precompile_lld = isempty(AMDGPU.lld_path) &&
+                         ccall(:jl_generating_output, Cint, ()) == 1 &&
+                         LLD_jll.is_available()
+    lld = if AMDGPU.lld_artifact || use_precompile_lld
         `$(LLD_jll.lld()) -flavor gnu`
     else
         @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
