@@ -2,10 +2,16 @@
 version: 2
 updates:
   - package-ecosystem: "julia"
-    directory: "/" # Update [compat] in Project.toml and the checked-in Manifest.toml
+    # Group all Julia GHA PRs into a single PR:
+    groups:
+      all-julia-dependencies:
+        patterns:
+          - "*"
+    directories:
+      - "/"
+      - "/test"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 100
     labels:
       - "dependencies"
       - "julia"
