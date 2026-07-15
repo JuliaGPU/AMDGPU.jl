@@ -56,6 +56,18 @@ for (fname, elty, celty) in ((:rocblas_sscal, :Float32, :ComplexF32),
     end
 end
 
+# Run `f(handle)` with rocBLAS in device-pointer mode (scalar results written into device
+# buffers, no host sync), always restoring host mode afterwards.
+function with_device_pointer_mode(f)
+    h = handle()
+    rocblas_set_pointer_mode(h, rocblas_pointer_mode_device)
+    try
+        return f(h)
+    finally
+        rocblas_set_pointer_mode(h, rocblas_pointer_mode_host)
+    end
+end
+
 for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
                              (:dot,:rocblas_sdot,:Float32),
                              (:dot,:rocblas_hdot,:Float16),
@@ -75,6 +87,28 @@ for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
     end
 end
 
+# Device-pointer-mode dot: writes the result into a 1-element device buffer `result`
+# (no host sync). `dotc!`/`dotu!` are the conjugated/unconjugated complex variants.
+for (jname, fname, elty) in ((:dot!,:rocblas_ddot,:Float64),
+                             (:dot!,:rocblas_sdot,:Float32),
+                             (:dot!,:rocblas_hdot,:Float16),
+                             (:dotc!,:rocblas_zdotc,:ComplexF64),
+                             (:dotc!,:rocblas_cdotc,:ComplexF32),
+                             (:dotu!,:rocblas_zdotu,:ComplexF64),
+                             (:dotu!,:rocblas_cdotu,:ComplexF32))
+    @eval begin
+        function $jname(
+            result::ROCArray{$elty}, n::Integer, DX::ROCArray{$elty}, incx::Integer,
+            DY::ROCArray{$elty}, incy::Integer,
+        )
+            with_device_pointer_mode() do h
+                $(fname)(h, n, DX, incx, DY, incy, result)
+            end
+            return result
+        end
+    end
+end
+
 ## nrm2
 for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
                                 (:rocblas_snrm2,:Float32,:Float32),
@@ -85,6 +119,22 @@ for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
             result = Ref{$ret_type}()
             $(fname)(handle(), n, X, incx, result)
             return result[]
+        end
+    end
+end
+
+# Device-pointer-mode nrm2: writes the (real) norm into a 1-element device buffer `result`
+# (no host sync).
+for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
+                                (:rocblas_snrm2,:Float32,:Float32),
+                                (:rocblas_dznrm2,:ComplexF64,:Float64),
+                                (:rocblas_scnrm2,:ComplexF32,:Float32))
+    @eval begin
+        function nrm2!(result::ROCArray{$ret_type}, n::Integer, X::ROCArray{$elty}, incx::Integer)
+            with_device_pointer_mode() do h
+                $(fname)(h, n, X, incx, result)
+            end
+            return result
         end
     end
 end

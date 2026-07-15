@@ -76,6 +76,33 @@ end
     end
 end
 
+@testset "Device-pointer BLAS (nrm2!/dot!)" begin
+    @testset for T in (Float32, Float64, ComplexF32, ComplexF64)
+        x, y = rand(T, m), rand(T, m)
+        dx, dy = ROCArray(x), ROCArray(y)
+
+        nrm_buf = ROCArray{real(T)}(undef, 1)
+        rocBLAS.nrm2!(nrm_buf, m, dx, 1)
+        @test Array(nrm_buf)[1] ≈ norm(x)
+
+        dot_buf = ROCArray{T}(undef, 1)
+        if T <: Complex
+            rocBLAS.dotc!(dot_buf, m, dx, 1, dy, 1)
+            @test Array(dot_buf)[1] ≈ dot(x, y)
+            rocBLAS.dotu!(dot_buf, m, dx, 1, dy, 1)
+            @test Array(dot_buf)[1] ≈ transpose(x) * y
+        else
+            rocBLAS.dot!(dot_buf, m, dx, 1, dy, 1)
+            @test Array(dot_buf)[1] ≈ dot(x, y)
+        end
+
+        # pointer mode must be restored to host after the device-pointer calls
+        pm = Ref{rocBLAS.rocblas_pointer_mode}()
+        rocBLAS.rocblas_get_pointer_mode(rocBLAS.handle(), pm)
+        @test pm[] == rocBLAS.rocblas_pointer_mode_host
+    end
+end
+
 @testset "Level 2" begin
     @testset for T in (Float32, Float64, ComplexF32, ComplexF64)
         alpha, beta = rand(T), rand(T)
