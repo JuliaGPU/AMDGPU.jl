@@ -1,0 +1,1 @@
+import{_ as a,o as i,c as e,a5 as n}from"./chunks/framework.DyF53GNO.js";const c=JSON.parse('{"title":"FAQ","description":"","frontmatter":{},"headers":[],"relativePath":"faq.md","filePath":"faq.md","lastUpdated":null}'),t={name:"faq.md"};function l(h,s,r,p,o,k){return i(),e("div",null,[...s[0]||(s[0]=[n("",19)])])}const g=a(t,[["render",l]]);export{c as __pageData,g as default};
