@@ -2,8 +2,12 @@ using Core: LLVMPtr
 
 ## GPU runtime library
 
-# reset the runtime cache from global scope, so that any change triggers recompilation
-GPUCompiler.reset_runtime()
+# reset the runtime cache from global scope, so that any change triggers recompilation.
+# GPUCompiler 2.0 removed `reset_runtime`; its runtime cache follows Julia's validity
+# model automatically, so the manual hook is only needed on GPUCompiler 1.x.
+if isdefined(GPUCompiler, :reset_runtime)
+    GPUCompiler.reset_runtime()
+end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
 
