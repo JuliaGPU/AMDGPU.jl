@@ -16,6 +16,7 @@ jobs:
           import Pkg
           Pkg.add("ArtifactUtils")
           using ArtifactUtils, Base.BinaryPlatforms
+          const rocm_version = "7.14.0"
 
           for rocm_arch in [
             "gfx908",
@@ -28,16 +29,17 @@ jobs:
             "gfx1150",
             "gfx1151",
             "gfx1152",
+            "gfx1153",
             "gfx120X-all",
           ]
             @info "Linux, $rocm_arch"
             platform = Platform("x86_64", "linux", Dict("libc" => "glibc", "rocm_arch" => replace(rocm_arch, "-" => "_")))
-            add_artifact!("Artifacts.toml", "ROCm", "https://repo.amd.com/rocm/tarball/therock-dist-linux-$rocm_arch-7.13.0.tar.gz"; lazy = true, platform)
+            add_artifact!("Artifacts.toml", "ROCm", "https://repo.amd.com/rocm/tarball-multi-arch/therock-dist-linux-$rocm_arch-$rocm_version.tar.gz"; lazy = true, platform)
 
             startswith(rocm_arch, "gfx9") && continue
             @info "Windows, $rocm_arch"
             platform = Platform("x86_64", "windows", Dict("rocm_arch" => replace(rocm_arch, "-" => "_")))
-            add_artifact!("Artifacts.toml", "ROCm", "https://repo.amd.com/rocm/tarball/therock-dist-windows-$rocm_arch-7.13.0.tar.gz"; lazy = true, platform)
+            add_artifact!("Artifacts.toml", "ROCm", "https://repo.amd.com/rocm/tarball-multi-arch/therock-dist-windows-$rocm_arch-$rocm_version.tar.gz"; lazy = true, platform)
           end
       - name: Upload hash report
         uses: actions/upload-artifact@v4
