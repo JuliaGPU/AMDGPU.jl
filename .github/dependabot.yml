@@ -2,19 +2,21 @@
 version: 2
 updates:
   - package-ecosystem: "julia"
-    directory: "/" # Update [compat] in Project.toml and the checked-in Manifest.toml
+    # Location of Julia projects
+    directories:
+      - "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 100
+    ignore:
+      # Ignore package itself
+      - dependency-name: "AMDGPU"
     labels:
       - "dependencies"
       - "julia"
-  - package-ecosystem: "github-actions"
     groups:
-      # Group all GitHub Actions PRs into a single PR:
-      all-github-actions:
-        patterns:
-          - "*"
+      per-dependency:
+        group-by: dependency-name
+  - package-ecosystem: "github-actions"
     directory: "/" # Location of package manifests
     schedule:
       interval: "monthly"
@@ -22,3 +24,8 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      # Group all GitHub Actions PRs into a single PR:
+      all-github-actions:
+        patterns:
+          - "*"
