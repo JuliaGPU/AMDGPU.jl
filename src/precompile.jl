@@ -18,9 +18,9 @@ if :AMDGPU in LLVM.backends()
             end
 
             # Build a device-free compiler config for a baseline GCN target.
-            # `gfx1030` (RDNA2, wavefront 32) is a portable baseline that exercises
-            # the full pipeline; the cached *code* is reused regardless of the
-            # actual device's ISA at runtime (only the kernel binary differs).
+            # `gfx1030` (RDNA2, wavefront 32) is a representative baseline that exercises
+            # the full pipeline. GPU artifacts remain correctly partitioned by target ISA;
+            # the reusable benefit here is precompiled host-side compiler machinery.
             #
             # NOTE: the ISA must be RDNA/CDNA, not pre-RDNA. The `wavefrontsize*`
             # LLVM features only exist on gfx10+, so pairing them with e.g. gfx900
@@ -52,9 +52,9 @@ if :AMDGPU in LLVM.backends()
             # MIs into native compilation, causing LLVM errors. Guard like CUDA.jl.
             @static if VERSION >= v"1.12-"
                 if !instrumented
-                    GPUCompiler.JuliaContext() do ctx
-                        GPUCompiler.compile(:obj, job)
-                    end
+                    # Exercise the same compile-or-lookup path used by kernel launches, and
+                    # attach its artifact to the package-image CI.
+                    Compiler.compile_or_lookup(job)
 
                     # The compile above runs during precompilation, when ROCm
                     # discovery (`__init__`) has NOT run, so `libdevice_libs` is
@@ -72,14 +72,17 @@ end
 
 # Kernel launch infrastructure that the workload above cannot reach, because it
 # requires a live device (mirrors CUDA.jl's explicit precompile directives:
-# `cufunction`, `link`, and `actual_compilation`).
-precompile(Tuple{typeof(Compiler.hipfunction), typeof(identity), Type{Tuple{Nothing}}})
-precompile(Tuple{typeof(GPUCompiler.actual_compilation),
-    Dict{Any, HIP.HIPFunction}, Core.MethodInstance, UInt64,
-    Compiler.HIPCompilerConfig, typeof(Compiler.hipcompile), typeof(Compiler.hiplink)})
-precompile(Tuple{typeof(Compiler.hiplink), Compiler.HIPCompilerJob,
-    NamedTuple{(:obj, :entry, :global_hostcalls),
-        Tuple{Vector{UInt8}, String, Vector{Symbol}}}})
+# `cufunction`, `link_kernel`, `compile_or_lookup`, and `cached_results`).
+let HIPCompilerJob = Compiler.HIPCompilerJob
+    precompile(Tuple{typeof(Compiler.hipfunction), typeof(identity), Type{Tuple{Nothing}}})
+    precompile(Tuple{typeof(Compiler.hiplink), HIPCompilerJob,
+        Vector{UInt8}, String, Vector{Symbol}})
+
+    # GPUCompiler 2.0 caching pipeline (specialized for AMDGPU's results struct)
+    precompile(Tuple{typeof(Compiler.compile_or_lookup), HIPCompilerJob})
+    precompile(Tuple{typeof(GPUCompiler.cached_results),
+        Type{Compiler.HIPResults}, HIPCompilerJob})
+end
 
 # Hot entry points of the bundled ROCm libraries, mirroring CUDA.jl's per-library
 # precompile directives. These compile the (GPU-free) Julia wrappers so the first

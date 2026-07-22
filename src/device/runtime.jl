@@ -2,9 +2,6 @@ using Core: LLVMPtr
 
 ## GPU runtime library
 
-# reset the runtime cache from global scope, so that any change triggers recompilation
-GPUCompiler.reset_runtime()
-
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
 
 @generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
