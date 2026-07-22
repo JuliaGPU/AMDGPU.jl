@@ -12,3 +12,4 @@ AMDGPU = {path = ".."}
 [compat]
 Documenter = "1"
 DocumenterVitepress = "0.2.5"
+GPUArrays = "11.5.8"
