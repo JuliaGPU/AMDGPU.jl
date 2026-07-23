@@ -13,6 +13,8 @@ If you have non-standard path for ROCm, set `ROCM_PATH=<path>`
 environment variable before launching Julia. The `AMDGPU.versioninfo()`
 function prints the paths of any libraries found.
 
+Starting with ROCm 7.14, libraries are installed under a versioned `core-<version>` subdirectory (for example `/opt/rocm/core-7.14/lib`) instead of directly in `/opt/rocm/lib`. AMDGPU.jl handles this automatically by selecting the newest `core-*` directory found under the ROCm root, so keep `ROCM_PATH` pointed at the install root (e.g. `/opt/rocm`) rather than at the versioned subdirectory. A full ("metapackage") install additionally provides a `/opt/rocm/lib` compatibility symlink and needs no special handling; the versioned lookup mainly benefits minimal, GPU-architecture-specific installs that omit that symlink.
+
 Depending on your GPU model and the functionality you want to use, you may have
 to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION`
 variable to a compatible version.
