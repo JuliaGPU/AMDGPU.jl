@@ -17,8 +17,12 @@ include("error.jl")
 include("librocrand.jl")
 
 function version()
-    s = string(ROCRAND_VERSION)
-    VersionNumber(join([string(s[1]), s[2:4], s[5:end]], '.'))
+    # Query the loaded library at runtime rather than reporting the compile-time
+    # `ROCRAND_VERSION` constant, so `versioninfo` shows the installed version.
+    v = Ref{Cint}()
+    rocrand_get_version(v)
+    ver = Int(v[])
+    VersionNumber(ver ÷ 100_000, (ver ÷ 100) % 1000, ver % 100)
 end
 
 # stdlib Random integration
