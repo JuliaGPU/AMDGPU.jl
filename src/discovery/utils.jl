@@ -1,3 +1,28 @@
+# Enumerate `<root>/core-<version>` subdirectories (ROCm 7.14+ packaging),
+# sorted newest-version first. Returns absolute paths.
+function rocm_core_dirs(path::String)::Vector{String}
+    isdir(path) || return String[]
+    cores = Tuple{VersionNumber, String}[]
+    for entry in readdir(path)
+        startswith(entry, "core-") || continue
+        full = joinpath(path, entry)
+        isdir(full) || continue
+        v = tryparse(VersionNumber, chopprefix(entry, "core-"))
+        v === nothing && continue
+        push!(cores, (v, full))
+    end
+    sort!(cores; by=first, rev=true)
+    return String[c[2] for c in cores]
+end
+
+# True if `dir` holds the HIP runtime library, matching both the unversioned
+# `libamdhip64.so` and versioned `libamdhip64.so.N` (a minimal, gfx-specific
+# install may ship only the latter, without the `-dev` symlink).
+function has_hip_lib(dir::String, libname::String)::Bool
+    isdir(dir) || return false
+    return any(f -> startswith(f, libname), readdir(dir))
+end
+
 # use amdhip as query for a valid rocm_path
 function check_rocm_path(path::String)
     libname = (Sys.islinux() ? "libamdhip64" : "amdhip64") * "." * dlext
@@ -14,6 +39,16 @@ function check_rocm_path(path::String)
         for triplet in ("x86_64-linux-gnu", "aarch64-linux-gnu", "i386-linux-gnu")
             path2 = joinpath(path, "lib", triplet)
             isfile(joinpath(path2, libname)) && @goto success
+        end
+    end
+    # ROCm 7.14+ nests libraries under `<root>/core-<version>/lib`. A full
+    # metapackage install also exposes them via `<root>/lib` (handled above via
+    # a compat symlink), but a minimal, gfx-specific install may not, so probe
+    # the versioned core dirs directly, newest first.
+    if Sys.islinux()
+        for core in rocm_core_dirs(path)
+            path2 = joinpath(core, "lib")
+            has_hip_lib(path2, libname) && @goto success
         end
     end
     return ""
@@ -79,9 +114,14 @@ end
 function find_device_libs(rocm_path::String)::String
     env_dir = get(ENV, "ROCM_PATH", "")
     if isdir(env_dir)
-        path = joinpath(env_dir, "amdgcn", "bitcode")
-        path = check_device_libs(path)
-        isdir(path) && return path
+        for cand in (
+            joinpath(env_dir, "amdgcn", "bitcode"),
+            # ROCm 7.14+ nests device bitcode under lib/llvm/.
+            joinpath(env_dir, "lib", "llvm", "amdgcn", "bitcode"),
+        )
+            path = check_device_libs(cand)
+            isdir(path) && return path
+        end
     end
     # Might be set by tools like Spack or the user
     hip_devlibs_path = get(ENV, "HIP_DEVICE_LIB_PATH", "")
@@ -89,10 +129,15 @@ function find_device_libs(rocm_path::String)::String
     devlibs_path = get(ENV, "DEVICE_LIB_PATH", "")
     devlibs_path !== "" && return devlibs_path
     # Try using hipconfig to find the device libraries.
-    # Try the canonical location.
-    canonical_dir = joinpath(rocm_path, "amdgcn", "bitcode")
-    canonical_dir = check_device_libs(canonical_dir)
-    isdir(canonical_dir) && return canonical_dir
+    # Try the canonical location (`rocm_path` is the libdir).
+    for cand in (
+        joinpath(rocm_path, "amdgcn", "bitcode"),
+        # ROCm 7.14+ nests device bitcode under llvm/.
+        joinpath(rocm_path, "llvm", "amdgcn", "bitcode"),
+    )
+        canonical_dir = check_device_libs(cand)
+        isdir(canonical_dir) && return canonical_dir
+    end
     # Fedora might put it in a weird place
     hipconfig = Sys.which("hipconfig")
     if !isnothing(hipconfig)
