@@ -44,6 +44,10 @@ AMDGPU.functional(:all)         # true only if every component is available
 
 Run `AMDGPU.versioninfo()` and check that `hip` and the library you need report as functional. Missing components usually mean the corresponding ROCm package is not installed. See [Installation Info](@ref) for platform-specific setup, including the package list for distributions such as Fedora.
 
+## I installed ROCm 7.14 or newer but it isn't detected
+
+ROCm 7.14 changed its on-disk layout, installing libraries under a versioned `core-<version>` subdirectory (for example `/opt/rocm/core-7.14/lib`). AMDGPU.jl discovers this automatically, but if detection fails on a minimal or custom install, make sure `ROCM_PATH` points at the ROCm root (e.g. `/opt/rocm`) rather than at the versioned subdirectory. See [Installation Info](@ref) for details.
+
 ## I'm on Arch Linux and ROCm isn't working
 
 For the last few ROCm releases, users have reported problems with the distro-provided ROCm builds and associated tools ([#770](https://github.com/JuliaGPU/AMDGPU.jl/issues/770), [#696](https://github.com/JuliaGPU/AMDGPU.jl/issues/696), [#767](https://github.com/JuliaGPU/AMDGPU.jl/issues/767)). Some have had success with the [`opencl-amd-dev`](https://aur.archlinux.org/packages/opencl-amd-dev) AUR package instead.
