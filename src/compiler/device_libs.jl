@@ -1,6 +1,7 @@
 import AMDGPU: libdevice_libs
 
 function locate_lib(file)
+    isempty(libdevice_libs) && return nothing
     file_path = joinpath(libdevice_libs, file * ".bc")
     if !ispath(file_path)
         file_path = joinpath(libdevice_libs, file * ".amdgcn.bc")
