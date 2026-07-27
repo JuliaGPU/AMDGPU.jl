@@ -23,33 +23,28 @@ end
 
 const DEVICE_LIBS::Dict{String, DevLib} = Dict{String, DevLib}()
 
-function link_device_libs!(
-    target::GCNCompilerTarget, mod::LLVM.Module;
+function get_device_libs_paths(
+    target::GCNCompilerTarget;
     wavefrontsize64::Bool,
 )
-    isnothing(libdevice_libs) && return
+    paths = String[]
+    isnothing(libdevice_libs) && return paths
 
     # 1. Load other libraries.
     lib_names = ("hc", "hip", "irif", "ockl", "opencl", "ocml")
     for lib_name in lib_names
-        devlib = get!(DEVICE_LIBS, lib_name) do
-            DevLib(lib_name, locate_lib(lib_name))
-        end
-        load_and_link!(devlib, mod)
+        path = locate_lib(lib_name)
+        !isnothing(path) && push!(paths, path)
     end
 
     # 2. Load OCLC library.
-    devlib = get!(DEVICE_LIBS, "oclc") do
-        isa_short = replace(target.dev_isa, "gfx"=>"")
-        DevLib("oclc", locate_lib("oclc_isa_version_$isa_short"))
-    end
-    load_and_link!(devlib, mod)
+    isa_short = replace(target.dev_isa, "gfx"=>"")
+    path = locate_lib("oclc_isa_version_$isa_short")
+    !isnothing(path) && push!(paths, path)
 
     # 3. Load OCLC ABI library.
-    devlib = get!(DEVICE_LIBS, "oclc_abi") do
-        DevLib("oclc_abi", locate_lib("oclc_abi_version_500"))
-    end
-    load_and_link!(devlib, mod)
+    path = locate_lib("oclc_abi_version_500")
+    !isnothing(path) && push!(paths, path)
 
     # 4. Load options libraries.
     options = (
@@ -62,8 +57,25 @@ function link_device_libs!(
     for (option, value) in options
         toggle = value ? "on" : "off"
         name = "oclc_$(option)_$(toggle)"
+        path = locate_lib(name)
+        !isnothing(path) && push!(paths, path)
+    end
+    return paths
+end
+
+function link_device_libs!(
+    target::GCNCompilerTarget, mod::LLVM.Module;
+    wavefrontsize64::Bool,
+)
+    isnothing(libdevice_libs) && return
+    if !isempty(AMDGPU.ROCmDiscovery.clang_path)
+        return
+    end
+
+    for path in get_device_libs_paths(target; wavefrontsize64)
+        name = basename(path)
         devlib = get!(DEVICE_LIBS, name) do
-            DevLib(name, locate_lib(name))
+            DevLib(name, path)
         end
         load_and_link!(devlib, mod)
     end

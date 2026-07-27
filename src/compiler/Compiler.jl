@@ -1,7 +1,6 @@
 module Compiler
 
 import Core: LLVMPtr
-import LLD_jll
 
 using ..GPUCompiler
 using ..LLVM

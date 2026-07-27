@@ -1,36 +1,16 @@
 module ROCmDiscovery
 
-export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
+export lld_artifact, lld_path, clang_path, clang_artifact, libhsaruntime, libdevice_libs, libhip
 export librocblas, librocsparse, librocsolver
 export librocrand, librocfft, libMIOpen_path
 
-using LLD_jll
-using ROCmDeviceLibs_jll
+using LazyArtifacts
 using Preferences
 using Libdl
 
+Base.include(@__MODULE__, joinpath(@__DIR__, "..", "..", ".pkg", "platform_augmentation.jl"))
+
 include("utils.jl")
-
-function get_artifact_library(pkg::Symbol, libname::Symbol)::String
-    succ, res = safe_exec("import $pkg; println($pkg.$libname)")
-    (succ && ispath(res)) || return ""
-    return res
-end
-
-function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
-    lld_path = find_ld_lld(rocm_path)
-    isempty(lld_path) || return (lld_path, false)
-    LLD_jll.is_available() || return (lld_path, false)
-    return (LLD_jll.lld_path, true)
-end
-
-function get_device_libs(from_artifact::Bool; rocm_path::String)
-    if from_artifact && ROCmDeviceLibs_jll.is_available()
-        ROCmDeviceLibs_jll.bitcode_path
-    else
-        find_device_libs(rocm_path)
-    end
-end
 
 function _hip_runtime_version()
     v_ref = Ref{Cint}()
@@ -47,7 +27,7 @@ end
 global rel_libdir::String = Sys.islinux() ? "" : "bin"
 global libhsaruntime::String = ""
 global lld_path::String = ""
-global lld_artifact::Bool = false
+global clang_path::String = ""
 global libhip::String = ""
 global libdevice_libs::String = ""
 global librocblas::String = ""
@@ -81,14 +61,11 @@ function __init__()
             ""
 
         # Linker.
-        lld_path, lld_artifact = get_ld_lld(rocm_path)
-        global lld_path = lld_path
-        global lld_artifact = lld_artifact
+        global lld_path = find_ld_lld(rocm_path)
+        global clang_path = find_clang(rocm_path)
         global libhip = find_rocm_library(Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
 
-        # Always load artifact device libraries.
-        from_artifact = true
-        global libdevice_libs = get_device_libs(from_artifact; rocm_path)
+        global libdevice_libs = find_device_libs(rocm_path)
 
         # HIP-based libraries.
         global librocblas = find_rocm_library(lib_prefix * "rocblas"; rocm_path)

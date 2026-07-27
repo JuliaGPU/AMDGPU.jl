@@ -60,6 +60,74 @@ function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LL
         wavefrontsize64=job.config.params.wavefrontsize64)
 end
 
+
+GPUCompiler.@unlocked function GPUCompiler.mcgen(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, format=LLVM.API.LLVMAssemblyFile,
+)
+    clang_path = AMDGPU.ROCmDiscovery.clang_path
+    if isempty(clang_path)
+        # Fallback to GPUCompiler default if no external clang is found
+        return invoke(GPUCompiler.mcgen, Tuple{CompilerJob, LLVM.Module, typeof(format)}, job, mod, format)
+    end
+
+    dl = GPUCompiler.llvm_datalayout(job.config.target)
+    if dl !== nothing
+        # Union of Julia's GC address spaces (10:11:12:13) and
+        # AMDGPU device lib's buffer/resource address spaces (7:8:9)
+        LLVM.datalayout!(mod, LLVM.DataLayout(replace(string(dl), "-ni:10:11:12:13" => "-ni:7:8:9:10:11:12:13")))
+    end
+
+    target = job.config.target
+    filetype = if format == LLVM.API.LLVMAssemblyFile
+        "asm"
+    elseif format == LLVM.API.LLVMObjectFile
+        "obj"
+    else
+        error("Unsupported GCN output format $format")
+    end
+
+    input  = tempname(cleanup=false) * ".bc"
+    output = tempname(cleanup=false) * (filetype == "asm" ? ".s" : ".o")
+    write(input, mod)
+
+    wavefrontsize64 = if hasproperty(job.config.params, :wavefrontsize64)
+        job.config.params.wavefrontsize64
+    else
+        true # Default fallback
+    end
+
+    devlib_paths = get_device_libs_paths(target; wavefrontsize64)
+    devlib_flags = String[]
+    for path in devlib_paths
+        push!(devlib_flags, "-Xclang", "-mlink-builtin-bitcode", "-Xclang", path)
+    end
+
+    cmd = `$clang_path -x ir $input -mcpu=$(target.dev_isa) --target=$(GPUCompiler.llvm_triple(target)) -nogpulib $devlib_flags $(filetype == "asm" ? "-S" : "-c") -o $output`
+
+    out = Pipe()
+    proc = run(pipeline(ignorestatus(cmd); stdout=out, stderr=out); wait=false)
+    close(out.in)
+    log = strip(read(out, String))
+    wait(proc)
+    if !success(proc)
+        # keep the input around for debugging
+        msg = "Failed to compile to GCN with external clang"
+        isempty(log) || (msg *= ":\n" * log)
+        msg *= "\nIf you think this is a bug, please file an issue and attach $(input)."
+        isfile(output) && rm(output)
+        error(msg)
+    elseif !isempty(log)
+        # llc only diagnoses on stderr; even successful compilation may e.g. have
+        # ignored an unrecognized CPU or feature, so make sure this surfaces.
+        GPUCompiler.@safe_warn "External clang reported:\n$log"
+    end
+
+    code = filetype == "asm" ? read(output, String) : String(read(output))
+    rm(input)
+    rm(output)
+    return code
+end
+
 function GPUCompiler.finish_module!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
 )
@@ -160,7 +228,7 @@ function compiler_config(dev::HIP.HIPDevice;
 
     target = GCNCompilerTarget(; dev_isa, features)
     params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics)
-    CompilerConfig(target, params; kernel, name, always_inline=true)
+    CompilerConfig(target, params; kernel, name, always_inline=true, validate=false)
 end
 
 const hipfunction_lock = ReentrantLock()
@@ -242,22 +310,13 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
 end
 
 function create_executable(obj)
-    # ROCm discovery does not run while generating package output.
-    use_precompile_lld = isempty(AMDGPU.lld_path) &&
-                         ccall(:jl_generating_output, Cint, ()) == 1 &&
-                         LLD_jll.is_available()
-    lld = if AMDGPU.lld_artifact || use_precompile_lld
-        `$(LLD_jll.lld()) -flavor gnu`
-    else
-        @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
-        `$(AMDGPU.lld_path)`
-    end
+    @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
 
     path_o = tempname(;cleanup=false) * ".obj"
     path_exe = tempname(;cleanup=false) * ".exe"
 
     write(path_o, obj)
-    run(`$lld -shared -o $path_exe $path_o`)
+    run(`$(AMDGPU.lld_path) -shared -o $path_exe $path_o`)
     bin = read(path_exe)
 
     rm(path_o)

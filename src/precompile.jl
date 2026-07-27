@@ -1,5 +1,6 @@
 using PrecompileTools: @compile_workload
 
+
 # Compiling a GCN kernel requires being able to initialize the AMDGPU LLVM
 # backend, so we only run the precompile workload when that's supported, to be
 # able to load this package also on systems where the backend isn't available.
@@ -10,6 +11,8 @@ using PrecompileTools: @compile_workload
 # GPU (or even the ROCm runtime to be discovered) -- it only uses LLVM.
 if :AMDGPU in LLVM.backends()
     @compile_workload begin
+        ROCmDiscovery.clang_path = ROCmDiscovery.find_clang(ROCmDiscovery.find_roc_path())
+        ROCmDiscovery.lld_path = ROCmDiscovery.find_ld_lld(ROCmDiscovery.find_roc_path())
         let
             function _precompile_kernel(a)
                 i = workitemIdx().x
