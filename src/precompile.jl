@@ -12,6 +12,7 @@ using PrecompileTools: @compile_workload
 if :AMDGPU in LLVM.backends()
     @compile_workload begin
         ROCmDiscovery.clang_path = ROCmDiscovery.find_clang(ROCmDiscovery.find_roc_path())
+        ROCmDiscovery.lld_path = ROCmDiscovery.find_ld_lld(ROCmDiscovery.find_roc_path())
         let
             function _precompile_kernel(a)
                 i = workitemIdx().x
