@@ -62,7 +62,7 @@ end
 
 
 GPUCompiler.@unlocked function GPUCompiler.mcgen(
-    @nospecialize(job::CompilerJob{<:GCNCompilerTarget}), mod::LLVM.Module, format=LLVM.API.LLVMAssemblyFile,
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, format=LLVM.API.LLVMAssemblyFile,
 )
     clang_path = AMDGPU.ROCmDiscovery.clang_path
     if isempty(clang_path)
@@ -104,11 +104,22 @@ GPUCompiler.@unlocked function GPUCompiler.mcgen(
 
     cmd = `$clang_path -x ir $input -mcpu=$(target.dev_isa) --target=$(GPUCompiler.llvm_triple(target)) -nogpulib $devlib_flags $(filetype == "asm" ? "-S" : "-c") -o $output`
 
-    try
-        run(cmd)
-    catch
-        error("""Failed to compile to GCN with external clang.
-                 If you think this is a bug, please file an issue and attach $(input).""")
+    out = Pipe()
+    proc = run(pipeline(ignorestatus(cmd); stdout=out, stderr=out); wait=false)
+    close(out.in)
+    log = strip(read(out, String))
+    wait(proc)
+    if !success(proc)
+        # keep the input around for debugging
+        msg = "Failed to compile to GCN with external clang"
+        isempty(log) || (msg *= ":\n" * log)
+        msg *= "\nIf you think this is a bug, please file an issue and attach $(input)."
+        isfile(output) && rm(output)
+        error(msg)
+    elseif !isempty(log)
+        # llc only diagnoses on stderr; even successful compilation may e.g. have
+        # ignored an unrecognized CPU or feature, so make sure this surfaces.
+        GPUCompiler.@safe_warn "External clang reported:\n$log"
     end
 
     code = filetype == "asm" ? read(output, String) : String(read(output))
