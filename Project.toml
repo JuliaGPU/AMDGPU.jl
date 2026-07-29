@@ -7,6 +7,7 @@ authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.chu
 projects = ["test", "docs", "perf"]
 
 [deps]
+AMDGPU_LLVM_Backend_jll = "cc5c0156-bd05-5a77-8a68-bb0aafb29019"
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 AcceleratedKernels = "6a4ca0a5-0e36-4168-a932-d9be78d558f1"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -50,6 +51,7 @@ AMDGPUSparseMatricesCSRExt = "SparseMatricesCSR"
 AMDGPUSpecialFunctionsExt = "SpecialFunctions"
 
 [compat]
+AMDGPU_LLVM_Backend_jll = "22.1.7"
 AbstractFFTs = "1.0"
 AcceleratedKernels = "0.3.1, 0.4"
 Adapt = "4"

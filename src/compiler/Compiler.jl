@@ -7,6 +7,8 @@ using ..GPUCompiler
 using ..LLVM
 using Printf
 
+import AMDGPU_LLVM_Backend_jll # not used directly, but GPUCompiler uses the in-tree backend otherwise
+
 import ..AMDGPU
 import ..AMDGPU: AS
 import ..Runtime
