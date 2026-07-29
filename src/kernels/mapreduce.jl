@@ -90,6 +90,7 @@ function GPUArrays.mapreducedim!(
     Base.check_reducedims(R, A)
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
 
+    R_old = R
     # add singleton dimensions to the output container, if needed
     if ndims(R) < ndims(A)
         dims = Base.fill_to_length(size(R), 1, Val(ndims(A)))
@@ -168,5 +169,5 @@ function GPUArrays.mapreducedim!(
         AMDGPU.unsafe_free!(partial)
     end
 
-    return R
+    return R_old
 end
