@@ -1,3 +1,39 @@
+# Run `code` in a short-lived subprocess and return its stdout, or `nothing` if
+# it crashed, timed out, or exited nonzero. Isolates version probes that can
+# segfault on broken ROCm installs, where SIGSEGV isn't catchable in-process.
+function _version_subprocess(code::String; timeout::Real = 60)
+    project = Base.active_project()
+    projarg = project === nothing ? "@." : dirname(project)
+    cmd = `$(Base.julia_cmd()) --startup-file=no --project=$projarg -e $code`
+    out = IOBuffer()
+    try
+        proc = run(pipeline(ignorestatus(cmd); stdout = out, stderr = devnull); wait = false)
+        timedout = Ref(false)
+        timer = Timer(timeout) do _
+            if process_running(proc)
+                timedout[] = true
+                kill(proc)
+            end
+        end
+        wait(proc)
+        close(timer)
+        (timedout[] || !success(proc)) && return nothing
+        v = strip(String(take!(out)))
+        return isempty(v) ? nothing : v
+    catch
+        return nothing
+    end
+end
+
+# rocSPARSE's version query needs a handle, which inits a HIP context and can
+# segfault on broken ROCm installs (issue #920). Probe it out-of-process so a
+# crash degrades to `"err"` instead of killing the session.
+_rocsparse_version_isolated(; timeout::Real = 60) = _version_subprocess("""
+    using AMDGPU
+    AMDGPU.functional(:rocsparse) || exit(2)
+    print(AMDGPU.rocSPARSE.version())
+    """; timeout)
+
 """
     versioninfo(io::IO=stdout)
 
@@ -10,13 +46,23 @@ function versioninfo(io::IO=stdout)
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
+
+    # `"err"` = present but the out-of-process version probe crashed/timed out.
+    rocsparse_failed = false
+    rocsparse_ver = if functional(:rocsparse)
+        v = _rocsparse_version_isolated()
+        v === nothing ? (rocsparse_failed = true; "err") : v
+    else
+        "-"
+    end
+
     data = String[
         _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_path);
         _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
         _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
         _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
-        _status(functional(:rocsparse))   "rocSPARSE"        _ver(:rocsparse, rocSPARSE.version) _libpath(librocsparse);
+        _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                       _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
         _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
@@ -25,6 +71,13 @@ function versioninfo(io::IO=stdout)
     PrettyTables.pretty_table(io, data; column_labels=[
         "Available", "Name", "Version", "Path"],
         alignment=[:c, :l, :l, :l])
+
+    if rocsparse_failed
+        @warn """rocSPARSE is installed but its version query failed (it ran in an \
+            isolated subprocess and crashed or timed out). This usually indicates a \
+            broken or mismatched ROCm install. See \
+            https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
+    end
 
     if functional(:hip)
         println(io)

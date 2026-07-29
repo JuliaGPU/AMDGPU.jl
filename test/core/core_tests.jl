@@ -9,6 +9,29 @@ using AMDGPU: HIP, Runtime, Device, Mem
     @test AMDGPU.functional() isa Bool
 end
 
+@testset "versioninfo probe isolation" begin
+    probe(code; timeout = 60) = AMDGPU._version_subprocess(code; timeout)
+
+    # A clean child returns its stdout.
+    @test probe("print(\"4.2.0\")") == "4.2.0"
+
+    # A failing child degrades to `nothing` without taking down this process —
+    # the point of the isolation: a SIGSEGV in a vendor library (issue #920)
+    # must not crash the caller.
+    @test probe("ccall(:abort, Cvoid, ())") === nothing       # SIGABRT
+    @test probe("unsafe_store!(Ptr{Int}(0), 0)") === nothing  # SIGSEGV
+    @test probe("exit(2)") === nothing                        # nonzero exit
+    @test probe("1 + 1") === nothing                          # no output
+    @test probe("while true; end"; timeout = 2) === nothing   # hang -> timeout
+
+    # On a working setup the real rocSPARSE probe returns a parseable version.
+    if AMDGPU.functional(:rocsparse)
+        v = AMDGPU._rocsparse_version_isolated()
+        @test v !== nothing
+        @test tryparse(VersionNumber, v) !== nothing
+    end
+end
+
 @testset "HIPDevice" begin
     @testset "Device props" begin
         devices = AMDGPU.devices()
