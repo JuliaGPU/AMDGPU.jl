@@ -244,9 +244,9 @@ end
 function create_executable(obj)
     # ROCm discovery does not run while generating package output.
     use_precompile_lld = isempty(AMDGPU.lld_path) &&
-                         ccall(:jl_generating_output, Cint, ()) == 1 &&
-                         LLD_jll.is_available()
-    lld = if AMDGPU.lld_artifact || use_precompile_lld
+                         ccall(:jl_generating_output, Cint, ()) == 1
+    use_precompile_lld && return UInt8[]
+    lld = if AMDGPU.lld_artifact
         `$(LLD_jll.lld()) -flavor gnu`
     else
         @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
