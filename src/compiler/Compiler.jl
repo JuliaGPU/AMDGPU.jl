@@ -1,13 +1,12 @@
 module Compiler
 
 import Core: LLVMPtr
-import LLD_jll
 
 using ..GPUCompiler
 using ..LLVM
 using Printf
 
-import AMDGPU_LLVM_Backend_jll # not used directly, but GPUCompiler uses the in-tree backend otherwise
+import AMDGPU_LLVM_Backend_jll # used for lld and GPUCompiler uses the in-tree backend otherwise
 
 import ..AMDGPU
 import ..AMDGPU: AS
