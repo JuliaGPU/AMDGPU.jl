@@ -13,11 +13,6 @@ If successful, returns a captured graph that needs to be [`instantiate`](@ref)'d
 """
 capture
 
-function unchecked_hipStreamEndCapture(stream, pGraph)
-    AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamEndCapture(stream::hipStream_t, pGraph::Ptr{hipGraph_t})::hipError_t)
-end
-
 mutable struct HIPGraph
     handle::hipGraph_t
 
@@ -119,8 +114,10 @@ end
 
 For a given `stream` check if capturing for a graph is performed.
 """
-function is_capturing(stream::HIPStream = AMDGPU.stream())::Bool
-    capture_status(stream).status == hipStreamCaptureStatusActive
+@inline function is_capturing(stream::HIPStream = AMDGPU.stream())::Bool
+    status = Ref{hipStreamCaptureStatus}()
+    hipStreamIsCapturing(stream, status)
+    return status[] != hipStreamCaptureStatusNone
 end
 
 """

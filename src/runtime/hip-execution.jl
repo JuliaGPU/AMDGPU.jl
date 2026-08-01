@@ -4,8 +4,8 @@ mutable struct ArgBox{T}
     const val::T
 end
 
-function Base.unsafe_convert(P::Union{Type{Ptr{T}}, Type{Ptr{Cvoid}}}, b::ArgBox{T})::P where {T}
-    return pointer_from_objref(b)
+@inline function Base.unsafe_convert(P::Union{Type{Ptr{T}}, Type{Ptr{Cvoid}}}, box::ArgBox{T})::P where {T}
+    return pointer_from_objref(box)
 end
 
 """
@@ -87,26 +87,12 @@ function roccall(fun::F, tt::Type{T}, args::Vararg{Any, N}; kwargs...) where {F,
     convert_arguments(cvt_fn, tt, args...)
 end
 
-@inline @generated function pack_arguments(f::Function, args...)
-    ex = quote end
-
-    arg_refs = Vector{Symbol}(undef, length(args))
-    for i in 1:length(args)
-        arg_refs[i] = gensym()
-        push!(ex.args, :($(arg_refs[i]) = $ArgBox(args[$i])))
+@inline function pack_arguments(f::F, args...) where F
+    boxes = map(ArgBox, args)
+    GC.@preserve args boxes begin
+        pointers = map(box -> Base.unsafe_convert(Ptr{Cvoid}, box), boxes)
+        f(Ref(pointers))
     end
-
-    arg_ptrs = [
-        :(Base.unsafe_convert(Ptr{Cvoid}, $(arg_refs[i])))
-        for i in 1:length(args)]
-
-    append!(ex.args, (quote
-        GC.@preserve $(arg_refs...) begin
-            kernel_params = [$(arg_ptrs...)]
-            f(kernel_params)
-        end
-    end).args)
-    return ex
 end
 
 function launch(
@@ -117,7 +103,11 @@ function launch(
 ) where N
     gd = gridsize isa ROCDim3 ? gridsize : ROCDim3(gridsize)
     bd = groupsize isa ROCDim3 ? groupsize : ROCDim3(groupsize)
+    # TODO guard with try/catch & diagnose a failure
     pack_arguments(args...) do kernel_params
+        # Inline into `pack_arguments`, so that `kernel_params` does not escape into a
+        # call and can be promoted to an `alloca` instead of being heap-allocated.
+        @inline
         if cooperative
             HIP.hipModuleLaunchCooperativeKernel(
                 fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,

@@ -184,6 +184,13 @@ end
 
 function check end
 
+# Used by `GPUToolbox.@checked`.
+@inline function check(f::Base.Callable)
+    err = f()
+    check(err)
+    return err
+end
+
 macro check(f)
     quote
         local err
