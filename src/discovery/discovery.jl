@@ -4,7 +4,7 @@ export lld_artifact, lld_path, libhsaruntime, libdevice_libs, libhip
 export librocblas, librocsparse, librocsolver
 export librocrand, librocfft, libMIOpen_path
 
-using LLD_jll
+using AMDGPU_LLVM_Backend_jll
 using ROCmDeviceLibs_jll
 using Preferences
 using Libdl
@@ -20,8 +20,8 @@ end
 function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
     lld_path = find_ld_lld(rocm_path)
     isempty(lld_path) || return (lld_path, false)
-    LLD_jll.is_available() || return (lld_path, false)
-    return (LLD_jll.lld_path, true)
+    AMDGPU_LLVM_Backend_jll.is_available() || return (lld_path, false)
+    return (AMDGPU_LLVM_Backend_jll.lld_path, true)
 end
 
 function get_device_libs(from_artifact::Bool; rocm_path::String)

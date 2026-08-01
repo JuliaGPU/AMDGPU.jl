@@ -43,3 +43,19 @@ end
     A = ROCArray{ComplexF64}(undef, (2,2))
     @test eltype(convert.(ComplexF32, A)) == ComplexF32
 end
+
+# https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
+# note: miscompile only occurs with `julia --check-bounds=yes`
+@testset "Int128 miscompilation" begin
+    function test_kernel(a::T, b) where T
+        c = a
+        for i=1:5
+            c += T(b)
+            c = a * T(2)
+        end
+        return c
+    end
+    M = rand(Int128, 10, 10)
+    @test Array(test_kernel.(ROCArray(M), Int128(10))) == test_kernel.(M, Int128(10))
+    AMDGPU.synchronize()
+end
