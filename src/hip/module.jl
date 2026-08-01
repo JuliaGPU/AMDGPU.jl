@@ -31,6 +31,8 @@ struct HIPFunction
 end
 
 Base.unsafe_convert(::Type{hipFunction_t}, fun::HIPFunction) = fun.handle
+Base.:(==)(a::HIPFunction, b::HIPFunction) = a.handle == b.handle
+Base.hash(fun::HIPFunction, h::UInt) = hash(fun.handle, h)
 
 function launch_configuration(fun::HIPFunction; shmem::Integer = 0, max_block_size::Integer = 0)
     grid_size_ref, block_size_ref = Ref{Cint}(), Ref{Cint}()

@@ -36,8 +36,8 @@ mutable struct HIPResults
     HIPResults() = new(nothing, nothing, Symbol[], Tuple{HIP.HIPDevice,HIP.HIPFunction}[])
 end
 
-# hash(fun, hash(f, hash(tt))) => HIPKernel
-const _kernel_instances = Dict{UInt, Runtime.HIPKernel}()
+# (objectid(source), hash(fun), f) => HIPKernel
+const _kernel_instances = Dict{Any, Any}()
 
 GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
 
@@ -201,11 +201,11 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
         source = methodinstance(F, tt)
         fun = hipfunction_lookup(source, config, dev)
 
-        h = hash(fun, hash(f, hash(tt)))
-        kernel = get(_kernel_instances, h, nothing)
+        key = (objectid(source), hash(fun), f)
+        kernel = get(_kernel_instances, key, nothing)
         if kernel === nothing
             kernel = Runtime.HIPKernel{F, tt}(f, fun)
-            _kernel_instances[h] = kernel
+            _kernel_instances[key] = kernel
         end
         return kernel::Runtime.HIPKernel{F, tt}
     end

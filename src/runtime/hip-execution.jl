@@ -105,6 +105,9 @@ function launch(
     bd = groupsize isa ROCDim3 ? groupsize : ROCDim3(groupsize)
     # TODO guard with try/catch & diagnose a failure
     pack_arguments(args...) do kernel_params
+        # Inline into `pack_arguments`, so that `kernel_params` does not escape into a
+        # call and can be promoted to an `alloca` instead of being heap-allocated.
+        @inline
         if cooperative
             HIP.hipModuleLaunchCooperativeKernel(
                 fun, gd.x, gd.y, gd.z, bd.x, bd.y, bd.z,

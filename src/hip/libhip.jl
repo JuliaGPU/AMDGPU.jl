@@ -5317,7 +5317,7 @@ function hipCtxSetCurrent(ctx)
     @check @gcsafe_ccall(libhip.hipCtxSetCurrent(ctx::hipCtx_t)::hipError_t)
 end
 
-function hipCtxGetCurrent(ctx)
+@inline function hipCtxGetCurrent(ctx)
     @check @gcsafe_ccall(libhip.hipCtxGetCurrent(ctx::Ref{hipCtx_t})::hipError_t)
 end
 
@@ -5596,7 +5596,7 @@ function hipLinkDestroy(state)
     @check @gcsafe_ccall(libhip.hipLinkDestroy(state::hipLinkState_t)::hipError_t)
 end
 
-function hipModuleLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
+@inline function hipModuleLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
                                blockDimZ, sharedMemBytes, stream, kernelParams, extra)
     AMDGPU.prepare_state()
     @check @gcsafe_ccall(libhip.hipModuleLaunchKernel(f::hipFunction_t, gridDimX::Cuint,
@@ -5609,7 +5609,7 @@ function hipModuleLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, block
                                                       extra::Ptr{Ptr{Cvoid}})::hipError_t)
 end
 
-function hipModuleLaunchCooperativeKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX,
+@inline function hipModuleLaunchCooperativeKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX,
                                           blockDimY, blockDimZ, sharedMemBytes, stream,
                                           kernelParams)
     AMDGPU.prepare_state()
@@ -5622,7 +5622,7 @@ function hipModuleLaunchCooperativeKernel(f, gridDimX, gridDimY, gridDimZ, block
                                                                  blockDimZ::Cuint,
                                                                  sharedMemBytes::Cuint,
                                                                  stream::hipStream_t,
-                                                                 kernelParams::Ptr{Ptr{Cvoid}})::hipError_t)
+                                                                 kernelParams::Ref{Ptr{Cvoid}})::hipError_t)
 end
 
 function hipModuleLaunchCooperativeKernelMultiDevice(launchParamsList, numDevices, flags)
