@@ -13,11 +13,6 @@ If successful, returns a captured graph that needs to be [`instantiate`](@ref)'d
 """
 capture
 
-function unchecked_hipStreamEndCapture(stream, pGraph)
-    AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamEndCapture(stream::hipStream_t, pGraph::Ptr{hipGraph_t})::hipError_t)
-end
-
 mutable struct HIPGraph
     handle::hipGraph_t
 
