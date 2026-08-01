@@ -184,10 +184,7 @@ end
 
 function check end
 
-# `GPUToolbox.@checked` hands us the ccall wrapped in a closure (which lets it inline the
-# body into the caller, so that `Ref` arguments can be stack-allocated). Keep the same
-# semantics as `@check`: check the status, then hand the caller the raw code, as e.g.
-# `hipStreamQuery` relies on `hipErrorNotReady` being returned rather than thrown.
+# Used by `GPUToolbox.@checked`.
 @inline function check(f::Base.Callable)
     err = f()
     check(err)
