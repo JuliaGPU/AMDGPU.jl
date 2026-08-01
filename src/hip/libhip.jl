@@ -5318,7 +5318,7 @@ function hipCtxSetCurrent(ctx)
 end
 
 function hipCtxGetCurrent(ctx)
-    @check @gcsafe_ccall(libhip.hipCtxGetCurrent(ctx::Ptr{hipCtx_t})::hipError_t)
+    @check @gcsafe_ccall(libhip.hipCtxGetCurrent(ctx::Ref{hipCtx_t})::hipError_t)
 end
 
 function hipCtxGetDevice(device)
@@ -5605,7 +5605,7 @@ function hipModuleLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, block
                                                       blockDimZ::Cuint,
                                                       sharedMemBytes::Cuint,
                                                       stream::hipStream_t,
-                                                      kernelParams::Ptr{Ptr{Cvoid}},
+                                                      kernelParams::Ref{Ptr{Cvoid}},
                                                       extra::Ptr{Ptr{Cvoid}})::hipError_t)
 end
 

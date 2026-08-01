@@ -143,7 +143,18 @@ function parse_llvm_features(arch::String)
 end
 
 
-function compiler_config(dev::HIP.HIPDevice;
+const _compiler_configs = Dict{UInt, HIPCompilerConfig}()
+
+function compiler_config(dev::HIP.HIPDevice; kwargs...)
+    h = hash(dev, hash(kwargs))
+    config = get(_compiler_configs, h, nothing)
+    config === nothing || return config
+    config = _compiler_config(dev; kwargs...)
+    _compiler_configs[h] = config
+    return config
+end
+
+function _compiler_config(dev::HIP.HIPDevice;
     name::Union{String, Nothing} = nothing, kernel::Bool = true,
     unsafe_fp_atomics::Bool = true, wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
 )
@@ -187,39 +198,42 @@ function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Functio
     Base.@lock hipfunction_lock begin
         dev = AMDGPU.device()
         config = compiler_config(dev; kwargs...)
-
         source = methodinstance(F, tt)
-        job = CompilerJob(source, config)
-        res = compile_or_lookup(job)
-
-        # Resolve the `HIPFunction` for the active device. This is a session-local
-        # handle, so it lives in the results struct's linear cache rather than being
-        # persisted; the scan is almost always over a single entry, matching the old
-        # per-device cache (`==` compare, as `HIPDevice` was the Dict key before).
-        fun = nothing
-        for (cached_dev, cached_fun) in res.functions
-            if cached_dev == dev
-                fun = cached_fun
-                break
-            end
-        end
-        if fun === nothing
-            fun = hiplink(job, res.obj::Vector{UInt8}, res.entry::String,
-                          res.global_hostcalls)
-            # Don't cache session-local handles while generating output: the results
-            # struct is serialized into the package image along with its CodeInstance,
-            # and the handles would come back dangling.
-            if ccall(:jl_generating_output, Cint, ()) != 1
-                push!(res.functions, (dev, fun))
-            end
-        end
+        fun = hipfunction_lookup(source, config, dev)
 
         h = hash(fun, hash(f, hash(tt)))
-        kernel = get!(_kernel_instances, h) do
-            Runtime.HIPKernel{F, tt}(f, fun)
+        kernel = get(_kernel_instances, h, nothing)
+        if kernel === nothing
+            kernel = Runtime.HIPKernel{F, tt}(f, fun)
+            _kernel_instances[h] = kernel
         end
         return kernel::Runtime.HIPKernel{F, tt}
     end
+end
+
+# Resolve the `HIPFunction` for `source`/`config` on the active device. This is a
+# session-local handle, so it lives in the results struct's linear cache rather than
+# being persisted; the scan is almost always over a single entry, matching the old
+# per-device cache (`==` compare, as `HIPDevice` was the Dict key before).
+function hipfunction_lookup(
+    source::Core.MethodInstance, config::HIPCompilerConfig, dev::HIP.HIPDevice,
+)::HIP.HIPFunction
+    job = CompilerJob(source, config)
+    res = compile_or_lookup(job)
+
+    for (cached_dev, cached_fun) in res.functions
+        cached_dev == dev && return cached_fun
+    end
+
+    fun = hiplink(job, res.obj::Vector{UInt8}, res.entry::String,
+                  res.global_hostcalls)
+    # Don't cache session-local handles while generating output: the results
+    # struct is serialized into the package image along with its CodeInstance,
+    # and the handles would come back dangling.
+    if ccall(:jl_generating_output, Cint, ()) != 1
+        push!(res.functions, (dev, fun))
+    end
+    return fun
 end
 
 # Look up the cached compilation artifacts for `job`, running the compiler on a miss.

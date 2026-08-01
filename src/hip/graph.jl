@@ -120,7 +120,9 @@ end
 For a given `stream` check if capturing for a graph is performed.
 """
 function is_capturing(stream::HIPStream = AMDGPU.stream())::Bool
-    capture_status(stream).status == hipStreamCaptureStatusActive
+    status = Ref{hipStreamCaptureStatus}()
+    hipStreamIsCapturing(stream, status)
+    return status[] != hipStreamCaptureStatusNone
 end
 
 """
