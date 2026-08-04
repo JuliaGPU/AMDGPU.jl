@@ -1,5 +1,6 @@
 import DefaultTheme from "vitepress/theme";
 import type { Theme as ThemeConfig } from "vitepress";
+import "virtual:mathjax-styles.css";
 
 import VersionPicker from "../../components/VersionPicker.vue";
 import { enhanceAppWithTabs } from "vitepress-plugin-tabs/client";

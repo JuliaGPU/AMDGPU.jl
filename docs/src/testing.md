@@ -54,4 +54,10 @@ julia --project=docs -e 'using LiveServer; serve(dir="docs/build/1")'
 The last command serves the built site locally; open the printed URL in a browser.
 
 !!! note "Doctests need a GPU"
-    `make.jl` runs with `doctest=true`, so every ```` ```jldoctest ```` block is executed on a real device. Building the docs therefore requires a functional AMD GPU, and a clean build means all examples still produce their documented output. When writing examples, prefer showing `Array(x)` rather than a raw `ROCArray` so the output does not depend on internal buffer types.
+    `make.jl` runs with `doctest=true`, so every block opening with
+
+    ````
+    ```jldoctest
+    ````
+
+    is executed on a real device. Building the docs therefore requires a functional AMD GPU, and a clean build means all examples still produce their documented output. When writing examples, prefer showing `Array(x)` rather than a raw `ROCArray` so the output does not depend on internal buffer types.
