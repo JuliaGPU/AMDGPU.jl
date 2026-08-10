@@ -217,7 +217,7 @@ function LinearAlgebra.generic_matmatmul!(
     end
 
     T = eltype(C)
-    if alpha isa Union{Bool, T} && beta isa Union{Bool, T}
+    if T <: ROCBLASFloat && alpha isa Union{Bool, T} && beta isa Union{Bool, T}
         α, β = T(alpha), T(beta)
 
         if (
