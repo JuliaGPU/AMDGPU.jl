@@ -29,7 +29,7 @@ for (fname, elty) in (
     (:rocsolver_zpotrs, :ComplexF64),
 )
     @eval begin
-        function potrs!(uplo::Char, A::ROCMatrix{$elty}, B::StridedROCVecOrMat{$elty})
+        function potrs!(uplo::Char, A::StridedROCMatrix{$elty}, B::StridedROCVecOrMat{$elty})
             chkuplo(uplo)
             n = checksquare(A)
             m = size(B, 1)
@@ -51,13 +51,13 @@ for (fname, elty) in (
     (:rocsolver_zsytrf, :ComplexF64),
 )
     @eval begin
-        function sytrf!(uplo::Char, A::ROCMatrix{$elty})
+        function sytrf!(uplo::Char, A::StridedROCMatrix{$elty})
             m, n = size(A)
             ipiv = ROCVector{Cint}(undef, n)
             sytrf!(uplo, A, ipiv)
         end
 
-        function sytrf!(uplo::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint})
+        function sytrf!(uplo::Char, A::StridedROCMatrix{$elty}, ipiv::ROCVector{Cint})
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
@@ -81,13 +81,13 @@ for (fname, elty) in (
     (:rocsolver_zgeqrf, :ComplexF64),
 )
     @eval begin
-        function geqrf!(A::ROCMatrix{$elty})
+        function geqrf!(A::StridedROCMatrix{$elty})
             m, n = size(A)
             tau = ROCVector{$elty}(undef, min(m, n))
             geqrf!(A, tau)
         end
 
-        function geqrf!(A::ROCMatrix{$elty}, tau::ROCVector{$elty})
+        function geqrf!(A::StridedROCMatrix{$elty}, tau::ROCVector{$elty})
             m, n = size(A)
             lda = max(1, stride(A, 2))
             $fname(rocBLAS.handle(), m, n, A, lda, tau)
@@ -104,7 +104,7 @@ for (fname, elty) in (
 )
     @eval begin
         function ormqr!(
-            side::Char, trans::Char, A::ROCMatrix{$elty},
+            side::Char, trans::Char, A::StridedROCMatrix{$elty},
             τ::ROCVector{$elty}, C::StridedROCVecOrMat{$elty},
         )
             $elty <: Complex && trans == 'T' && throw(ArgumentError(
@@ -144,7 +144,7 @@ for (fname, elty) in (
     (:rocsolver_zungqr, :ComplexF64),
 )
     @eval begin
-        function orgqr!(A::ROCMatrix{$elty}, tau::ROCVector{$elty})
+        function orgqr!(A::StridedROCMatrix{$elty}, tau::ROCVector{$elty})
             m, n = size(A)
             lda = max(1, stride(A, 2))
             k = length(tau)
@@ -161,13 +161,13 @@ for (fname, elty) in (
     (:rocsolver_zgetrf, :ComplexF64),
 )
     @eval begin
-        function getrf!(A::ROCMatrix{$elty})
+        function getrf!(A::StridedROCMatrix{$elty})
             m, n = size(A)
             ipiv = ROCArray{Cint}(undef, min(m, n))
             getrf!(A, ipiv)
         end
 
-        function getrf!(A::ROCMatrix{$elty}, ipiv::ROCVector{Cint})
+        function getrf!(A::StridedROCMatrix{$elty}, ipiv::ROCVector{Cint})
             m, n = size(A)
             lda = max(1, stride(A, 2))
 
@@ -191,7 +191,7 @@ for (fname, elty) in (
 )
     @eval begin
         function getrs!(
-            trans::Char, A::ROCMatrix{$elty}, ipiv::ROCVector{Cint},
+            trans::Char, A::StridedROCMatrix{$elty}, ipiv::ROCVector{Cint},
             B::StridedROCVecOrMat{$elty}
         )
             trans = ($elty <: Real && trans == 'C') ? 'T' : trans
@@ -220,7 +220,7 @@ for (fname, elty) in (
     (:rocsolver_zgeblttrf_npvt, :ComplexF64),
 )
     @eval begin
-        function geblttrf!(A::ROCArray{$elty,3}, B::ROCArray{$elty,3}, C::ROCArray{$elty,3})
+        function geblttrf!(A::StridedROCArray{$elty,3}, B::StridedROCArray{$elty,3}, C::StridedROCArray{$elty,3})
             mA, nA, nblocksA = size(A)
             mB, nB, nblocksB = size(B)
             mC, nC, nblocksC = size(C)
@@ -248,7 +248,7 @@ for (fname, elty) in (
     (:rocsolver_zgeblttrs_npvt, :ComplexF64),
 )
     @eval begin
-        function geblttrs!(A::ROCArray{$elty,3}, B::ROCArray{$elty,3}, C::ROCArray{$elty,3}, X::ROCArray{$elty,3})
+        function geblttrs!(A::StridedROCArray{$elty,3}, B::StridedROCArray{$elty,3}, C::StridedROCArray{$elty,3}, X::StridedROCArray{$elty,3})
             mA, nA, nblocksA = size(A)
             mB, nB, nblocksB = size(B)
             mC, nC, nblocksC = size(C)
@@ -273,7 +273,7 @@ for (fname, elty, relty) in ((:rocsolver_sgebrd, :Float32   , :Float32),
                              (:rocsolver_cgebrd, :ComplexF32, :Float32),
                              (:rocsolver_zgebrd, :ComplexF64, :Float64))
     @eval begin
-        function gebrd!(A:: ROCMatrix{$elty})
+        function gebrd!(A::StridedROCMatrix{$elty})
             m, n = size(A)
             lda  = max(1, stride(A, 2))
             k    = min(m, n)
@@ -295,7 +295,7 @@ for (fname, elty, relty) in ((:rocsolver_sgesvd, :Float32, :Float32),
     @eval begin
         function gesvd!(jobu::Char,
                         jobvt::Char,
-                        A::ROCMatrix{$elty})
+                        A::StridedROCMatrix{$elty})
             m, n = size(A)
             k = min(m, n)
             lda = max(1, stride(A, 2))
@@ -344,7 +344,7 @@ for (jname, fname, elty, relty) in (
     (:heevd!, :rocsolver_cheevd, :ComplexF32, :Float32),
 )
     @eval begin
-        function $jname(uplo::Char, A::ROCMatrix{$elty})
+        function $jname(uplo::Char, A::StridedROCMatrix{$elty})
             chkuplo(uplo)
 
             n = size(A, 2)
@@ -381,7 +381,7 @@ for (jname, fname, elty, relty) in (
     (:hegvd!, :rocsolver_chegvd, :ComplexF32, :Float32),
 )
     @eval begin
-        function $jname(uplo::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
+        function $jname(uplo::Char, A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty})
             chkuplo(uplo)
 
             n = checksquare(A)
@@ -426,7 +426,7 @@ for (fname, matrix_elty, vector_elty) in (
 )
     @eval begin
         function gesvdj!(
-            A::ROCMatrix{$matrix_elty};
+            A::StridedROCMatrix{$matrix_elty};
             jobu::Char='S', jobvt::Char='S',
             abstol::$vector_elty=eps($vector_elty), max_sweeps::Integer=100,
         )
@@ -499,14 +499,14 @@ for (fname, elty) in
          (:rocsolver_zgetrf_batched,:ComplexF64),
          (:rocsolver_cgetrf_batched,:ComplexF32))
     @eval begin
-        function getrf_batched!(A::Vector{<:ROCMatrix{$elty}})
+        function getrf_batched!(A::Vector{<:StridedROCMatrix{$elty}})
             nb = length(A)
             m,n = size(A[1])
             ipiv = ROCVector{Cint}(undef, nb*n)
             getrf_batched!(A, ipiv)
         end
 
-        function getrf_batched!(A::Vector{<:ROCMatrix{$elty}}, ipiv::ROCVector{Cint})
+        function getrf_batched!(A::Vector{<:StridedROCMatrix{$elty}}, ipiv::ROCVector{Cint})
             m,n = size(A[1])
             lda = max(1, stride(A[1], 2))
             strideP = min(m,n)
@@ -528,7 +528,7 @@ for (fname, elty) in
      (:rocsolver_zgetri_batched, :ComplexF64),
      (:rocsolver_cgetri_batched, :ComplexF32))
     @eval begin
-        function getri_batched!(A::Vector{<:ROCMatrix{$elty}}, ipiv::ROCVector{Cint})
+        function getri_batched!(A::Vector{<:StridedROCMatrix{$elty}}, ipiv::ROCVector{Cint})
             n = checksquare(A[1])
             lda = max(1, stride(A[1], 2))
             strideP = n
@@ -622,7 +622,7 @@ function Base.:\(_A::ROCMatOrAdj, _B::ROCOrAdj)
     return X
 end
 
-LinearAlgebra.qr!(A::ROCMatrix{T}) where T = QR(geqrf!(A)...)
+LinearAlgebra.qr!(A::StridedROCMatrix{T}) where T = QR(geqrf!(A)...)
 
 LinearAlgebra.lmul!(
     A::QRPackedQ{T,<:ROCArray,<:ROCArray}, B::StridedROCVecOrMat{T},
