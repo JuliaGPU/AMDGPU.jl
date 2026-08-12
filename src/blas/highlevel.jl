@@ -338,7 +338,7 @@ function Base.:/(A::ROCArray, D::Diagonal)
     _rdiv!(B, A, D)
 end
 
-function _rdiv!(B::ROCArray, A::ROCArray, D::Diagonal)
+function LinearAlgebra._rdiv!(B::ROCArray, A::ROCArray, D::Diagonal)
     m, n = size(A, 1), size(A, 2)
     (k = length(D.diag)) != n && throw(DimensionMismatch(
         "left hand side has $n columns but D is $k by $k"))
