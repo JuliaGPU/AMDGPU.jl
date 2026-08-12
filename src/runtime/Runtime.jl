@@ -12,7 +12,9 @@ import ..AMDGPU
 import ..AMDGPU: LockedObject
 import .HIP: HIPDevice
 
-struct Adaptor end
+struct Adaptor{M}
+    managed::M
+end
 
 const RT_LOCK = Threads.ReentrantLock()
 const RT_EXITING = Ref{Bool}(false)

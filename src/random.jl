@@ -2,13 +2,14 @@
 
 using Random
 
-const GPUARRAY_RNG = Ref{Union{Nothing,GPUArrays.RNG}}(nothing)
+const GPUARRAY_RNG_KEY = :AMDGPU_GPUARRAY_RNG
 
 function GPUArrays.default_rng(::Type{<:ROCArray})
-    if GPUARRAY_RNG[] == nothing
-        GPUARRAY_RNG[] = GPUArrays.RNG{ROCArray}()
+    rngs = get!(() -> Dict{HIPDevice,GPUArrays.RNG}(), task_local_storage(),
+                GPUARRAY_RNG_KEY)
+    return get!(rngs, device()) do
+        GPUArrays.RNG{ROCArray}()
     end
-    return GPUARRAY_RNG[]::GPUArrays.RNG
 end
 
 gpuarrays_rng() = GPUArrays.default_rng(ROCArray)

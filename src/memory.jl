@@ -407,27 +407,28 @@ end
 # TODO handle stream capturing when we support HIP graphs
 mutable struct Managed{M}
     const mem::M
+    const lock::ReentrantLock
     stream::HIPStream
     dirty::Bool
     captured::Bool
 
     function Managed(mem; stream=AMDGPU.stream(), dirty=true, captured=false)
-        new{typeof(mem)}(mem, stream, dirty, captured)
+        new{typeof(mem)}(mem, ReentrantLock(), stream, dirty, captured)
     end
 end
 
 function synchronize(m::Managed)
-    m.dirty || return
-    synchronize(m.stream)
-    m.dirty = false
-    return
+    Base.@lock m.lock begin
+        m.dirty || return
+        synchronize(m.stream)
+        m.dirty = false
+        return
+    end
 end
 
 Base.sizeof(m::Managed) = sizeof(m.mem)
 
-function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T, M}
-    strm = AMDGPU.stream()
-
+function take_ownership!(managed::Managed; stream::HIPStream=AMDGPU.stream())
     # TODO handle stream capture
 
     # TODO handle access on another device
@@ -435,38 +436,56 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T, M}
     #     # Enable peer-to-peer access.
     # end
 
-    if managed.stream != strm
+    if managed.stream != stream
         synchronize(managed)
-        managed.stream = strm
+        managed.stream = stream
     end
 
     managed.dirty = true
-    # TODO introduce HIPPtr to differentiate
-    if M <: Mem.HIPBuffer
-        convert(Ptr{T}, managed.mem)
-    else
-        convert(Ptr{T}, managed.mem.dev_ptr)
+    return managed
+end
+
+function lock_managed(managed::AbstractVector{<:Managed})
+    locked = unique(managed)
+    sort!(locked; by=m -> objectid(m.lock))
+    foreach(m -> lock(m.lock), locked)
+    return locked
+end
+
+function unlock_managed(locked::AbstractVector{<:Managed})
+    foreach(m -> unlock(m.lock), Iterators.reverse(locked))
+    return
+end
+
+function with_managed(f::F, managed::AbstractVector{<:Managed};
+                      stream::HIPStream=AMDGPU.stream()) where {F}
+    locked = lock_managed(managed)
+    try
+        foreach(m -> take_ownership!(m; stream), locked)
+        return f()
+    finally
+        unlock_managed(locked)
+    end
+end
+
+function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T, M}
+    Base.@lock managed.lock begin
+        take_ownership!(managed)
+        # TODO introduce HIPPtr to differentiate
+        if M <: Mem.HIPBuffer
+            convert(Ptr{T}, managed.mem)
+        else
+            convert(Ptr{T}, managed.mem.dev_ptr)
+        end
     end
 end
 
 # TODO workaround until we have HIPPtr
 function Base.convert(::Type{Mem.AbstractAMDBuffer}, managed::Managed{M}) where M
-    strm = AMDGPU.stream()
-
-    # TODO handle stream capture
-
-    # TODO handle access on another device
-    # if M == Mem.HIPBuffer && managed.mem.ctx != tls.ctx
-    #     # Enable peer-to-peer access.
-    # end
-
-    if managed.stream != strm
-        synchronize(managed)
-        managed.stream = strm
+    Base.@lock managed.lock begin
+        take_ownership!(managed)
+        return managed.mem
     end
-
-    managed.dirty = true
-    return managed.mem
 end
 
 function pool_alloc(::Type{B}, bytesize) where B
@@ -494,7 +513,9 @@ function pool_free(managed::Managed{M}) where M
     sz == 0 && return
 
     try
-        time = Base.@elapsed _pool_free(managed.mem, managed.stream)
+        time = Base.@elapsed Base.@lock managed.lock begin
+            _pool_free(managed.mem, managed.stream)
+        end
         Base.@atomic alloc_stats.free_count += 1
         Base.@atomic alloc_stats.free_bytes += sz
         Base.@atomic alloc_stats.total_time += time
@@ -511,5 +532,5 @@ function _pool_free(buf, stream::HIPStream)
     if !HIP.isvalid(stream)
         stream = AMDGPU.default_stream()
     end
-    context!(() -> Mem.free(buf; stream), buf.ctx)
+    HIP.context!(() -> Mem.free(buf; stream), buf.ctx)
 end

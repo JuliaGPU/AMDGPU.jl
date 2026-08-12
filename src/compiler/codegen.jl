@@ -144,14 +144,15 @@ end
 
 
 const _compiler_configs = Dict{UInt, HIPCompilerConfig}()
+const compiler_config_lock = ReentrantLock()
 
 function compiler_config(dev::HIP.HIPDevice; kwargs...)
     h = hash(dev, hash(kwargs))
-    config = get(_compiler_configs, h, nothing)
-    config === nothing || return config
-    config = _compiler_config(dev; kwargs...)
-    _compiler_configs[h] = config
-    return config
+    return Base.@lock compiler_config_lock begin
+        get!(_compiler_configs, h) do
+            _compiler_config(dev; kwargs...)
+        end
+    end
 end
 
 function _compiler_config(dev::HIP.HIPDevice;
