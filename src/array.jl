@@ -391,5 +391,11 @@ function Base.convert(
     ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
 end
 
-Adapt.adapt_storage(::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N} =
-    convert(ROCDeviceArray{T,N,AS.Global}, x)
+function Adapt.adapt_storage(to::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N}
+    managed = x.buf[]
+    push!(to.managed, managed)
+    buf = managed.mem
+    ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ? buf : buf.dev_ptr)
+    llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + x.offset)
+    return ROCDeviceArray{T, N, AS.Global}(x.dims, llvm_ptr)
+end
