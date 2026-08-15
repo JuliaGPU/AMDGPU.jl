@@ -25,29 +25,24 @@ function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
     return (AMDGPU_LLVM_Backend_jll.lld_path, true)
 end
 
-# Bitcode versions `llvm-downgrade` can target.
+# bitcode versions `llvm-downgrade` can target.
 const DOWNGRADE_TARGETS = (v"5", v"7", v"14", v"15", v"18")
 
-# The device libraries shipped with AMDGPU_LLVM_Backend_jll are built with a
-# newer LLVM than Julia's, so downgrade their bitcode with `llvm-downgrade`
-# to the newest version Julia's LLVM can still read. This happens only once:
-# the result is cached in a scratch space keyed by the involved versions.
+# downgrade the device libs to the latest LLVM version Julia supports
 function downgrade_device_libs(src_dir::String)::String
-    target = maximum(v for v in DOWNGRADE_TARGETS if v <= Base.libllvm_version)
-    # Include the artifact tree hashes so that a rebuilt artifact invalidates
-    # the cache even without a version bump.
+    target = maximum(Iterators.filter(<=(Base.libllvm_version), DOWNGRADE_TARGETS))
+    # ensure this is rebuilt if any of the relevant jlls or the target changes
     scratch_name = replace(string(
         "device_libs-", pkgversion(AMDGPU_LLVM_Backend_jll),
         "-", first(basename(AMDGPU_LLVM_Backend_jll.artifact_dir), 8),
         "-downgrader-", pkgversion(LLVMDowngrader_jll),
         "-", first(basename(LLVMDowngrader_jll.artifact_dir), 8),
-        "-llvm-", target.major), r"[^A-Za-z0-9-_.]" => "_")
+        "-llvm-", target.major), "+" => "_") # artifact versions include +, which Scratch does not like
     dir = @get_scratch!(scratch_name)
     marker = joinpath(dir, "downgrade_complete")
     isfile(marker) && return dir
 
-    # Populate a temporary directory first and only then move the files into
-    # place, so that concurrent processes never see partially written files.
+    # Use a temp dir, so concurrent processes don't interfere
     mktempdir(dirname(dir)) do tmp
         for file in readdir(src_dir)
             endswith(file, ".bc") || continue
