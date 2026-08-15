@@ -26,7 +26,7 @@ function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
 end
 
 # bitcode versions `llvm-downgrade` can target.
-const DOWNGRADE_TARGETS = (v"5", v"7", v"14", v"15", v"18")
+const DOWNGRADE_TARGETS = (v"5", v"7", v"14", #=v"15",=# v"18")
 
 # downgrade the device libs to the latest LLVM version Julia supports
 function downgrade_device_libs(src_dir::String)::String
