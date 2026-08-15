@@ -1,0 +1,15 @@
+name = "ROCm_Runtime"
+uuid = "3129f4d2-de71-4ff3-9833-76037e3ea355"
+authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.churavy@gmail.com>", "Anton Smirnov <tonysmn97@gmail.com>"]
+version = "7.14.0"
+
+[deps]
+Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+LazyArtifacts = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+
+[compat]
+Artifacts = "1"
+LazyArtifacts = "1"
+Libdl = "1"
+julia = "1.10"

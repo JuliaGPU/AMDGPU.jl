@@ -43,6 +43,8 @@ diagnostic when something is missing or not working.
 """
 function versioninfo(io::IO=stdout)
     println(io, "AMDGPU versioninfo")
+    println(io, "ROCm provider: ", local_rocm ?
+        "local ROCm installation" : "downloaded artifacts")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
@@ -65,7 +67,7 @@ function versioninfo(io::IO=stdout)
         _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                       _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
-        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
+        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen);
     ]
 
     PrettyTables.pretty_table(io, data; column_labels=[
@@ -148,7 +150,7 @@ function functional(component::Symbol)
     elseif component == :rocfft
         return !isempty(librocfft)
     elseif component == :MIOpen
-        return !isempty(libMIOpen_path)
+        return !isempty(libMIOpen)
     elseif component == :all
         for component in (
             :hip, :lld, :device_libs, :rocblas, :rocsolver,
