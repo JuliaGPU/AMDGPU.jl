@@ -61,7 +61,7 @@ function versioninfo(io::IO=stdout)
     data = String[
         _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_path);
         _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
-        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
+        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libamdhip64);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
         _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
         _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                       _libpath(librocsparse);
@@ -134,7 +134,7 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hip
-        return !isempty(libhip)
+        return !isempty(libamdhip64)
     elseif component == :lld
         return !isempty(lld_path)
     elseif component == :device_libs
