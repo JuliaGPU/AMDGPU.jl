@@ -10,12 +10,23 @@ AMDGPU.functional
 AMDGPU.has_rocm_gpu
 ```
 
+## Choosing the ROCm provider
+
+By default the ROCm runtime and libraries come from downloaded artifacts; see
+[Installation Info](@ref) for how to switch to a local ROCm installation.
+
+```@docs
+AMDGPU.set_rocm_version!
+AMDGPU.reset_rocm_version!
+```
+
 ## Configuration preferences
 
 Several behaviours are configured through [Preferences.jl](https://github.com/JuliaPackaging/Preferences.jl) and persist across sessions (they are written to your project's `LocalPreferences.toml`):
 
 | Preference | Set via | Effect |
 |:--|:--|:--|
+| `version` / `local` | `AMDGPU.set_rocm_version!` | Select the ROCm version, and whether to use downloaded artifacts or a local ROCm installation. |
 | `nonblocking_synchronize` | preference | Use non-blocking stream synchronization (default `true`); disable for slightly lower latency. See [Streams](@ref). |
 | `eager_gc` | `AMDGPU.eager_gc!(::Bool)` | Trigger GC before allocations under memory pressure. See [Memory Allocation and Intrinsics](@ref). |
 | `hard_memory_limit` | `AMDGPU.hard_memory_limit!("8 GiB")` | Hard cap on GPU memory, checked before every allocation. |
