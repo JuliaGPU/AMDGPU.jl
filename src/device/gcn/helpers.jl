@@ -37,6 +37,7 @@ end
 macro device_function(ex)
     ex = macroexpand(__module__, ex)
     def = ExprTools.splitdef(ex)
+    method_table = GlobalRef(AMDGPU, :method_table)
 
     # generate a function that errors
     def[:body] = quote
@@ -44,7 +45,7 @@ macro device_function(ex)
     end
 
     esc(quote
-        $(ExprTools.combinedef(def))
-        Base.Experimental.@overlay(AMDGPU.method_table, $ex)
+        Base.@__doc__ $(ExprTools.combinedef(def))
+        Base.Experimental.@overlay($method_table, $ex)
     end)
 end

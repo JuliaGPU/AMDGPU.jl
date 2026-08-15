@@ -1,6 +1,6 @@
 # Indexing and dimensions
 
-@generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
+@device_function @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
     @dispose ctx=Context() begin
         T_int32 = LLVM.Int32Type()
 
@@ -29,7 +29,7 @@
     end
 end
 
-@generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
+@device_function @generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
     @dispose ctx=Context() begin
         T_int8 = LLVM.Int8Type()
         T_int32 = LLVM.Int32Type()
@@ -84,33 +84,33 @@ for dim in (:x, :y, :z)
 
     # Workitem index
     fname, fn = Symbol("workitem"), Symbol("workitemIdx_$dim")
-    @eval @inline $fn() = _index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_group_size - 1)))) + 0x1
+    @eval @device_function @inline $fn() = _index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_group_size - 1)))) + 0x1
     cufn = Symbol("threadIdx_$dim")
-    @eval @inline $cufn() = $fn()
+    @eval @device_function @inline $cufn() = $fn()
 
     # Workgroup index
     fname, fn = Symbol("workgroup"), Symbol("workgroupIdx_$dim")
-    @eval @inline $fn() = _index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_groups[dim] - 1)))) + 0x1
+    @eval @device_function @inline $fn() = _index($(Val(fname)), $(Val(intr)), $(Val(0:(_max_groups[dim] - 1)))) + 0x1
     cufn = Symbol("blockIdx_$dim")
-    @eval @inline $cufn() = $fn()
+    @eval @device_function @inline $cufn() = $fn()
 end
 for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # Workgroup dimension (in workitems)
     fn = Symbol("workgroupDim_$dim")
     base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
-    @eval @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_group_size - 1))), UInt16)
+    @eval @device_function @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_group_size - 1))), UInt16)
     cufn = Symbol("blockDim_$dim")
-    @eval @inline $cufn() = $fn()
+    @eval @device_function @inline $cufn() = $fn()
 
     # Grid dimension (in workitems)
     fn = Symbol("gridItemDim_$dim")
     base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
-    @eval @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim] - 1))), UInt32)
+    @eval @device_function @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim] - 1))), UInt32)
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridGroupDim_$dim")
     fn_wg_dim = Symbol("workgroupDim_$dim")
     # N.B. Don't use div to avoid inserting an exception path
-    @eval @inline $fn_wg() = Core.Intrinsics.udiv_int($fn(), $fn_wg_dim())
+    @eval @device_function @inline $fn_wg() = Core.Intrinsics.udiv_int($fn(), $fn_wg_dim())
 end
 
 """
@@ -119,7 +119,7 @@ end
 Returns the work item index within the work group.
 See also: [`threadIdx`](@ref)
 """
-@inline workitemIdx() = (x=workitemIdx_x(), y=workitemIdx_y(), z=workitemIdx_z())
+@device_function @inline workitemIdx() = (x=workitemIdx_x(), y=workitemIdx_y(), z=workitemIdx_z())
 
 """
     workgroupIdx()::ROCDim3
@@ -127,7 +127,7 @@ See also: [`threadIdx`](@ref)
 Returns the work group index.
 See also: [`blockIdx`](@ref)
 """
-@inline workgroupIdx() = (x=workgroupIdx_x(), y=workgroupIdx_y(), z=workgroupIdx_z())
+@device_function @inline workgroupIdx() = (x=workgroupIdx_x(), y=workgroupIdx_y(), z=workgroupIdx_z())
 
 """
     workgroupDim()::ROCDim3
@@ -135,7 +135,7 @@ See also: [`blockIdx`](@ref)
 Returns the size of each workgroup in workitems.
 See also: [`blockDim`](@ref)
 """
-@inline workgroupDim() = (x=workgroupDim_x(), y=workgroupDim_y(), z=workgroupDim_z())
+@device_function @inline workgroupDim() = (x=workgroupDim_x(), y=workgroupDim_y(), z=workgroupDim_z())
 
 """
     gridItemDim()::ROCDim3
@@ -143,7 +143,7 @@ See also: [`blockDim`](@ref)
 Returns the size of the grid in workitems.
 This behaviour is different from CUDA where `gridDim` gives the size of the grid in blocks.
 """
-@inline gridItemDim() = (x=gridItemDim_x(), y=gridItemDim_y(), z=gridItemDim_z())
+@device_function @inline gridItemDim() = (x=gridItemDim_x(), y=gridItemDim_y(), z=gridItemDim_z())
 
 """
     gridGroupDim()::ROCDim3
@@ -151,7 +151,7 @@ This behaviour is different from CUDA where `gridDim` gives the size of the grid
 Returns the size of the grid in workgroups.
 This is equivalent to CUDA's `gridDim`.
 """
-@inline gridGroupDim() = (x=gridGroupDim_x(), y=gridGroupDim_y(), z=gridGroupDim_z())
+@device_function @inline gridGroupDim() = (x=gridGroupDim_x(), y=gridGroupDim_y(), z=gridGroupDim_z())
 
 # For compat with CUDAnative et. al
 
@@ -161,7 +161,7 @@ This is equivalent to CUDA's `gridDim`.
 Returns the thread index within the block.
 See also: [`workitemIdx`](@ref)
 """
-@inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
+@device_function @inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
 
 """
     blockIdx()::ROCDim3
@@ -169,7 +169,7 @@ See also: [`workitemIdx`](@ref)
 Returns the block index within the grid.
 See also: [`workgroupIdx`](@ref)
 """
-@inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
+@device_function @inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
 
 """
     blockDim()::ROCDim3
@@ -177,4 +177,4 @@ See also: [`workgroupIdx`](@ref)
 Returns the dimensions of the block.
 See also: [`workgroupDim`](@ref)
 """
-@inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
+@device_function @inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
