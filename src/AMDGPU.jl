@@ -56,8 +56,7 @@ end
 LockedObject(payload) = LockedObject(ReentrantLock(), payload)
 
 # Load binary dependencies.
-include("discovery/discovery.jl")
-using .ROCmDiscovery
+include("libs.jl")
 
 include("utils.jl")
 
@@ -153,6 +152,21 @@ include("precompile.jl")
 function __init__()
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)
+
+    if Sys.islinux() && isdir("/sys/class/kfd/kfd/topology/nodes/")
+        for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
+            node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
+            # CPU nodes don't have names.
+            isempty(node_name) && continue
+
+            if node_name == "navy_flounder"
+                ENV["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
+                break
+            end
+        end
+    end
+
+    __init_libs__()
 
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])

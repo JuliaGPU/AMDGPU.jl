@@ -1,6 +1,26 @@
 # Installation Info
 
-## ROCm system libraries
+## ROCm libraries
+
+By default, AMDGPU.jl ships the ROCm runtime (HIP and HSA) and the vendor
+libraries (rocBLAS, rocSPARSE, rocSOLVER, rocRAND, rocFFT, hipTENSOR, MIOpen) as lazy
+artifacts through the `ROCm_Runtime` subpackage, which downloads AMD's TheRock
+distribution tarball matching the GPUs detected on the host. `ld.lld` and the
+device bitcode libraries always come from `AMDGPU_LLVM_Backend_jll` and
+`ROCmDeviceLibs_jll`. No system-wide ROCm installation is needed in this mode.
+
+To use a local ROCm installation instead, set the `local` preference in the
+active project and restart Julia:
+
+```julia
+AMDGPU.set_rocm_version!(local_rocm=true)
+```
+
+The library locations are then discovered through the `ROCm_Runtime_Discovery`
+package, as described below. Use `AMDGPU.reset_rocm_version!()` to go back to
+the default artifact-based setup.
+
+## Local ROCm discovery
 
 On Linux, AMDGPU.jl queries the location of ROCm libraries through `rocminfo` by default.
 If not successful or on Windows, the following standard directories are searched:

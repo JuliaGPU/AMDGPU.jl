@@ -4,7 +4,7 @@ version = "2.8.0"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.churavy@gmail.com>", "Anton Smirnov <tonysmn97@gmail.com>"]
 
 [workspace]
-projects = ["test", "docs", "perf"]
+projects = ["test", "docs", "perf", "ROCm_Runtime", "ROCm_Runtime_Discovery"]
 
 [deps]
 AMDGPU_LLVM_Backend_jll = "cc5c0156-bd05-5a77-8a68-bb0aafb29019"
@@ -28,6 +28,8 @@ Preferences = "21216c6a-2e73-6563-6e65-726566657250"
 PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 ROCmDeviceLibs_jll = "873c0968-716b-5aa7-bb8d-d1e2e2aeff2d"
+ROCm_Runtime = "3129f4d2-de71-4ff3-9833-76037e3ea355"
+ROCm_Runtime_Discovery = "0bf8d700-1fac-4a41-93ae-0195dedb3a15"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Random123 = "74087812-796a-5b5d-8853-05524746bad3"
 RandomNumbers = "e6cf234a-135c-5ec9-84dd-332b85af5143"
@@ -35,6 +37,10 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 UnsafeAtomics = "013be700-e6cd-48c3-b4a1-df204f14c38f"
+
+[sources]
+ROCm_Runtime = {path = "ROCm_Runtime"}
+ROCm_Runtime_Discovery = {path = "ROCm_Runtime_Discovery"}
 
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -68,6 +74,8 @@ PrecompileTools = "1"
 Preferences = "1"
 PrettyTables = "3"
 ROCmDeviceLibs_jll = "=5.6.1, =6.2.1, =7.0.2"
+ROCm_Runtime = "7.14"
+ROCm_Runtime_Discovery = "0.1"
 Random123 = "1.6"
 RandomNumbers = "1.5"
 SparseMatricesCSR = "0.6.9"
