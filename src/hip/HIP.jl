@@ -8,7 +8,7 @@ import Preferences
 import PrettyTables
 
 import ..AMDGPU
-import ..AMDGPU.libhip
+import ..AMDGPU.libamdhip64
 import .AMDGPU: @check, check
 
 import GPUToolbox: @gcsafe_ccall, @checked

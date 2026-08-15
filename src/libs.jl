@@ -5,62 +5,24 @@
 # distribution as lazy artifacts. Setting its "local" preference (see
 # `AMDGPU.set_rocm_version!`) switches them to a local ROCm installation,
 # discovered through ROCm_Runtime_Discovery; that package is not loaded at all
-# otherwise.
+# otherwise. Both packages provide the same set of exported library paths
+# (empty strings when a component is missing).
 #
 # `ld.lld` and the device libraries always come from their JLLs: `ld.lld` has
 # to match the LLVM version device code is generated with, and local device
 # libraries target a newer LLVM than Julia's and would need to be downgraded.
 
-import AMDGPU_LLVM_Backend_jll
-import ROCmDeviceLibs_jll
 import ROCm_Runtime
 
 const local_rocm = ROCm_Runtime.local_preference === true
 if local_rocm
-    import ROCm_Runtime_Discovery
+    using ROCm_Runtime_Discovery
+else
+    using ROCm_Runtime
 end
 
-global libhsaruntime::String = ""
-global libhip::String = ""
-global lld_path::String = ""
-global libdevice_libs::String = ""
-global librocblas::String = ""
-global librocsparse::String = ""
-global librocsolver::String = ""
-global librocrand::String = ""
-global librocfft::String = ""
-global libMIOpen::String = ""
-
-function __init_libs__()
-    if local_rocm
-        global libhip = ROCm_Runtime_Discovery.libamdhip64
-        global libhsaruntime = ROCm_Runtime_Discovery.libhsa_runtime64
-        global librocblas = ROCm_Runtime_Discovery.librocblas
-        global librocsparse = ROCm_Runtime_Discovery.librocsparse
-        global librocsolver = ROCm_Runtime_Discovery.librocsolver
-        global librocrand = ROCm_Runtime_Discovery.librocrand
-        global librocfft = ROCm_Runtime_Discovery.librocfft
-        global libMIOpen = ROCm_Runtime_Discovery.libMIOpen
-    elseif ROCm_Runtime.is_available()
-        global libhip = ROCm_Runtime.libamdhip64
-        global libhsaruntime = Sys.islinux() ?
-            ROCm_Runtime.libhsa_runtime64 : ""
-        global librocblas = ROCm_Runtime.librocblas
-        global librocsparse = ROCm_Runtime.librocsparse
-        global librocsolver = ROCm_Runtime.librocsolver
-        global librocrand = ROCm_Runtime.librocrand
-        global librocfft = ROCm_Runtime.librocfft
-        global libMIOpen = ROCm_Runtime.libMIOpen
-    end
-
-    if AMDGPU_LLVM_Backend_jll.is_available()
-        global lld_path = AMDGPU_LLVM_Backend_jll.lld_path
-    end
-
-    if ROCmDeviceLibs_jll.is_available()
-        global libdevice_libs = ROCmDeviceLibs_jll.bitcode_path
-    end
-end
+import AMDGPU_LLVM_Backend_jll: lld_path
+import ROCmDeviceLibs_jll: bitcode_path as libdevice_libs
 
 """
     AMDGPU.set_rocm_version!([version::VersionNumber]; [local_rocm::Bool])

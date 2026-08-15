@@ -11,12 +11,9 @@ module ROCm_Runtime_Discovery
 
 using Libdl
 
-# same names as ROCm_Runtime ...
-export libamdhip64, libhsa_runtime64
+# same names as ROCm_Runtime
+export libamdhip64, libhsa_runtime64, libhiprtc, libamd_comgr
 export libMIOpen, libhipblaslt, libhiptensor, librocblas, librocfft, librocrand, librocsolver, librocsparse
-# ... plus the local device bitcode libraries (unused for now: they first need
-# to be downgraded to Julia's LLVM version, so the JLL ones are always used)
-export libdevice_libs
 
 include("utils.jl")
 
@@ -24,6 +21,11 @@ global rel_libdir::String = Sys.islinux() ? "" : "bin"
 
 global libhsa_runtime64::String = ""
 global libamdhip64::String = ""
+global libhiprtc::String = ""
+global libamd_comgr::String = ""
+# The local device bitcode libraries are discovered but unexported and unused
+# for now: they first need to be downgraded to Julia's LLVM version, so the
+# ROCmDeviceLibs_jll ones are always used instead.
 global libdevice_libs::String = ""
 global librocblas::String = ""
 global librocsparse::String = ""
@@ -48,6 +50,8 @@ function __init__()
 
         # HIP runtime.
         global libamdhip64 = find_rocm_library(Sys.islinux() ? "libamdhip64" : "amdhip64"; rocm_path)
+        global libhiprtc = find_rocm_library((Sys.islinux() ? "lib" : "") * "hiprtc"; rocm_path)
+        global libamd_comgr = find_rocm_library((Sys.islinux() ? "lib" : "") * "amd_comgr"; rocm_path)
 
         # Device bitcode libraries. NOTE: AMDGPU.jl does not use these yet:
         # they target a newer LLVM than Julia's and first need to be downgraded,

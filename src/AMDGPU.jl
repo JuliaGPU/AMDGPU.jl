@@ -166,8 +166,6 @@ function __init__()
         end
     end
 
-    __init_libs__()
-
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])
         LAUNCH_BLOCKING[] = launch_blocking
@@ -183,7 +181,7 @@ function __init__()
             return
         end
 
-        if !isempty(libhsaruntime)
+        if !isempty(libhsa_runtime64)
             status = HSA.init()
             status == HSA.STATUS_SUCCESS ?
                 atexit(() -> HSA.shut_down()) :
