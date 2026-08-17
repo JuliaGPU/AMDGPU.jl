@@ -4,7 +4,6 @@ using Adapt
 using BFloat16s
 using CEnum
 using GPUCompiler
-using GPUToolbox
 using GPUToolbox: @enum_without_prefix
 using GPUArrays
 using GPUArrays: allowscalar

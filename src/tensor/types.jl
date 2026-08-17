@@ -1,6 +1,6 @@
 ## data types
 
-# note that, unlike cuTENSOR, hipTENSOR wants a *complex* compute descriptor for complex
+# note that hipTENSOR wants a *complex* compute descriptor for complex
 # operands: pairing e.g. ComplexF32 tensors with HIPTENSOR_COMPUTE_DESC_32F makes
 # `hiptensorCreatePlan` fail with HIPTENSOR_STATUS_EXECUTION_FAILED
 const contraction_compute_types = Dict(
@@ -47,8 +47,9 @@ function default_compute_type(table, operation, eltypes)
     return table[eltypes]
 end
 
-# unlike cuTENSOR, where the compute descriptor is an opaque pointer, hipTENSOR's is a
-# plain enum, so a Julia type maps directly onto a `hiptensorComputeDescriptor_t` value
+# hipTENSOR's compute descriptor is a
+# plain enum, so a Julia type maps directly
+# onto a `hiptensorComputeDescriptor_t` value
 function Base.convert(::Type{hiptensorComputeDescriptor_t}, T::DataType)
     if T == Float16
         return HIPTENSOR_COMPUTE_DESC_16F
@@ -163,7 +164,7 @@ end
 
 ## plan
 
-# unlike cuTENSOR, hipTENSOR 2.2 does not copy the objects a plan is built from: the plan
+# hipTENSOR 2.2 does not copy the objects a plan is built from: the plan
 # only stores pointers to the operation descriptor, the plan preference, the tensor
 # descriptors and even the mode arrays, and dereferences them again on every execution.
 # Destroying or garbage collecting any of those before the plan is done with them results
@@ -286,12 +287,7 @@ mutable struct hipTensor{T, N}
         if length(inds) != N
             throw(ArgumentError("The number of indices must match the number of dimensions of the data."))
         end
-        if !iszero(UInt(pointer(data)) % HIPTENSOR_ALIGNMENT)
-            @warn "The data for this hipTensor does not obey the hipTENSOR alignment requirement of $HIPTENSOR_ALIGNMENT. An explicit copy will be made to ensure the requirement is met."
-            return new(copy(data), inds)
-        else
-            return new(data, inds)
-        end
+        return new(data, inds)
     end
 end
 

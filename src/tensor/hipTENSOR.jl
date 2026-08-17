@@ -22,7 +22,6 @@ include("libhiptensor.jl")
 
 # low-level wrappers
 include("error.jl")
-#include("utils.jl")
 include("types.jl")
 include("operations.jl")
 
@@ -50,12 +49,11 @@ handle() = lib_state().handle
 stream() = lib_state().stream
 
 function version()
-    #=ver = Ref{Cint}()
-    hiptensor_get_version(handle(), ver)
-    major = ver[] ÷ 100000
-    minor = (ver[] ÷ 100) % 1000
-    patch = ver[] % 100=#
-    return VersionNumber(2, 2, 0)
+    ver = hiptensorGetVersion()
+    major = ver ÷ 10000
+    minor = (ver ÷ 100) % 10000
+    patch = ver % 100
+    return VersionNumber(join((major,minor,patch), "."))
 end
 
 end

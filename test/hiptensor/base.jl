@@ -8,10 +8,7 @@ if AMDGPU.hipTENSOR.has_hiptensor()
     @testset "type basics" begin
         N = 2
         dmax = 2^div(18,N)
-        dims = rand(2:dmax, N)
-        p = randperm(N)
-        indsA = collect(('a':'z')[1:N])
-        dimsA = dims
+        dimsA = rand(2:dmax, N)
         A = rand(Float64, dimsA...)
         dA = ROCArray(A)
         p = randperm(N)

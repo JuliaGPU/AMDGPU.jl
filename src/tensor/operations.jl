@@ -1,7 +1,7 @@
 const ModeType = AbstractVector{<:Union{Char, Integer}}
 
 # remove the HIPTENSOR_ prefix from some common enums,
-# as they're namespaced to the cuTENSOR module anyway.
+# as they're namespaced to the hipTENSOR module anyway.
 @enum_without_prefix hiptensorOperator_t HIPTENSOR_
 @enum_without_prefix hiptensorWorksizePreference_t HIPTENSOR_
 @enum_without_prefix hiptensorAlgo_t HIPTENSOR_
