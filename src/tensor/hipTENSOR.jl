@@ -1,7 +1,7 @@
 module hipTENSOR
 
 using AMDGPU
-using AMDGPU: @gcsafe_ccall, @checked, @enum_without_prefix, @debug_ccall
+using GPUToolbox: @gcsafe_ccall, @checked, @enum_without_prefix, @debug_ccall
 using AMDGPU: Mem
 
 using BFloat16s: BFloat16
