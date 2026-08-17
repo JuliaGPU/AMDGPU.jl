@@ -786,6 +786,22 @@ end
             end
         end
     end
-
 end
+
+@testset "Handling size zero arrays correctly" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        m, k, n = (12, 6, 0)
+        C0 = rand(T, m, n)
+        A0 = rand(T, m, k)
+        B0 = rand(T, k, n)
+        for (α, β) in ( (-one(T), one(T)), (one(T), 2*one(T)), (one(T), zero(T))) 
+            Ccpu = copy(C0)
+            mul!(Ccpu, A0, B0, α, β)
+            Cgpu = ROCArray(copy(C0))
+            mul!(Cgpu, ROCArray(A0), ROCArray(B0), α, β)
+            @test Ccpu ≈ Array(Cgpu)
+        end
+    end
+end
+
 end
