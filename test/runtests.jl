@@ -47,6 +47,7 @@ for (lib, pred) in [
     :rocfft    => name -> name == "hip_rocarray/fft",
     :rocrand   => name -> name == "hip_rocarray/random",
     :rocsolver => name -> name == "hip_rocarray/solver",
+    :hiptensor => name -> startswith(name, "hiptensor/"),
 ]
     if !AMDGPU.functional(lib)
         @info "$lib is unavailable, skipping related tests."

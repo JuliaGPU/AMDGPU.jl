@@ -1,30 +1,19 @@
 using Test, AMDGPU
 using LinearAlgebra, Random
 
-@show AMDGPU.hipTENSOR.has_hiptensor()
 if AMDGPU.hipTENSOR.has_hiptensor()
 
     @testset "permutations" begin
 
     using AMDGPU.hipTENSOR: permute!
 
-    AMDGPU.hipTENSOR.hiptensorLoggerSetLevel(AMDGPU.hipTENSOR.hiptensorLogLevel_t(UInt32(16)))
-    AMDGPU.hipTENSOR.hiptensorLoggerOpenFile("permute.log")
-
+    # hipTENSOR 2.2 only implements permutations between tensors of the same real element
+    # type, see `AMDGPU.hipTENSOR.permutation_compute_types`
     eltypes = [(Float16, Float16),
-               (Float16, Float32),
-               #(Float32, Float16),
                (Float32, Float32),
-               #=(Float64, Float64),
-               (Float32, Float64),
-               (Float64, Float32),
-               (ComplexF32, ComplexF32),
-               (ComplexF64, ComplexF64),
-               (ComplexF32, ComplexF64),
-               (ComplexF64, ComplexF32)=#
                ]
 
-    @testset for N=2#:5
+    @testset for N=2:5
         @testset for (eltyA, eltyC) in eltypes
             # setup
             dmax = 2^div(18,N)
@@ -41,6 +30,12 @@ if AMDGPU.hipTENSOR.has_hiptensor()
 
             @testset "simple case" begin
                 dC = permute!(one(eltyA), dA, indsA, opA, dC, indsC)
+                C  = collect(dC)
+                @test C == permutedims(A, p) # exact equality
+            end
+
+            @testset "using integers as indices" begin
+                dC = permute!(one(eltyA), dA, 1:N, opA, dC, p)
                 C  = collect(dC)
                 @test C == permutedims(A, p) # exact equality
             end

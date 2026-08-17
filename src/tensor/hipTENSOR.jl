@@ -1,9 +1,10 @@
 module hipTENSOR
 
 using AMDGPU
-using AMDGPU
 using AMDGPU: @gcsafe_ccall, @checked, @enum_without_prefix, @debug_ccall
 using AMDGPU: Mem
+
+using BFloat16s: BFloat16
 import AMDGPU: libhiptensor, HandleCache, HIP, library_state
 import AMDGPU.Mem: alloc_or_retry!
 import .HIP: HIPContext, HIPStream, hipStream_t
