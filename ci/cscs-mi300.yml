@@ -73,12 +73,12 @@ UnitTest julia 1.12 (system ROCm):
   script: *unit_test_script
 
 # Coverage of the artifact path -- what AMDGPU.jl uses by default -- is worth
-# having here, since this is the only gfx942 CI in the project. It is disabled
-# for now because it cannot get off the ground on this machine: TheRock ships a
-# ROCm 7.14 userspace, and against the 6.12.12 amdgpu driver here every
-# hipStreamCreateWithPriority fails with hipErrorOutOfMemory before any test
-# body runs. Re-enable (with allow_failure until it is green) once that is
-# resolved; the ROCM_LOCAL switch above already handles both variants.
+# having here, since this is the only gfx942 CI in the project. Disabled for
+# now: with the ROCm 7.14 TheRock bundle, every HIP application fails at its
+# first stream creation on gfx942, reported as hipErrorOutOfMemory even though
+# nothing runs out of memory. See https://github.com/ROCm/TheRock/issues/7426.
+# Re-enable, with allow_failure until it is green, once that is fixed; the
+# ROCM_LOCAL switch above already handles both variants.
 #
 # UnitTest julia 1.12 (ROCm artifacts):
 #   extends: .baremetal-runner-beverin-mi300
