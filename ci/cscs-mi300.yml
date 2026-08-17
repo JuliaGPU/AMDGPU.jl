@@ -72,8 +72,7 @@ UnitTest julia 1.12 (system ROCm):
     ROCM_LOCAL: "true"
   script: *unit_test_script
 
-# Coverage of the artifact path -- what AMDGPU.jl uses by default -- is worth
-# having here, since this is the only gfx942 CI in the project. Disabled for
+# Coverage of the artifact path, what AMDGPU.jl uses by default. Disabled for
 # now: with the ROCm 7.14 TheRock bundle, every HIP application fails at its
 # first stream creation on gfx942, reported as hipErrorOutOfMemory even though
 # nothing runs out of memory. See https://github.com/ROCm/TheRock/issues/7426.
