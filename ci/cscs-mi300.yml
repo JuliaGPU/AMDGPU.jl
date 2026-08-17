@@ -1,53 +1,89 @@
 include:
   - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
 
+# Slurm/Julia settings shared by both ROCm provider variants.
+.common_variables: &common_variables
+  JULIA: /users/lraess/julia_amd/juliaup/julia-1.12.6+0.x64.linux.gnu/bin/julia
+  UENV: ab517d8a08f537d2
+  MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-22x3pq72goxi4xwkknlspqhxbx72owes
+  # Workaround for MIOpen CK Group-Xdlops solvers segfaulting on gfx942 (MI300).
+  # Remove once fixed upstream: https://github.com/ROCm/rocm-libraries/issues/9088
+  MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC: "0"
+  MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
+  MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
+  MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
+  MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
+  SLURM_JOB_NUM_NODES: 1
+  SLURM_NTASKS_PER_NODE: 1
+  SLURM_GPUS_PER_TASK: 2
+  SLURM_TIMELIMIT: "00:45:00"
+  JULIA_NUM_THREADS: 4
+  JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia"
+  JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+  JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+
+# AMDGPU.jl takes ROCm either from the uenv ($ROCM_LOCAL == "true": the merged
+# ROCM_PATH below, resolved through ROCm_Runtime_Discovery) or from the TheRock
+# artifacts shipped by ROCm_Runtime ($ROCM_LOCAL == "false"). Which one is used
+# is decided by ROCm_Runtime's "local" preference; it is a compile-time
+# preference that also gates artifact resolution, so it has to be set before
+# Pkg.instantiate(). It is set explicitly in both variants rather than relying
+# on the default, and the resolved provider is asserted afterwards, so that a
+# change of default cannot silently swap the ROCm underneath a job.
 .unit_test_script: &unit_test_script
   - srun -n 1 --uenv $UENV --view=default bash -c '
       set -euo pipefail;
       shopt -s nullglob;
-      MERGED_ROCM="$CI_PROJECT_DIR/.rocm-miopen";
-      rm -rf "$MERGED_ROCM";
-      mkdir -p "$MERGED_ROCM/lib";
-      for entry in "$ROCM_PATH"/*; do
-        name=$(basename "$entry");
-        [ "$name" = "lib" ] && continue;
-        ln -s "$entry" "$MERGED_ROCM/$name";
-      done;
-      ln -s "$ROCM_PATH"/lib/* "$MERGED_ROCM/lib/";
-      for libdir in "$MIOPEN_PREFIX/lib" "$MIOPEN_PREFIX/lib64"; do
-        ln -s "$libdir"/libMIOpen* "$MERGED_ROCM/lib/" 2>/dev/null || true;
-      done;
-      export ROCM_PATH="$MERGED_ROCM";
+      if [ "$ROCM_LOCAL" = "true" ]; then
+        MERGED_ROCM="$CI_PROJECT_DIR/.rocm-miopen";
+        rm -rf "$MERGED_ROCM";
+        mkdir -p "$MERGED_ROCM/lib";
+        for entry in "$ROCM_PATH"/*; do
+          name=$(basename "$entry");
+          [ "$name" = "lib" ] && continue;
+          ln -s "$entry" "$MERGED_ROCM/$name";
+        done;
+        ln -s "$ROCM_PATH"/lib/* "$MERGED_ROCM/lib/";
+        for libdir in "$MIOPEN_PREFIX/lib" "$MIOPEN_PREFIX/lib64"; do
+          ln -s "$libdir"/libMIOpen* "$MERGED_ROCM/lib/" 2>/dev/null || true;
+        done;
+        export ROCM_PATH="$MERGED_ROCM";
+      fi;
       exec "$0" "$@"
     ' $JULIA --project -e '
       println("Instantiating project");
       using Pkg;
       Pkg.activate(pwd());
+      Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")]);
+      using Preferences;
+      want_local = ENV["ROCM_LOCAL"] == "true";
+      set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => string(want_local); force=true);
       Pkg.instantiate();
       using AMDGPU;
+      AMDGPU.versioninfo();
+      AMDGPU.local_rocm == want_local || error("requested local_rocm=$want_local, but AMDGPU resolved to local_rocm=$(AMDGPU.local_rocm)");
       println("Running tests");
       Pkg.test("AMDGPU"; test_args=`--jobs=32`);'
 
-UnitTest julia 1.12:
+UnitTest julia 1.12 (system ROCm):
   extends: .baremetal-runner-beverin-mi300
   variables:
-    JULIA: /users/lraess/julia_amd/juliaup/julia-1.12.6+0.x64.linux.gnu/bin/julia
-    UENV: ab517d8a08f537d2
-    MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-22x3pq72goxi4xwkknlspqhxbx72owes
-    # Workaround for MIOpen CK Group-Xdlops solvers segfaulting on gfx942 (MI300).
-    # Remove once fixed upstream: https://github.com/ROCm/rocm-libraries/issues/9088
-    MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC: "0"
-    MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
-    MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
-    MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
-    MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
-    SLURM_JOB_NUM_NODES: 1
-    SLURM_NTASKS_PER_NODE: 1
-    SLURM_GPUS_PER_TASK: 2
-    SLURM_TIMELIMIT: "00:45:00"
-    JULIA_NUM_THREADS: 4
-    JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia"
-    JULIA_AMDGPU_CORE_MUST_LOAD: "1"
-    JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-    JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+    <<: *common_variables
+    ROCM_LOCAL: "true"
   script: *unit_test_script
+
+# Coverage of the artifact path -- what AMDGPU.jl uses by default -- is worth
+# having here, since this is the only gfx942 CI in the project. It is disabled
+# for now because it cannot get off the ground on this machine: TheRock ships a
+# ROCm 7.14 userspace, and against the 6.12.12 amdgpu driver here every
+# hipStreamCreateWithPriority fails with hipErrorOutOfMemory before any test
+# body runs. Re-enable (with allow_failure until it is green) once that is
+# resolved; the ROCM_LOCAL switch above already handles both variants.
+#
+# UnitTest julia 1.12 (ROCm artifacts):
+#   extends: .baremetal-runner-beverin-mi300
+#   allow_failure: true
+#   variables:
+#     <<: *common_variables
+#     ROCM_LOCAL: "false"
+#   script: *unit_test_script
