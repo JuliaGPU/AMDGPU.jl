@@ -24,6 +24,42 @@ end
 import AMDGPU_LLVM_Backend_jll: lld_path
 import ROCmDeviceLibs_jll: bitcode_path as libdevice_libs
 
+# When the artifact provider cannot resolve a bundle for this host it simply
+# ends up with no libraries at all, which otherwise surfaces only as the generic
+# "... is unavailable" warnings during initialization. Those do not say that
+# nothing was downloaded, nor that a system-wide ROCm is not picked up unless it
+# is opted into, so spell both out along with the architecture we detected.
+function warn_unresolved_rocm_artifact()
+    detected = try
+        ROCm_Runtime.rocm_arch()
+    catch err
+        @debug "Could not query the GPU architecture" exception=(err, catch_backtrace())
+        String[]
+    end
+
+    what = isempty(detected) ?
+        "no GPU architecture could be detected on this host" :
+        "no bundle could be resolved for the detected architecture " *
+            join(detected, ", ") * " (it may be unsupported, or the download may have failed)"
+
+    @warn """
+    No ROCm artifact could be resolved: $what.
+
+    AMDGPU.jl downloads ROCm by default and does not fall back to a ROCm
+    installed on this system; using that one requires opting in:
+
+        AMDGPU.set_rocm_version!(local_rocm=true)
+
+    Alternatively, if the architecture above is wrong or could not be detected,
+    select the bundle explicitly:
+
+        AMDGPU.set_rocm_version!(arch="gfx1100")
+
+    Either way, restart Julia afterwards. Set `JULIA_DEBUG=ROCm_Runtime` to see
+    the underlying artifact resolution error.
+    """
+end
+
 """
     AMDGPU.set_rocm_version!([version::VersionNumber]; [local_rocm::Bool], [arch])
 
