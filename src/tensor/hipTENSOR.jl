@@ -51,7 +51,7 @@ stream() = lib_state().stream
 function version()
     ver = hiptensorGetVersion()
     major = ver ÷ 10000
-    minor = (ver ÷ 100) % 10000
+    minor = (ver ÷ 100) % 100
     patch = ver % 100
     return VersionNumber(join((major,minor,patch), "."))
 end
