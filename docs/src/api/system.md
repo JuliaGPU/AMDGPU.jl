@@ -27,7 +27,7 @@ Several behaviours are configured through [Preferences.jl](https://github.com/Ju
 | Preference | Set via | Effect |
 |:--|:--|:--|
 | `version` / `local` | `AMDGPU.set_rocm_version!` | Select the ROCm version, and whether to use downloaded artifacts or a local ROCm installation. |
-| `arch` | preference | Override the GPU architectures used to select the ROCm artifact, as a comma-separated list of `gfx` targets. Useful when no GPU is visible at install time. See [Installation Info](@ref). |
+| `arch` | `AMDGPU.set_rocm_version!` | Override the GPU architectures used to select the ROCm artifact, as a comma-separated list of `gfx` targets. Useful when no GPU is visible at install time. See [Installation Info](@ref). |
 | `nonblocking_synchronize` | preference | Use non-blocking stream synchronization (default `true`); disable for slightly lower latency. See [Streams](@ref). |
 | `eager_gc` | `AMDGPU.eager_gc!(::Bool)` | Trigger GC before allocations under memory pressure. See [Memory Allocation and Intrinsics](@ref). |
 | `hard_memory_limit` | `AMDGPU.hard_memory_limit!("8 GiB")` | Hard cap on GPU memory, checked before every allocation. |
