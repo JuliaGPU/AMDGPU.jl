@@ -803,8 +803,7 @@ end
             @test Ccpu ≈ Array(Cgpu)
         end
         # C0 is NaN and beta is zero to test beta is applied
-        C0 = rand(T, m, n)
-        C0[m-1, n-1] = T(NaN)
+        C0 = fill(T(NaN), m, n)
         A0 = rand(T, m, k)
         B0 = rand(T, k, n)
         for (α, β) in ( (one(T), zero(T)), )
