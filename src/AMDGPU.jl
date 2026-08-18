@@ -175,6 +175,13 @@ function __init__()
         end
     end
 
+    # Only worth reporting where a GPU is actually present: without GPU, not
+    # resolving an artifact is the expected outcome rather than a problem.
+    if !local_rocm && !ROCm_Runtime.is_available() &&
+            (!Sys.islinux() || ispath("/dev/kfd"))
+        warn_unresolved_rocm_artifact()
+    end
+
     if Sys.islinux()
         if !ispath("/dev/kfd")
             @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
