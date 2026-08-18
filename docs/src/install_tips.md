@@ -20,7 +20,35 @@ The library locations are then discovered through the `ROCm_Runtime_Discovery`
 package, as described below. Use `AMDGPU.reset_rocm_version!()` to go back to
 the default artifact-based setup.
 
+### Selecting the provider without loading AMDGPU.jl
+
+`local` is a compile-time preference, and it also gates whether the artifact is *resolved* at all, so in CI or in a fresh depot it has to be set before `Pkg.instantiate()` rather than through `AMDGPU.set_rocm_version!` (which needs AMDGPU.jl loaded first). Write it directly against `ROCm_Runtime`'s UUID:
+
+```julia
+using Preferences
+set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "true"; force=true)
+```
+
+`AMDGPU.local_rocm` reports which provider was actually selected. Asserting on it is worthwhile in CI, so that a change of default cannot silently swap the ROCm underneath a job.
+
+### When no artifact matches
+
+The artifact is chosen from the GPU architectures detected on the host, which on Linux are read from the `/sys/class/kfd/kfd/topology` nodes. If nothing is detected — a container without KFD passthrough, a login node, or a host where the `amdgpu` driver is not loaded — or if the detected architecture is not one of the shipped bundles, then no artifact is downloaded and AMDGPU.jl reports its ROCm components as unavailable.
+
+This is not a fallback: an existing system-wide ROCm is only picked up after explicitly opting in with the `local` preference above. The bundles currently shipped cover `gfx908`, `gfx90a`, `gfx94x` and `gfx950` for Instinct, and `gfx101x`, `gfx103x`, `gfx110x`, `gfx1150` through `gfx1153` and `gfx120x` for Radeon.
+
+To pin the architecture when detection is not possible, for example when preparing a depot on a CPU-only build machine, set the `arch` preference of `ROCm_Runtime` to a comma-separated list of `gfx` targets:
+
+```julia
+using Preferences
+set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "arch" => "gfx942"; force=true)
+```
+
+The `version` preference selects which ROCm distribution the bundle is taken from. Only 7.14 is currently available, so it mainly becomes useful for pinning once more versions ship.
+
 ## Local ROCm discovery
+
+Everything in this section applies only when the `local` preference is set. In the default artifact mode the library paths come from the downloaded bundle, and the `ROCM_PATH`, `DEVICE_LIB_PATH` and `HIP_DEVICE_LIB_PATH` environment variables are ignored.
 
 On Linux, AMDGPU.jl queries the location of ROCm libraries through `rocminfo` by default.
 If not successful or on Windows, the following standard directories are searched:
@@ -35,13 +63,13 @@ function prints the paths of any libraries found.
 
 Starting with ROCm 7.14, libraries are installed under a versioned `core-<version>` subdirectory (for example `/opt/rocm/core-7.14/lib`) instead of directly in `/opt/rocm/lib`. AMDGPU.jl handles this automatically by selecting the newest `core-*` directory found under the ROCm root, so keep `ROCM_PATH` pointed at the install root (e.g. `/opt/rocm`) rather than at the versioned subdirectory. A full ("metapackage") install additionally provides a `/opt/rocm/lib` compatibility symlink and needs no special handling; the versioned lookup mainly benefits minimal, GPU-architecture-specific installs that omit that symlink.
 
-Depending on your GPU model and the functionality you want to use, you may have
-to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION`
-variable to a compatible version.
+## GPU selection and architecture overrides
 
-You may also have more than one type of GPU, for example a dedicated AMD GPU and an integrated one.
-In that case use `rocminfo` to find which device they are and setting `HIP_VISIBLE_DEVICES` to the specific device you want to use.
-Otherwise the runtime may crash if it sees two different architectures.
+These apply in both provider modes, because they are read by the HSA and HIP runtimes themselves rather than by AMDGPU.jl.
+
+Depending on your GPU model and the functionality you want to use, you may have to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION` variable to a compatible version.
+
+You may also have more than one type of GPU, for example a dedicated AMD GPU and an integrated one. In that case use `rocminfo` to find which device they are and setting `HIP_VISIBLE_DEVICES` to the specific device you want to use. Otherwise the runtime may crash if it sees two different architectures.
 
 ## Extra Setup Details
 
