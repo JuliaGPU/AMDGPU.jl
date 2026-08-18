@@ -57,7 +57,6 @@ steps:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
   - label: "Julia {{matrix.version}}"
     matrix:
@@ -94,7 +93,6 @@ steps:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
   # see the "Julia 1.10" step for why this doesn't use the julia-test plugin
   - label: "Julia 1.10 Enzyme"
@@ -117,7 +115,6 @@ steps:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
   - label: "Julia 1.11 Enzyme"
     plugins:
@@ -136,7 +133,6 @@ steps:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
   # see the "Julia 1.10" step for why this doesn't use the julia-test plugin
   - label: "GPU-less environment"
@@ -179,7 +175,6 @@ steps:
     env:
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
 env:
   JULIA_AMDGPU_LOGGING_ENABLED: true
