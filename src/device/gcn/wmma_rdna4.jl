@@ -30,6 +30,7 @@ export load_a, load_b, load_c, store_d, mma, fill_c
 # Imports
 import Core: LLVMPtr, VecElement
 import ...BFloat16s: BFloat16
+import ..Device: @device_function
 import ..activelane
 
 # WMMA tile dimensions (fixed for RDNA 4, same as RDNA 3).
@@ -180,7 +181,7 @@ for (fname, intrinsic, ret_T, arg_T) in (
     # BFloat16: f32 = bf16 * bf16 + f32
     (:_f32_16x16x16_bf16, "llvm.amdgcn.wmma.f32.16x16x16.bf16.v8f32.v8i16", LLVMVec8F32, LLVMVec8I16),
 )
-    @eval $fname(a::$arg_T, b::$arg_T, c::$ret_T) = ccall(
+    @eval @device_function $fname(a::$arg_T, b::$arg_T, c::$ret_T) = ccall(
         $intrinsic, llvmcall, $ret_T,
         ($arg_T, $arg_T, $ret_T), a, b, c)
 end

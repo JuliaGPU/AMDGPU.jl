@@ -6,21 +6,21 @@ const ATOMIC_SEQ_CST = Int32(5)
 
 # Hostcall signal helpers.
 
-@inline function device_signal_load(
+@device_function @inline function device_signal_load(
     signal_handle::UInt64, order::Int32 = ATOMIC_ACQUIRE,
 )
     ccall("extern __ockl_hsa_signal_load", llvmcall,
         Int64, (UInt64, Int32), signal_handle, order)
 end
 
-@inline function device_signal_store!(
+@device_function @inline function device_signal_store!(
     signal_handle::UInt64, value::Int64, order::Int32 = ATOMIC_RELEASE,
 )
     ccall("extern __ockl_hsa_signal_store", llvmcall,
         Int64, (UInt64, Int64, Int32), signal_handle, value, order)
 end
 
-@inline function device_signal_cas!(
+@device_function @inline function device_signal_cas!(
     signal_handle::UInt64, expected::Int64, value::Int64,
     order::Int32 = ATOMIC_ACQ_REL,
 )
@@ -104,22 +104,22 @@ end
     HSA.signal_cas_scacq_screl(signal, expected, value)
 end
 
-@inline function device_sleep(duration::Int32)
+@device_function @inline function device_sleep(duration::Int32)
     ccall("llvm.amdgcn.s.sleep", llvmcall, Cvoid, (Int32,), duration)
 end
 
-@inline function device_sethalt(code::Int32 = Int32(1))
+@device_function @inline function device_sethalt(code::Int32 = Int32(1))
     ccall("llvm.amdgcn.s.sethalt", llvmcall, Cvoid, (Int32,), code)
 end
 
-@inline function memtime()
+@device_function @inline function memtime()
     ccall("llvm.amdgcn.s.memtime", llvmcall, UInt64, ())
 end
 
-@inline function memrealtime()
+@device_function @inline function memrealtime()
     ccall("llvm.amdgcn.s.memrealtime", llvmcall, UInt64, ())
 end
 
-@inline function readcyclecounter()
+@device_function @inline function readcyclecounter()
     ccall("llvm.readcyclecounter", llvmcall, UInt64, ())
 end
