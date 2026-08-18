@@ -27,10 +27,13 @@ Several behaviours are configured through [Preferences.jl](https://github.com/Ju
 | Preference | Set via | Effect |
 |:--|:--|:--|
 | `version` / `local` | `AMDGPU.set_rocm_version!` | Select the ROCm version, and whether to use downloaded artifacts or a local ROCm installation. |
+| `arch` | preference | Override the GPU architectures used to select the ROCm artifact, as a comma-separated list of `gfx` targets. Useful when no GPU is visible at install time. See [Installation Info](@ref). |
 | `nonblocking_synchronize` | preference | Use non-blocking stream synchronization (default `true`); disable for slightly lower latency. See [Streams](@ref). |
 | `eager_gc` | `AMDGPU.eager_gc!(::Bool)` | Trigger GC before allocations under memory pressure. See [Memory Allocation and Intrinsics](@ref). |
 | `hard_memory_limit` | `AMDGPU.hard_memory_limit!("8 GiB")` | Hard cap on GPU memory, checked before every allocation. |
 | `soft_memory_limit` | `AMDGPU.soft_memory_limit!("6 GiB")` | Advisory limit for the memory pool. |
+
+The `version`, `local` and `arch` preferences belong to the `ROCm_Runtime` subpackage rather than to AMDGPU itself, so when editing `LocalPreferences.toml` by hand they go under a `[ROCm_Runtime]` section. They are compile-time preferences: changing one invalidates precompilation and takes effect after restarting Julia.
 
 ## Debugging kernel launches
 
