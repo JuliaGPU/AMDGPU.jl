@@ -137,7 +137,7 @@ function _∇activation(
     xdesc, ydesc, dydesc, dxdesc = _activation_descriptor.((x, y, dy, dx))
     (; handle, stream) = lib_state()
     miopenActivationBackward(
-        handle, desc, Ref{Float32}(1f0), ydesc.handle, y,
+        handle, desc.handle, Ref{Float32}(1f0), ydesc.handle, y,
         dydesc.handle, dy, xdesc.handle, x, Ref{Float32}(0f0),
         dxdesc.handle, dx)
     dx
