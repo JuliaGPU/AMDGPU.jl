@@ -142,7 +142,7 @@ function LinearAlgebra.generic_matvecmul!(
         "first dimension of A, $mA, does not match length of Y, $(length(Y))"))
 
     mA == 0 && return Y
-    nA == 0 && return _rmul_or_fill!(Y, beta)
+    nA == 0 && return LinearAlgebra._rmul_or_fill!(Y, beta)
 
     T = eltype(Y)
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
