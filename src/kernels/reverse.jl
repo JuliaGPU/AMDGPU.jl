@@ -72,13 +72,11 @@ function _reverse!(
     function _kernel!(y::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
         i = workitemIdx().x + (workgroupIdx().x - 0x1) * workgroupDim().x
 
-        if i ≤ length(x)
-            @inbounds begin
-                idx = Tuple(nd_ids[i])
-                idx = ifelse.(rev_dims, ref .- idx, idx)
-                idx_out = lin_ids[idx...]
-                y[idx_out] = x[i]
-            end
+        @inbounds if i ≤ length(x)
+            idx = Tuple(nd_ids[i])
+            idx = ifelse.(rev_dims, ref .- idx, idx)
+            idx_out = lin_ids[idx...]
+            y[idx_out] = x[i]
         end
         return
     end
@@ -105,16 +103,14 @@ function _reverse!(x::AnyROCArray{T, N}; dims=1:ndims(x)) where {T, N}
     function _kernel!(x::AbstractArray{T, N}) where {T, N}
         i = workitemIdx().x + (workgroupIdx().x - 0x1) * workgroupDim().x
 
-        if i ≤ reduced_len
-            @inbounds begin
-                idx = Tuple(nd_ids[i])
-                idx_in = lin_ids[idx...]
-                idx = ifelse.(rev_dims, ref .- idx, idx)
-                idx_out = lin_ids[idx...]
+        @inbounds if i ≤ reduced_len
+            idx = Tuple(nd_ids[i])
+            idx_in = lin_ids[idx...]
+            idx = ifelse.(rev_dims, ref .- idx, idx)
+            idx_out = lin_ids[idx...]
 
-                if idx_in < idx_out
-                    x[idx_in], x[idx_out] = x[idx_out], x[idx_in]
-                end
+            if idx_in < idx_out
+                x[idx_in], x[idx_out] = x[idx_out], x[idx_in]
             end
         end
         return
