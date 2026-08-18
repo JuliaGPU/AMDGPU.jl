@@ -37,12 +37,13 @@ The artifact is chosen from the GPU architectures detected on the host, which on
 
 This is not a fallback: an existing system-wide ROCm is only picked up after explicitly opting in with the `local` preference above. The bundles currently shipped cover `gfx908`, `gfx90a`, `gfx94x` and `gfx950` for Instinct, and `gfx101x`, `gfx103x`, `gfx110x`, `gfx1150` through `gfx1153` and `gfx120x` for Radeon.
 
-To pin the architecture when detection is not possible, for example when preparing a depot on a CPU-only build machine, set the `arch` preference of `ROCm_Runtime` to a comma-separated list of `gfx` targets:
+To pin the architecture when detection is not possible, for example when preparing a depot on a CPU-only build machine, pass `arch` a `gfx` target or a collection of them:
 
 ```julia
-using Preferences
-set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "arch" => "gfx942"; force=true)
+AMDGPU.set_rocm_version!(arch="gfx942")
 ```
+
+As with `local`, this writes the `arch` preference of `ROCm_Runtime`, so it can equally be set with `set_preferences!` before AMDGPU.jl is loaded.
 
 The `version` preference selects which ROCm distribution the bundle is taken from. Only 7.14 is currently available, so it mainly becomes useful for pinning once more versions ship.
 
