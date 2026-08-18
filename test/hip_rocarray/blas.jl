@@ -816,8 +816,8 @@ end
         end
         # matrix * vector 
         C0 = rand(T, m)
-        A0 = rand(T, k)
-        B0 = rand(T, k, m)
+        A0 = rand(T, m, k)
+        B0 = rand(T, k)
         for (α, β) in ( (-one(T), one(T)), (one(T), 2*one(T)), (one(T), zero(T))) 
             Ccpu = copy(C0)
             mul!(Ccpu, A0, B0, α, β)
