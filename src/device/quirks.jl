@@ -41,6 +41,65 @@ end
 @device_override Base.Math.sincos_domain_error(x) =
     @gpu_throw "DomainError: sincos(x) is only defined for finite x"
 
+# Bodies copied from Base (`base/special/trig.jl`) with the inline `DomainError`
+# throw replaced: boxing its untyped `val` field emits a device-side allocation.
+@device_override function Base.Math.sind(x::Real)
+    if isinf(x)
+        @gpu_throw "DomainError: sind(x) is only defined for finite x"
+    elseif isnan(x)
+        return x
+    end
+
+    rx = copysign(float(rem(x, 360)), x)
+    arx = abs(rx)
+
+    if rx == zero(rx)
+        return rx
+    elseif arx < oftype(rx, 45)
+        return Base.Math.sin_kernel(Base.Math.deg2rad_ext(rx))
+    elseif arx <= oftype(rx, 135)
+        y = Base.Math.deg2rad_ext(oftype(rx, 90) - arx)
+        return copysign(Base.Math.cos_kernel(y), rx)
+    elseif arx == oftype(rx, 180)
+        return copysign(zero(rx), rx)
+    elseif arx < oftype(rx, 225)
+        y = Base.Math.deg2rad_ext((oftype(rx, 180) - arx) * sign(rx))
+        return Base.Math.sin_kernel(y)
+    elseif arx <= oftype(rx, 315)
+        y = Base.Math.deg2rad_ext(oftype(rx, 270) - arx)
+        return -copysign(Base.Math.cos_kernel(y), rx)
+    else
+        y = Base.Math.deg2rad_ext(rx - copysign(oftype(rx, 360), rx))
+        return Base.Math.sin_kernel(y)
+    end
+end
+
+@device_override function Base.Math.cosd(x::Real)
+    if isinf(x)
+        @gpu_throw "DomainError: cosd(x) is only defined for finite x"
+    elseif isnan(x)
+        return x
+    end
+
+    rx = abs(float(rem(x, 360)))
+
+    if rx <= oftype(rx, 45)
+        return Base.Math.cos_kernel(Base.Math.deg2rad_ext(rx))
+    elseif rx < oftype(rx, 135)
+        y = Base.Math.deg2rad_ext(oftype(rx, 90) - rx)
+        return Base.Math.sin_kernel(y)
+    elseif rx <= oftype(rx, 225)
+        y = Base.Math.deg2rad_ext(oftype(rx, 180) - rx)
+        return -Base.Math.cos_kernel(y)
+    elseif rx < oftype(rx, 315)
+        y = Base.Math.deg2rad_ext(rx - oftype(rx, 270))
+        return Base.Math.sin_kernel(y)
+    else
+        y = Base.Math.deg2rad_ext(oftype(rx, 360) - rx)
+        return Base.Math.cos_kernel(y)
+    end
+end
+
 # multidimensional.jl
 @device_override Base.@propagate_inbounds function Base.getindex(
     iter::CartesianIndices{N,R}, I::Vararg{Int, N},
