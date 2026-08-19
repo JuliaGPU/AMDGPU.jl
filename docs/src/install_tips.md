@@ -35,7 +35,21 @@ set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "
 
 The artifact is chosen from the GPU architectures detected on the host, which on Linux are read from the `/sys/class/kfd/kfd/topology` nodes. If nothing is detected — a container without KFD passthrough, a login node, or a host where the `amdgpu` driver is not loaded — or if the detected architecture is not one of the shipped bundles, then no artifact is downloaded and AMDGPU.jl reports its ROCm components as unavailable.
 
-This is not a fallback: an existing system-wide ROCm is only picked up after explicitly opting in with the `local` preference above. The bundles currently shipped cover `gfx908`, `gfx90a`, `gfx94x` and `gfx950` for Instinct, and `gfx101x`, `gfx103x`, `gfx110x`, `gfx1150` through `gfx1153` and `gfx120x` for Radeon.
+There is no fallback path: the provider is decided when AMDGPU.jl is loaded, so an existing system-wide ROCm is only picked up after explicitly opting in with the `local` preference above.
+
+The bundles currently shipped are:
+
+```@eval
+using AMDGPU, TOML, Markdown
+toml = TOML.parsefile(joinpath(pkgdir(AMDGPU.ROCm_Runtime), "Artifacts.toml"))
+bundles = Dict{String,Set{String}}()
+for entry in toml["ROCm_Runtime"]
+    push!(get!(bundles, entry["rocm_arch"], Set{String}()), entry["os"])
+end
+rows = ["| `$arch` | $(join(sort(collect(bundles[arch])), ", ")) |"
+        for arch in sort(collect(keys(bundles)))]
+Markdown.parse(join(vcat("| Bundle | Platforms |", "|:--|:--|", rows), "\n"))
+```
 
 To pin the architecture when detection is not possible, for example when preparing a depot on a CPU-only build machine, pass `arch` a `gfx` target or a collection of them:
 
