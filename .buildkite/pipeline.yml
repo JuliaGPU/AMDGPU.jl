@@ -1,9 +1,10 @@
 # AMDGPU.jl chooses between the ROCm_Runtime artifacts and a local ROCm through
-# ROCm_Runtime's "local" preference. Every GPU step pins that preference and
+# ROCm_Runtime's "local" preference. Every GPU step writes that preference and
 # then asserts the provider it actually resolved to, so that a change of default
-# cannot silently swap the ROCm underneath a job. The artifacts are lazy, so the
-# pinning only has to happen before AMDGPU is first loaded, not before
-# instantiating the project.
+# cannot silently swap the ROCm underneath a job. The artifacts are lazy, so
+# Pkg.instantiate/update download nothing; the pin only has to be in place
+# before AMDGPU is first loaded, which also covers the steps where the
+# julia-test plugin instantiates before the command below runs.
 steps:
   - label: "Documentation"
     plugins:
@@ -38,7 +39,6 @@ steps:
     if: build.message !~ /\[skip docs\]/
     timeout_in_minutes: 20
 
-
   # Julia 1.10 doesn't support [sources] in Project.toml, so the workspace
   # packages have to be dev'ed manually before instantiating -- which rules out
   # the julia-test plugin, whose pre-command hook instantiates the project
@@ -54,12 +54,12 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
       julia --project -e '
         using Pkg
         Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
         Pkg.update()'
-      julia --project -e 'using Preferences; set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "false"; force=true)'
-      julia --project -e 'using AMDGPU; AMDGPU.versioninfo(); AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
       julia --project -e 'using Pkg; Pkg.test(; coverage=true, test_args=["--verbose"])'
     timeout_in_minutes: 90
     env:
@@ -97,9 +97,9 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
       julia --project -e 'using Pkg; Pkg.update()'
-      julia --project -e 'using Preferences; set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "false"; force=true)'
-      julia --project -e 'using AMDGPU; AMDGPU.versioninfo(); AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
     timeout_in_minutes: 90
     env:
       JULIA_NUM_THREADS: 4
@@ -120,9 +120,9 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: |
+      printf '[ROCm_Runtime]\nlocal = true\n' > LocalPreferences.toml
       julia --project -e 'using Pkg; Pkg.update()'
-      julia --project -e 'using Preferences; set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "true"; force=true)'
-      julia --project -e 'using AMDGPU; AMDGPU.versioninfo(); AMDGPU.local_rocm || error("this step selected a local ROCm, but AMDGPU resolved to the ROCm artifacts")'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm || error("this step selected a local ROCm, but AMDGPU resolved to the ROCm artifacts")'
       julia --project -e 'using Pkg; Pkg.test(; coverage=true, test_args=["--verbose"])'
     timeout_in_minutes: 90
     env:
@@ -140,12 +140,12 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
       julia --project -e '
         using Pkg
         Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
         Pkg.update()'
-      julia --project -e 'using Preferences; set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "false"; force=true)'
-      julia --project -e 'using AMDGPU; AMDGPU.versioninfo(); AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
       julia --project -e 'using Pkg; Pkg.test(; test_args=["enzyme"])'
     timeout_in_minutes: 45
     soft_fail: true
@@ -165,9 +165,9 @@ steps:
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
     command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
       julia --project -e 'using Pkg; Pkg.update()'
-      julia --project -e 'using Preferences; set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "false"; force=true)'
-      julia --project -e 'using AMDGPU; AMDGPU.versioninfo(); AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
     timeout_in_minutes: 45
     soft_fail: true
     env:
@@ -198,13 +198,13 @@ steps:
       - JuliaCI/julia#v1:
           version: "1.12"
     command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > perf/LocalPreferences.toml
       julia --project=perf -e '
         println("--- :julia: Instantiating benchmark project")
         using Pkg
         Pkg.develop([PackageSpec(path="."), PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
         Pkg.instantiate()'
-      julia --project=perf -e 'using Preferences; set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "false"; force=true)'
-      julia --project=perf -e 'using AMDGPU; AMDGPU.versioninfo(); AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+      julia --project=perf -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
       julia --project=perf -e '
         println("+++ :julia: Running benchmarks")
         include("perf/runbenchmarks.jl")'
