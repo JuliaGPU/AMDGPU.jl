@@ -112,11 +112,17 @@ end
 
 # Generic MIOpen interface.
 
+# MIOpen's `activ::ProblemDescription::MakeNetworkConfig` reads `lens[3]`/`lens[4]`
+# for any tensor with fewer than 2 dimensions, so hand it an equivalent 2D
+# descriptor for 1D inputs to avoid the out-of-bounds access.
+_activation_descriptor(x::ROCArray) =
+    TensorDescriptor(ndims(x) == 1 ? reshape(x, :, 1) : x)
+
 function _activation(
     x::ROCArray{T}, desc::ActivationDescriptor,
 ) where T <: MIOPENFloat
     y = similar(x)
-    xdesc, ydesc = TensorDescriptor.((x, y))
+    xdesc, ydesc = _activation_descriptor.((x, y))
     (; handle, stream) = lib_state()
     miopenActivationForward(
         handle, desc.handle, Ref{Float32}(1f0), xdesc.handle, x,
@@ -128,10 +134,10 @@ function _∇activation(
     dy::ROCArray{T}, y::ROCArray{T}, x::ROCArray{T}, desc::ActivationDescriptor,
 ) where T <: MIOPENFloat
     dx = similar(x)
-    xdesc, ydesc, dydesc, dxdesc = TensorDescriptor.((x, y, dy, dx))
+    xdesc, ydesc, dydesc, dxdesc = _activation_descriptor.((x, y, dy, dx))
     (; handle, stream) = lib_state()
     miopenActivationBackward(
-        handle, desc, Ref{Float32}(1f0), ydesc.handle, y,
+        handle, desc.handle, Ref{Float32}(1f0), ydesc.handle, y,
         dydesc.handle, dy, xdesc.handle, x, Ref{Float32}(0f0),
         dxdesc.handle, dx)
     dx
