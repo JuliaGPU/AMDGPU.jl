@@ -81,7 +81,7 @@ wfscan
 
 Get the wavefront size of the device that executes current kernel.
 """
-wavefrontsize()::Cuint = ccall("llvm.amdgcn.wavefrontsize", llvmcall, Cuint, ())
+@device_function wavefrontsize() = ccall("llvm.amdgcn.wavefrontsize", llvmcall, Cuint, ())
 
 """
     activelane()::Cuint
@@ -105,7 +105,7 @@ julia> Array(x)
  0  1  2  3  4  5  6  7
 ```
 """
-activelane()::Cuint = ccall("extern __ockl_activelane_u32", llvmcall, Cuint, ())
+@device_function activelane() = ccall("extern __ockl_activelane_u32", llvmcall, Cuint, ())
 
 """
     ballot(predicate::Bool)::UInt64
@@ -129,7 +129,7 @@ julia> x
  0x00000000ffffffff
 ```
 """
-function ballot(predicate::Bool)::UInt64
+@device_function function ballot(predicate::Bool)
     if wavefrontsize() == 32
         UInt64(ccall("llvm.amdgcn.ballot", llvmcall, UInt32, (Bool,), predicate))
     else
@@ -177,7 +177,7 @@ julia> x
  1  2  3  4  5  6  7  0
 ```
 """
-bpermute(addr::Cint, val::Cint)::Cint = ccall(
+@device_function bpermute(addr::Cint, val::Cint) = ccall(
     "llvm.amdgcn.ds.bpermute", llvmcall, Cint, (Cint, Cint), addr, val)
 
 """
@@ -208,7 +208,7 @@ julia> x
  7  0  1  2  3  4  5  6
 ```
 """
-permute(addr::Integer, val::Cint)::Cint = ccall(
+@device_function permute(addr::Integer, val::Cint) = ccall(
     "llvm.amdgcn.ds.permute", llvmcall, Cint, (Cint, Cint), addr, val)
 
 _shfl(op, x::UInt8) = op(Cint(x)) % UInt8
@@ -394,7 +394,7 @@ julia> x
 shfl_xor(val, lane_mask::Cint, width::Cuint = wavefrontsize()) =
     _shfl(x -> shfl_xor(x, lane_mask, width), val)
 
-readfirstlane(val::Cint)::Cint = ccall(
+@device_function readfirstlane(val::Cint) = ccall(
     "llvm.amdgcn.readfirstlane", llvmcall, Cint, (Cint,), val)
 
 """
