@@ -16,10 +16,8 @@ Launch compiled HIPKernel by passing arguments to it.
 The following kwargs are supported:
 - `gridsize::ROCDim = 1`: Size of the grid.
 - `groupsize::ROCDim = 1`:  Size of the workgroup.
-- `shmem::Integer = 0`:
-    Amount of dynamically-allocated shared memory in bytes.
-- `stream::HIP.HIPStream = AMDGPU.stream()`:
-    Stream on which to launch the kernel.
+- `shmem::Integer = 0`: Amount of dynamically-allocated shared memory in bytes.
+- `stream::HIP.HIPStream = AMDGPU.stream()`: Stream on which to launch the kernel.
 """
 struct HIPKernel{F, TT} <: AbstractKernel{F, TT}
     f::F
@@ -41,12 +39,10 @@ end
 
     # add the kernel state
     pushfirst!(call_t, AMDGPU.KernelState)
-    pushfirst!(call_args, :(AMDGPU.KernelState(
-        stream.device, kernel.fun.global_hostcalls)))
+    pushfirst!(call_args, :(AMDGPU.KernelState(stream.device, kernel.fun.global_hostcalls)))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
-
     quote
         roccall(kernel.fun, $call_tt, $(call_args...); stream, call_kwargs...)
     end

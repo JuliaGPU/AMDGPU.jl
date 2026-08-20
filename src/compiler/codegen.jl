@@ -76,7 +76,6 @@ function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LL
 
     # Only the final kernel module needs the device libraries.
     job.config.toplevel || return
-
     link_device_libs!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
@@ -118,8 +117,7 @@ function GPUCompiler.finish_module!(
     # causing huge scratch memory usage.
     # And GPUCompiler fails to inline all functions without forcing
     # always-inline attributes on them. Add them here.
-    target_fns = (
-        "signal_exception", "report_exception", "malloc", "__throw_")
+    target_fns = ("signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
 
     for fn in LLVM.functions(mod)
@@ -127,8 +125,7 @@ function GPUCompiler.finish_module!(
         if job.config.params.unsafe_fp_atomics || do_inline
             attrs = LLVM.function_attributes(fn)
 
-            do_inline && inline_attr ∉ collect(attrs) &&
-                push!(attrs, inline_attr)
+            do_inline && inline_attr ∉ collect(attrs) && push!(attrs, inline_attr)
         end
     end
 
@@ -289,6 +286,7 @@ function create_executable(obj)
         @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
         `$(AMDGPU.lld_path)`
     end
+    @show lld
 
     path_o = tempname(;cleanup=false) * ".obj"
     path_exe = tempname(;cleanup=false) * ".exe"
