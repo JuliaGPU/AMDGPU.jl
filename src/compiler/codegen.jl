@@ -286,7 +286,6 @@ function create_executable(obj)
         @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
         `$(AMDGPU.lld_path)`
     end
-    @show lld
 
     path_o = tempname(;cleanup=false) * ".obj"
     path_exe = tempname(;cleanup=false) * ".exe"
@@ -351,6 +350,17 @@ function hipcompile(@nospecialize(job::CompilerJob))
         """
     end
     (; obj=create_executable(codeunits(obj)), entry, global_hostcalls, relocations)
+end
+
+# Replace default visibility (for extinit globals with weak-ODR linkage as imposed by :patch strategy)
+# with protected to ensure that they are not replaceable and
+# we can address them directly with baked offset (R_AMDGPU_REL32_LO/HI).
+function GPUCompiler.mcgen(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module, format)
+    for gv in LLVM.globals(mod)
+        isextinit(gv) && LLVM.linkage(gv) == LLVM.API.LLVMWeakODRLinkage || continue
+        LLVM.visibility!(gv, LLVM.API.LLVMProtectedVisibility)
+    end
+    return invoke(GPUCompiler.mcgen, Tuple{CompilerJob, LLVM.Module, typeof(format)}, job, mod, format)
 end
 
 # Fill in the host addresses the loaded object was left waiting for:
