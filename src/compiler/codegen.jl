@@ -74,6 +74,9 @@ function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LL
     tls_hostcalls = get!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     append!(tls_hostcalls, find_global_hostcalls(mod))
 
+    # Only the final kernel module needs the device libraries.
+    job.config.toplevel || return
+
     link_device_libs!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
@@ -86,10 +89,10 @@ function GPUCompiler.finish_module!(
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
 
-    # Re-link device libs to resolve references introduced by the GPUCompiler
-    # runtime (e.g. boxing → malloc → hostcall → __ockl_hsa_signal*) which are
-    # added after link_libraries! has already run.
-    link_device_libs!(
+    # Re-link device libs to resolve references introduced by the GPUCompiler runtime,
+    # e.g. boxing → malloc → hostcall → __ockl_hsa_signal*
+    # which are added after link_libraries! has already run.
+    job.config.toplevel && link_device_libs!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
 
