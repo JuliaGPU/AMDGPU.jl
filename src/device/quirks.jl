@@ -43,6 +43,8 @@ end
 
 # Bodies copied from Base (`base/special/trig.jl`) with the inline `DomainError`
 # throw replaced: boxing its untyped `val` field emits a device-side allocation.
+# Provisional: JuliaLang/julia#62842 adds `Base.Math.sind_domain_error`, after
+# which these collapse to two overrides, once the compat floor reaches 1.14.
 @device_override function Base.Math.sind(x::Real)
     if isinf(x)
         @gpu_throw "DomainError: sind(x) is only defined for finite x"
