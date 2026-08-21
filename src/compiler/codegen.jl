@@ -292,11 +292,14 @@ function find_global_hostcalls(mod::LLVM.Module)
     return global_hostcalls
 end
 
+# LLVM 16 defaults to typed pointers in a fresh context, but the downgraded device libs
+# use opaque pointers on LLVM >= 16 (see `downgrade_target`). GPUCompiler consults this
+# hook whenever it creates a context for one of our jobs (`JuliaContext(job)`).
+GPUCompiler.opaque_pointers(@nospecialize(job::HIPCompilerJob)) =
+    v"16" <= Base.libllvm_version < v"17" ? true : nothing
+
 function hipcompile(@nospecialize(job::CompilerJob))
-    # LLVM 16 defaults to typed pointers in a fresh context, but the downgraded
-    # device libs use opaque pointers on LLVM >= 16 (see `downgrade_target`).
-    opaque_pointers = v"16" <= Base.libllvm_version < v"17" ? true : nothing
-    obj, meta = JuliaContext(; opaque_pointers) do ctx
+    obj, meta = JuliaContext(job) do ctx
         GPUCompiler.compile(:obj, job)
     end
 

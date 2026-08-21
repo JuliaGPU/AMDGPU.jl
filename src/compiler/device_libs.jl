@@ -73,7 +73,16 @@ end
 function load_and_link!(devlib::DevLib, mod::LLVM.Module)
     isempty(devlib.path) && return
 
-    lib = parse(LLVM.Module, devlib.data)
+    lib = try
+        parse(LLVM.Module, devlib.data)
+    catch
+        if v"16" <= Base.libllvm_version < v"17" && LLVM.supports_typed_pointers(context())
+            @error """Failed to load device library `$(devlib.name)`: the device libraries use \
+                      opaque pointers, but the active LLVM context uses typed pointers. \
+                      Create the context with `GPUCompiler.JuliaContext(job)` instead of `JuliaContext()`."""
+        end
+        rethrow()
+    end
     inline_attr = EnumAttribute("alwaysinline")
     noinline_attr = EnumAttribute("noinline")
 
