@@ -111,7 +111,7 @@ function memset!(dst, value::Union{UInt8, UInt16, UInt32}, n::Int; stream::HIP.H
     elseif value isa UInt16
         HIP.hipMemsetD16Async(dst, value, n, stream)
     else
-        HIP.hipMemsetD32Async(dst, value, n, stream)
+        HIP.hipMemsetD32Async(dst, reinterpret(Cint, value), n, stream)
     end
     return
 end
