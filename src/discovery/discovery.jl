@@ -27,18 +27,13 @@ function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
 end
 
 # bitcode versions `llvm-downgrade` can target.
-const DOWNGRADE_TARGETS = (v"5", v"7", v"14", v"15", v"18")
-
-# Julia only uses opaque pointers from LLVM 16 on. The 15 target emits opaque pointers,
-# so on LLVM 15 (Julia 1.10, typed pointers) we have to fall back to the 14 target.
-function downgrade_target()::VersionNumber
-    llvm = Base.libllvm_version
-    return maximum(t for t in DOWNGRADE_TARGETS if t <= llvm && !(t == v"15" && llvm < v"16"))
-end
+# The 15 target emits opaque pointers, but GPUCompiler uses typed pointers on LLVM 15 and 16
+# (Julia 1.10 and 1.11), so both use the 14 target instead.
+const DOWNGRADE_TARGETS = (v"5", v"7", v"14", #=v"15",=# v"18")
 
 # downgrade the device libs to the latest LLVM version Julia supports
 function downgrade_device_libs(src_dir::String)::String
-    target = downgrade_target()
+    target = maximum(Iterators.filter(<=(Base.libllvm_version), DOWNGRADE_TARGETS))
     # ensure this is rebuilt if any of the relevant jlls or the target changes
     scratch_name = replace(string(
         "device_libs-", pkgversion(AMDGPU_LLVM_Backend_jll),
