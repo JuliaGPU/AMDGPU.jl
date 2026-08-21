@@ -66,13 +66,6 @@ if :AMDGPU in LLVM.backends()
                     empty!(Compiler.DEVICE_LIBS)
                 end
             end
-
-            # Warm the kernel launch path: launching needs a live device, inferring it does not.
-            let KT = Runtime.HIPKernel{typeof(_precompile_kernel), tt},
-                AT = ROCArray{Float32, 1, Mem.HIPBuffer}
-                precompile(Core.kwcall,
-                    (@NamedTuple{groupsize::Int64, gridsize::Int64}, KT, AT))
-            end
         end
     end
 end
