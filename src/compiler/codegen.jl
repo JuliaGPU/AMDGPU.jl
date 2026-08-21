@@ -99,14 +99,18 @@ function GPUCompiler.finish_module!(
     target_fns = (
         "signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
+    noinline_attr = EnumAttribute("noinline")
 
     for fn in LLVM.functions(mod)
         do_inline = any(occursin.(target_fns, LLVM.name(fn)))
-        if job.config.params.unsafe_fp_atomics || do_inline
+        if do_inline
             attrs = LLVM.function_attributes(fn)
-
-            do_inline && inline_attr ∉ collect(attrs) &&
+            if inline_attr ∉ collect(attrs)
+                # Julia marks throw functions `noinline`, which is incompatible
+                # with `alwaysinline`; force-inlining takes precedence here.
+                delete!(attrs, noinline_attr)
                 push!(attrs, inline_attr)
+            end
         end
     end
 
