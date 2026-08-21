@@ -200,7 +200,7 @@ check that the hipTENSOR library itself was found.
 hiptensor_supported(arch::AbstractString) =
     first(split(arch, ':')) in HIPTENSOR_ARCHS
 
-hiptensor_supported(device::HIP.HIPDevice) = hiptensor_supported(HIP.gcn_arch(device))
+hiptensor_supported(device) = hiptensor_supported(HIP.gcn_arch(device))
 
 
 """
