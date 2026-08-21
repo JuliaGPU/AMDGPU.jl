@@ -31,9 +31,12 @@ end
     sig = Tuple{F, TT.parameters...} # Base.signature_type with a function type
     args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
 
-    # filter out ghost arguments that shouldn't be passed
+    # filter out ghost arguments that shouldn't be passed.
     predicate = dt -> GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)
-    to_pass = map(!predicate, sig.parameters)
+    # Note: Define a single LLVM context, otherwise it is created per every param.
+    to_pass = LLVM.Context() do _
+        map(!predicate, sig.parameters)
+    end
     call_t = Type[x[1] for x in zip(sig.parameters, to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
 
