@@ -56,8 +56,7 @@ end
 LockedObject(payload) = LockedObject(ReentrantLock(), payload)
 
 # Load binary dependencies.
-include("discovery/discovery.jl")
-using .ROCmDiscovery
+include("libs.jl")
 
 include("utils.jl")
 
@@ -154,6 +153,19 @@ function __init__()
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)
 
+    if Sys.islinux() && isdir("/sys/class/kfd/kfd/topology/nodes/")
+        for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
+            node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
+            # CPU nodes don't have names.
+            isempty(node_name) && continue
+
+            if node_name == "navy_flounder"
+                ENV["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
+                break
+            end
+        end
+    end
+
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])
         LAUNCH_BLOCKING[] = launch_blocking
@@ -163,13 +175,20 @@ function __init__()
         end
     end
 
+    # Only worth reporting where a GPU is actually present: without GPU, not
+    # resolving an artifact is the expected outcome rather than a problem.
+    if !local_rocm && !ROCm_Runtime.is_available() &&
+            (!Sys.islinux() || ispath("/dev/kfd"))
+        warn_unresolved_rocm_artifact()
+    end
+
     if Sys.islinux()
         if !ispath("/dev/kfd")
             @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
             return
         end
 
-        if !isempty(libhsaruntime)
+        if !isempty(libhsa_runtime64)
             status = HSA.init()
             status == HSA.STATUS_SUCCESS ?
                 atexit(() -> HSA.shut_down()) :

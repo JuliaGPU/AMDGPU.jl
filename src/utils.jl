@@ -43,6 +43,8 @@ diagnostic when something is missing or not working.
 """
 function versioninfo(io::IO=stdout)
     println(io, "AMDGPU versioninfo")
+    println(io, "ROCm provider: ", local_rocm ?
+        "local ROCm installation" : "downloaded artifacts")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
@@ -59,14 +61,14 @@ function versioninfo(io::IO=stdout)
     data = String[
         _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_path);
         _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
-        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
+        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libamdhip64);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
         _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
         _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                       _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
         _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version) _libpath(libhiptensor);
-        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
+        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen);
     ]
 
     PrettyTables.pretty_table(io, data; column_labels=[
@@ -135,7 +137,7 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hip
-        return !isempty(libhip)
+        return !isempty(libamdhip64)
     elseif component == :lld
         return !isempty(lld_path)
     elseif component == :device_libs
@@ -164,7 +166,7 @@ function functional(component::Symbol)
             false
         end
     elseif component == :MIOpen
-        return !isempty(libMIOpen_path)
+        return !isempty(libMIOpen)
     elseif component == :all
         for component in (
             :hip, :lld, :device_libs, :rocblas, :rocsolver,

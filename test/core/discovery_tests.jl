@@ -1,5 +1,5 @@
 using Test
-using AMDGPU
+import ROCm_Runtime_Discovery
 
 # Pure-filesystem tests for ROCm library discovery against synthetic trees
 # (no real ROCm install or GPU needed). Two kinds of test live here:
@@ -12,7 +12,7 @@ using AMDGPU
 #                    generation. When a future ROCm moves these, ADD the new
 #                    path (keep the old for back-compat) rather than editing
 #                    in place.
-const Disc = AMDGPU.ROCmDiscovery
+const Disc = ROCm_Runtime_Discovery
 
 # The `core-*` fallback and the `libamdhip64` naming are Linux-specific.
 if Sys.islinux()
