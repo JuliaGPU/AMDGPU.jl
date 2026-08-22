@@ -2,6 +2,7 @@ module Runtime
 
 using ..CEnum
 using ..GPUCompiler
+import ..LLVM
 
 import ..Adapt
 import Preferences: @load_preference, @set_preferences!
