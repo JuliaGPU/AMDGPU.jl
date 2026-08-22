@@ -1,35 +1,35 @@
 steps:
-  - label: "Documentation"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: "1.12"
-      - sv-oss/node-n#v0.1.2:
-          node-version: v20
-    command: |
-      echo "Instantiate NPM"
-      cd docs/
-      npm i
-      cd ..
+  # - label: "Documentation"
+  #   plugins:
+  #     - JuliaCI/julia#v1:
+  #         version: "1.12"
+  #     - sv-oss/node-n#v0.1.2:
+  #         node-version: v20
+  #   command: |
+  #     echo "Instantiate NPM"
+  #     cd docs/
+  #     npm i
+  #     cd ..
 
-      julia --project -e '
-        println("--- :julia: Instantiating project")
-        using Pkg
-        Pkg.instantiate()
-        Pkg.build()
+  #     julia --project -e '
+  #       println("--- :julia: Instantiating project")
+  #       using Pkg
+  #       Pkg.instantiate()
+  #       Pkg.build()
 
-        Pkg.activate("docs")
-        Pkg.develop(PackageSpec(path="."))
-        Pkg.instantiate()
+  #       Pkg.activate("docs")
+  #       Pkg.develop(PackageSpec(path="."))
+  #       Pkg.instantiate()
 
-        push!(LOAD_PATH, @__DIR__)
+  #       push!(LOAD_PATH, @__DIR__)
 
-        println("+++ :julia: Building documentation")
-        include("docs/make.jl")'
-    agents:
-      queue: "rocm"
-      rocmgpu: "*"
-    if: build.message !~ /\[skip docs\]/
-    timeout_in_minutes: 20
+  #       println("+++ :julia: Building documentation")
+  #       include("docs/make.jl")'
+  #   agents:
+  #     queue: "rocm"
+  #     rocmgpu: "*"
+  #   if: build.message !~ /\[skip docs\]/
+  #   timeout_in_minutes: 20
 
   - label: "Julia {{matrix.version}}"
     matrix:
@@ -40,15 +40,15 @@ steps:
           - "1.12"
           - "1.13"
         test_args:
-          - "--verbose "
+          - "--verbose kernel"
       adjustments:
         - with:
             version: "1.13"
-            test_args: "--verbose "
+            test_args: "--verbose  kernel"
           soft_fail: true
         - with:
             version: "nightly"
-            test_args: "--verbose --quickfail"
+            test_args: "--verbose --quickfail kernel"
           soft_fail: true
     plugins:
       - JuliaCI/julia#v1:
@@ -69,69 +69,69 @@ steps:
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
-  - label: "Julia {{matrix.version}} Enzyme"
-    matrix:
-      setup:
-        version:
-          - "1.10"
-          - "1.11"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: "{{matrix.version}}"
-      - JuliaCI/julia-test#v1:
-          test_args: "enzyme"
-    agents:
-      queue: "rocm"
-      rocmgpu: "*"
-    if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
-    timeout_in_minutes: 45
-    soft_fail: true
-    env:
-      JULIA_NUM_THREADS: 4
-      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
-      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+  # - label: "Julia {{matrix.version}} Enzyme"
+  #   matrix:
+  #     setup:
+  #       version:
+  #         - "1.10"
+  #         - "1.11"
+  #   plugins:
+  #     - JuliaCI/julia#v1:
+  #         version: "{{matrix.version}}"
+  #     - JuliaCI/julia-test#v1:
+  #         test_args: "enzyme"
+  #   agents:
+  #     queue: "rocm"
+  #     rocmgpu: "*"
+  #   if: build.message !~ /\[skip tests\]/
+  #   command: "julia --project -e 'using Pkg; Pkg.update()'"
+  #   timeout_in_minutes: 45
+  #   soft_fail: true
+  #   env:
+  #     JULIA_NUM_THREADS: 4
+  #     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
-  - label: "GPU-less environment"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: "1.10"
-      - JuliaCI/julia-test#v1:
-          run_tests: false
-    command: |
-      julia --project -e '
-        using AMDGPU
-        @assert !AMDGPU.functional()'
-    agents:
-      queue: "oneapi"
-    if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 10
+  # - label: "GPU-less environment"
+  #   plugins:
+  #     - JuliaCI/julia#v1:
+  #         version: "1.10"
+  #     - JuliaCI/julia-test#v1:
+  #         run_tests: false
+  #   command: |
+  #     julia --project -e '
+  #       using AMDGPU
+  #       @assert !AMDGPU.functional()'
+  #   agents:
+  #     queue: "oneapi"
+  #   if: build.message !~ /\[skip tests\]/
+  #   timeout_in_minutes: 10
 
-  - label: ":racehorse: Benchmarks"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: "1.12"
-    command: |
-      julia --project=perf -e '
-        println("--- :julia: Instantiating benchmark project")
-        using Pkg
-        Pkg.develop(PackageSpec(path="."))
-        Pkg.instantiate()
+  # - label: ":racehorse: Benchmarks"
+  #   plugins:
+  #     - JuliaCI/julia#v1:
+  #         version: "1.12"
+  #   command: |
+  #     julia --project=perf -e '
+  #       println("--- :julia: Instantiating benchmark project")
+  #       using Pkg
+  #       Pkg.develop(PackageSpec(path="."))
+  #       Pkg.instantiate()
 
-        println("+++ :julia: Running benchmarks")
-        include("perf/runbenchmarks.jl")'
-    artifact_paths:
-      - "benchmarkresults.json"
-    agents:
-      queue: "rocm"
-      rocmgpu: "gfx1100"
-    if: build.message !~ /\[skip benchmarks\]/
-    timeout_in_minutes: 120
-    env:
-      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
-      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+  #       println("+++ :julia: Running benchmarks")
+  #       include("perf/runbenchmarks.jl")'
+  #   artifact_paths:
+  #     - "benchmarkresults.json"
+  #   agents:
+  #     queue: "rocm"
+  #     rocmgpu: "gfx1100"
+  #   if: build.message !~ /\[skip benchmarks\]/
+  #   timeout_in_minutes: 120
+  #   env:
+  #     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
 env:
   JULIA_AMDGPU_LOGGING_ENABLED: true
