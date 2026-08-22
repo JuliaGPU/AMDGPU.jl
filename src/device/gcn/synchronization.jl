@@ -30,6 +30,17 @@ Waits until all wavefronts in a workgroup have reached this call and that their 
 end
 
 """
+    sync_wavefront()
+
+Waits until all wavefronts in a workgroup have reached this call and that their memory accesses are visible to other threads in the workgroup.
+"""
+@inline function sync_wavefront()
+    # This is a no-op https://github.com/llvm/llvm-project/blob/88b77d5eaa66747538a12c9876eeffdce31ddb71/openmp/device/src/Synchronization.cpp#L136-L140
+    ccall("llvm.amdgcn.wave.barrier", llvmcall, Cvoid, ())
+end
+
+
+"""
     sync_workgroup_count(predicate::Cint)::Cint
 
 Identical to `sync_workgroup`, with the additional feature
