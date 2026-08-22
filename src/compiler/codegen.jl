@@ -15,13 +15,17 @@ const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
 """
     HIPResults
 
-Cached compilation results for a HIP kernel job, managed by
-`GPUCompiler.cached_results`. Session-portable artifacts (the lld-linked shared
-object `obj`, the entry-point name `entry`, and the detected `global_hostcalls`)
-are populated after codegen and persist across sessions (e.g. through package
-precompilation). The session-local `functions` are `HIPFunction` handles linked
-onto a specific device; they are device-specific and never populated during
-precompilation. `obj === nothing` identifies a job that has not been compiled yet.
+Cached compilation results for a HIP kernel job, managed by `GPUCompiler.cached_results`.
+
+Session-portable artifacts (the lld-linked shared object `obj`, the entry-point name `entry`,
+the detected `global_hostcalls`, and the `relocations` manifest describing the host addresses
+the loader must patch into the loaded image) are populated after codegen and
+persist across sessions (e.g. through package precompilation).
+
+The session-local `functions` are `HIPFunction` handles linked onto a specific device,
+they are device-specific and never populated during precompilation.
+
+`obj === nothing` identifies a job that has not been compiled yet.
 
 `functions` is a small linear cache of `(HIPDevice, HIPFunction)` pairs, matching the
 old per-device cache semantics; the scan is almost always over a single entry.
@@ -31,9 +35,12 @@ mutable struct HIPResults
     obj::Union{Nothing,Vector{UInt8}}       # lld-linked shared object
     entry::Union{Nothing,String}
     global_hostcalls::Vector{Symbol}
+    relocations::GPUCompiler.Relocations
     # session-local handles (never populated during precompilation)
     functions::Vector{Tuple{HIP.HIPDevice,HIP.HIPFunction}}
-    HIPResults() = new(nothing, nothing, Symbol[], Tuple{HIP.HIPDevice,HIP.HIPFunction}[])
+    HIPResults() = new(
+        nothing, nothing, Symbol[], GPUCompiler.Relocations(),
+        Tuple{HIP.HIPDevice,HIP.HIPFunction}[])
 end
 
 # (objectid(source), hash(fun), f) => HIPKernel
@@ -45,9 +52,21 @@ GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
 GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
 
+# Julia codegen embeds host addresses
+# (type tags, boxed values, words read from libjulia globals)
+# into the IR it hands us.
+#
+# GPUCompiler keeps them symbolic and reports them as relocation records instead.
+# HIP can look a global up in a loaded module by name (`hipModuleGetGlobal`) and
+# write to it (via `hipMemcpyHtoD`), so we use `:patch` strategy:
+# the emitted object leaves each word as a named, zero-initialized global that
+# `patch_relocations!` fills in after loading.
+#
+# Nothing session-local ends up in `obj`, which is what lets `HIPResults` persist across sessions.
+GPUCompiler.relocation_lowering(@nospecialize(::HIPCompilerJob)) = :patch
+
 function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
-    invoke(GPUCompiler.link_libraries!,
-        Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
+    invoke(GPUCompiler.link_libraries!, Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
 
     # Detect global hostcalls here, before optimizations & cleanup occur.
     # Accumulate into task-local storage so hipcompile can retrieve them
@@ -55,6 +74,8 @@ function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LL
     tls_hostcalls = get!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     append!(tls_hostcalls, find_global_hostcalls(mod))
 
+    # Only the final kernel module needs the device libraries.
+    job.config.toplevel || return
     link_device_libs!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
@@ -67,10 +88,10 @@ function GPUCompiler.finish_module!(
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
 
-    # Re-link device libs to resolve references introduced by the GPUCompiler
-    # runtime (e.g. boxing → malloc → hostcall → __ockl_hsa_signal*) which are
-    # added after link_libraries! has already run.
-    link_device_libs!(
+    # Re-link device libs to resolve references introduced by the GPUCompiler runtime,
+    # e.g. boxing → malloc → hostcall → __ockl_hsa_signal*
+    # which are added after link_libraries! has already run.
+    job.config.toplevel && link_device_libs!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
 
@@ -96,8 +117,7 @@ function GPUCompiler.finish_module!(
     # causing huge scratch memory usage.
     # And GPUCompiler fails to inline all functions without forcing
     # always-inline attributes on them. Add them here.
-    target_fns = (
-        "signal_exception", "report_exception", "malloc", "__throw_")
+    target_fns = ("signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
 
     for fn in LLVM.functions(mod)
@@ -105,8 +125,7 @@ function GPUCompiler.finish_module!(
         if job.config.params.unsafe_fp_atomics || do_inline
             attrs = LLVM.function_attributes(fn)
 
-            do_inline && inline_attr ∉ collect(attrs) &&
-                push!(attrs, inline_attr)
+            do_inline && inline_attr ∉ collect(attrs) && push!(attrs, inline_attr)
         end
     end
 
@@ -226,8 +245,7 @@ function hipfunction_lookup(
         cached_dev == dev && return cached_fun
     end
 
-    fun = hiplink(job, res.obj::Vector{UInt8}, res.entry::String,
-                  res.global_hostcalls)
+    fun = hiplink(job, res.obj::Vector{UInt8}, res.entry::String, res.global_hostcalls, res.relocations)
     # Don't cache session-local handles while generating output: the results
     # struct is serialized into the package image along with its CodeInstance,
     # and the handles would come back dangling.
@@ -252,6 +270,7 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
         res.obj = compiled.obj
         res.entry = compiled.entry
         res.global_hostcalls = compiled.global_hostcalls
+        res.relocations = compiled.relocations
     end
     return res
 end
@@ -314,7 +333,13 @@ function hipcompile(@nospecialize(job::CompilerJob))
     end
 
     entry = LLVM.name(meta.entry)
-    extinit_globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+
+    # Filter out extinit global from `relocations` that :patch strategy emits.
+    relocations = meta.relocations
+    relocated = Set(rec.name for rec in relocations.records)
+    extinit_globals = filter(collect(LLVM.globals(meta.ir))) do gv
+        isextinit(gv) && LLVM.name(gv) ∉ relocated
+    end .|> LLVM.name
     if !isempty(extinit_globals)
         @warn """
         HIP backend does not support setting extinit globals.
@@ -324,12 +349,56 @@ function hipcompile(@nospecialize(job::CompilerJob))
         Compilation will likely fail.
         """
     end
-    (; obj=create_executable(codeunits(obj)), entry, global_hostcalls)
+    (; obj=create_executable(codeunits(obj)), entry, global_hostcalls, relocations)
 end
 
-# link a compiled shared object into a session-local `HIPFunction` on the active device.
-function hiplink(@nospecialize(job::CompilerJob), obj, entry, global_hostcalls)
+# Replace default visibility (for extinit globals with weak-ODR linkage as imposed by :patch strategy)
+# with protected to ensure that they are not replaceable and
+# we can address them directly with baked offset (R_AMDGPU_REL32_LO/HI).
+function GPUCompiler.mcgen(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
+    format = LLVM.API.LLVMAssemblyFile,
+)
+    for gv in LLVM.globals(mod)
+        isextinit(gv) && LLVM.linkage(gv) == LLVM.API.LLVMWeakODRLinkage || continue
+        LLVM.visibility!(gv, LLVM.API.LLVMProtectedVisibility)
+    end
+    # Pass GCNCompilerTarget to use llc from AMDGPU_LLVM_Backend_jll
+    # which is needed to avoid Int128 miscompilation.
+    return invoke(GPUCompiler.mcgen,
+        Tuple{CompilerJob{GCNCompilerTarget}, LLVM.Module, typeof(format)},
+        job, mod, format)
+end
+
+# Fill in the host addresses the loaded object was left waiting for:
+# each record names a global in the image, and its word at `offset` is where the address goes.
+# Resolving roots the referenced Julia values in this process, so those addresses cannot dangle.
+function patch_relocations!(mod::HIP.HIPModule, relocations::GPUCompiler.Relocations)
+    isempty(relocations) && return
+    word = UInt[0]
+    for (rec, value) in GPUCompiler.resolved_relocations(relocations)
+        # a site the linker dropped would otherwise surface as a bare `hipErrorNotFound`
+        ptr, size = try
+            HIP.module_global(mod, rec.name)
+        catch err
+            error("Loaded kernel has no relocation site `$(rec.name)`: $(sprint(showerror, err))")
+        end
+        rec.offset + sizeof(UInt) ≤ size ||
+            error("Relocation `$(rec.name)+$(rec.offset)` does not fit in its $size-byte global")
+
+        word[1] = value
+        GC.@preserve word begin
+            HIP.hipMemcpyHtoD(ptr + rec.offset, Ptr{Cvoid}(pointer(word)), sizeof(UInt))
+        end
+    end
+    return
+end
+
+# link a compiled shared object into a session-local `HIPFunction` on the active device,
+# filling in the host addresses the object was compiled to expect.
+function hiplink(@nospecialize(job::CompilerJob), obj, entry, global_hostcalls, relocations)
     mod = HIP.HIPModule(obj)
+    patch_relocations!(mod, relocations)
     HIP.HIPFunction(mod, entry, global_hostcalls)
 end
 

@@ -248,6 +248,23 @@ function Base.copyto!(
     return dest
 end
 
+# Element types whose bit pattern a HIP memset can replicate directly,
+# letting `fill!` skip kernel compilation entirely.
+const MemsetTypes = Union{
+    UInt8, Int8,
+    UInt16, Int16, Float16,
+    UInt32, Int32, Float32}
+
+memset_type(::Type{T}) where T = aligned_sizeof(T) == 1 ? UInt8 :
+    (aligned_sizeof(T) == 2 ? UInt16 : UInt32)
+
+function Base.fill!(A::ROCArray{T}, x) where T <: MemsetTypes
+    isempty(A) && return A
+    U = memset_type(T)
+    Mem.memset!(pointer(A), reinterpret(U, convert(T, x)), length(A); stream=stream())
+    return A
+end
+
 function Base.copy(X::ROCArray{T}) where T
     Xnew = ROCArray{T}(undef, size(X))
     copyto!(Xnew, 1, X, 1, length(X))

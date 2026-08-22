@@ -18,6 +18,19 @@ Base.unsafe_convert(::Type{hipModule_t}, mod::HIPModule) = mod.handle
 Base.:(==)(a::HIPModule, b::HIPModule) = a.handle == b.handle
 Base.hash(m::HIPModule, h::UInt) = hash(m.handle, h)
 
+"""
+    module_global(mod::HIPModule, name::AbstractString)
+
+Device address and size (in bytes) of the global variable `name` in a loaded module.
+Throws if the module defines no such symbol.
+"""
+function module_global(mod::HIPModule, name::AbstractString)
+    ptr_ref = Ref{hipDeviceptr_t}()
+    bytes_ref = Ref{Csize_t}()
+    hipModuleGetGlobal(ptr_ref, bytes_ref, mod, name)
+    return ptr_ref[], Int(bytes_ref[])
+end
+
 struct HIPFunction
     handle::hipFunction_t
     mod::HIPModule
