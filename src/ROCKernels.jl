@@ -1,13 +1,14 @@
-module ROCKernels
+module ROCInterface
 
 export ROCBackend
 
 import AMDGPU
+import AMDGPU: rocconvert, hipfunction
 import AMDGPU.Device: @device_override
-using AMDGPU: GPUArrays, rocSPARSE
+using AMDGPU: GPUArrays, rocSPARSE, HIP, Device
 
 import Adapt
-import KernelAbstractions as KA
+import KernelInterface as KI
 import LLVM
 
 using StaticArraysCore: MArray
@@ -19,183 +20,149 @@ KernelAbstractions backend that executes kernels on an AMD GPU via AMDGPU.jl.
 Pass `ROCBackend()` to a KernelAbstractions kernel to run it on the GPU, or
 obtain it from an array with `KernelAbstractions.get_backend(::ROCArray)`.
 """
-struct ROCBackend <: KA.GPU end
+struct ROCBackend <: KI.GPU end
 
-KA.functional(::ROCBackend) = AMDGPU.functional()
-KA.ndevices(::ROCBackend) = AMDGPU.HIP.ndevices()
-KA.device(::ROCBackend) = AMDGPU.device_id()
-function KA.device!(kab::ROCBackend, id::Int)
-    (0 < id <= KA.ndevices(kab)) || throw(ArgumentError("Device id $id out of bounds."))
+KI.versioninfo(io::IO, ::ROCBackend) = AMDGPU.versioninfo(io)
+
+KI.functional(::ROCBackend) = AMDGPU.functional()
+KI.ndevices(::ROCBackend) = AMDGPU.HIP.ndevices()
+KI.device(::ROCBackend) = AMDGPU.device_id()
+function KI.device!(kab::ROCBackend, id::Int)
+    (0 < id <= KI.ndevices(kab)) || throw(ArgumentError("Device id $id out of bounds."))
     AMDGPU.device_id!(id)
     return
 end
 
 Adapt.adapt_storage(::ROCBackend, a::AbstractArray) = Adapt.adapt(AMDGPU.ROCArray, a)
 Adapt.adapt_storage(::ROCBackend, a::Union{AMDGPU.ROCArray, GPUArrays.AbstractGPUSparseArray}) = a
-Adapt.adapt_storage(::KA.CPU, a::Union{AMDGPU.ROCArray, GPUArrays.AbstractGPUSparseArray}) =
-    Adapt.adapt(Array, a)
-function Adapt.adapt_storage(::KA.ConstAdaptor, a::AMDGPU.ROCDeviceArray{T}) where T
-    ptr = LLVM.Interop.addrspacecast(Core.LLVMPtr{T,AMDGPU.Device.AS.Constant}, a.ptr)
-    AMDGPU.ROCDeviceArray(a.dims, ptr)
-end
 
-KA.get_backend(::AMDGPU.ROCArray) = ROCBackend()
-KA.get_backend(::AMDGPU.rocSPARSE.ROCSparseVector) = ROCBackend()
-KA.get_backend(::AMDGPU.rocSPARSE.ROCSparseMatrixCSC) = ROCBackend()
-KA.get_backend(::AMDGPU.rocSPARSE.ROCSparseMatrixCSR) = ROCBackend()
+KI.get_backend(::AMDGPU.ROCArray) = ROCBackend()
+KI.get_backend(::AMDGPU.rocSPARSE.ROCSparseVector) = ROCBackend()
+KI.get_backend(::AMDGPU.rocSPARSE.ROCSparseMatrixCSC) = ROCBackend()
+KI.get_backend(::AMDGPU.rocSPARSE.ROCSparseMatrixCSR) = ROCBackend()
 
-KA.argconvert(::KA.Kernel{ROCBackend}, arg) = AMDGPU.rocconvert(arg)
-KA.synchronize(::ROCBackend) = AMDGPU.synchronize()
+KI.synchronize(::ROCBackend) = AMDGPU.synchronize()
 
-KA.unsafe_free!(x::AMDGPU.ROCArray) = AMDGPU.unsafe_free!(x)
-KA.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
-KA.zeros(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.zeros(T, dims)
-KA.ones(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ones(T, dims)
+KI.unsafe_free!(x::AMDGPU.ROCArray) = AMDGPU.unsafe_free!(x)
+KI.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
+KI.zeros(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.zeros(T, dims)
+KI.ones(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ones(T, dims)
 
-function KA.priority!(::ROCBackend, priority::Symbol)
+function KI.priority!(::ROCBackend, priority::Symbol)
     priority ∉ (:high, :normal, :low) && error(
         "Priority `$priority` must be one of `:high`, `:normal`, `:low`.")
     AMDGPU.priority!(priority)
 end
 
-function KA.copyto!(::ROCBackend, A, B)
+function KI.copyto!(::ROCBackend, A, B)
     GC.@preserve A B begin
         copyto!(A, 1, B, 1, length(A))
     end
     return
 end
 
-function KA.pagelock!(::ROCBackend, x::Array)
+function KI.pagelock!(::ROCBackend, x::Array)
     AMDGPU.Mem.pin(pointer(x), sizeof(x))
     return
 end
 
-function KA.launch_config(kernel::KA.Kernel{ROCBackend}, ndrange, workgroupsize)
-    if ndrange isa Integer
-        ndrange = (ndrange,)
-    end
-    if workgroupsize isa Integer
-        workgroupsize = (workgroupsize, )
-    end
+KI.argconvert(::ROCBackend, arg) = rocconvert(arg)
 
-    # partition checked that the ndrange's agreed
-    if KA.ndrange(kernel) <: KA.StaticSize
-        ndrange = nothing
-    end
-
-    iterspace, dynamic = if KA.workgroupsize(kernel) <: KA.DynamicSize && workgroupsize === nothing
-        workgroupsize = ntuple(
-            i -> i == 1 ? min(prod(ndrange), AMDGPU.Device._max_group_size) : 1,
-            length(ndrange))
-        KA.partition(kernel, ndrange, workgroupsize)
-    else
-        KA.partition(kernel, ndrange, workgroupsize)
-    end
-
-    return ndrange, workgroupsize, iterspace, dynamic
+function KI.kernel_function(::ROCBackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+    kern = hipfunction(f, tt; name, kwargs...)
+    KI.Kernel{ROCBackend, typeof(kern)}(ROCBackend(), kern)
 end
 
-function threads_to_workgroupsize(threads, ndrange)
-    total = 1
-    return map(ndrange) do n
-        x = min(div(threads, total), n)
-        total *= x
-        return x
-    end
+function (obj::KI.Kernel{ROCBackend})(args...; numworkgroups=(), workgroupsize=(), ndrange=(), max_work_group_size=typemax(Int))
+    KI.check_launch_args(numworkgroups, workgroupsize, ndrange)
+    prod(ndrange) == 0 && return nothing
+
+    numworkgroups, workgroupsize = KI.auto_launch_sizes(obj, numworkgroups, workgroupsize, ndrange, max_work_group_size)
+    obj.kern(args...; groupsize = workgroupsize, gridsize = numworkgroups)
+    return nothing
 end
 
-function (obj::KA.Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=nothing)
-    ndrange, new_workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
-    ctx = KA.mkcontext(obj, ndrange, iterspace)
-    if KA.workgroupsize(obj) <: KA.StaticSize
-        maxthreads = prod(KA.get(KA.workgroupsize(obj)))
-    else
-        maxthreads = nothing
-    end
-    kernel = AMDGPU.@roc launch=false maxthreads=maxthreads obj.f(ctx, args...)
+function KI.kernel_max_work_group_size(kikern::KI.Kernel{<:ROCBackend}; max_work_items::Int=Int(typemax(Int32)))::Int
+    (; groupsize) = AMDGPU.launch_configuration(kikern.kern; max_block_size = max_work_items)
 
-    # If dynamic, figure out the optimal groupsize automatically.
-    is_dynamic =
-        KA.workgroupsize(obj) <: KA.DynamicSize &&
-        isnothing(workgroupsize)
-    if is_dynamic
-        (; groupsize) = AMDGPU.launch_configuration(kernel)
-        new_workgroupsize = threads_to_workgroupsize(groupsize, ndrange)
-        iterspace, dynamic = KA.partition(obj, ndrange, new_workgroupsize)
-        ctx = KA.mkcontext(obj, ndrange, iterspace)
-    end
-
-    nblocks = length(KA.blocks(iterspace))
-    nthreads = length(KA.workitems(iterspace))
-    nblocks == 0 && return
-
-    kernel(ctx, args...; groupsize=nthreads, gridsize=nblocks)
-    return
+    return Int(min(max_work_items, groupsize))
+end
+function KI.max_work_group_size(::ROCBackend)::Int
+    Int(HIP.attribute(AMDGPU.HIP.device(), AMDGPU.HIP.hipDeviceAttributeMaxThreadsPerBlock))
+end
+function KI.sub_group_size(::ROCBackend)::Int
+    HIP.wavefrontsize(HIP.device())
+end
+function KI.multiprocessor_count(::ROCBackend)::Int
+    Int(HIP.attribute(AMDGPU.HIP.device(), AMDGPU.HIP.hipDeviceAttributeMultiprocessorCount))
 end
 
-function KA.mkcontext(kernel::KA.Kernel{ROCBackend}, _ndrange, iterspace)
-    metadata = KA.CompilerMetadata{KA.ndrange(kernel), KA.DynamicCheck}(_ndrange, iterspace)
-end
-function KA.mkcontext(kernel::KA.Kernel{ROCBackend}, I, _ndrange, iterspace, ::Dynamic) where Dynamic
-    metadata = KA.CompilerMetadata{KA.ndrange(kernel), Dynamic}(I, _ndrange, iterspace)
-end
+KI.shfl_down_types(::ROCBackend) = DataType[Bool,
+                                             UInt8, UInt16, UInt32, UInt64, UInt128,
+                                             Int8, Int16, Int32, Int64, Int128,
+                                             Float16, Float32, Float64,
+                                             ComplexF16, ComplexF32, ComplexF64]
 
 # Indexing.
-
-@device_override @inline function KA.__index_Local_Linear(ctx)
-    return AMDGPU.Device.threadIdx().x
+## COV_EXCL_START
+@device_override @inline function KI.get_local_id()
+    return (; x = Int(AMDGPU.Device.workitemIdx().x), y = Int(AMDGPU.Device.workitemIdx().y), z = Int(AMDGPU.Device.workitemIdx().z))
 end
 
-@device_override @inline function KA.__index_Group_Linear(ctx)
-    return AMDGPU.Device.blockIdx().x
+@device_override @inline function KI.get_group_id()
+    return (; x = Int(AMDGPU.Device.workgroupIdx().x), y = Int(AMDGPU.Device.workgroupIdx().y), z = Int(AMDGPU.Device.workgroupIdx().z))
 end
 
-@device_override @inline function KA.__index_Global_Linear(ctx)
-    I =  @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
-    # TODO: This is unfortunate, can we get the linear index cheaper
-    @inbounds LinearIndices(KA.__ndrange(ctx))[I]
+@device_override @inline function KI.get_global_id()
+    return (; x = Int((AMDGPU.Device.workgroupIdx().x-1)*AMDGPU.Device.blockDim().x + AMDGPU.Device.workitemIdx().x), y = Int((AMDGPU.Device.workgroupIdx().y-1)*AMDGPU.Device.blockDim().y + AMDGPU.Device.workitemIdx().y), z = Int((AMDGPU.Device.workgroupIdx().z-1)*AMDGPU.Device.blockDim().z + AMDGPU.Device.workitemIdx().z))
 end
 
-@device_override @inline function KA.__index_Local_Cartesian(ctx)
-    @inbounds KA.workitems(KA.__iterspace(ctx))[AMDGPU.Device.threadIdx().x]
+@device_override @inline function KI.get_local_size()
+    return (; x = Int(AMDGPU.Device.workgroupDim().x), y = Int(AMDGPU.Device.workgroupDim().y), z = Int(AMDGPU.Device.workgroupDim().z))
 end
 
-@device_override @inline function KA.__index_Group_Cartesian(ctx)
-    @inbounds KA.blocks(KA.__iterspace(ctx))[AMDGPU.Device.blockIdx().x]
+@device_override @inline function KI.get_num_groups()
+    return (; x = Int(AMDGPU.Device.gridGroupDim().x), y = Int(AMDGPU.Device.gridGroupDim().y), z = Int(AMDGPU.Device.gridGroupDim().z))
 end
 
-@device_override @inline function KA.__index_Global_Cartesian(ctx)
-    return @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
+@device_override @inline function KI.get_global_size()
+    return (; x = Int(AMDGPU.Device.gridItemDim().x), y = Int(AMDGPU.Device.gridItemDim().y), z = Int(AMDGPU.Device.gridItemDim().z))
 end
 
-@device_override @inline function KA.__validindex(ctx)
-    if KA.__dynamic_checkbounds(ctx)
-        I = @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
-        return I in KA.__ndrange(ctx)
-    else
-        return true
-    end
-end
+@device_override KI.get_sub_group_size() = UInt32(Device.wavefrontsize())
+
+@device_override KI.get_max_sub_group_size() = UInt32(Device.wavefrontsize())
+
+@device_override KI.get_num_sub_groups() = UInt32(prod(Device.blockDim()) ÷ Device.wavefrontsize())
+
+@device_override KI.get_sub_group_id() = UInt32(((Device.threadIdx().x - 1) + Device.blockDim().x * (Device.threadIdx().y - 1) + Device.blockDim().x * Device.blockDim().y * (Device.threadIdx().z - 1)) ÷ Device.wavefrontsize()) + 0x1
+
+@device_override KI.get_sub_group_local_id() = UInt32(Device.activelane() + 0x1)
 
 # Shared memory.
 
-@device_override @inline function KA.SharedMemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
-    ptr = AMDGPU.Device.alloc_special(Val(Id), T, Val(AMDGPU.AS.Local), Val(prod(Dims)))
+@device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
+    ptr = AMDGPU.Device.alloc_special(Val(:shmem), T, Val(AMDGPU.AS.Local), Val(prod(Dims)))
     AMDGPU.ROCDeviceArray(Dims, ptr)
-end
-
-@device_override @inline function KA.Scratchpad(ctx, ::Type{T}, ::Val{Dims}) where {T, Dims}
-    MArray{KA.__size(Dims), T}(undef)
 end
 
 # Other.
 
-@device_override @inline function KA.__synchronize()
+@device_override @inline function KI.barrier()
     AMDGPU.Device.sync_workgroup()
 end
 
-@device_override @inline function KA.__print(args...)
+@device_override @inline function KI.sub_group_barrier()
+    AMDGPU.Device.sync_wavefront()
+end
+
+@device_override function KI.shfl_down(val::T, offset::Integer) where T
+    @inline AMDGPU.Device.shfl_down(val, Cint(offset))
+end
+
+@device_override @inline function KI._print(args...)
     # TODO
 end
+## COV_EXCL_STOP
 
 end
