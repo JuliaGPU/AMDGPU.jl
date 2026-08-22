@@ -352,24 +352,6 @@ function hipcompile(@nospecialize(job::CompilerJob))
     (; obj=create_executable(codeunits(obj)), entry, global_hostcalls, relocations)
 end
 
-# Replace default visibility (for extinit globals with weak-ODR linkage as imposed by :patch strategy)
-# with protected to ensure that they are not replaceable and
-# we can address them directly with baked offset (R_AMDGPU_REL32_LO/HI).
-function GPUCompiler.mcgen(
-    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module,
-    format = LLVM.API.LLVMAssemblyFile,
-)
-    for gv in LLVM.globals(mod)
-        isextinit(gv) && LLVM.linkage(gv) == LLVM.API.LLVMWeakODRLinkage || continue
-        LLVM.visibility!(gv, LLVM.API.LLVMProtectedVisibility)
-    end
-    # Pass GCNCompilerTarget to use llc from AMDGPU_LLVM_Backend_jll
-    # which is needed to avoid Int128 miscompilation.
-    return invoke(GPUCompiler.mcgen,
-        Tuple{CompilerJob{GCNCompilerTarget}, LLVM.Module, typeof(format)},
-        job, mod, format)
-end
-
 # Fill in the host addresses the loaded object was left waiting for:
 # each record names a global in the image, and its word at `offset` is where the address goes.
 # Resolving roots the referenced Julia values in this process, so those addresses cannot dangle.
