@@ -142,7 +142,7 @@ function LinearAlgebra.generic_matvecmul!(
         "first dimension of A, $mA, does not match length of Y, $(length(Y))"))
 
     mA == 0 && return Y
-    nA == 0 && return rmul!(Y, 0)
+    nA == 0 && return LinearAlgebra._rmul_or_fill!(Y, beta)
 
     T = eltype(Y)
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
@@ -223,7 +223,7 @@ function LinearAlgebra.generic_matmatmul!(
     if mA == 0 || nA == 0 || nB == 0
         size(C) != (mA, nB) && throw(DimensionMismatch(
             "C has dimensions $(size(C)), should have ($mA,$nB)"))
-        return LinearAlgebra.rmul!(C, 0)
+        return LinearAlgebra._rmul_or_fill!(C, beta)
     end
 
     T = eltype(C)
@@ -305,14 +305,14 @@ end
 
 LinearAlgebra.generic_trimatdiv!(
     C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-    A::StridedROCMatrix{T}, B::AbstractMatrix{T},
+    A::StridedROCMatrix{T}, B::AdjOrTransOrROCMatrix{T},
 ) where T <: ROCBLASFloat = trsm!(
     'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
     isunitc, one(T), A, C === B ? C : copyto!(C, B))
 
 LinearAlgebra.generic_mattridiv!(
     C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-    A::AbstractMatrix{T}, B::StridedROCMatrix{T},
+    A::AdjOrTransOrROCMatrix{T}, B::StridedROCMatrix{T},
 ) where T <: ROCBLASFloat = trsm!(
     'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
     isunitc, one(T), B, C === A ? C : copyto!(C, A))

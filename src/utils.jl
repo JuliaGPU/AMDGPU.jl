@@ -65,6 +65,7 @@ function versioninfo(io::IO=stdout)
         _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                       _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
+        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version) _libpath(libhiptensor);
         _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
     ]
 
@@ -125,6 +126,8 @@ function correctly. Available `component` values are:
 - `:rocsparse`   - Queries rocSPARSE library availability
 - `:rocrand`     - Queries rocRAND library availability
 - `:rocfft`      - Queries rocFFT library availability
+- `:hiptensor`   - Queries hipTENSOR library availability and whether every
+                   present device has an architecture supported by it
 - `:MIOpen`      - Queries MIOpen library availability
 - `:all`         - Queries all above components
 
@@ -147,6 +150,19 @@ function functional(component::Symbol)
         return !isempty(librocrand)
     elseif component == :rocfft
         return !isempty(librocfft)
+    elseif component == :hiptensor
+        isempty(libhiptensor) && return false
+        functional(:hip) || return false
+        # Having the library is not enough: it only carries kernels for a few
+        # architectures. Require every device to be supported, so that this
+        # stays valid no matter which one is current. Enumerating devices may
+        # throw on a broken install.
+        return try
+            devs = devices()
+            !isempty(devs) && all(hiptensor_supported, devs)
+        catch
+            false
+        end
     elseif component == :MIOpen
         return !isempty(libMIOpen_path)
     elseif component == :all
@@ -161,6 +177,31 @@ function functional(component::Symbol)
         throw(ArgumentError("Unknown component $(repr(component))"))
     end
 end
+
+# hipTENSOR only ships kernels for the architectures listed in
+# `hiptensorSupportedArchitectures.cmake` of the ROCm install (Composable Kernel
+# only generates CDNA instances); elsewhere its calls fail at runtime with
+# `HIPTENSOR_STATUS_ARCH_MISMATCH`. gfx940/gfx941 are pre-release MI300 variants
+# that ROCm 6.x builds still supported.
+const HIPTENSOR_ARCHS = (
+    "gfx908", "gfx90a", "gfx940", "gfx941", "gfx942", "gfx950")
+
+"""
+    hiptensor_supported(arch::AbstractString) -> Bool
+    hiptensor_supported(device::HIP.HIPDevice) -> Bool
+
+Return `true` if hipTENSOR provides kernels for the GCN architecture `arch`
+(e.g. `"gfx90a"`; trailing target features as in `"gfx90a:sramecc+:xnack-"` are
+ignored) or for the architecture of `device`.
+
+This only inspects the architecture; use `AMDGPU.functional(:hiptensor)` to also
+check that the hipTENSOR library itself was found.
+"""
+hiptensor_supported(arch::AbstractString) =
+    first(split(arch, ':')) in HIPTENSOR_ARCHS
+
+hiptensor_supported(device) = hiptensor_supported(HIP.gcn_arch(device))
+
 
 """
     has_rocm_gpu() -> Bool

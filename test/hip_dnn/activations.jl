@@ -11,6 +11,8 @@ using AMDGPU.MIOpen
         xd, dyd = ROCArray(x), ROCArray(dy)
 
         yd = MIOpen.relu(xd)
+        dxd = MIOpen.∇relu(dyd, yd, xd)
+        @test all(isapprox.(Array(dxd), dy .* (x .> 0); atol))
 
         yd = MIOpen.leakyrelu(xd, 0.1)
 
@@ -29,6 +31,8 @@ using AMDGPU.MIOpen
         y = tanh.(x)
         yd = MIOpen.tanh(xd)
         @test all(isapprox.(Array(yd), y; atol))
+        dxd = MIOpen.∇tanh(dyd, yd, xd)
+        @test all(isapprox.(Array(dxd), dy .* (1 .- y.^2); atol))
 
         # Non-negative values.
 

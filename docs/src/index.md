@@ -105,6 +105,7 @@ gridsize = cld(length(c), groupsize)
 | FFT | `fft`/`plan_fft` via rocFFT | [Fourier Transforms](libraries/fft.md) |
 | Random | `rand`/`randn` via rocRAND | [Random Numbers](libraries/rand.md) |
 | Deep learning | Conv/pooling/softmax via MIOpen (NNlib/Flux) | [Deep Learning (MIOpen)](libraries/dnn.md) |
+| Tensor operations | contract/permute/reduce via hipTensor | [Tensor Operations](libraries/tensor.md) |
 
 ## Questions and Contributions
 

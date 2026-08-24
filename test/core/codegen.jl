@@ -40,10 +40,24 @@ end
         return
     end
 
+    # `global_atomic_add_f32` only exists on CDNA (gfx908, gfx90a, gfx94x, gfx95x)
+    # and RDNA3+ (gfx11+), see `FeatureAtomicFaddNoRtnInsts` in LLVM's AMDGPU.td.
+    # Vega (gfx900-gfx906) and RDNA1/2 (gfx10xx) lack it, so LLVM must expand
+    # the atomic to a CAS loop there.
+    arch = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
+    gen = parse(Int, match(r"^gfx([0-9a-f]+)", arch).captures[1]; base=16)
+    has_hw_fadd = 0x908 <= gen < 0x1000 || gen >= 0x1100
+
     for (T, fp) in ((Float32, "f32"),)
         iob = IOBuffer()
         tt = Tuple{AMDGPU.Device.ROCDeviceVector{T, AMDGPU.Device.AS.Global}}
         AMDGPU.code_gcn(iob, atomic_fp_ker!, tt; kernel=true)
-        @test occursin("global_atomic_add_$fp", String(take!(iob)))
+        gcn = String(take!(iob))
+        if has_hw_fadd
+            @test occursin("global_atomic_add_$fp", gcn)
+        else
+            @test occursin("global_atomic_cmpswap", gcn)
+            @test !occursin("global_atomic_add_$fp", gcn)
+        end
     end
 end

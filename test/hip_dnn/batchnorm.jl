@@ -4,6 +4,17 @@ using AMDGPU.MIOpen
 
 @assert AMDGPU.functional(:MIOpen)
 
+# MIOpen's batchnorm kernels gate their gfx9 DPP inline assembly on a list of
+# known RDNA device prefixes; releases before ROCm/rocm-libraries#1288 miss the
+# gfx115x/gfx125x families and fail to compile the kernels there.
+bn_broken = MIOpen.version() < v"3.6" &&
+    any(p -> startswith(AMDGPU.device().gcn_arch, p), ("gfx115", "gfx125"))
+
+if bn_broken
+    @info "Skipping MIOpen batchnorm tests (MIOpen $(MIOpen.version()) " *
+        "miscompiles batchnorm for $(AMDGPU.device().gcn_arch))"
+else
+
 @testset "Different input dimensions" begin
     for sz in ((3, 2), (4, 3, 2), (5, 4, 3, 2))
         x = AMDGPU.ones(Float32, sz)
@@ -29,4 +40,6 @@ using AMDGPU.MIOpen
         @test hμ_saved ≈ hμ_saved2
         @test hν_saved ≈ hν_saved2
     end
+end
+
 end
