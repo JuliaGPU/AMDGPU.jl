@@ -13,8 +13,11 @@ import ..AMDGPU
 import ..AMDGPU: LockedObject
 import .HIP: HIPDevice
 
-struct Adaptor{M}
-    managed::M
+# Carries the launching stream so that argument conversion can transfer
+# buffer ownership inline (`take_ownership_fast!`); `nothing` skips ownership
+# handling (bare `rocconvert` for reflection/type computation).
+struct Adaptor{S}
+    stream::S
 end
 
 const RT_LOCK = Threads.ReentrantLock()

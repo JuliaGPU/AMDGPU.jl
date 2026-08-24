@@ -90,8 +90,8 @@ input object `x` as-is.
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
 register methods for the the `AMDGPU.Adaptor` type.
 """
-rocconvert(arg, managed::Vector{Managed}=Managed[]) =
-    adapt(Runtime.Adaptor(managed), arg)
+rocconvert(arg) = adapt(Runtime.Adaptor(nothing), arg)
+rocconvert(arg, stream::HIPStream) = adapt(Runtime.Adaptor(stream), arg)
 
 const MACRO_KWARGS = [:launch]
 const COMPILER_KWARGS = [:name, :unsafe_fp_atomics, :wavefrontsize64]

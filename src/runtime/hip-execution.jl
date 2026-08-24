@@ -56,12 +56,10 @@ function (ker::HIPKernel{F, TT})(
 ) where {F, TT, N}
     # Check if previous kernels threw an exception.
     AMDGPU.throw_if_exception(stream.device)
-    managed = AMDGPU.Managed[]
     GC.@preserve args begin
-        converted = map(arg -> AMDGPU.rocconvert(arg, managed), args)
-        AMDGPU.with_managed(managed; stream) do
-            call(ker, converted...; stream, call_kwargs...)
-        end
+        # ownership transfer happens inline during conversion
+        converted = map(arg -> AMDGPU.rocconvert(arg, stream), args)
+        call(ker, converted...; stream, call_kwargs...)
     end
 end
 

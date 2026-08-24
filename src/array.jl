@@ -410,7 +410,7 @@ end
 
 function Adapt.adapt_storage(to::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N}
     managed = x.buf[]
-    push!(to.managed, managed)
+    to.stream === nothing || take_ownership_fast!(managed, to.stream)
     buf = managed.mem
     ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ? buf : buf.dev_ptr)
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + x.offset)
