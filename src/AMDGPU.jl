@@ -154,15 +154,6 @@ function __init__()
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)
 
-    # LLVM 21's `AMDGPUPromoteAlloca` miscompiles GEP chains with a negative
-    # constant offset (as produced by 1-based dynamic tuple indexing) into
-    # out-of-bounds vector indices, silently discarding the accesses. Disable
-    # the pass for the in-process middle end; with the external back-end, llc
-    # (LLVM 22+, where this is fixed) re-runs it in its codegen pipeline.
-    if v"21" <= Base.libllvm_version < v"22" && :AMDGPU in LLVM.backends()
-        LLVM.clopts("-disable-promote-alloca-to-vector")
-    end
-
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])
         LAUNCH_BLOCKING[] = launch_blocking
