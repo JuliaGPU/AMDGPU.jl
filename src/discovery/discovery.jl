@@ -6,8 +6,9 @@ export librocrand, librocfft, libMIOpen_path
 export libhiptensor
 
 using AMDGPU_LLVM_Backend_jll
-using ROCmDeviceLibs_jll
+using LLVMDowngrader_jll
 using Preferences
+using Scratch
 using Libdl
 
 include("utils.jl")
@@ -25,12 +26,78 @@ function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
     return (AMDGPU_LLVM_Backend_jll.lld_path, true)
 end
 
-function get_device_libs(from_artifact::Bool; rocm_path::String)
-    if from_artifact && ROCmDeviceLibs_jll.is_available()
-        ROCmDeviceLibs_jll.bitcode_path
-    else
-        find_device_libs(rocm_path)
+# bitcode versions `llvm-downgrade` can target.
+# The 15 target emits opaque pointers, but GPUCompiler uses typed pointers on LLVM 15 and 16
+# (Julia 1.10 and 1.11), so both use the 14 target instead.
+const DOWNGRADE_TARGETS = (v"14", #=v"15",=# v"18")
+
+# downgrade the device libs to the latest LLVM version Julia supports
+function downgrade_device_libs(src_dir::String)::String
+    target = maximum(Iterators.filter(<=(Base.libllvm_version), DOWNGRADE_TARGETS))
+    # ensure this is rebuilt if any of the relevant jlls or the target changes
+    scratch_name = replace(string(
+        "device_libs-", pkgversion(AMDGPU_LLVM_Backend_jll),
+        "-", first(basename(AMDGPU_LLVM_Backend_jll.artifact_dir), 8),
+        "-downgrader-", pkgversion(LLVMDowngrader_jll),
+        "-", first(basename(LLVMDowngrader_jll.artifact_dir), 8),
+        "-llvm-", target.major), "+" => "_") # artifact versions include +, which Scratch does not like
+    dir = @get_scratch!(scratch_name)
+    marker = joinpath(dir, "downgrade_complete")
+    isfile(marker) && return dir
+
+    # Use a temp dir, so concurrent processes don't interfere
+    mktempdir(dirname(dir)) do tmp
+        for file in readdir(src_dir)
+            endswith(file, ".bc") || continue
+            # Just skip libraries the downgrader can't handle. `link_device_libs!` will throw an error if it is actually needed
+            cmd = `$(LLVMDowngrader_jll.llvm_downgrade()) --bitcode-version=$(target.major).$(target.minor) -o $(joinpath(tmp, file)) $(joinpath(src_dir, file))`
+            err_io = IOBuffer()
+            try
+                run(pipeline(cmd; stderr=err_io))
+            catch
+                @warn """Failed to downgrade device library `$file` to LLVM $(target.major), skipping it.
+                $(rstrip(String(take!(err_io))))
+                """
+                rm(joinpath(tmp, file); force=true)
+            end
+        end
+        for file in readdir(tmp)
+            mv(joinpath(tmp, file), joinpath(dir, file); force=true)
+        end
     end
+    touch(marker)
+    return dir
+end
+
+function get_device_libs(from_artifact::Bool; rocm_path::String)
+    artifact_err = nothing
+    if from_artifact &&
+        AMDGPU_LLVM_Backend_jll.is_available() &&
+        isdefined(AMDGPU_LLVM_Backend_jll, :bitcode_path) &&
+        LLVMDowngrader_jll.is_available()
+
+        try
+            return downgrade_device_libs(AMDGPU_LLVM_Backend_jll.bitcode_path)
+        catch err
+            artifact_err = (err, catch_backtrace())
+        end
+    end
+
+    device_libs = find_device_libs(rocm_path)
+    if !isnothing(artifact_err)
+        if isempty(device_libs)
+            @warn """Failed to downgrade artifact device libraries and no system-wide \
+            device libraries found in `$rocm_path`.
+            Ensure `JULIA_DEPOT_PATH` is writeable, or point `ROCM_PATH` to a local ROCm
+            installation.
+            """ exception=artifact_err
+        else
+            @warn """Failed to downgrade artifact device libraries, \
+            falling back to system-wide device libraries in `$device_libs`.
+            """ exception=artifact_err
+        end
+    end
+    return device_libs
 end
 
 function _hip_runtime_version()
