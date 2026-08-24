@@ -234,6 +234,16 @@ function LinearAlgebra.generic_matmatmul!(
         elseif (tB == 'H' || tB == 'h') && tA == 'N'
             return hemm!('R', tB == 'H' ? 'U' : 'L', α, B, A, β, C)
         end
+    elseif (
+        T in (Float16, BFloat16) && alpha isa Real && beta isa Real &&
+        all(in(('N', 'T', 'C')), (tA, tB)) &&
+        A isa StridedROCArray{T} && B isa StridedROCArray{T}
+    )
+        # 16-bit eltypes aren't covered by the typed gemm! wrappers (Float16
+        # would map to legacy rocblas_hgemm, which Tensile doesn't tune);
+        # gemm_ex with Float32 accumulation is both the fast and the accurate
+        # path, instead of falling through to GPUArrays' generic kernel.
+        return gemm_ex!(tA, tB, alpha, A, B, beta, C)
     end
 
     GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)

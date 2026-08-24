@@ -2,6 +2,7 @@ using Test
 using AMDGPU
 using AMDGPU: ROCArray, ROCVector, ROCMatrix
 using LinearAlgebra
+using BFloat16s: BFloat16
 
 @assert AMDGPU.functional(:rocblas)
 
@@ -365,6 +366,23 @@ end
                 (c, a, b) -> mul!(c, f(a), g(b), Ts(1), Ts(1)),
                 rand(T, 5, 5), rand(T, 5, 5), rand(T, 5, 5))
         end
+    end
+
+    @testset "mul! 16-bit eltype (gemm_ex)" for T in (Float16, BFloat16)
+        # routed through gemm_ex! with Float32 accumulation, not the
+        # GPUArrays fallback (Float16) or rocblas_hgemm
+        A, B = rand(T, 128, 64), rand(T, 64, 96)
+        C = ROCArray(A) * ROCArray(B)
+        @test Array(C) ≈ Float32.(A) * Float32.(B) rtol=max(sqrt(eps(Float32)), 2 * Float32(eps(T)))
+        @test testf((c, a, b) -> mul!(c, transpose(a), b, T(2), T(1)),
+                    rand(T, 64, 96), rand(T, 128, 64), rand(T, 128, 96))
+    end
+
+    @testset "gemm_ex! direct" for T in (Float16, BFloat16, Float32)
+        A, B = ROCArray(rand(T, 32, 48)), ROCArray(rand(T, 48, 40))
+        C = ROCArray(zeros(T, 32, 40))
+        rocBLAS.gemm_ex!('N', 'N', 1, A, B, 0, C)
+        @test Array(C) ≈ Float32.(Array(A)) * Float32.(Array(B)) rtol=max(sqrt(eps(Float32)), 2 * Float32(eps(T)))
     end
 
     @testset for T in (Float32, Float64, ComplexF32, ComplexF64)
