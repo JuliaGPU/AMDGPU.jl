@@ -445,11 +445,7 @@ function take_ownership!(managed::Managed; stream::HIPStream=AMDGPU.stream())
     return managed
 end
 
-# Fast-path ownership transfer for the kernel-launch path: the overwhelmingly
-# common case is memory already owned by the launching stream and already
-# dirty, both checkable without taking the lock. The unsynchronized read only
-# races with usage patterns that are already racy under the locked protocol
-# (concurrent use of one array from tasks on different streams).
+# Fast-path ownership transfer for the kernel-launch path
 @inline function take_ownership_fast!(managed::Managed, stream::HIPStream)
     (managed.stream === stream && managed.dirty) && return
     Base.@lock managed.lock take_ownership!(managed; stream)
