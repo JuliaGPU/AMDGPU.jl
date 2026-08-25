@@ -5,8 +5,12 @@ using AMDGPU.MIOpen
 
 @assert AMDGPU.functional(:MIOpen)
 
-# ConvHipImplicitGemmGroupBwdXdlops segfaults on gfx942 (MI300, MIOpen 7.2.3)
-# and ignores its own MIOPEN_DEBUG disable flag. Skip until fixed upstream:
+# ConvHipImplicitGemmGroupBwdXdlops segfaults in MIOpen's CK grouped-conv invoker
+# setup. Not gfx942-specific (reproduces on gfx90a too) and not fixed by rebuilding
+# MIOpen with matching gfx942 code objects; we gate on gfx942 only because that is
+# where CI runs. The solver's disable flag is inverted upstream:
+# MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_HIP_GROUP_BWD_XDLOPS=1 disables it, =0 does not,
+# so we skip rather than depend on that. Skip until fixed upstream:
 # https://github.com/ROCm/rocm-libraries/issues/9088
 _arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
 _skip_bwd_data = _arch_str == "gfx942"
