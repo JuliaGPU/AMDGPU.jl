@@ -67,16 +67,18 @@ end
                 # uncached fine-grained queue memory that stalls every wave
                 # at kernel entry. A dword-aligned dword load is always
                 # SMEM-selectable.
-                aligned = offset & ~0x3
-                idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(aligned)])
+                byte = offset % 4
+                @assert byte + aligned_sizeof(T) <= 4 "packet field straddles a dword boundary"
+                idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset - byte)])
                 idx_ptr_i32 = bitcast!(builder, idx_ptr_i8, T_ptr_i32)
                 word = load!(builder, T_int32, idx_ptr_i32)
                 metadata(word)[LLVM.MD_invariant_load] = MDNode(LLVM.Metadata[])
                 idx = word
-                if (offset & 0x2) != 0
-                    idx = lshr!(builder, idx, ConstantInt(Int32(16)))
+                if byte != 0
+                    idx = lshr!(builder, idx, ConstantInt(Int32(8 * byte)))
                 end
-                idx = and!(builder, idx, ConstantInt(Int32(0xffff)))
+                mask = (Int64(1) << (8 * aligned_sizeof(T))) - 1
+                idx = and!(builder, idx, ConstantInt(Int32(mask)))
                 ret!(builder, idx)
             else
                 idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
