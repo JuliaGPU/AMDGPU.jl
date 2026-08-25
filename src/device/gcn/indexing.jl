@@ -57,16 +57,40 @@ end
 
             # load the index
             offset = base + ((off - 1) * aligned_sizeof(T))
-            idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
-            idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
-            idx_T = load!(builder, T_T, idx_ptr_T)
-            idx = zext!(builder, idx_T, T_int32)
+            if aligned_sizeof(T) < 4
+                # Load the aligned dword containing the field and extract it
+                # with shift/mask. SMEM has no sub-dword loads, so whether a
+                # bare i16 load of the dispatch packet is widened to an
+                # s_load_dword depends on the surrounding use pattern (e.g. a
+                # zext to i64 -- Julia's default integer arithmetic --
+                # defeats it); the VMEM fallback is a per-wave read of
+                # uncached fine-grained queue memory that stalls every wave
+                # at kernel entry. A dword-aligned dword load is always
+                # SMEM-selectable.
+                aligned = offset & ~0x3
+                idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(aligned)])
+                idx_ptr_i32 = bitcast!(builder, idx_ptr_i8, T_ptr_i32)
+                word = load!(builder, T_int32, idx_ptr_i32)
+                metadata(word)[LLVM.MD_invariant_load] = MDNode(LLVM.Metadata[])
+                idx = word
+                if (offset & 0x2) != 0
+                    idx = lshr!(builder, idx, ConstantInt(Int32(16)))
+                end
+                idx = and!(builder, idx, ConstantInt(Int32(0xffff)))
+                ret!(builder, idx)
+            else
+                idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
+                idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
+                idx_T = load!(builder, T_T, idx_ptr_T)
+                idx = zext!(builder, idx_T, T_int32)
 
-            # attach range metadata
-            metadata(idx_T)[LLVM.MD_range] = MDNode([
-                ConstantInt(T(range.start)),
-                ConstantInt(T(range.stop))])
-            ret!(builder, idx)
+                # attach range metadata
+                metadata(idx_T)[LLVM.MD_range] = MDNode([
+                    ConstantInt(T(range.start)),
+                    ConstantInt(T(range.stop))])
+                metadata(idx_T)[LLVM.MD_invariant_load] = MDNode(LLVM.Metadata[])
+                ret!(builder, idx)
+            end
         end
 
         call_function(llvm_f, UInt32)
