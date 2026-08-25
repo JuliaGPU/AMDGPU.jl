@@ -16,10 +16,8 @@ Launch compiled HIPKernel by passing arguments to it.
 The following kwargs are supported:
 - `gridsize::ROCDim = 1`: Size of the grid.
 - `groupsize::ROCDim = 1`:  Size of the workgroup.
-- `shmem::Integer = 0`:
-    Amount of dynamically-allocated shared memory in bytes.
-- `stream::HIP.HIPStream = AMDGPU.stream()`:
-    Stream on which to launch the kernel.
+- `shmem::Integer = 0`: Amount of dynamically-allocated shared memory in bytes.
+- `stream::HIP.HIPStream = AMDGPU.stream()`: Stream on which to launch the kernel.
 """
 struct HIPKernel{F, TT} <: AbstractKernel{F, TT}
     f::F
@@ -33,20 +31,21 @@ end
     sig = Tuple{F, TT.parameters...} # Base.signature_type with a function type
     args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
 
-    # filter out ghost arguments that shouldn't be passed
+    # filter out ghost arguments that shouldn't be passed.
     predicate = dt -> GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)
-    to_pass = map(!predicate, sig.parameters)
+    # Note: Define a single LLVM context, otherwise it is created per every param.
+    to_pass = LLVM.Context() do _
+        map(!predicate, sig.parameters)
+    end
     call_t = Type[x[1] for x in zip(sig.parameters, to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
 
     # add the kernel state
     pushfirst!(call_t, AMDGPU.KernelState)
-    pushfirst!(call_args, :(AMDGPU.KernelState(
-        stream.device, kernel.fun.global_hostcalls)))
+    pushfirst!(call_args, :(AMDGPU.KernelState(stream.device, kernel.fun.global_hostcalls)))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
-
     quote
         roccall(kernel.fun, $call_tt, $(call_args...); stream, call_kwargs...)
     end
