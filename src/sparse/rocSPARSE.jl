@@ -42,13 +42,18 @@ lib_state() = library_state(
 handle() = lib_state().handle
 stream() = lib_state().stream
 
+# rocSPARSE packs its version into a single integer, also decoded by `versioninfo`.
+function decode_version(v::Integer)
+    major = v ÷ 100000
+    minor = (v ÷ 100) % 1000
+    patch = v % 100
+    return VersionNumber(major, minor, patch)
+end
+
 function version()
     ver = Ref{Cint}()
     rocsparse_get_version(handle(), ver)
-    major = ver[] ÷ 100000
-    minor = (ver[] ÷ 100) % 1000
-    patch = ver[] % 100
-    return VersionNumber(major, minor, patch)
+    return decode_version(ver[])
 end
 
 include("array.jl")

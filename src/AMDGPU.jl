@@ -151,6 +151,9 @@ export ROCBackend
 include("precompile.jl")
 
 function __init__()
+    # Discovery runs at load time; a precompiled value would be stale.
+    _ROCSPARSE_VERSION[] = nothing
+
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)
 

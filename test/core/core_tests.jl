@@ -10,10 +10,16 @@ using AMDGPU: HIP, Runtime, Device, Mem
 end
 
 @testset "versioninfo probe isolation" begin
-    probe(code; timeout = 60) = AMDGPU._version_subprocess(code; timeout)
+    probe(code, args = String[]; timeout = 60) =
+        AMDGPU._probe_subprocess(code, args; timeout)
 
-    # A clean child returns its stdout.
+    # A clean child returns its stdout, and gets its arguments through `ARGS`.
     @test probe("print(\"4.2.0\")") == "4.2.0"
+    @test probe("print(ARGS[1])", String["C:\\rocm\\lib"]) == "C:\\rocm\\lib"
+
+    # No package environment, so probing can't trigger a precompile (#1040).
+    @test probe("print(Base.load_path())") == "String[]"
+    @test probe("using Adapt; print(\"loaded\")") === nothing
 
     # A failing child degrades to `nothing` without taking down this process —
     # the point of the isolation: a SIGSEGV in a vendor library (issue #920)
@@ -24,11 +30,12 @@ end
     @test probe("1 + 1") === nothing                          # no output
     @test probe("while true; end"; timeout = 2) === nothing   # hang -> timeout
 
-    # On a working setup the real rocSPARSE probe returns a parseable version.
+    # On a working setup the probe returns a version; repeats hit the cache.
     if AMDGPU.functional(:rocsparse)
+        AMDGPU._ROCSPARSE_VERSION[] = nothing
         v = AMDGPU._rocsparse_version_isolated()
-        @test v !== nothing
         @test tryparse(VersionNumber, v) !== nothing
+        @test AMDGPU._rocsparse_version_isolated() === v
     end
 end
 
