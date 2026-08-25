@@ -368,9 +368,7 @@ end
         end
     end
 
-    @testset "mul! 16-bit eltype (gemm_ex)" for T in (Float16, BFloat16)
-        # routed through gemm_ex! with Float32 accumulation, not the
-        # GPUArrays fallback (Float16) or rocblas_hgemm
+    @testset "mul! 16-bit eltype" for T in (Float16, BFloat16)
         A, B = rand(T, 128, 64), rand(T, 64, 96)
         C = ROCArray(A) * ROCArray(B)
         @test Array(C) ≈ Float32.(A) * Float32.(B) rtol=max(sqrt(eps(Float32)), 2 * Float32(eps(T)))

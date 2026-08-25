@@ -767,12 +767,7 @@ for (fname, elty) in
         end
     end
 end
-
-## gemm_ex: GEMM through rocBLAS's Tensile-tuned mixed-precision path.
-# The typed gemm entry points map Float16 to legacy `rocblas_hgemm`, which is
-# not tuned (~3x slower than gemm_ex on MI300); gemm_ex with a Float32
-# compute type is the fast (and more accurate) route for 16-bit eltypes.
-
+\
 gemmex_datatype(::Type{Float16}) = rocblas_datatype_f16_r
 gemmex_datatype(::Type{BFloat16}) = rocblas_datatype_bf16_r
 gemmex_datatype(::Type{Float32}) = rocblas_datatype_f32_r
