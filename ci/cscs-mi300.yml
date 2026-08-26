@@ -4,6 +4,7 @@ include:
 .unit_test_script: &unit_test_script
   - srun -n 1 --uenv $UENV --view=default bash -c '
       set -euo pipefail;
+      ulimit -c 0;
       shopt -s nullglob;
       MERGED_ROCM="$CI_PROJECT_DIR/.rocm-miopen";
       rm -rf "$MERGED_ROCM";
@@ -31,9 +32,9 @@ include:
 UnitTest julia 1.12:
   extends: .baremetal-runner-beverin-mi300
   variables:
-    JULIA: /users/lraess/julia_amd/juliaup/julia-1.12.6+0.x64.linux.gnu/bin/julia
-    UENV: ab517d8a08f537d2
-    MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-22x3pq72goxi4xwkknlspqhxbx72owes
+    JULIA: /users/lraess/julia_amd/julia_amd-1.12
+    UENV: 56ebb909a6164680
+    MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-kxzfucnamke4rlezapmrmrdrkmri325u
     # Workaround for MIOpen CK Group-Xdlops solvers segfaulting on gfx942 (MI300).
     # Remove once fixed upstream: https://github.com/ROCm/rocm-libraries/issues/9088
     MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC: "0"
@@ -46,8 +47,48 @@ UnitTest julia 1.12:
     SLURM_GPUS_PER_TASK: 2
     SLURM_TIMELIMIT: "00:45:00"
     JULIA_NUM_THREADS: 4
-    JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia"
+    JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia" # overrides default ~/.julia
     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
     JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+    # Trace layer: prints the exception behind an opaque rocfft_status_failure.
+    ROCFFT_LAYER: "1"
+    ROCFFT_LOG_TRACE_PATH: "${CI_PROJECT_DIR}/rocfft-trace.log"
   script: *unit_test_script
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - rocfft-trace.log
+
+UnitTest julia 1.13:
+  extends: .baremetal-runner-beverin-mi300
+  variables:
+    JULIA: /users/lraess/julia_amd/julia_amd-1.13
+    UENV: 56ebb909a6164680
+    MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-kxzfucnamke4rlezapmrmrdrkmri325u
+    # Workaround for MIOpen CK Group-Xdlops solvers segfaulting on gfx942 (MI300).
+    # Remove once fixed upstream: https://github.com/ROCm/rocm-libraries/issues/9088
+    MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC: "0"
+    MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
+    MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
+    MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
+    MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
+    SLURM_JOB_NUM_NODES: 1
+    SLURM_NTASKS_PER_NODE: 1
+    SLURM_GPUS_PER_TASK: 2
+    SLURM_TIMELIMIT: "00:45:00"
+    JULIA_NUM_THREADS: 4
+    JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia" # overrides default ~/.julia
+    JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+    JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+    JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+    # Trace layer: prints the exception behind an opaque rocfft_status_failure.
+    ROCFFT_LAYER: "1"
+    ROCFFT_LOG_TRACE_PATH: "${CI_PROJECT_DIR}/rocfft-trace.log"
+  script: *unit_test_script
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - rocfft-trace.log

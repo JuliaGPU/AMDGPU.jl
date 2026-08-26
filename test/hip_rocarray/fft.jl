@@ -355,16 +355,25 @@ end
     p = plan_rfft(X)
     d_p = plan_rfft(d_X)
 
+    # Whether rocFFT asks for a work buffer decides which paths `rocfft_execute`
+    # takes, so record it: it is the first thing to know if this test fails.
+    @info "Asynchronous FFT" workarea_bytes=length(d_p.workarea)
+
     Y = p * X
 
-    for _ in 1:10
+    for i in 1:10
         task = Threads.@spawn begin # executes FFT on separate AMDGPU stream
             yield()
             d_p * d_X
         end
-        d_Y = fetch(task)
-
-        @test isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
+        # Report which iteration failed rather than aborting the whole testset.
+        d_Y = try
+            fetch(task)
+        catch err
+            @error "Asynchronous FFT failed" iteration=i exception=(err, catch_backtrace())
+            nothing
+        end
+        @test d_Y !== nothing && isapprox(collect(d_Y), Y; rtol=MYRTOL, atol=MYATOL)
     end
 end
 
