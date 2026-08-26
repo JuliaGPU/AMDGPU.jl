@@ -46,3 +46,30 @@ using AMDGPU.Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridG
     A = Array(RA)
     @test A == [groupsize..., (groupsize .* gridsize)..., gridsize...]
 end
+
+@testset "Indexing range metadata" begin
+    # !range is half-open, so an inclusive bound puts the topmost legal value
+    # outside it and comparisons against it fold away. Shows up at groupsize=1024.
+    function edge_kern(X)
+        i = workitemIdx().x
+        (i == 1024) && (@inbounds X[1] = 1)
+        (i >= 1024) && (@inbounds X[2] = 1)
+        (workgroupDim().x == 1024) && (@inbounds X[3] = 1)
+        (gridItemDim().x == 1024) && (@inbounds X[4] = 1)
+        nothing
+    end
+
+    RA = ROCArray(zeros(Int32, 4))
+    @roc groupsize=1024 gridsize=1 edge_kern(RA)
+    @test Array(RA) == Int32[1, 1, 1, 1]
+
+    # ...and the top lane does run, independently of any comparison.
+    function ident_kern(X)
+        @inbounds X[workitemIdx().x] = workitemIdx().x
+        nothing
+    end
+
+    RB = ROCArray(zeros(Int32, 1024))
+    @roc groupsize=1024 gridsize=1 ident_kern(RB)
+    @test Array(RB) == Int32.(1:1024)
+end
