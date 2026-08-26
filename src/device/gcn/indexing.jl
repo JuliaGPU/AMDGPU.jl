@@ -36,14 +36,25 @@ end
     end
 end
 
-@device_function @generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
+# Workgroup/grid dimensions come from the *hidden kernel arguments* (code object
+# v5+): the runtime writes hidden_block_count_{x,y,z} (u32 at 0/4/8) and
+# hidden_group_size_{x,y,z} (u16 at 12/14/16) into the kernarg segment after the
+# explicit arguments, and `llvm.amdgcn.implicitarg.ptr` points at that block.
+# This is what clang does for blockDim/gridDim. The previous implementation read
+# the AQL dispatch packet through `llvm.amdgcn.dispatch.ptr` — that memory is
+# host-coherent queue memory, so every wave paid an uncached SMEM round trip on
+# its very first instructions; on short kernels that alone halved throughput
+# (Floyd-Warshall on MI300A: 21.5 -> 11.0 us per launch, matching hipcc).
+const _hidden_block_count_offset = 0    # u32 × 3
+const _hidden_group_size_offset  = 12   # u16 × 3
+
+@device_function @generated function _dim(::Val{offset}, ::Type{T}, ::Val{range}) where {offset, T, range}
     @dispose ctx=Context() begin
         T_int8 = LLVM.Int8Type()
         T_int32 = LLVM.Int32Type()
 
         _as = convert(Int, AS.Constant)
         T_ptr_i8 = LLVM.PointerType(T_int8, _as)
-        T_ptr_i32 = LLVM.PointerType(T_int32, _as)
 
         T_T = convert(LLVMType, T)
         T_ptr_T = LLVM.PointerType(T_T, _as)
@@ -57,21 +68,25 @@ end
             entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 
-            # get the kernel dispatch pointer
+            # get the implicit (hidden) kernel argument pointer
             intr_typ = LLVM.FunctionType(T_ptr_i8)
-            intr = LLVM.Function(mod, "llvm.amdgcn.dispatch.ptr", intr_typ)
+            intr = LLVM.Function(mod, "llvm.amdgcn.implicitarg.ptr", intr_typ)
             ptr = call!(builder, intr_typ, intr)
 
-            # load the index
-            offset = base + ((off - 1) * aligned_sizeof(T))
+            # load the field
             idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
             idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
             idx_T = load!(builder, T_T, idx_ptr_T)
+            # the hidden block is at least 4-byte aligned; tell LLVM so the
+            # backend keeps merged accesses SMEM-selectable
+            alignment!(idx_T, gcd(4, offset))
             idx = zext!(builder, idx_T, T_int32)
 
-            # attach range metadata
+            # attach range metadata; the hidden arguments never change during
+            # a dispatch
             md = _range_metadata(T, range)
             md === nothing || (metadata(idx_T)[LLVM.MD_range] = md)
+            metadata(idx_T)[LLVM.MD_invariant_load] = MDNode(LLVM.Metadata[])
             ret!(builder, idx)
         end
 
@@ -102,22 +117,22 @@ for dim in (:x, :y, :z)
 end
 for (dim,off) in ((:x,1), (:y,2), (:z,3))
     # N.B. These are sizes, so the range runs 1:max, not 0:(max - 1).
-    # Workgroup dimension (in workitems)
+    # Workgroup dimension (in workitems): hidden_group_size_{x,y,z}
     fn = Symbol("workgroupDim_$dim")
-    base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
-    @eval @device_function @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(1:_max_group_size)), UInt16)
+    @eval @device_function @inline $fn() = _dim($(Val(_hidden_group_size_offset + 2 * (off - 1))), UInt16,
+                                                $(Val(1:_max_group_size)))
     cufn = Symbol("blockDim_$dim")
     @eval @device_function @inline $cufn() = $fn()
 
-    # Grid dimension (in workitems)
-    fn = Symbol("gridItemDim_$dim")
-    base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
-    @eval @device_function @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(1:_max_grid_size[dim])), UInt32)
-    # Grid dimension (in workgroups)
+    # Grid dimension (in workgroups): hidden_block_count_{x,y,z}
     fn_wg = Symbol("gridGroupDim_$dim")
-    fn_wg_dim = Symbol("workgroupDim_$dim")
-    # N.B. Don't use div to avoid inserting an exception path
-    @eval @device_function @inline $fn_wg() = Core.Intrinsics.udiv_int($fn(), $fn_wg_dim())
+    @eval @device_function @inline $fn_wg() = _dim($(Val(_hidden_block_count_offset + 4 * (off - 1))), UInt32,
+                                                   $(Val(1:_max_groups[dim])))
+
+    # Grid dimension (in workitems). Launches are always whole workgroups, so
+    # this equals the dispatch packet's grid_size.
+    fn_it = Symbol("gridItemDim_$dim")
+    @eval @device_function @inline $fn_it() = $fn_wg() * $fn()
 end
 
 """
