@@ -1,7 +1,7 @@
 name = "ROCm_Runtime"
 uuid = "3129f4d2-de71-4ff3-9833-76037e3ea355"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.churavy@gmail.com>", "Anton Smirnov <tonysmn97@gmail.com>"]
-version = "7.14.0"
+version = "10.0.0"
 
 [deps]
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"

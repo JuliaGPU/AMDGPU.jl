@@ -72,17 +72,15 @@ UnitTest julia 1.12 (system ROCm):
     ROCM_LOCAL: "true"
   script: *unit_test_script
 
-# Coverage of the artifact path, what AMDGPU.jl uses by default. Disabled for
-# now: with the ROCm 7.14 TheRock bundle, every HIP application fails at its
-# first stream creation on gfx942, reported as hipErrorOutOfMemory even though
-# nothing runs out of memory. See https://github.com/ROCm/TheRock/issues/7426.
-# Re-enable, with allow_failure until it is green, once that is fixed; the
-# ROCM_LOCAL switch above already handles both variants.
-#
-# UnitTest julia 1.12 (ROCm artifacts):
-#   extends: .baremetal-runner-beverin-mi300
-#   allow_failure: true
-#   variables:
-#     <<: *common_variables
-#     ROCM_LOCAL: "false"
-#   script: *unit_test_script
+# Coverage of the artifact path, what AMDGPU.jl uses by default. Allowed to
+# fail for now: with the ROCm 7.14 TheRock bundle, every HIP application failed
+# at its first stream creation on gfx942, reported as hipErrorOutOfMemory even
+# though nothing ran out of memory (https://github.com/ROCm/TheRock/issues/7426).
+# Drop allow_failure once the job is green with the ROCm 10.0 bundle.
+UnitTest julia 1.12 (ROCm artifacts):
+  extends: .baremetal-runner-beverin-mi300
+  allow_failure: true
+  variables:
+    <<: *common_variables
+    ROCM_LOCAL: "false"
+  script: *unit_test_script

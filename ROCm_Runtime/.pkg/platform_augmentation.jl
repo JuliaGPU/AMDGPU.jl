@@ -1,5 +1,5 @@
 const ROCm_Runtime_uuid = Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355")
-const rocm_toolkits = VersionNumber[v"7.14.0"]
+const rocm_toolkits = VersionNumber[v"10.0.0"]
 # Platform augmentation for ROCm_Runtime.
 #
 # Artifacts are selected based on two platform tags:
