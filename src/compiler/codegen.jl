@@ -394,3 +394,29 @@ function run_and_collect(cmd)
     log = strip(fetch(reader))
     return proc, log
 end
+
+# Infer implicit-argument usage after optimization. LLVM's AMDGPUAttributor
+# proves which implicit kernel inputs (dispatch/queue pointer, dispatch id,
+# workgroup/workitem ids for y/z, hostcall/heap pointers, ...) a kernel can
+# never touch and records that as `amdgpu-no-*` attributes; the backend then
+# stops requesting those SGPR/VGPR inputs in the kernel descriptor. Clang runs
+# this in its default pipeline; GPUCompiler's pipeline never does, so every
+# kernel was compiled as if it used all of them (8 user SGPRs, all workgroup
+# ids, packed workitem ids for x/y/z). It has to run after optimization —
+# before inlining, un-inlined helper calls block the interprocedural proof.
+function GPUCompiler.finish_ir!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    entry = invoke(GPUCompiler.finish_ir!,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+        job, mod, entry)
+    job.config.kernel || return entry
+
+    name = LLVM.name(entry)
+    tm = GPUCompiler.llvm_machine(job.config.target)
+    @dispose pb=NewPMPassBuilder() begin
+        add!(pb, "amdgpu-attributor")
+        run!(pb, mod, tm)
+    end
+    return functions(mod)[name]
+end
