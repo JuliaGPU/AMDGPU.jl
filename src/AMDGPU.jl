@@ -182,6 +182,9 @@ function __init__()
         warn_unresolved_rocm_artifact()
     end
 
+    # Device libraries are needed for compiling device code even without a GPU.
+    global libdevice_libs = find_device_libs()
+
     if Sys.islinux()
         if !ispath("/dev/kfd")
             @debug "/dev/kfd not available (no AMD GPU), skipping initialization"

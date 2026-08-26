@@ -6,8 +6,10 @@ By default, AMDGPU.jl ships the ROCm runtime (HIP and HSA) and the vendor
 libraries (rocBLAS, rocSPARSE, rocSOLVER, rocRAND, rocFFT, hipTENSOR, MIOpen) as lazy
 artifacts through the `ROCm_Runtime` subpackage, which downloads AMD's TheRock
 distribution tarball matching the GPUs detected on the host. `ld.lld` and the
-device bitcode libraries always come from `AMDGPU_LLVM_Backend_jll` and
-`ROCmDeviceLibs_jll`. No system-wide ROCm installation is needed in this mode.
+device bitcode libraries always come from `AMDGPU_LLVM_Backend_jll`; the bitcode
+is downgraded to the LLVM version of the running Julia with `LLVMDowngrader_jll`
+and cached in a scratch space. No system-wide ROCm installation is needed in this
+mode.
 
 To use a local ROCm installation instead, set the `local` preference in the
 active project and restart Julia:

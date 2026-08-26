@@ -1,11 +1,10 @@
 include:
   - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
 
-# Slurm/Julia settings shared by both ROCm provider variants.
+# Slurm/Julia settings shared by all jobs; JULIA is set per Julia version.
 .common_variables: &common_variables
-  JULIA: /users/lraess/julia_amd/juliaup/julia-1.12.6+0.x64.linux.gnu/bin/julia
-  UENV: ab517d8a08f537d2
-  MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-22x3pq72goxi4xwkknlspqhxbx72owes
+  UENV: 56ebb909a6164680
+  MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-kxzfucnamke4rlezapmrmrdrkmri325u
   # Workaround for MIOpen CK Group-Xdlops solvers segfaulting on gfx942 (MI300).
   # Remove once fixed upstream: https://github.com/ROCm/rocm-libraries/issues/9088
   MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC: "0"
@@ -18,9 +17,18 @@ include:
   SLURM_GPUS_PER_TASK: 2
   SLURM_TIMELIMIT: "00:45:00"
   JULIA_NUM_THREADS: 4
-  JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia"
+  JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia" # overrides default ~/.julia
   JULIA_AMDGPU_CORE_MUST_LOAD: "1"
   JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+  # Trace layer: prints the exception behind an opaque rocfft_status_failure.
+  ROCFFT_LAYER: "1"
+  ROCFFT_LOG_TRACE_PATH: "${CI_PROJECT_DIR}/rocfft-trace.log"
+
+.trace_artifacts: &trace_artifacts
+  when: always
+  expire_in: 1 week
+  paths:
+    - rocfft-trace.log
 
 # AMDGPU.jl takes ROCm either from the uenv ($ROCM_LOCAL == "true": the merged
 # ROCM_PATH below, resolved through ROCm_Runtime_Discovery) or from the TheRock
@@ -33,6 +41,7 @@ include:
 .unit_test_script: &unit_test_script
   - srun -n 1 --uenv $UENV --view=default bash -c '
       set -euo pipefail;
+      ulimit -c 0;
       shopt -s nullglob;
       if [ "$ROCM_LOCAL" = "true" ]; then
         MERGED_ROCM="$CI_PROJECT_DIR/.rocm-miopen";
@@ -69,8 +78,19 @@ UnitTest julia 1.12 (system ROCm):
   extends: .baremetal-runner-beverin-mi300
   variables:
     <<: *common_variables
+    JULIA: /users/lraess/julia_amd/julia_amd-1.12
     ROCM_LOCAL: "true"
   script: *unit_test_script
+  artifacts: *trace_artifacts
+
+UnitTest julia 1.13 (system ROCm):
+  extends: .baremetal-runner-beverin-mi300
+  variables:
+    <<: *common_variables
+    JULIA: /users/lraess/julia_amd/julia_amd-1.13
+    ROCM_LOCAL: "true"
+  script: *unit_test_script
+  artifacts: *trace_artifacts
 
 # Coverage of the artifact path, what AMDGPU.jl uses by default. Allowed to
 # fail for now: with the ROCm 7.14 TheRock bundle, every HIP application failed
@@ -82,5 +102,7 @@ UnitTest julia 1.12 (ROCm artifacts):
   allow_failure: true
   variables:
     <<: *common_variables
+    JULIA: /users/lraess/julia_amd/julia_amd-1.12
     ROCM_LOCAL: "false"
   script: *unit_test_script
+  artifacts: *trace_artifacts
