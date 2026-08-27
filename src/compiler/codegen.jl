@@ -414,9 +414,13 @@ function GPUCompiler.finish_ir!(
 
     name = LLVM.name(entry)
     tm = GPUCompiler.llvm_machine(job.config.target)
-    @dispose pb=NewPMPassBuilder() begin
-        add!(pb, "amdgpu-attributor")
-        run!(pb, mod, tm)
+    # The textual pass name is only registered since LLVM 18; it's a pure
+    # optimization, so skip it on older LLVM (e.g. Julia 1.10's LLVM 15).
+    if LLVM.version() >= v"18"
+        @dispose pb=NewPMPassBuilder() begin
+            add!(pb, "amdgpu-attributor")
+            run!(pb, mod, tm)
+        end
     end
     return functions(mod)[name]
 end
