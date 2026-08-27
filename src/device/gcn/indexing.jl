@@ -90,9 +90,12 @@ const _hidden_group_size_offset  = 12   # u16 × 3
 end
 
 # TODO: look these up for the current device/queue
-# TODO: grids can be up to typemax(UInt64)
 const _max_group_size = 1024
-const _max_groups     = (x=typemax(UInt32), y=typemax(UInt32), z=typemax(UInt32))
+# HSA's grid_size fields are UInt32 work-items, so a workgroup index can only
+# exceed typemax(Int32) for more than 2^31 single-work-item groups; such launches
+# are rejected on the host (see Runtime.launch). The tighter !range lets LLVM
+# fold the InexactError check in `Int32(workgroupIdx().x)`.
+const _max_groups     = (x=typemax(Int32), y=typemax(Int32), z=typemax(Int32))
 const _max_grid_size  = (x=typemax(UInt32), y=typemax(UInt32), z=typemax(UInt32))
 
 for dim in (:x, :y, :z)
