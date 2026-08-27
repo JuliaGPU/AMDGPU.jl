@@ -40,11 +40,6 @@ end
 # v5+): the runtime writes hidden_block_count_{x,y,z} (u32 at 0/4/8) and
 # hidden_group_size_{x,y,z} (u16 at 12/14/16) into the kernarg segment after the
 # explicit arguments, and `llvm.amdgcn.implicitarg.ptr` points at that block.
-# This is what clang does for blockDim/gridDim. The previous implementation read
-# the AQL dispatch packet through `llvm.amdgcn.dispatch.ptr` — that memory is
-# host-coherent queue memory, so every wave paid an uncached SMEM round trip on
-# its very first instructions; on short kernels that alone halved throughput
-# (Floyd-Warshall on MI300A: 21.5 -> 11.0 us per launch, matching hipcc).
 const _hidden_block_count_offset = 0    # u32 × 3
 const _hidden_group_size_offset  = 12   # u16 × 3
 

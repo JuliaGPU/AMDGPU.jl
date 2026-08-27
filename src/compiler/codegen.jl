@@ -104,8 +104,7 @@ function GPUCompiler.finish_module!(
         # TODO add convergent, mustprogress, willreturn attributes?
 
         # request the full hidden-argument block (code object v5+): workgroup and
-        # grid dimensions are read from it (see device/gcn/indexing.jl), and the
-        # metadata this emits is what makes the runtime fill it in at launch
+        # grid dimensions are read from it (see device/gcn/indexing.jl),
         implicitarg_attr = StringAttribute("amdgpu-implicitarg-num-bytes", "256")
 
         attrs = LLVM.function_attributes(entry)
