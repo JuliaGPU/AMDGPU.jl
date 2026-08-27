@@ -767,6 +767,49 @@ for (fname, elty) in
         end
     end
 end
+\
+gemmex_datatype(::Type{Float16}) = rocblas_datatype_f16_r
+gemmex_datatype(::Type{BFloat16}) = rocblas_datatype_bf16_r
+gemmex_datatype(::Type{Float32}) = rocblas_datatype_f32_r
+gemmex_datatype(::Type{Float64}) = rocblas_datatype_f64_r
+gemmex_datatype(::Type{ComplexF32}) = rocblas_datatype_f32_c
+gemmex_datatype(::Type{ComplexF64}) = rocblas_datatype_f64_c
+
+# 16-bit inputs accumulate in Float32; everything else computes in its own type
+gemmex_compute_type(TA, TB, TC) = promote_type(TA, TB, TC)
+gemmex_compute_type(::Type{Float16}, ::Type{Float16}, TC) = Float32
+gemmex_compute_type(::Type{BFloat16}, ::Type{BFloat16}, TC) = Float32
+
+function gemm_ex!(
+    transA::Char, transB::Char, alpha::Number,
+    A::StridedROCVecOrMat, B::StridedROCVecOrMat, beta::Number,
+    C::StridedROCVecOrMat;
+    compute_type::Type = gemmex_compute_type(eltype(A), eltype(B), eltype(C)),
+)
+    m = size(A, transA == 'N' ? 1 : 2)
+    k = size(A, transA == 'N' ? 2 : 1)
+    n = size(B, transB == 'N' ? 2 : 1)
+    if m != size(C, 1) || n != size(C, 2) || k != size(B, transB == 'N' ? 1 : 2)
+        throw(DimensionMismatch(""))
+    end
+
+    lda = max(1, stride(A, 2))
+    ldb = max(1, stride(B, 2))
+    ldc = max(1, stride(C, 2))
+    α = Ref(convert(compute_type, alpha))
+    β = Ref(convert(compute_type, beta))
+    (; handle, stream) = lib_state()
+    GC.@preserve A B C begin
+        rocblas_gemm_ex_64(handle, transA, transB, m, n, k,
+            α, pointer(A), gemmex_datatype(eltype(A)), lda,
+            pointer(B), gemmex_datatype(eltype(B)), ldb,
+            β, pointer(C), gemmex_datatype(eltype(C)), ldc,
+            pointer(C), gemmex_datatype(eltype(C)), ldc,
+            gemmex_datatype(compute_type), rocblas_gemm_algo_standard,
+            Int32(0), UInt32(0))
+    end
+    C
+end
 
 ## (SY) symmetric matrix-matrix and matrix-vector multiplication
 for (fname, elty) in ((:rocblas_dsymm,:Float64),
