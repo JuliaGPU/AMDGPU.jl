@@ -767,7 +767,7 @@ for (fname, elty) in
         end
     end
 end
-\
+
 gemmex_datatype(::Type{Float16}) = rocblas_datatype_f16_r
 gemmex_datatype(::Type{BFloat16}) = rocblas_datatype_bf16_r
 gemmex_datatype(::Type{Float32}) = rocblas_datatype_f32_r
