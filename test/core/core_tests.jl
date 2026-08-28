@@ -10,12 +10,12 @@ using AMDGPU: HIP, Runtime, Device, Mem
 end
 
 @testset "versioninfo probe isolation" begin
-    probe(code, args = String[]; timeout = 60) =
-        AMDGPU._probe_subprocess(code, args; timeout)
+    probe(code; timeout = 60) = AMDGPU._version_subprocess(code; timeout)
 
-    # A clean child returns its stdout, and gets its arguments through `ARGS`.
+    # A clean child returns its stdout. Library paths reach it through `repr`,
+    # so Windows separators must survive the round trip.
     @test probe("print(\"4.2.0\")") == "4.2.0"
-    @test probe("print(ARGS[1])", String["C:\\rocm\\lib"]) == "C:\\rocm\\lib"
+    @test probe("print($(repr(raw"C:\rocm\lib")))") == raw"C:\rocm\lib"
 
     # No package environment, so probing can't trigger a precompile (#1040).
     @test probe("print(Base.load_path())") == "String[]"
@@ -32,7 +32,7 @@ end
 
     # On a working setup the probe returns a version; repeats hit the cache.
     if AMDGPU.functional(:rocsparse)
-        AMDGPU._ROCSPARSE_VERSION[] = nothing
+        AMDGPU._ROCSPARSE_VERSION = ""
         v = AMDGPU._rocsparse_version_isolated()
         @test tryparse(VersionNumber, v) !== nothing
         @test AMDGPU._rocsparse_version_isolated() === v

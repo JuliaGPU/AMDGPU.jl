@@ -1,10 +1,8 @@
-# Run `code` in a subprocess with `args` as its `ARGS`; returns stdout, or
-# `nothing` on crash, timeout, or nonzero exit. The empty `JULIA_LOAD_PATH` keeps
-# the child out of the active project, so `code` must only use `Base`.
-function _probe_subprocess(
-    code::String, args::Vector{String}; timeout::Real = 20,
-)::Union{String, Nothing}
-    cmd = `$(Base.julia_cmd()) --startup-file=no -O0 --compile=min -e $code $args`
+# Run `code` in a subprocess and return its stdout, or `nothing` on crash,
+# timeout, or nonzero exit. The empty `JULIA_LOAD_PATH` keeps the child out of
+# the active project, so `code` must only use `Base`.
+function _version_subprocess(code::String; timeout::Real = 20)::Union{String, Nothing}
+    cmd = `$(Base.julia_cmd()) --startup-file=no -O0 --compile=min -e $code`
     cmd = addenv(cmd, "JULIA_LOAD_PATH" => "")
     out = IOBuffer()
     try
@@ -26,31 +24,27 @@ function _probe_subprocess(
     end
 end
 
+# Empty until probed, then the version string or `"err"`.
+global _ROCSPARSE_VERSION::String = ""
+
 # rocSPARSE's version query needs a handle, and creating one can segfault on
-# broken ROCm installs (issue #920), so run it out-of-process. `Libdl` only, so
-# the child needs no package environment.
-const _ROCSPARSE_VERSION_PROBE = """
-    const L = Base.Libc.Libdl
-    lib = L.dlopen(ARGS[1])
-    handle = Ref{Ptr{Cvoid}}(C_NULL)
-    ccall(L.dlsym(lib, :rocsparse_create_handle), Cint,
-        (Ptr{Ptr{Cvoid}},), handle) == 0 || exit(2)
-    version = Ref{Cint}(0)
-    ccall(L.dlsym(lib, :rocsparse_get_version), Cint,
-        (Ptr{Cvoid}, Ptr{Cint}), handle[], version) == 0 || exit(2)
-    print(version[])
-    """
-
-# `nothing` until probed, then the version string or `"err"`.
-const _ROCSPARSE_VERSION = Ref{Union{Nothing, String}}(nothing)
-
+# broken ROCm installs (issue #920), so run it out-of-process.
 function _rocsparse_version_isolated(; timeout::Real = 20)
-    cached = _ROCSPARSE_VERSION[]
-    cached === nothing || return cached
+    global _ROCSPARSE_VERSION
+    isempty(_ROCSPARSE_VERSION) || return _ROCSPARSE_VERSION
 
-    out = _probe_subprocess(_ROCSPARSE_VERSION_PROBE, String[librocsparse]; timeout)
+    lib = repr(librocsparse)  # `repr` so Windows separators survive the parser
+    out = _version_subprocess("""
+        handle = Ref{Ptr{Cvoid}}(C_NULL)
+        ccall((:rocsparse_create_handle, $lib), Cint,
+            (Ptr{Ptr{Cvoid}},), handle) == 0 || exit(2)
+        version = Ref{Cint}(0)
+        ccall((:rocsparse_get_version, $lib), Cint,
+            (Ptr{Cvoid}, Ptr{Cint}), handle[], version) == 0 || exit(2)
+        print(version[])
+        """; timeout)
     packed = out === nothing ? nothing : tryparse(Int, out)
-    return _ROCSPARSE_VERSION[] =
+    return _ROCSPARSE_VERSION =
         packed === nothing ? "err" : string(rocSPARSE.decode_version(packed))
 end
 
