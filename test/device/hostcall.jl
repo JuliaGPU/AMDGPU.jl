@@ -5,6 +5,35 @@ using AMDGPU.Device: HostCallHolder, hostcall!
 
 @testset "Hostcall" begin
 
+@testset "Global hostcall detection" begin
+    V = AMDGPU.Device.ROCDeviceVector{Float32, 1}
+    hostcalls(f, tt) = AMDGPU.hipfunction(f, tt).fun.global_hostcalls
+
+    # A reachable device-side `malloc` needs the global malloc hostcall.
+    function live_malloc(x)
+        p = AMDGPU.Device.malloc(Csize_t(8))
+        @inbounds x[1] = unsafe_load(convert(Ptr{Float32}, p))
+        nothing
+    end
+    @test hostcalls(live_malloc, Tuple{V}) == [:malloc_hostcall]
+
+    # One that optimization proves unreachable must not: detection runs on
+    # the optimized module, so it must not spin up a hostcall on the host.
+    function dead_malloc(x, i)
+        if i == 1 && i == 2
+            p = AMDGPU.Device.malloc(Csize_t(8))
+            @inbounds x[1] = unsafe_load(convert(Ptr{Float32}, p))
+        end
+        nothing
+    end
+    @test isempty(hostcalls(dead_malloc, Tuple{V, Int}))
+
+    # Scalar indexing (`Number` getindex) is overridden in `device/quirks.jl`
+    # so its bounds check does not box a `BoundsError`.
+    scalar_index(x, i) = (@inbounds x[1] = Float32((2)[i]); nothing)
+    @test isempty(hostcalls(scalar_index, Tuple{V, Int}))
+end
+
 @testset "Call: No return or arguments" begin
     function kernel(a,b,sig)
         hostcall!(sig)

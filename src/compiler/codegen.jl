@@ -68,12 +68,6 @@ GPUCompiler.relocation_lowering(@nospecialize(::HIPCompilerJob)) = :patch
 function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
     invoke(GPUCompiler.link_libraries!, Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
 
-    # Detect global hostcalls here, before optimizations & cleanup occur.
-    # Accumulate into task-local storage so hipcompile can retrieve them
-    # on the same task, without any global dict or hash-collision race.
-    tls_hostcalls = get!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
-    append!(tls_hostcalls, find_global_hostcalls(mod))
-
     # Only the final kernel module needs the device libraries.
     job.config.toplevel || return
     link_device_libs!(
@@ -148,6 +142,26 @@ function GPUCompiler.finish_module!(
         end
     end
 
+    return entry
+end
+
+function GPUCompiler.finish_ir!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    entry = invoke(GPUCompiler.finish_ir!,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+        job, mod, entry)
+
+    # Detect global hostcalls after optimization & cleanup, but before codegen
+    # (which lowers LDS globals and loses their names): a hostcall that only
+    # lives on a code path optimization proved dead (e.g. an elided bounds
+    # check) must not force the host to spin one up.
+    # Accumulate into task-local storage so hipcompile can retrieve them
+    # on the same task, without any global dict or hash-collision race.
+    if job.config.toplevel
+        tls_hostcalls = get!(task_local_storage(), :amdgpu_hostcalls, Symbol[])
+        union!(tls_hostcalls, find_global_hostcalls(mod))
+    end
     return entry
 end
 
@@ -277,7 +291,10 @@ end
 
 function create_executable(obj)
     @assert AMDGPU_LLVM_Backend_jll.is_available() "ld.lld was not found; cannot link kernel"
-    lld = `$(AMDGPU_LLVM_Backend_jll.lld()) -flavor gnu`
+    # `--threads=1`: the Windows build of lld intermittently dies with
+    # STATUS_HEAP_CORRUPTION (0xC0000374) when linking with its default thread
+    # pool; these objects are tiny, so single-threaded linking costs nothing.
+    lld = `$(AMDGPU_LLVM_Backend_jll.lld()) -flavor gnu --threads=1`
 
     path_o = tempname(;cleanup=false) * ".obj"
     path_exe = tempname(;cleanup=false) * ".exe"
@@ -298,21 +315,27 @@ function find_global_hostcalls(mod::LLVM.Module)
     global_hostcalls = Symbol[]
     for gbl in LLVM.globals(mod), gbl_name in global_hostcall_names
         occursin("__$gbl_name", LLVM.name(gbl)) || continue
-        push!(global_hostcalls, gbl_name)
+        # The marker global (see `malloc_hc` & co.) has external linkage, so it
+        # survives optimization even when every store to it was removed along
+        # with the code path that needed the hostcall. Only a remaining use
+        # means the kernel can actually reach the hostcall.
+        isempty(LLVM.uses(gbl)) && continue
+        gbl_name in global_hostcalls || push!(global_hostcalls, gbl_name)
     end
     return global_hostcalls
 end
 
 function hipcompile(@nospecialize(job::CompilerJob))
+    # Drop hostcalls left behind by compilations that never reached hipcompile
+    # (e.g. `code_llvm`), so they can't be attributed to this kernel.
+    delete!(task_local_storage(), :amdgpu_hostcalls)
     obj, meta = JuliaContext() do ctx
         GPUCompiler.compile(:obj, job)
     end
 
-    # Collect early-detected hostcalls written by link_libraries! on this task.
-    # Falls back gracefully to empty if link_libraries! was not called.
-    global_hostcalls = pop!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
-    # Late global hostcalls detection.
-    append!(global_hostcalls, find_global_hostcalls(meta.ir))
+    # Collect hostcalls detected by finish_ir! on this task.
+    # Falls back gracefully to empty if finish_ir! was not called.
+    global_hostcalls = pop!(task_local_storage(), :amdgpu_hostcalls, Symbol[])
 
     if !isempty(global_hostcalls)
         @info """Global hostcalls detected!

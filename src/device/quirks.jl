@@ -37,6 +37,21 @@ end
 @device_override Base.throw_boundserror(A, I) =
     @gpu_throw "BoundsError: Out-of-bounds array access"
 
+# number.jl
+# Scalars index like 1-element arrays, but throw `BoundsError(x, i)` directly
+# instead of going through `throw_boundserror`; boxing `x` and `i` would emit a
+# device-side allocation (malloc hostcall).
+@device_override function Base.getindex(x::Number, i::Integer)
+    @inline
+    @boundscheck i == 1 || @gpu_throw "BoundsError: Out-of-bounds array access"
+    x
+end
+@device_override function Base.getindex(x::Number, I::Integer...)
+    @inline
+    @boundscheck all(isone, I) || @gpu_throw "BoundsError: Out-of-bounds array access"
+    x
+end
+
 # trig.jl
 @device_override Base.Math.sincos_domain_error(x) =
     @gpu_throw "DomainError: sincos(x) is only defined for finite x"

@@ -86,6 +86,9 @@ function HostCallHolder(
     timeout = nothing, continuous = false, buf_len = nothing,
     maxlat = DEFAULT_HOSTCALL_LATENCY,
 )
+    AMDGPU.functional(:hsa) || error(
+        "Hostcalls need the HSA runtime, which is unavailable" *
+        (Sys.iswindows() ? " on Windows." : "."))
     signal_ref = Ref{HSA.Signal}()
     HSA.signal_create(1, 0, C_NULL, signal_ref) |> Runtime.check
     signal = signal_ref[]

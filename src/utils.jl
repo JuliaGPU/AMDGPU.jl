@@ -138,6 +138,8 @@ This query should never throw for valid `component` values.
 function functional(component::Symbol)
     if component == :hip
         return !isempty(libamdhip64)
+    elseif component == :hsa
+        return !isempty(libhsa_runtime64)
     elseif component == :lld
         return !isempty(lld_path)
     elseif component == :device_libs

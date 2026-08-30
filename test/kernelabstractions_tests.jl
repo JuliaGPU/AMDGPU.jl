@@ -14,7 +14,6 @@ if Sys.iswindows()
     # TODO
     # We do not support hostcalls on Windows yet.
     push!(skip_tests, "Convert")
-    # Also launches malloc hostcall for some reason...
     push!(skip_tests, "Private")
 end
 

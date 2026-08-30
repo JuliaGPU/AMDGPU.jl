@@ -36,6 +36,16 @@ function throw_if_exception(dev::HIPDevice)
 end
 
 function KernelState(dev::HIPDevice, global_hostcalls::Vector{Symbol})
+    if !isempty(global_hostcalls) && !functional(:hsa)
+        error("""
+        Kernel requires hostcalls $(global_hostcalls), but hostcalls need the HSA runtime, \
+        which is unavailable$(Sys.iswindows() ? " on Windows" : "").
+        Hostcalls are used by device-side `malloc` (e.g. `throw` of an exception that boxes \
+        its arguments, such as `throw(ArgumentError("..."))` with a runtime value) and by \
+        `@rocprintf`/`@rocprintln`/`@rocprint`. Remove those to run this kernel without them; \
+        `@device_code_llvm` shows the offending `gpu_malloc`/`gpu_gc_pool_alloc` calls.
+        """)
+    end
     malloc_ptr = :malloc_hostcall in global_hostcalls ?
         Compiler.create_malloc_hostcall!() : C_NULL
     free_ptr = :free_hostcall in global_hostcalls ?
