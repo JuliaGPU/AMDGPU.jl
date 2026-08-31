@@ -1,7 +1,7 @@
 using Test
 using AMDGPU
 using AMDGPU: Device, ROCArray, @roc
-using AMDGPU.Device: sync_workgroup
+using AMDGPU.Device: sync_workgroup, workitemIdx, workgroupIdx, workgroupDim
 using KernelAbstractions: @atomic
 
 @testset "Synchronization" begin
@@ -60,4 +60,27 @@ end
             @test !occursin("global_atomic_add_$fp", gcn)
         end
     end
+end
+
+@testset "Dispatch-packet reads stay scalar" begin
+    # workgroupDim reads 16-bit fields of the AQL dispatch packet; those must
+    # lower to SMEM (s_load) rather than a per-wave VMEM read of uncached
+    # queue memory. The Int64 3-D indexing pattern below used to defeat LLVM's
+    # sub-dword load widening and select the VMEM fallback.
+    function dim_kern!(A)
+        i = (workgroupIdx().x - 1) * workgroupDim().x + workitemIdx().x
+        j = (workgroupIdx().y - 1) * workgroupDim().y + workitemIdx().y
+        k = (workgroupIdx().z - 1) * workgroupDim().z + workitemIdx().z
+        n = i + j + k
+        n <= length(A) && (@inbounds A[n] = n)
+        return
+    end
+
+    iob = IOBuffer()
+    tt = Tuple{AMDGPU.Device.ROCDeviceVector{Float32, AMDGPU.Device.AS.Global}}
+    AMDGPU.code_gcn(iob, dim_kern!, tt; kernel=true)
+    gcn = String(take!(iob))
+    @test occursin("s_load", gcn)
+    @test !occursin("global_load", gcn)
+    @test !occursin("flat_load", gcn)
 end
