@@ -85,4 +85,30 @@ end
     @test d == deepcopy(d)
 end
 
+@testset "HandleCache global idle budget (#1053)" begin
+    # A workload that uses many distinct keys must not accumulate one idle
+    # handle per key forever: `max_idle` caps the total across all keys, and
+    # evicted handles get their destructor run exactly once.
+    max_entries, max_idle = 4, 8
+    cache = HandleCache{Int, Int}(max_entries, max_idle)
+
+    destroyed = Int[]
+    n_created = 0
+    for key in 1:100
+        h = pop!(cache, key) do
+            n_created += 1
+            key + 1000
+        end
+        @test h == key + 1000
+        push!(() -> push!(destroyed, h), cache, key, h)
+    end
+
+    total_idle = sum(length, values(cache.idle_handles); init = 0)
+    @test total_idle <= max_idle
+    @test isempty(cache.active_handles)
+    # Every handle is accounted for: still idle or destroyed, never both, never lost.
+    @test total_idle + length(destroyed) == n_created == 100
+    @test allunique(destroyed)
+end
+
 end
