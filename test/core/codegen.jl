@@ -61,3 +61,18 @@ end
         end
     end
 end
+
+@testset "Launch bounds" begin
+    bound_kern() = nothing
+    k = @roc launch=false maxthreads=256 bound_kern()
+
+    maxthreads = Ref{Cint}(0)
+    AMDGPU.HIP.hipFuncGetAttribute(
+        maxthreads, AMDGPU.HIP.HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, k.fun.handle)
+    @test maxthreads[] == 256
+
+    k(; groupsize=256)
+    AMDGPU.synchronize()
+    # exceeding the bound is undefined behavior; HIP rejects it at launch
+    @test_throws AMDGPU.HIP.HIPError k(; groupsize=512)
+end

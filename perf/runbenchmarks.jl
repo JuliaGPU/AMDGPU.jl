@@ -32,6 +32,9 @@ SUITE = BenchmarkGroup()
 include("amdgpu.jl")
 include("kernel.jl")
 include("array.jl")
+include("gemm.jl")
+include("stencil.jl")
+include("applications.jl")
 
 @info "Preparing main benchmarks"
 # tune!() still grows the HIP memory pool ~10x (64 MiB -> 640 MiB) on discrete

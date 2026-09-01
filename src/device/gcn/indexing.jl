@@ -1,5 +1,13 @@
 # Indexing and dimensions
 
+# LLVM's !range is half-open [lo, hi); the ranges below are inclusive.
+function _range_metadata(::Type{T}, range) where T
+    lo = T(range.start)
+    hi = T(range.stop) + one(T)
+    lo == hi && return nothing
+    return MDNode([ConstantInt(lo), ConstantInt(hi)])
+end
+
 @device_function @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
     @dispose ctx=Context() begin
         T_int32 = LLVM.Int32Type()
@@ -19,9 +27,8 @@
             idx = call!(builder, intr_typ, intr)
 
             # attach range metadata
-            metadata(idx)[LLVM.MD_range] = MDNode([
-                ConstantInt(UInt32(range.start)),
-                ConstantInt(UInt32(range.stop))])
+            md = _range_metadata(UInt32, range)
+            md === nothing || (metadata(idx)[LLVM.MD_range] = md)
             ret!(builder, idx)
         end
 
@@ -63,9 +70,8 @@ end
             idx = zext!(builder, idx_T, T_int32)
 
             # attach range metadata
-            metadata(idx_T)[LLVM.MD_range] = MDNode([
-                ConstantInt(T(range.start)),
-                ConstantInt(T(range.stop))])
+            md = _range_metadata(T, range)
+            md === nothing || (metadata(idx_T)[LLVM.MD_range] = md)
             ret!(builder, idx)
         end
 
@@ -95,17 +101,18 @@ for dim in (:x, :y, :z)
     @eval @device_function @inline $cufn() = $fn()
 end
 for (dim,off) in ((:x,1), (:y,2), (:z,3))
+    # N.B. These are sizes, so the range runs 1:max, not 0:(max - 1).
     # Workgroup dimension (in workitems)
     fn = Symbol("workgroupDim_$dim")
     base = _packet_offsets[findfirst(x->x==:workgroup_size_x,_packet_names)]
-    @eval @device_function @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_group_size - 1))), UInt16)
+    @eval @device_function @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(1:_max_group_size)), UInt16)
     cufn = Symbol("blockDim_$dim")
     @eval @device_function @inline $cufn() = $fn()
 
     # Grid dimension (in workitems)
     fn = Symbol("gridItemDim_$dim")
     base = _packet_offsets[findfirst(x->x==:grid_size_x,_packet_names)]
-    @eval @device_function @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(0:(_max_grid_size[dim] - 1))), UInt32)
+    @eval @device_function @inline $fn() = _dim($(Val(base)), $(Val(off)), $(Val(1:_max_grid_size[dim])), UInt32)
     # Grid dimension (in workgroups)
     fn_wg = Symbol("gridGroupDim_$dim")
     fn_wg_dim = Symbol("workgroupDim_$dim")

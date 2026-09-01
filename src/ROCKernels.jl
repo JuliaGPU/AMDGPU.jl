@@ -107,7 +107,12 @@ end
 function (obj::KA.Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=nothing)
     ndrange, new_workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
     ctx = KA.mkcontext(obj, ndrange, iterspace)
-    kernel = AMDGPU.@roc launch=false obj.f(ctx, args...)
+    if KA.workgroupsize(obj) <: KA.StaticSize
+        maxthreads = prod(KA.get(KA.workgroupsize(obj)))
+    else
+        maxthreads = nothing
+    end
+    kernel = AMDGPU.@roc launch=false maxthreads=maxthreads obj.f(ctx, args...)
 
     # If dynamic, figure out the optimal groupsize automatically.
     is_dynamic =
