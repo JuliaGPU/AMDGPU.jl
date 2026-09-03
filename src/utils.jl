@@ -40,18 +40,10 @@ function versioninfo(io::IO=stdout)
             https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
     end
 
-    # Artifact-mode hygiene: what we claimed from the bundle, and what a ROCm
-    # elsewhere in the environment is still doing to this process.
+    # Artifact-mode hygiene: what a ROCm elsewhere in the environment is doing
+    # to this process.
     if !local_rocm
-        loaded = count(p -> last(p) === :loaded, ROCm_Runtime.preload_log)
-        other = [p for p in ROCm_Runtime.preload_log if last(p) !== :loaded]
         println(io)
-        print(io, "Preloaded $loaded artifact libraries")
-        println(io, isempty(other) ? "" : ", $(length(other)) not loaded:")
-        for (name, status) in other
-            println(io, "  $status: $name")
-        end
-
         redirects = ROCm_Runtime.redirect_env()
         if isempty(redirects)
             println(io, "Device-library redirects: none")

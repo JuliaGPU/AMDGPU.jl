@@ -65,69 +65,14 @@ function get_library(name::String)::String
     return ""
 end
 
-# Claimed from the bundle before LD_LIBRARY_PATH can resolve them elsewhere.
-# Leaves first, as (subdirectory of the library directory, prefix, open all).
-# HSA must precede HIP, or HIP's `libhsa-runtime64.so.1` binds outside the
-# bundle; the vendor libraries here are ones other vendor libraries pull in.
-const PRELOAD_LIBRARIES = [
-    ("rocm_sysdeps/lib", "librocm_sysdeps_",        true),
-    ("llvm/lib",         "libLLVM",                 false),
-    ("llvm/lib",         "libclang-cpp",            false),
-    ("",                 "librocprofiler-register", false),
-    ("",                 "libhsa-runtime64",        false),
-    ("",                 "libamd_comgr",            false),
-    ("",                 "libhiprtc",               false),
-    ("",                 "librocm_kpack",           false),
-    ("",                 "libamdhip64",             false),
-    ("",                 "libroctx64",              false),
-    ("",                 "libhipblaslt",            false),
-    ("",                 "librocblas",              false),
-]
-
-# path => :loaded / :failed, prefix => :absent. Shown by `AMDGPU.versioninfo()`.
-global preload_log::Vector{Pair{String,Symbol}} = Pair{String,Symbol}[]
-
-function find_libraries(subdir::String, prefix::String, every::Bool)::Vector{String}
-    dir = joinpath(artifact_dir, Sys.iswindows() ? "bin" : "lib", subdir)
-    isdir(dir) || return String[]
-    paths = String[]
-    # `every` marks a family prefix; otherwise the prefix is a whole library
-    # name, and must not also match a longer one (`libhiprtc-builtins`).
-    for file in readdir(dir)  # sorted, so `libfoo.so` precedes `libfoo.so.N`
-        startswith(file, every ? prefix : prefix * ".") &&
-            occursin("." * Libdl.dlext, file) || continue
-        push!(paths, joinpath(dir, file))
-        every || break
-    end
-    return paths
-end
-
-function preload_bundle()
-    Sys.islinux() || return
-    empty!(preload_log)
-    seen = Set{String}()
-    for (subdir, prefix, every) in PRELOAD_LIBRARIES
-        paths = find_libraries(subdir, prefix, every)
-        if isempty(paths)
-            push!(preload_log, joinpath(subdir, prefix * "*") => :absent)
-            continue
-        end
-        for path in paths
-            resolved = try realpath(path) catch; path end
-            resolved in seen && continue
-            push!(seen, resolved)
-            try
-                # RTLD_LOCAL (Julia's default) already claims the soname.
-                Libdl.dlopen(path)
-                push!(preload_log, path => :loaded)
-            catch err
-                push!(preload_log, path => :failed)
-                @debug "Could not preload $path" exception=(err, catch_backtrace())
-            end
-        end
-    end
-    return
-end
+# The bundle's libraries name their ROCm dependencies by soname and carry a
+# DT_RUNPATH, which the loader searches only after LD_LIBRARY_PATH. A ROCm on
+# LD_LIBRARY_PATH (a module, a uenv, AMD's containers) therefore displaces the
+# bundle's copies of whatever HIP pulls in transitively, mixing two ROCm
+# releases in one process (https://github.com/ROCm/TheRock/issues/7426). The
+# loader reads LD_LIBRARY_PATH once at start-up, so this cannot be undone from
+# inside the process; it is detected and reported instead (see below), and has
+# to be fixed in the environment.
 
 # Variables that point comgr at another ROCm's device libraries. Reported, not
 # removed: which one a bundle honours has moved between ROCm releases.
@@ -173,9 +118,6 @@ function __init__()
     global libhipblaslt = get_library(lib_prefix * "hipblaslt")
     global libhiptensor = get_library(lib_prefix * "hiptensor")
     global libMIOpen = get_library(lib_prefix * "MIOpen")
-
-    # Must precede `AMDGPU.__init__`, which loads HSA and HIP.
-    preload_bundle()
 end
 
 end

@@ -58,7 +58,7 @@ include:
         done;
         export ROCM_PATH="$MERGED_ROCM";
       else
-        unset LLVM_PATH HIP_DEVICE_LIB_PATH DEVICE_LIB_PATH;
+        unset LD_LIBRARY_PATH LLVM_PATH HIP_DEVICE_LIB_PATH DEVICE_LIB_PATH;
       fi;
       exec "$0" "$@"
     ' $JULIA --project -e '
@@ -94,10 +94,12 @@ UnitTest julia 1.13 (system ROCm):
   script: *unit_test_script
   artifacts: *trace_artifacts
 
-# Coverage of the artifact path, what AMDGPU.jl uses by default. A ROCm in the
-# environment can displace the bundle's libamd_comgr, failing the blit-kernel
-# link at the first stream and reporting it as hipErrorOutOfMemory;
-# ROCm_Runtime works around it, see https://github.com/ROCm/TheRock/issues/7426.
+# Coverage of the artifact path, what AMDGPU.jl uses by default. The uenv puts
+# its own ROCm on LD_LIBRARY_PATH and points comgr at it through LLVM_PATH;
+# either mixes that ROCm into the artifact's, failing at the first stream with
+# hipErrorOutOfMemory (https://github.com/ROCm/TheRock/issues/7426). The script
+# above unsets them for this variant; the core tests assert that no foreign
+# ROCm library is loaded.
 UnitTest julia 1.12 (ROCm artifacts):
   extends: .baremetal-runner-beverin-mi300
   variables:
