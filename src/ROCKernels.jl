@@ -1,4 +1,4 @@
-module ROCInterface
+module ROCKernels
 
 export ROCBackend
 
