@@ -1,7 +1,7 @@
-# Run `code` in a subprocess and return its stdout, or `nothing` on crash,
-# timeout, or nonzero exit. The empty `JULIA_LOAD_PATH` keeps the child out of
-# the active project, so `code` must only use `Base`.
-function _version_subprocess(code::String; timeout::Real = 20)::Union{String, Nothing}
+# Run `code` in a subprocess and return its stdout, or why it produced none:
+# `:timeout`, `:crashed`, `:empty`, `:spawn`, `Symbol("exit", code)`. The empty
+# `JULIA_LOAD_PATH` keeps the child out of the active project (`Base` only).
+function _version_subprocess(code::String; timeout::Real = 20)::Union{String, Symbol}
     cmd = `$(Base.julia_cmd()) --startup-file=no -O0 --compile=min -e $code`
     cmd = addenv(cmd, "JULIA_LOAD_PATH" => "")
     out = IOBuffer()
@@ -16,30 +16,34 @@ function _version_subprocess(code::String; timeout::Real = 20)::Union{String, No
         end
         wait(proc)
         close(timer)
-        (timedout[] || !success(proc)) && return nothing
+        timedout[] && return :timeout
+        # A killed process reports the signal, not a nonzero exit code.
+        proc.termsignal == 0 || return :crashed
+        proc.exitcode == 0 || return Symbol("exit", proc.exitcode)
         v = strip(String(take!(out)))
-        return isempty(v) ? nothing : v
+        return isempty(v) ? :empty : String(v)
     catch
-        return nothing
+        return :spawn
     end
 end
 
-# Empty until probed, then the version string or `"err"`.
+# Empty until probed, then the version string or `"err"`; `:ok` until the probe
+# fails, then why it did.
 global _ROCSPARSE_VERSION::String = ""
+global _ROCSPARSE_PROBE_REASON::Symbol = :ok
 
 # rocSPARSE's version query needs a handle, and creating one can segfault on
 # broken ROCm installs (issue #920), so run it out-of-process.
 function _rocsparse_version_isolated(; timeout::Real = 20)
-    global _ROCSPARSE_VERSION
+    global _ROCSPARSE_VERSION, _ROCSPARSE_PROBE_REASON
     isempty(_ROCSPARSE_VERSION) || return _ROCSPARSE_VERSION
 
     lib = repr(librocsparse)  # `repr` so Windows separators survive the parser
-    # HIP loads comgr by soname, so a system ROCm in the environment can displace
-    # the provider's copy. The parent claims the soname first (see
-    # `ROCm_Runtime.preload_bundle`); the child has to do the same. Only comgr:
-    # replaying the parent's whole closure here costs more than the probe's budget.
-    preload = isempty(libamd_comgr) ? "" :
-        "Base.Libc.Libdl.dlopen($(repr(libamd_comgr)); throw_error = false)"
+    # `LD_LIBRARY_PATH` outranks the bundle's `DT_RUNPATH`, so a child that has
+    # claimed nothing queries whatever ROCm the environment provides instead.
+    preload = join(("Base.Libc.Libdl.dlopen($(repr(p)); throw_error = false)"
+        for p in unique([ROCm_Runtime.preload_paths(); libamdhip64; librocblas])
+        if !isempty(p)), "\n")
     out = _version_subprocess("""
         $preload
         handle = Ref{Ptr{Cvoid}}(C_NULL)
@@ -47,12 +51,16 @@ function _rocsparse_version_isolated(; timeout::Real = 20)
             (Ptr{Ptr{Cvoid}},), handle) == 0 || exit(2)
         version = Ref{Cint}(0)
         ccall((:rocsparse_get_version, $lib), Cint,
-            (Ptr{Cvoid}, Ptr{Cint}), handle[], version) == 0 || exit(2)
+            (Ptr{Cvoid}, Ptr{Cint}), handle[], version) == 0 || exit(3)
         print(version[])
         """; timeout)
-    packed = out === nothing ? nothing : tryparse(Int, out)
-    return _ROCSPARSE_VERSION =
-        packed === nothing ? "err" : string(rocSPARSE.decode_version(packed))
+    packed = out isa String ? tryparse(Int, out) : nothing
+    if packed === nothing
+        _ROCSPARSE_PROBE_REASON = out isa Symbol ? out : :unparseable
+        return _ROCSPARSE_VERSION = "err"
+    end
+    _ROCSPARSE_PROBE_REASON = :ok
+    return _ROCSPARSE_VERSION = string(rocSPARSE.decode_version(packed))
 end
 
 """
@@ -91,9 +99,17 @@ function versioninfo(io::IO=stdout)
         alignment=[:c, :l, :l, :l])
 
     if rocsparse_ver == "err"
-        @warn """rocSPARSE is installed but its version query failed (it ran in an \
-            isolated subprocess and crashed or timed out). This usually indicates a \
-            broken or mismatched ROCm install. See \
+        reason = _ROCSPARSE_PROBE_REASON
+        what =
+            reason === :timeout ? "timed out (it runs in an isolated subprocess)" :
+            reason === :crashed ? "crashed (it runs in an isolated subprocess, so \
+                                   this process survived)" :
+            reason === :exit2   ? "could not create a rocSPARSE handle" :
+            reason === :exit3   ? "could not query the version" :
+            "failed ($reason)"
+        @warn """rocSPARSE is installed but its version probe $what. The probe claims \
+            the provider's libraries before querying; if another ROCm is still ahead of \
+            them on `LD_LIBRARY_PATH` it can bind there instead. See \
             https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
     end
 
