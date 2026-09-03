@@ -1,6 +1,4 @@
-module ROCKernels
-
-export ROCBackend
+module AMDGPUKernelAbstractionsEst
 
 import AMDGPU
 import AMDGPU.Device: @device_override
@@ -12,26 +10,6 @@ import LLVM
 
 using StaticArraysCore: MArray
 
-"""
-    ROCBackend <: KernelAbstractions.GPU
-
-KernelAbstractions backend that executes kernels on an AMD GPU via AMDGPU.jl.
-Pass `ROCBackend()` to a KernelAbstractions kernel to run it on the GPU, or
-obtain it from an array with `KernelAbstractions.get_backend(::ROCArray)`.
-"""
-struct ROCBackend <: KA.GPU end
-
-KA.functional(::ROCBackend) = AMDGPU.functional()
-KA.ndevices(::ROCBackend) = AMDGPU.HIP.ndevices()
-KA.device(::ROCBackend) = AMDGPU.device_id()
-function KA.device!(kab::ROCBackend, id::Int)
-    (0 < id <= KA.ndevices(kab)) || throw(ArgumentError("Device id $id out of bounds."))
-    AMDGPU.device_id!(id)
-    return
-end
-
-Adapt.adapt_storage(::ROCBackend, a::AbstractArray) = Adapt.adapt(AMDGPU.ROCArray, a)
-Adapt.adapt_storage(::ROCBackend, a::Union{AMDGPU.ROCArray, GPUArrays.AbstractGPUSparseArray}) = a
 Adapt.adapt_storage(::KA.CPU, a::Union{AMDGPU.ROCArray, GPUArrays.AbstractGPUSparseArray}) =
     Adapt.adapt(Array, a)
 function Adapt.adapt_storage(::KA.ConstAdaptor, a::AMDGPU.ROCDeviceArray{T}) where T
@@ -39,36 +17,7 @@ function Adapt.adapt_storage(::KA.ConstAdaptor, a::AMDGPU.ROCDeviceArray{T}) whe
     AMDGPU.ROCDeviceArray(a.dims, ptr)
 end
 
-KA.get_backend(::AMDGPU.ROCArray) = ROCBackend()
-KA.get_backend(::AMDGPU.rocSPARSE.ROCSparseVector) = ROCBackend()
-KA.get_backend(::AMDGPU.rocSPARSE.ROCSparseMatrixCSC) = ROCBackend()
-KA.get_backend(::AMDGPU.rocSPARSE.ROCSparseMatrixCSR) = ROCBackend()
-
 KA.argconvert(::KA.Kernel{ROCBackend}, arg) = AMDGPU.rocconvert(arg)
-KA.synchronize(::ROCBackend) = AMDGPU.synchronize()
-
-KA.unsafe_free!(x::AMDGPU.ROCArray) = AMDGPU.unsafe_free!(x)
-KA.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
-KA.zeros(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.zeros(T, dims)
-KA.ones(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ones(T, dims)
-
-function KA.priority!(::ROCBackend, priority::Symbol)
-    priority ∉ (:high, :normal, :low) && error(
-        "Priority `$priority` must be one of `:high`, `:normal`, `:low`.")
-    AMDGPU.priority!(priority)
-end
-
-function KA.copyto!(::ROCBackend, A, B)
-    GC.@preserve A B begin
-        copyto!(A, 1, B, 1, length(A))
-    end
-    return
-end
-
-function KA.pagelock!(::ROCBackend, x::Array)
-    AMDGPU.Mem.pin(pointer(x), sizeof(x))
-    return
-end
 
 function KA.launch_config(kernel::KA.Kernel{ROCBackend}, ndrange, workgroupsize)
     if ndrange isa Integer
@@ -140,34 +89,6 @@ function KA.mkcontext(kernel::KA.Kernel{ROCBackend}, I, _ndrange, iterspace, ::D
     metadata = KA.CompilerMetadata{KA.ndrange(kernel), Dynamic}(I, _ndrange, iterspace)
 end
 
-# Indexing.
-
-@device_override @inline function KA.__index_Local_Linear(ctx)
-    return AMDGPU.Device.threadIdx().x
-end
-
-@device_override @inline function KA.__index_Group_Linear(ctx)
-    return AMDGPU.Device.blockIdx().x
-end
-
-@device_override @inline function KA.__index_Global_Linear(ctx)
-    I =  @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
-    # TODO: This is unfortunate, can we get the linear index cheaper
-    @inbounds LinearIndices(KA.__ndrange(ctx))[I]
-end
-
-@device_override @inline function KA.__index_Local_Cartesian(ctx)
-    @inbounds KA.workitems(KA.__iterspace(ctx))[AMDGPU.Device.threadIdx().x]
-end
-
-@device_override @inline function KA.__index_Group_Cartesian(ctx)
-    @inbounds KA.blocks(KA.__iterspace(ctx))[AMDGPU.Device.blockIdx().x]
-end
-
-@device_override @inline function KA.__index_Global_Cartesian(ctx)
-    return @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
-end
-
 @device_override @inline function KA.__validindex(ctx)
     if KA.__dynamic_checkbounds(ctx)
         I = @inbounds KA.expand(KA.__iterspace(ctx), AMDGPU.Device.blockIdx().x, AMDGPU.Device.threadIdx().x)
@@ -177,25 +98,8 @@ end
     end
 end
 
-# Shared memory.
-
-@device_override @inline function KA.SharedMemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
-    ptr = AMDGPU.Device.alloc_special(Val(Id), T, Val(AMDGPU.AS.Local), Val(prod(Dims)))
-    AMDGPU.ROCDeviceArray(Dims, ptr)
-end
-
 @device_override @inline function KA.Scratchpad(ctx, ::Type{T}, ::Val{Dims}) where {T, Dims}
     MArray{KA.__size(Dims), T}(undef)
-end
-
-# Other.
-
-@device_override @inline function KA.__synchronize()
-    AMDGPU.Device.sync_workgroup()
-end
-
-@device_override @inline function KA.__print(args...)
-    # TODO
 end
 
 end

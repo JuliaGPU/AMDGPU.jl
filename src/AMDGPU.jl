@@ -144,14 +144,11 @@ function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where OP <: Union{
     GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, syncscope_agent)
 end
 
-# KernelAbstractions
-include("ROCKernelsOld.jl")
+# KernelInterface
+include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
 
-# KernelInterface
-include("ROCKernels.jl")
-import .ROCInterface
 
 include("precompile.jl")
 
