@@ -9,34 +9,14 @@ using AMDGPU: HIP, Runtime, Device, Mem
     @test AMDGPU.functional() isa Bool
 end
 
-@testset "versioninfo probe isolation" begin
-    probe(code; timeout = 60) = AMDGPU._version_subprocess(code; timeout)
-
-    # A clean child returns its stdout. Library paths reach it through `repr`,
-    # so Windows separators must survive the round trip.
-    @test probe("print(\"4.2.0\")") == "4.2.0"
-    @test probe("print($(repr(raw"C:\rocm\lib")))") == raw"C:\rocm\lib"
-
-    # No package environment, so probing can't trigger a precompile (#1040).
-    @test probe("print(Base.load_path())") == "String[]"
-    @test probe("using Adapt; print(\"loaded\")") === :exit1
-
-    # A failing child reports why without taking down this process — the point
-    # of the isolation: a SIGSEGV in a vendor library (issue #920) must not
-    # crash the caller.
-    @test probe("ccall(:abort, Cvoid, ())") === :crashed       # SIGABRT
-    @test probe("unsafe_store!(Ptr{Int}(0), 0)") === :crashed  # SIGSEGV
-    @test probe("exit(2)") === :exit2                          # nonzero exit
-    @test probe("1 + 1") === :empty                            # no output
-    @test probe("while true; end"; timeout = 2) === :timeout   # hang -> timeout
-
-    # On a working setup the probe returns a version; repeats hit the cache.
+@testset "versioninfo" begin
+    # rocSPARSE is the only library whose version query needs a handle (#920).
     if AMDGPU.functional(:rocsparse)
-        AMDGPU._ROCSPARSE_VERSION = ""
-        v = AMDGPU._rocsparse_version_isolated()
-        @test tryparse(VersionNumber, v) !== nothing
-        @test AMDGPU._rocsparse_version_isolated() === v
+        @test AMDGPU.rocSPARSE.version() isa VersionNumber
     end
+    # Having touched rocSPARSE, nothing from a ROCm outside the artifact may be
+    # loaded: that mixture is silent until something downstream misbehaves.
+    @test isempty(AMDGPU.ROCm_Runtime.foreign_libraries())
 end
 
 @testset "HIPDevice" begin

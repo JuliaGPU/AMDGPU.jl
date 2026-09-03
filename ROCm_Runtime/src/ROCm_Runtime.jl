@@ -87,11 +87,6 @@ const PRELOAD_LIBRARIES = [
 # path => :loaded / :failed, prefix => :absent. Shown by `AMDGPU.versioninfo()`.
 global preload_log::Vector{Pair{String,Symbol}} = Pair{String,Symbol}[]
 
-# What `preload_bundle` claimed, in the order it claimed it. A separate process
-# has to replay this to bind the bundle rather than a ROCm on LD_LIBRARY_PATH.
-preload_paths()::Vector{String} =
-    [path for (path, status) in preload_log if status === :loaded]
-
 function find_libraries(subdir::String, prefix::String, every::Bool)::Vector{String}
     dir = joinpath(artifact_dir, Sys.iswindows() ? "bin" : "lib", subdir)
     isdir(dir) || return String[]
