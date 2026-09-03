@@ -3,8 +3,6 @@ include:
 
 # Slurm/Julia settings shared by all jobs; JULIA is set per Julia version.
 .common_variables: &common_variables
-  UENV: 56ebb909a6164680
-  MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-kxzfucnamke4rlezapmrmrdrkmri325u
   # Workaround for MIOpen CK Group-Xdlops solvers segfaulting on gfx942 (MI300).
   # Remove once fixed upstream: https://github.com/ROCm/rocm-libraries/issues/9088
   MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC: "0"
@@ -38,8 +36,17 @@ include:
 # preference decides, and gates artifact resolution too, so it must be set before
 # Pkg.instantiate(). Both variants set it explicitly and assert the result, so a
 # change of default cannot silently swap the ROCm underneath a job.
+#
+# The uenv provides the system ROCm (and MIOpen) and is mounted only where UENV
+# is set. The artifact variant runs on the bare node, without it: anything of the
+# uenv's ROCm that reaches the process (LD_LIBRARY_PATH, LLVM_PATH, a tool
+# library with an RPATH into it) mixes it into the artifact's, which fails at
+# the first stream with hipErrorOutOfMemory (ROCm/TheRock#7426). The bundle
+# needs nothing but the host's libstdc++ and the driver, and $JULIA is a
+# self-contained install. The core tests assert that no foreign ROCm library is
+# loaded.
 .unit_test_script: &unit_test_script
-  - srun -n 1 --uenv $UENV --view=default bash -c '
+  - srun -n 1 ${UENV:+--uenv $UENV --view=default} bash -c '
       set -euo pipefail;
       ulimit -c 0;
       shopt -s nullglob;
@@ -57,8 +64,6 @@ include:
           ln -s "$libdir"/libMIOpen* "$MERGED_ROCM/lib/" 2>/dev/null || true;
         done;
         export ROCM_PATH="$MERGED_ROCM";
-      else
-        unset LD_LIBRARY_PATH LLVM_PATH HIP_DEVICE_LIB_PATH DEVICE_LIB_PATH;
       fi;
       exec "$0" "$@"
     ' $JULIA --project -e '
@@ -82,6 +87,8 @@ UnitTest julia 1.12 (system ROCm):
     <<: *common_variables
     JULIA: /users/lraess/julia_amd/julia_amd-1.12
     ROCM_LOCAL: "true"
+    UENV: 56ebb909a6164680
+    MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-kxzfucnamke4rlezapmrmrdrkmri325u
   script: *unit_test_script
   artifacts: *trace_artifacts
 
@@ -91,15 +98,13 @@ UnitTest julia 1.13 (system ROCm):
     <<: *common_variables
     JULIA: /users/lraess/julia_amd/julia_amd-1.13
     ROCM_LOCAL: "true"
+    UENV: 56ebb909a6164680
+    MIOPEN_PREFIX: /user-environment/linux-zen3/miopen-hip-7.2.3-kxzfucnamke4rlezapmrmrdrkmri325u
   script: *unit_test_script
   artifacts: *trace_artifacts
 
-# Coverage of the artifact path, what AMDGPU.jl uses by default. The uenv puts
-# its own ROCm on LD_LIBRARY_PATH and points comgr at it through LLVM_PATH;
-# either mixes that ROCm into the artifact's, failing at the first stream with
-# hipErrorOutOfMemory (https://github.com/ROCm/TheRock/issues/7426). The script
-# above unsets them for this variant; the core tests assert that no foreign
-# ROCm library is loaded.
+# Coverage of the artifact path, what AMDGPU.jl uses by default; runs without
+# the uenv, see above.
 UnitTest julia 1.12 (ROCm artifacts):
   extends: .baremetal-runner-beverin-mi300
   variables:
