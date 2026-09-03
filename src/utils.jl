@@ -34,7 +34,13 @@ function _rocsparse_version_isolated(; timeout::Real = 20)
     isempty(_ROCSPARSE_VERSION) || return _ROCSPARSE_VERSION
 
     lib = repr(librocsparse)  # `repr` so Windows separators survive the parser
+    # HIP loads comgr by soname, so a system ROCm in the environment can displace
+    # the provider's copy. The parent claims the soname first (see
+    # `ROCm_Runtime.preload_comgr`); the child has to do the same.
+    preload = isempty(libamd_comgr) ? "" :
+        "Base.Libc.Libdl.dlopen($(repr(libamd_comgr)); throw_error = false)"
     out = _version_subprocess("""
+        $preload
         handle = Ref{Ptr{Cvoid}}(C_NULL)
         ccall((:rocsparse_create_handle, $lib), Cint,
             (Ptr{Ptr{Cvoid}},), handle) == 0 || exit(2)
