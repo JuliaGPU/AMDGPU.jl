@@ -125,12 +125,7 @@ LinearAlgebra.generic_trimatdiv!(
     isunitc, A, C === B ? C : copyto!(C, B))
 
 # GEMV
-# legacy method
-LinearAlgebra.generic_matvecmul!(
-    Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
-    _add::MulAddMul
-) = LinearAlgebra.generic_matvecmul!(Y, tA, A, B, _add.alpha, _add.beta)
-function LinearAlgebra.generic_matvecmul!(
+function LinearAlgebra.mul!(
     Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
     alpha::Number, beta::Number,
 )
@@ -157,7 +152,7 @@ function LinearAlgebra.generic_matvecmul!(
             end
         end
     end
-    LinearAlgebra.generic_matmatmul!(Y, tA, 'N', A, B, alpha, beta)
+    LinearAlgebra.mul!(Y, tA, 'N', A, B, alpha, beta)
 end
 
 #
@@ -168,7 +163,7 @@ end
     function LinearAlgebra.generic_matmatmul_wrapper!(
         C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCVecOrMat{T}, B::StridedROCVecOrMat{T},
         alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:ROCBLASFloatWithHalf}
-        LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
+        LinearAlgebra.mul!(C, tA, tB, A, B, alpha, beta)
     end
     function LinearAlgebra._symm_hemm_generic!(
         C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
@@ -192,13 +187,7 @@ end
     end
 end
 
-# legacy method
-LinearAlgebra.generic_matmatmul!(
-    C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat,
-    B::StridedROCVecOrMat, _add::MulAddMul,
-) = LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-
-function LinearAlgebra.generic_matmatmul!(
+function LinearAlgebra.mul!(
     C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat,
     B::StridedROCVecOrMat, alpha::Number, beta::Number,
 )
@@ -244,6 +233,29 @@ function LinearAlgebra.generic_matmatmul!(
     end
 
     GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
+end
+
+# Julia < 1.13 dispatches on the non-public `generic_matvecmul!` and `generic_matmatmul!`,
+# which JuliaLang/LinearAlgebra.jl#1671 superseded by the `mul!` methods above. Forward from
+# the old names, both the alpha/beta variants (1.12) and the ones taking a final MulAddMul
+# (1.10 and 1.11).
+@static if VERSION < v"1.13.0-rc4"
+    LinearAlgebra.generic_matvecmul!(
+        Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
+        alpha::Number, beta::Number,
+    ) = LinearAlgebra.mul!(Y, tA, A, B, alpha, beta)
+    LinearAlgebra.generic_matvecmul!(
+        Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
+        _add::MulAddMul,
+    ) = LinearAlgebra.mul!(Y, tA, A, B, _add.alpha, _add.beta)
+    LinearAlgebra.generic_matmatmul!(
+        C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat, B::StridedROCVecOrMat,
+        alpha::Number, beta::Number,
+    ) = LinearAlgebra.mul!(C, tA, tB, A, B, alpha, beta)
+    LinearAlgebra.generic_matmatmul!(
+        C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat, B::StridedROCVecOrMat,
+        _add::MulAddMul,
+    ) = LinearAlgebra.mul!(C, tA, tB, A, B, _add.alpha, _add.beta)
 end
 
 LinearAlgebra.generic_trimatmul!(

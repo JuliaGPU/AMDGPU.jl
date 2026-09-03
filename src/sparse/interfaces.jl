@@ -58,37 +58,17 @@ LinearAlgebra.dot(x::DenseROCVector{T}, y::ROCSparseVector{T}) where {T <: BlasR
 LinearAlgebra.dot(x::ROCSparseVector{T}, y::DenseROCVector{T}) where {T <: BlasComplex} = vv!('C', x, y, 'O')
 LinearAlgebra.dot(x::DenseROCVector{T}, y::ROCSparseVector{T}) where {T <: BlasComplex} = conj(dot(y,x))
 
-# legacy methods with final MulAddMul argument
-LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::DenseROCVector{T}, _add::MulAddMul) where T <: BlasFloat =
-    LinearAlgebra.generic_matvecmul!(C, tA, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::ROCSparseVector{T}, _add::MulAddMul) where T <: BlasFloat =
-    LinearAlgebra.generic_matvecmul!(C, tA, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::ROCSparseMatrix{T}, B::DenseROCMatrix{T}, _add::MulAddMul) where T <: BlasFloat =
-    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(
-    C::ROCMatrix{T}, tA, tB,
-    A::Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}},
-    B::DenseROCMatrix{TB}, _add::MulAddMul,
-) where {T <: BlasComplex, TA <: BlasComplex, TB <: BlasReal} =
-    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(
-    C::ROCMatrix{T}, tA, tB,
-    A::Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}},
-    B::DenseROCMatrix{TB}, _add::MulAddMul,
-) where {T <: BlasComplex, TA <: BlasReal, TB <: BlasComplex} =
-    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-
-function LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::DenseROCVector{T}, alpha::Number, beta::Number) where T <: BlasFloat
+function LinearAlgebra.mul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::DenseROCVector{T}, alpha::Number, beta::Number) where T <: BlasFloat
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     mv_wrapper(tA, alpha, A, B, beta, C)
 end
 
-function LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::ROCSparseVector{T}, alpha::Number, beta::Number) where T <: BlasFloat
+function LinearAlgebra.mul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::ROCSparseVector{T}, alpha::Number, beta::Number) where T <: BlasFloat
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     mv_wrapper(tA, alpha, A, ROCVector{T}(B), beta, C)
 end
 
-function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::ROCSparseMatrix{T}, B::DenseROCMatrix{T}, alpha::Number, beta::Number) where T <: BlasFloat
+function LinearAlgebra.mul!(C::ROCMatrix{T}, tA, tB, A::ROCSparseMatrix{T}, B::DenseROCMatrix{T}, alpha::Number, beta::Number) where T <: BlasFloat
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
     mm_wrapper(tA, tB, alpha, A, B, beta, C)
@@ -110,7 +90,7 @@ function Base.:(*)(
     LinearAlgebra.mul!(C, A, B)
 end
 
-function LinearAlgebra.generic_matmatmul!(
+function LinearAlgebra.mul!(
     C::ROCMatrix{T}, tA, tB,
     A::Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}},
     B::DenseROCMatrix{TB},
@@ -125,7 +105,7 @@ function LinearAlgebra.generic_matmatmul!(
     mm_wrapper(tA, tB, alpha, A, B, beta, C)
 end
 
-function LinearAlgebra.generic_matmatmul!(
+function LinearAlgebra.mul!(
     C::ROCMatrix{T}, tA, tB,
     A::Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}},
     B::DenseROCMatrix{TB},
@@ -140,37 +120,17 @@ function LinearAlgebra.generic_matmatmul!(
     mm_wrapper(tA, tB, alpha, A, B, beta, C)
 end
 
-# legacy methods with final MulAddMul argument
-LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSC{T}, _add::MulAddMul) where T <: BlasFloat =
-    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSR{T}, _add::MulAddMul) where T <: BlasFloat =
-    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCOO{T}, _add::MulAddMul) where T <: BlasFloat =
-    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(
-    C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{TA},
-    B::Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}},
-    _add::MulAddMul,
-) where {T <: BlasComplex, TA <: BlasComplex, TB <: BlasReal} =
-    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(
-    C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{TA},
-    B::Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}},
-    _add::MulAddMul,
-) where {T <: BlasComplex, TA <: BlasReal, TB <: BlasComplex} =
-    LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-
-function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSC{T}, alpha::Number, beta::Number) where T <: BlasFloat
+function LinearAlgebra.mul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSC{T}, alpha::Number, beta::Number) where T <: BlasFloat
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
-function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSR{T}, alpha::Number, beta::Number) where T <: BlasFloat
+function LinearAlgebra.mul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSR{T}, alpha::Number, beta::Number) where T <: BlasFloat
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
-function LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCOO{T}, alpha::Number, beta::Number) where T <: BlasFloat
+function LinearAlgebra.mul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCOO{T}, alpha::Number, beta::Number) where T <: BlasFloat
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
@@ -192,7 +152,7 @@ function Base.:(*)(
     LinearAlgebra.mul!(C, A, B)
 end
 
-function LinearAlgebra.generic_matmatmul!(
+function LinearAlgebra.mul!(
     C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{TA},
     B::Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}},
     alpha::Number, beta::Number,
@@ -206,7 +166,7 @@ function LinearAlgebra.generic_matmatmul!(
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
 
-function LinearAlgebra.generic_matmatmul!(
+function LinearAlgebra.mul!(
     C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{TA},
     B::Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}},
     alpha::Number, beta::Number,
@@ -218,6 +178,44 @@ function LinearAlgebra.generic_matmatmul!(
     B = B isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(B) :
         B isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(B) : ROCSparseMatrixCOO{T}(B)
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
+end
+
+# Julia < 1.13 dispatches on the non-public `generic_matvecmul!` and `generic_matmatmul!`,
+# which JuliaLang/LinearAlgebra.jl#1671 superseded by the `mul!` methods above. Forward from
+# the old names, both the alpha/beta variants (1.12) and the ones taking a final MulAddMul
+# (1.10 and 1.11).
+@static if VERSION < v"1.13.0-rc4"
+    for (TA, TB) in ((:(ROCSparseMatrix{T}), :(DenseROCVector{T})),
+                     (:(ROCSparseMatrix{T}), :(ROCSparseVector{T})))
+        @eval begin
+            LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::$TA, B::$TB, alpha::Number, beta::Number) where T <: BlasFloat =
+                LinearAlgebra.mul!(C, tA, A, B, alpha, beta)
+            LinearAlgebra.generic_matvecmul!(C::ROCVector{T}, tA::AbstractChar, A::$TA, B::$TB, _add::MulAddMul) where T <: BlasFloat =
+                LinearAlgebra.mul!(C, tA, A, B, _add.alpha, _add.beta)
+        end
+    end
+    for (TA, TB) in ((:(ROCSparseMatrix{T}), :(DenseROCMatrix{T})),
+                     (:(DenseROCMatrix{T}), :(ROCSparseMatrixCSC{T})),
+                     (:(DenseROCMatrix{T}), :(ROCSparseMatrixCSR{T})),
+                     (:(DenseROCMatrix{T}), :(ROCSparseMatrixCOO{T})))
+        @eval begin
+            LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::$TA, B::$TB, alpha::Number, beta::Number) where T <: BlasFloat =
+                LinearAlgebra.mul!(C, tA, tB, A, B, alpha, beta)
+            LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::$TA, B::$TB, _add::MulAddMul) where T <: BlasFloat =
+                LinearAlgebra.mul!(C, tA, tB, A, B, _add.alpha, _add.beta)
+        end
+    end
+    # mixed real/complex products
+    for (TA, TB) in ((:(Union{ROCSparseMatrixCSC{TA}, ROCSparseMatrixCSR{TA}, ROCSparseMatrixCOO{TA}}), :(DenseROCMatrix{TB})),
+                     (:(DenseROCMatrix{TA}), :(Union{ROCSparseMatrixCSC{TB}, ROCSparseMatrixCSR{TB}, ROCSparseMatrixCOO{TB}}))),
+        (FA, FB) in ((:BlasComplex, :BlasReal), (:BlasReal, :BlasComplex))
+        @eval begin
+            LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::$TA, B::$TB, alpha::Number, beta::Number) where {T <: BlasComplex, TA <: $FA, TB <: $FB} =
+                LinearAlgebra.mul!(C, tA, tB, A, B, alpha, beta)
+            LinearAlgebra.generic_matmatmul!(C::ROCMatrix{T}, tA, tB, A::$TA, B::$TB, _add::MulAddMul) where {T <: BlasComplex, TA <: $FA, TB <: $FB} =
+                LinearAlgebra.mul!(C, tA, tB, A, B, _add.alpha, _add.beta)
+        end
+    end
 end
 
 # +/- for all combinations of plain/transposed/adjoint CSR and CSC, generated via adjtrans_wrappers.
