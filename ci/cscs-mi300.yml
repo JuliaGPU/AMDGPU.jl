@@ -30,13 +30,10 @@ include:
   paths:
     - rocfft-trace.log
 
-# AMDGPU.jl takes ROCm either from the uenv ($ROCM_LOCAL == "true": the merged
-# ROCM_PATH below, resolved through ROCm_Runtime_Discovery) or from the TheRock
-# artifacts shipped by ROCm_Runtime ($ROCM_LOCAL == "false"). Which one is used
-# is decided by ROCm_Runtime's "local" preference; it is a compile-time
-# preference that also gates artifact resolution, so it has to be set before
-# Pkg.instantiate(). It is set explicitly in both variants rather than relying
-# on the default, and the resolved provider is asserted afterwards, so that a
+# ROCm comes from the uenv ($ROCM_LOCAL == "true", via the merged ROCM_PATH below
+# and ROCm_Runtime_Discovery) or from the TheRock artifacts. ROCm_Runtime's "local"
+# preference decides, and gates artifact resolution too, so it must be set before
+# Pkg.instantiate(). Both variants set it explicitly and assert the result, so a
 # change of default cannot silently swap the ROCm underneath a job.
 .unit_test_script: &unit_test_script
   - srun -n 1 --uenv $UENV --view=default bash -c '
@@ -92,11 +89,11 @@ UnitTest julia 1.13 (system ROCm):
   script: *unit_test_script
   artifacts: *trace_artifacts
 
-# Coverage of the artifact path, what AMDGPU.jl uses by default. Allowed to
-# fail for now: with the ROCm 7.14 TheRock bundle, every HIP application failed
-# at its first stream creation on gfx942, reported as hipErrorOutOfMemory even
-# though nothing ran out of memory (https://github.com/ROCm/TheRock/issues/7426).
-# Drop allow_failure once the job is green with the ROCm 10.0 bundle.
+# Coverage of the artifact path, what AMDGPU.jl uses by default. Allowed to fail
+# until green on the 10.0 bundle: a ROCm in the environment can displace the
+# bundle's libamd_comgr, failing the blit-kernel link at the first stream and
+# reporting it as hipErrorOutOfMemory. ROCm_Runtime works around it; see
+# https://github.com/ROCm/TheRock/issues/7426.
 UnitTest julia 1.12 (ROCm artifacts):
   extends: .baremetal-runner-beverin-mi300
   allow_failure: true

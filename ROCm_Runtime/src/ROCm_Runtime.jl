@@ -65,6 +65,27 @@ function get_library(name::String)::String
     return ""
 end
 
+# HIP pulls `libamd_comgr` in transitively, so a system ROCm on LD_LIBRARY_PATH
+# displaces the bundle's. Claim the soname first.
+function preload_comgr()
+    isempty(libamd_comgr) && return
+    try
+        Libdl.dlopen(libamd_comgr)
+    catch err
+        @debug "Could not preload $libamd_comgr" exception=(err, catch_backtrace())
+    end
+    return
+end
+
+# comgr roots its clang driver at LLVM_PATH, which then picks up the device
+# libraries named by ROCM_PATH / HIP_DEVICE_LIB_PATH / DEVICE_LIB_PATH.
+function clear_llvm_path()
+    haskey(ENV, "LLVM_PATH") || return
+    @debug "Unsetting LLVM_PATH ($(ENV["LLVM_PATH"])): it redirects comgr away from the ROCm artifact"
+    delete!(ENV, "LLVM_PATH")
+    return
+end
+
 function __init__()
     global artifact_dir = find_artifact_dir()
     is_available() || return
@@ -84,6 +105,10 @@ function __init__()
     global libhipblaslt = get_library(lib_prefix * "hipblaslt")
     global libhiptensor = get_library(lib_prefix * "hiptensor")
     global libMIOpen = get_library(lib_prefix * "MIOpen")
+
+    # Both must precede `AMDGPU.__init__`, which loads HSA and HIP.
+    preload_comgr()
+    clear_llvm_path()
 end
 
 end
