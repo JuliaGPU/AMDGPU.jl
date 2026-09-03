@@ -445,6 +445,13 @@ function take_ownership!(managed::Managed; stream::HIPStream=AMDGPU.stream())
     return managed
 end
 
+# Fast-path ownership transfer for the kernel-launch path
+@inline function take_ownership_fast!(managed::Managed, stream::HIPStream)
+    (managed.stream === stream && managed.dirty) && return
+    Base.@lock managed.lock take_ownership!(managed; stream)
+    return
+end
+
 function lock_managed(managed::AbstractVector{<:Managed})
     locked = unique(managed)
     sort!(locked; by=m -> objectid(m.lock))
