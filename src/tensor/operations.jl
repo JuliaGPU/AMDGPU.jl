@@ -330,9 +330,8 @@ function contract!(plan::hipTensorPlan,
     return C
 end
 
-# hipTENSOR 2.4 lines a contraction's operands up positionally rather than by mode label,
-# and silently miscomputes every layout but the one checked below; 2.2 handled arbitrary
-# mode orders. See `docs/src/libraries/tensor.md`.
+# hipTENSOR 2.4 returns wrong results, with no error reported, unless a contraction's
+# operands are packed column-major and indexed as checked below.
 const CANONICAL_CONTRACTION_LAYOUT = v"2.4"
 
 # A's free modes, B's free modes, the contracted modes, and any mode shared by all three,
@@ -363,8 +362,8 @@ function check_contraction_layout(
 
     M, N, K, batched = contraction_mode_groups(Ainds, Binds, Cinds)
     isempty(batched) || throw(ArgumentError(
-        "hipTENSOR $(version()) has no layout that contracts correctly with a mode shared " *
-        "by all three operands, but $(batched) " * (length(batched) == 1 ? "is" : "are") *
+        "this wrapper does not support a contraction with a mode shared by all three " *
+        "operands, and $(batched) " * (length(batched) == 1 ? "is" : "are") *
         " shared by A, B and C here."))
 
     problems = String[]
@@ -383,8 +382,8 @@ function check_contraction_layout(
         "hipTENSOR $(version()) only contracts correctly when its operands are packed " *
         "column-major and indexed in the order it expects: A by its free modes followed " *
         "by the contracted ones ($([M; K]) here), B likewise ($([N; K])), and C by A's " *
-        "free modes followed by B's ($([M; N])). It miscomputes every other layout " *
-        "without reporting an error, so this combination is rejected: " *
+        "free modes followed by B's ($([M; N])). Other layouts are miscomputed without " *
+        "an error being reported, so this combination is rejected: " *
         join(problems, ", ") * ". Permute the operands with `permutedims` first."))
 end
 

@@ -31,8 +31,8 @@ eltypes = [(Float32, Float32, Float32, Float32),
         indsoA = allinds[1:NoA]
         indsoB = allinds[NoA .+ (1:NoB)]
         indsc = allinds[NoA .+ NoB .+ (1:Nc)]
-        # hipTENSOR 2.4 only computes the layout `check_contraction_layout` enforces;
-        # random mode orders are meaningful only on the versions that accept them.
+        # `check_contraction_layout` rejects other layouts on hipTENSOR 2.4 and above, so
+        # use the canonical one there; random orders still exercise earlier versions.
         canonical_layout = hipTENSOR.version() >= v"2.4"
         pA = canonical_layout ? collect(1:(NoA + Nc))        : randperm(NoA + Nc)
         pB = canonical_layout ? [(Nc + 1):(Nc + NoB); 1:Nc]  : randperm(Nc + NoB)
