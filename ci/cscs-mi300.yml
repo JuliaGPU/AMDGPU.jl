@@ -89,14 +89,12 @@ UnitTest julia 1.13 (system ROCm):
   script: *unit_test_script
   artifacts: *trace_artifacts
 
-# Coverage of the artifact path, what AMDGPU.jl uses by default. Allowed to fail
-# until green on the 10.0 bundle: a ROCm in the environment can displace the
-# bundle's libamd_comgr, failing the blit-kernel link at the first stream and
-# reporting it as hipErrorOutOfMemory. ROCm_Runtime works around it; see
-# https://github.com/ROCm/TheRock/issues/7426.
+# Coverage of the artifact path, what AMDGPU.jl uses by default. A ROCm in the
+# environment can displace the bundle's libamd_comgr, failing the blit-kernel
+# link at the first stream and reporting it as hipErrorOutOfMemory;
+# ROCm_Runtime works around it, see https://github.com/ROCm/TheRock/issues/7426.
 UnitTest julia 1.12 (ROCm artifacts):
   extends: .baremetal-runner-beverin-mi300
-  allow_failure: true
   variables:
     <<: *common_variables
     JULIA: /users/lraess/julia_amd/julia_amd-1.12
