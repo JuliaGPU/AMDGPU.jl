@@ -31,11 +31,14 @@ eltypes = [(Float32, Float32, Float32, Float32),
         indsoA = allinds[1:NoA]
         indsoB = allinds[NoA .+ (1:NoB)]
         indsc = allinds[NoA .+ NoB .+ (1:Nc)]
-        pA = randperm(NoA + Nc)
+        # `check_contraction_layout` rejects other layouts on hipTENSOR 2.4 and above, so
+        # use the canonical one there; random orders still exercise earlier versions.
+        canonical_layout = hipTENSOR.version() >= v"2.4"
+        pA = canonical_layout ? collect(1:(NoA + Nc))        : randperm(NoA + Nc)
+        pB = canonical_layout ? [(Nc + 1):(Nc + NoB); 1:Nc]  : randperm(Nc + NoB)
+        pC = canonical_layout ? collect(1:(NoA + NoB))       : randperm(NoA + NoB)
         ipA = invperm(pA)
-        pB = randperm(Nc + NoB)
         ipB = invperm(pB)
-        pC = randperm(NoA + NoB)
         ipC = invperm(pC)
         compute_rtol = (eltyCompute == Float16 || eltyC == Float16) ? 1e-2 : (eltyCompute == Float32 ? 1e-4 : 1e-6)
         dimsA = [dimsoA; dimsc][pA]
@@ -141,42 +144,71 @@ eltypes = [(Float32, Float32, Float32, Float32),
             # silently ignores it: the results below are the unconjugated products. These
             # are `@test_broken` so that they start failing again once that is fixed.
             @testset "with conjugation flag for complex arguments" begin
-                if eltyA <: Complex
-                    opA   = AMDGPU.hipTENSOR.OP_CONJ
-                    opB   = AMDGPU.hipTENSOR.OP_IDENTITY
-                    opOut = AMDGPU.hipTENSOR.OP_IDENTITY
-                    dC    = contract!(complex(1.0, 0.0), dA, indsA, opA, dB, indsB, opB,
-                                                    0, dC, indsC, opC, opOut; compute_type=eltyCompute)
-                    C     = collect(dC)
-                    mC    = reshape(permutedims(C, ipC), (loA, loB))
-                    @test_broken isapprox(mC, conj(mA) * mB; rtol=compute_rtol)
-                    @test mC ≈ mA * mB rtol=compute_rtol   # opA was ignored
-                end
-                if eltyB <: Complex
-                    opA = AMDGPU.hipTENSOR.OP_IDENTITY
-                    opB = AMDGPU.hipTENSOR.OP_CONJ
-                    opOut = AMDGPU.hipTENSOR.OP_IDENTITY
-                    dC = contract!(complex(1.0, 0.0), dA, indsA, opA, dB, indsB, opB,
-                                   complex(0.0, 0.0), dC, indsC, opC, opOut; compute_type=eltyCompute)
-                    C = collect(dC)
-                    mC = reshape(permutedims(C, ipC), (loA, loB))
-                    @test_broken isapprox(mC, mA * conj(mB); rtol=compute_rtol)
-                    @test mC ≈ mA * mB rtol=compute_rtol   # opB was ignored
-                end
-                if eltyA <: Complex && eltyB <: Complex
-                    opA = AMDGPU.hipTENSOR.OP_CONJ
-                    opB = AMDGPU.hipTENSOR.OP_CONJ
-                    opOut = AMDGPU.hipTENSOR.OP_IDENTITY
-                    dC = contract!(one(eltyCompute), dA, indsA, opA, dB, indsB, opB,
-                            zero(eltyCompute), dC, indsC, opC, opOut; compute_type=eltyCompute)
-                    C = collect(dC)
-                    mC = reshape(permutedims(C, ipC), (loA, loB))
-                    @test_broken isapprox(mC, conj(mA) * conj(mB); rtol=compute_rtol)
-                    @test mC ≈ mA * mB rtol=compute_rtol   # opA and opB were ignored
+                if canonical_layout
+                    # 2.4 rejects OP_CONJ outright, failing `hiptensorCreatePlan`
+                    if eltyA <: Complex
+                        @test_throws hipTENSOR.hipTENSORError contract!(
+                            complex(1.0, 0.0), dA, indsA, AMDGPU.hipTENSOR.OP_CONJ,
+                            dB, indsB, AMDGPU.hipTENSOR.OP_IDENTITY,
+                            0, dC, indsC, opC, AMDGPU.hipTENSOR.OP_IDENTITY;
+                            compute_type=eltyCompute)
+                    end
+                    if eltyB <: Complex
+                        @test_throws hipTENSOR.hipTENSORError contract!(
+                            complex(1.0, 0.0), dA, indsA, AMDGPU.hipTENSOR.OP_IDENTITY,
+                            dB, indsB, AMDGPU.hipTENSOR.OP_CONJ,
+                            complex(0.0, 0.0), dC, indsC, opC, AMDGPU.hipTENSOR.OP_IDENTITY;
+                            compute_type=eltyCompute)
+                    end
+                else
+                    if eltyA <: Complex
+                        opA   = AMDGPU.hipTENSOR.OP_CONJ
+                        opB   = AMDGPU.hipTENSOR.OP_IDENTITY
+                        opOut = AMDGPU.hipTENSOR.OP_IDENTITY
+                        dC    = contract!(complex(1.0, 0.0), dA, indsA, opA, dB, indsB, opB,
+                                                        0, dC, indsC, opC, opOut; compute_type=eltyCompute)
+                        C     = collect(dC)
+                        mC    = reshape(permutedims(C, ipC), (loA, loB))
+                        @test_broken isapprox(mC, conj(mA) * mB; rtol=compute_rtol)
+                        @test mC ≈ mA * mB rtol=compute_rtol   # opA was ignored
+                    end
+                    if eltyB <: Complex
+                        opA = AMDGPU.hipTENSOR.OP_IDENTITY
+                        opB = AMDGPU.hipTENSOR.OP_CONJ
+                        opOut = AMDGPU.hipTENSOR.OP_IDENTITY
+                        dC = contract!(complex(1.0, 0.0), dA, indsA, opA, dB, indsB, opB,
+                                       complex(0.0, 0.0), dC, indsC, opC, opOut; compute_type=eltyCompute)
+                        C = collect(dC)
+                        mC = reshape(permutedims(C, ipC), (loA, loB))
+                        @test_broken isapprox(mC, mA * conj(mB); rtol=compute_rtol)
+                        @test mC ≈ mA * mB rtol=compute_rtol   # opB was ignored
+                    end
+                    if eltyA <: Complex && eltyB <: Complex
+                        opA = AMDGPU.hipTENSOR.OP_CONJ
+                        opB = AMDGPU.hipTENSOR.OP_CONJ
+                        opOut = AMDGPU.hipTENSOR.OP_IDENTITY
+                        dC = contract!(one(eltyCompute), dA, indsA, opA, dB, indsB, opB,
+                                zero(eltyCompute), dC, indsC, opC, opOut; compute_type=eltyCompute)
+                        C = collect(dC)
+                        mC = reshape(permutedims(C, ipC), (loA, loB))
+                        @test_broken isapprox(mC, conj(mA) * conj(mB); rtol=compute_rtol)
+                        @test mC ≈ mA * mB rtol=compute_rtol   # opA and opB were ignored
+                    end
                 end
             end
             AMDGPU.synchronize()
         end
+    end
+end
+
+@testset "layouts hipTENSOR miscomputes are rejected" begin
+    if hipTENSOR.version() >= v"2.4"
+        dA = ROCArray(rand(Float32, 2, 4))
+        dB = ROCArray(rand(Float32, 4, 3))   # indexed [K, N]; hipTENSOR 2.4 needs [N, K]
+        dC = ROCArray(zeros(Float32, 2, 3))
+        op = AMDGPU.hipTENSOR.OP_IDENTITY
+        @test_throws ArgumentError contract!(1f0, dA, ['a', 'k'], op, dB, ['k', 'b'], op,
+                                             0f0, dC, ['a', 'b'], op, op)
     end
 end
 
@@ -198,7 +230,8 @@ end
         vD = @view dD[3:6]
         tA = hipTensor(reshape(vA, (4, 1)), [1, 2])
         tB = hipTensor(reshape(vB, (1, 1)), [3, 2])
-        tC = hipTensor(reshape(vC, (1, 4)), [3, 1])
+        # C must be indexed by A's free modes then B's; see `check_contraction_layout`
+        tC = hipTensor(reshape(vC, (4, 1)), [1, 3])
         mul!(tC, tA, tB)
     end
 end
