@@ -8,3 +8,7 @@ which can be used to perform operations on high-dimensional arrays. However, the
   operator passed as `opABC` to `A` and `B`, and the one passed as `opAB` to that intermediate result and `C`. This is currently handled by our wrapper.
 - Unlike NVIDIA's `cuTENSOR`, `hipTENSOR` wants a *complex* compute descriptor for complex operands: pairing e.g. `ComplexF32` tensors with `HIPTENSOR_COMPUTE_DESC_32F` makes
   `hiptensorCreatePlan` fail with `HIPTENSOR_STATUS_EXECUTION_FAILED`
+- from `hipTENSOR` 2.4 on, a contraction is only computed correctly when every operand is packed column-major and indexed with the free modes before the contracted ones:
+  `A = [M…, K…]`, `B = [N…, K…]`, `C = D = [M…, N…]`. Other layouts come back wrong with no error reported, so `plan_contraction` rejects them with an `ArgumentError` —
+  permute the operands with `permutedims` first
+- on `hipTENSOR` 2.4, `HIPTENSOR_OP_CONJ` on a contraction's input makes `hiptensorCreatePlan` fail with `HIPTENSOR_STATUS_EXECUTION_FAILED`

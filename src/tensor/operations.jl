@@ -330,6 +330,63 @@ function contract!(plan::hipTensorPlan,
     return C
 end
 
+# hipTENSOR 2.4 returns wrong results, with no error reported, unless a contraction's
+# operands are packed column-major and indexed as checked below.
+const CANONICAL_CONTRACTION_LAYOUT = v"2.4"
+
+# A's free modes, B's free modes, the contracted modes, and any mode shared by all three,
+# each in the order its owner declares them
+function contraction_mode_groups(Ainds::ModeType, Binds::ModeType, Cinds::ModeType)
+    M = [mode for mode in Cinds if mode in Ainds && !(mode in Binds)]
+    N = [mode for mode in Cinds if mode in Binds && !(mode in Ainds)]
+    K = [mode for mode in Ainds if mode in Binds && !(mode in Cinds)]
+    batched = [mode for mode in Cinds if mode in Ainds && mode in Binds]
+    return M, N, K, batched
+end
+
+# does `X` have the generalised packed column-major layout hipTENSOR assumes?
+function is_packed(@nospecialize(X::AbstractArray))
+    expected = 1
+    for (i, len) in enumerate(size(X))
+        stride(X, i) == expected || return false
+        expected *= len
+    end
+    return true
+end
+
+function check_contraction_layout(
+        @nospecialize(A::AbstractArray), Ainds::ModeType,
+        @nospecialize(B::AbstractArray), Binds::ModeType,
+        @nospecialize(C::AbstractArray), Cinds::ModeType)
+    version() < CANONICAL_CONTRACTION_LAYOUT && return nothing
+
+    M, N, K, batched = contraction_mode_groups(Ainds, Binds, Cinds)
+    isempty(batched) || throw(ArgumentError(
+        "this wrapper does not support a contraction with a mode shared by all three " *
+        "operands, and $(batched) " * (length(batched) == 1 ? "is" : "are") *
+        " shared by A, B and C here."))
+
+    problems = String[]
+    collect(Ainds) == [M; K] ||
+        push!(problems, "A is indexed by $(collect(Ainds)) instead of $([M; K])")
+    collect(Binds) == [N; K] ||
+        push!(problems, "B is indexed by $(collect(Binds)) instead of $([N; K])")
+    collect(Cinds) == [M; N] ||
+        push!(problems, "C is indexed by $(collect(Cinds)) instead of $([M; N])")
+    is_packed(A) || push!(problems, "A is not packed column-major")
+    is_packed(B) || push!(problems, "B is not packed column-major")
+    is_packed(C) || push!(problems, "C is not packed column-major")
+    isempty(problems) && return nothing
+
+    throw(ArgumentError(
+        "hipTENSOR $(version()) only contracts correctly when its operands are packed " *
+        "column-major and indexed in the order it expects: A by its free modes followed " *
+        "by the contracted ones ($([M; K]) here), B likewise ($([N; K])), and C by A's " *
+        "free modes followed by B's ($([M; N])). Other layouts are miscomputed without " *
+        "an error being reported, so this combination is rejected: " *
+        join(problems, ", ") * ". Permute the operands with `permutedims` first."))
+end
+
 function plan_contraction(
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::hiptensorOperator_t,
         @nospecialize(B::AbstractArray), Binds::ModeType, opB::hiptensorOperator_t,
@@ -353,6 +410,8 @@ function plan_contraction(
     length(modeB) == ndims(B) || throw(ArgumentError("Binds must match number of dimensions in B!"))
     modeC = collect(Cint, Cinds)
     length(modeC) == ndims(C) || throw(ArgumentError("Cinds must match number of dimensions in C!"))
+
+    check_contraction_layout(A, Ainds, B, Binds, C, Cinds)
 
     compute_desc = compute_descriptor(compute_type === nothing ?
         default_compute_type(contraction_compute_types, "contraction",

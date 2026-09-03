@@ -48,12 +48,11 @@ lib_state() = library_state(
 handle() = lib_state().handle
 stream() = lib_state().stream
 
+# `hiptensorGetVersion` encodes `major * 1_000_000 + minor * 1_000 + patch` (2.4.0 reports
+# 2004000), not cuTENSOR's `major * 10_000 + minor * 100 + patch`.
 function version()
     ver = hiptensorGetVersion()
-    major = ver ÷ 10000
-    minor = (ver ÷ 100) % 100
-    patch = ver % 100
-    return VersionNumber(join((major,minor,patch), "."))
+    return VersionNumber(ver ÷ 1_000_000, (ver ÷ 1_000) % 1_000, ver % 1_000)
 end
 
 end
