@@ -12,6 +12,17 @@ rocm_arch = "gfx908"
     url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx908-10.0.0.tar.gz"
 [[ROCm_Runtime]]
 arch = "x86_64"
+git-tree-sha1 = "ecd6fa45b838b9657a822d59b1fea517909606f3"
+lazy = true
+os = "windows"
+rocm = "10.0"
+rocm_arch = "gfx908"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "540fe72255f2a6e689e84ae397f84d9b5b0a364a8fbbdc71aef760d24f90c52b"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx908-10.0.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
 git-tree-sha1 = "8876f83a5e596890e4b20dbec46f204b25e3e900"
 lazy = true
 libc = "glibc"
@@ -22,6 +33,17 @@ rocm_arch = "gfx90a"
     [[ROCm_Runtime.download]]
     sha256 = "19cc76973a79622fd9d9be67101abf2c2a0a997658083e359c5b9accf10fef79"
     url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx90a-10.0.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "1a9204b2728852b8918a50220102b177a2f651c8"
+lazy = true
+os = "windows"
+rocm = "10.0"
+rocm_arch = "gfx90a"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "e50d093592e5e74325e78f1936872a9fd4e9fb8c47784416fb8260819a02a781"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx90a-10.0.0.tar.gz"
 [[ROCm_Runtime]]
 arch = "x86_64"
 git-tree-sha1 = "fa17307c250e615312df7f304bebedd3f1493dc1"
@@ -46,6 +68,18 @@ rocm_arch = "gfx950_dcgpu"
     [[ROCm_Runtime.download]]
     sha256 = "3bf27df141e78dbb14e4e1af3b5f8a4238ff8bf97565ccedd965ae4dddc5e9c8"
     url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx950-dcgpu-10.0.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "44352ef67849d04e76f27958918a607de8c9659b"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.0"
+rocm_arch = "gfx125x_dcgpu"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "cb4c2b37fa496cca0ae7f6372cd759a590539d628144270dbec1d6f9af18be41"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx125X-dcgpu-10.0.0.tar.gz"
 [[ROCm_Runtime]]
 arch = "x86_64"
 git-tree-sha1 = "26746d22267fefdb540aaac6d73b890b1ba49fda"

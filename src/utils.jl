@@ -1,10 +1,9 @@
-# Run `code` in a short-lived subprocess and return its stdout, or `nothing` if
-# it crashed, timed out, or exited nonzero. Isolates version probes that can
-# segfault on broken ROCm installs, where SIGSEGV isn't catchable in-process.
-function _version_subprocess(code::String; timeout::Real = 60)
-    project = Base.active_project()
-    projarg = project === nothing ? "@." : dirname(project)
-    cmd = `$(Base.julia_cmd()) --startup-file=no --project=$projarg -e $code`
+# Run `code` in a subprocess and return its stdout, or `nothing` on crash,
+# timeout, or nonzero exit. The empty `JULIA_LOAD_PATH` keeps the child out of
+# the active project, so `code` must only use `Base`.
+function _version_subprocess(code::String; timeout::Real = 20)::Union{String, Nothing}
+    cmd = `$(Base.julia_cmd()) --startup-file=no -O0 --compile=min -e $code`
+    cmd = addenv(cmd, "JULIA_LOAD_PATH" => "")
     out = IOBuffer()
     try
         proc = run(pipeline(ignorestatus(cmd); stdout = out, stderr = devnull); wait = false)
@@ -25,14 +24,35 @@ function _version_subprocess(code::String; timeout::Real = 60)
     end
 end
 
-# rocSPARSE's version query needs a handle, which inits a HIP context and can
-# segfault on broken ROCm installs (issue #920). Probe it out-of-process so a
-# crash degrades to `"err"` instead of killing the session.
-_rocsparse_version_isolated(; timeout::Real = 60) = _version_subprocess("""
-    using AMDGPU
-    AMDGPU.functional(:rocsparse) || exit(2)
-    print(AMDGPU.rocSPARSE.version())
-    """; timeout)
+# Empty until probed, then the version string or `"err"`.
+global _ROCSPARSE_VERSION::String = ""
+
+# rocSPARSE's version query needs a handle, and creating one can segfault on
+# broken ROCm installs (issue #920), so run it out-of-process.
+function _rocsparse_version_isolated(; timeout::Real = 20)
+    global _ROCSPARSE_VERSION
+    isempty(_ROCSPARSE_VERSION) || return _ROCSPARSE_VERSION
+
+    lib = repr(librocsparse)  # `repr` so Windows separators survive the parser
+    # HIP loads comgr by soname, so a system ROCm in the environment can displace
+    # the provider's copy. The parent claims the soname first (see
+    # `ROCm_Runtime.preload_comgr`); the child has to do the same.
+    preload = isempty(libamd_comgr) ? "" :
+        "Base.Libc.Libdl.dlopen($(repr(libamd_comgr)); throw_error = false)"
+    out = _version_subprocess("""
+        $preload
+        handle = Ref{Ptr{Cvoid}}(C_NULL)
+        ccall((:rocsparse_create_handle, $lib), Cint,
+            (Ptr{Ptr{Cvoid}},), handle) == 0 || exit(2)
+        version = Ref{Cint}(0)
+        ccall((:rocsparse_get_version, $lib), Cint,
+            (Ptr{Cvoid}, Ptr{Cint}), handle[], version) == 0 || exit(2)
+        print(version[])
+        """; timeout)
+    packed = out === nothing ? nothing : tryparse(Int, out)
+    return _ROCSPARSE_VERSION =
+        packed === nothing ? "err" : string(rocSPARSE.decode_version(packed))
+end
 
 """
     versioninfo(io::IO=stdout)
@@ -50,13 +70,7 @@ function versioninfo(io::IO=stdout)
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
 
     # `"err"` = present but the out-of-process version probe crashed/timed out.
-    rocsparse_failed = false
-    rocsparse_ver = if functional(:rocsparse)
-        v = _rocsparse_version_isolated()
-        v === nothing ? (rocsparse_failed = true; "err") : v
-    else
-        "-"
-    end
+    rocsparse_ver = functional(:rocsparse) ? _rocsparse_version_isolated() : "-"
 
     data = String[
         _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_path);
@@ -75,7 +89,7 @@ function versioninfo(io::IO=stdout)
         "Available", "Name", "Version", "Path"],
         alignment=[:c, :l, :l, :l])
 
-    if rocsparse_failed
+    if rocsparse_ver == "err"
         @warn """rocSPARSE is installed but its version query failed (it ran in an \
             isolated subprocess and crashed or timed out). This usually indicates a \
             broken or mismatched ROCm install. See \

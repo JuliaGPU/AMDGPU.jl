@@ -12,6 +12,7 @@ using LinearAlgebra
 using LinearAlgebra: AdjOrTrans, MulAddMul
 using LinearAlgebra: wrap, UpperOrLowerTriangular
 using CEnum
+using BFloat16s: BFloat16
 
 const rocblas_half = Float16
 const rocblas_float_complex = ComplexF32

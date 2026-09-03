@@ -191,6 +191,8 @@ end
 function _compiler_config(dev::HIP.HIPDevice;
     name::Union{String, Nothing} = nothing, kernel::Bool = true,
     unsafe_fp_atomics::Bool = true, wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
+    minthreads::Union{Nothing, Int, Dims} = nothing,
+    maxthreads::Union{Nothing, Int, Dims} = nothing,
 )
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
     if !isempty(features)
@@ -203,7 +205,7 @@ function _compiler_config(dev::HIP.HIPDevice;
         features * "+wavefrontsize32,-wavefrontsize64"
     end
 
-    target = GCNCompilerTarget(; dev_isa, features)
+    target = GCNCompilerTarget(; dev_isa, features, minthreads, maxthreads)
     params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics)
     CompilerConfig(target, params; kernel, name, always_inline=true)
 end
@@ -222,6 +224,12 @@ The following kwargs are supported:
     A unique name to give a compiled kernel.
 - `unsafe_fp_atomics::Bool = true`:
     Whether to use 'unsafe' floating-point atomics.
+- `maxthreads::Union{Nothing, Int, Dims} = nothing`:
+    An upper bound on the workgroup size the kernel will be launched with
+    (`__launch_bounds__` equivalent); lets the backend size its register
+    budget for the actual occupancy target instead of 1024-item workgroups.
+- `minthreads::Union{Nothing, Int, Dims} = nothing`:
+    The workgroup size the kernel is guaranteed to be launched with.
     AMD GPU devices support fast atomic read-modify-write (RMW)
     operations on floating-point values.
     On single- or double-precision floating-point values this may generate

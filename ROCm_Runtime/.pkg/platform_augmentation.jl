@@ -41,6 +41,10 @@ end
 # marketing-name substrings => gfx architecture family, for hosts where we cannot
 # query the driver for the real architecture (i.e. Windows)
 const device_name_archs = [
+    # CDNA2: Instinct MI210 / MI250 / MI250X
+    ["mi210", "mi250"] => "gfx90a",
+    # CDNA: Instinct MI100
+    ["mi100"] => "gfx908",
     # STX Halo iGPUs: Radeon 8050S / 8060S Graphics
     ["8050s", "8060s", "device 1586"] => "gfx1151",
     # STX Point iGPUs: Radeon 880M / 890M Graphics
