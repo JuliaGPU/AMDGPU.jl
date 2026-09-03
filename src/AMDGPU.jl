@@ -234,6 +234,24 @@ function __init__()
         end
     end
 
+    # Another ROCm in the environment breaks compilation in ways that surface far
+    # from the cause, so name it up front.
+    if !local_rocm && functional(:hip)
+        redirects = ROCm_Runtime.redirect_env()
+        isempty(redirects) || @warn """These variables point at another ROCm's device \
+            libraries, which will be used in preference to the ones this artifact ships. \
+            Compilation may fail or produce wrong results, and is often reported as an \
+            unrelated error. Unset them, or select the local ROCm with \
+            `AMDGPU.set_rocm_version!(; local_rocm=true)`.""" redirects
+
+        foreign = ROCm_Runtime.foreign_libraries()
+        isempty(foreign) || @warn """ROCm libraries from outside this artifact are loaded \
+            into the process, so two ROCm versions are live at once. Compilation may fail \
+            or produce wrong results, and is often reported as an unrelated error. This \
+            usually means LD_LIBRARY_PATH points at another ROCm (a module, a uenv, a \
+            container); it has to be unset before Julia starts.""" foreign
+    end
+
     hiplibs = (
         ("rocBLAS", :rocblas), ("rocSPARSE", :rocsparse), ("rocSOLVER", :rocsolver),
         ("rocRAND", :rocrand), ("rocFFT", :rocfft), ("MIOpen", :MIOpen))

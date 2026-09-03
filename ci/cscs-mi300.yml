@@ -20,6 +20,9 @@ include:
   JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia" # overrides default ~/.julia
   JULIA_AMDGPU_CORE_MUST_LOAD: "1"
   JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+  # Job-scoped: comgr's cache key omits the device-library paths.
+  # The default ~/.cache/comgr persists across runs and ROCm versions on a shared runner.
+  AMD_COMGR_CACHE_DIR: "${CI_PROJECT_DIR}/.comgr-cache"
   # Trace layer: prints the exception behind an opaque rocfft_status_failure.
   ROCFFT_LAYER: "1"
   ROCFFT_LOG_TRACE_PATH: "${CI_PROJECT_DIR}/rocfft-trace.log"
@@ -54,6 +57,8 @@ include:
           ln -s "$libdir"/libMIOpen* "$MERGED_ROCM/lib/" 2>/dev/null || true;
         done;
         export ROCM_PATH="$MERGED_ROCM";
+      else
+        unset LLVM_PATH HIP_DEVICE_LIB_PATH DEVICE_LIB_PATH;
       fi;
       exec "$0" "$@"
     ' $JULIA --project -e '

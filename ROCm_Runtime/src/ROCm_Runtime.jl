@@ -65,25 +65,83 @@ function get_library(name::String)::String
     return ""
 end
 
-# HIP pulls `libamd_comgr` in transitively, so a system ROCm on LD_LIBRARY_PATH
-# displaces the bundle's. Claim the soname first.
-function preload_comgr()
-    isempty(libamd_comgr) && return
-    try
-        Libdl.dlopen(libamd_comgr)
-    catch err
-        @debug "Could not preload $libamd_comgr" exception=(err, catch_backtrace())
+# Claimed from the bundle before LD_LIBRARY_PATH can resolve them elsewhere.
+# Leaves first, as (subdirectory of the library directory, prefix, open all).
+const PRELOAD_LIBRARIES = [
+    ("rocm_sysdeps/lib", "librocm_sysdeps_",        true),
+    ("llvm/lib",         "libLLVM",                 false),
+    ("llvm/lib",         "libclang-cpp",            false),
+    ("",                 "librocprofiler-register", false),
+    ("",                 "libhsa-runtime64",        false),
+    ("",                 "libamd_comgr",            false),
+    ("",                 "libhiprtc",               false),
+    ("",                 "librocm_kpack",           false),
+]
+
+# path => :loaded / :failed, prefix => :absent. Shown by `AMDGPU.versioninfo()`.
+global preload_log::Vector{Pair{String,Symbol}} = Pair{String,Symbol}[]
+
+function find_libraries(subdir::String, prefix::String, every::Bool)::Vector{String}
+    dir = joinpath(artifact_dir, Sys.iswindows() ? "bin" : "lib", subdir)
+    isdir(dir) || return String[]
+    paths = String[]
+    # `every` marks a family prefix; otherwise the prefix is a whole library
+    # name, and must not also match a longer one (`libhiprtc-builtins`).
+    for file in readdir(dir)  # sorted, so `libfoo.so` precedes `libfoo.so.N`
+        startswith(file, every ? prefix : prefix * ".") &&
+            occursin("." * Libdl.dlext, file) || continue
+        push!(paths, joinpath(dir, file))
+        every || break
+    end
+    return paths
+end
+
+function preload_bundle()
+    Sys.islinux() || return
+    empty!(preload_log)
+    seen = Set{String}()
+    for (subdir, prefix, every) in PRELOAD_LIBRARIES
+        paths = find_libraries(subdir, prefix, every)
+        if isempty(paths)
+            push!(preload_log, joinpath(subdir, prefix * "*") => :absent)
+            continue
+        end
+        for path in paths
+            resolved = try realpath(path) catch; path end
+            resolved in seen && continue
+            push!(seen, resolved)
+            try
+                # RTLD_LOCAL (Julia's default) already claims the soname.
+                Libdl.dlopen(path)
+                push!(preload_log, path => :loaded)
+            catch err
+                push!(preload_log, path => :failed)
+                @debug "Could not preload $path" exception=(err, catch_backtrace())
+            end
+        end
     end
     return
 end
 
-# comgr roots its clang driver at LLVM_PATH, which then picks up the device
-# libraries named by ROCM_PATH / HIP_DEVICE_LIB_PATH / DEVICE_LIB_PATH.
-function clear_llvm_path()
-    haskey(ENV, "LLVM_PATH") || return
-    @debug "Unsetting LLVM_PATH ($(ENV["LLVM_PATH"])): it redirects comgr away from the ROCm artifact"
-    delete!(ENV, "LLVM_PATH")
-    return
+# Variables that point comgr at another ROCm's device libraries. Reported, not
+# removed: which one a bundle honours has moved between ROCm releases.
+const REDIRECT_ENV = ["LLVM_PATH", "HIP_DEVICE_LIB_PATH", "DEVICE_LIB_PATH"]
+
+redirect_env() = [name => ENV[name] for name in REDIRECT_ENV if haskey(ENV, name)]
+
+# ROCm libraries mapped from outside the bundle: two ROCm versions live at once.
+const FOREIGN_LIBRARY_NAMES = [
+    "libamd_comgr", "libhsa-runtime64", "libamdhip64", "libhiprtc",
+    "librocprofiler-register", "librocm_kpack", "libLLVM", "libclang-cpp",
+]
+
+function foreign_libraries()::Vector{String}
+    isempty(artifact_dir) && return String[]
+    julia_dir = dirname(Sys.BINDIR)  # Julia ships its own libLLVM
+    return filter(Libdl.dllist()) do path
+        any(n -> startswith(basename(path), n), FOREIGN_LIBRARY_NAMES) &&
+            !startswith(path, artifact_dir) && !startswith(path, julia_dir)
+    end
 end
 
 function __init__()
@@ -106,9 +164,8 @@ function __init__()
     global libhiptensor = get_library(lib_prefix * "hiptensor")
     global libMIOpen = get_library(lib_prefix * "MIOpen")
 
-    # Both must precede `AMDGPU.__init__`, which loads HSA and HIP.
-    preload_comgr()
-    clear_llvm_path()
+    # Must precede `AMDGPU.__init__`, which loads HSA and HIP.
+    preload_bundle()
 end
 
 end

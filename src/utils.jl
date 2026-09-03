@@ -36,7 +36,8 @@ function _rocsparse_version_isolated(; timeout::Real = 20)
     lib = repr(librocsparse)  # `repr` so Windows separators survive the parser
     # HIP loads comgr by soname, so a system ROCm in the environment can displace
     # the provider's copy. The parent claims the soname first (see
-    # `ROCm_Runtime.preload_comgr`); the child has to do the same.
+    # `ROCm_Runtime.preload_bundle`); the child has to do the same. Only comgr:
+    # replaying the parent's whole closure here costs more than the probe's budget.
     preload = isempty(libamd_comgr) ? "" :
         "Base.Libc.Libdl.dlopen($(repr(libamd_comgr)); throw_error = false)"
     out = _version_subprocess("""
@@ -94,6 +95,39 @@ function versioninfo(io::IO=stdout)
             isolated subprocess and crashed or timed out). This usually indicates a \
             broken or mismatched ROCm install. See \
             https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
+    end
+
+    # Artifact-mode hygiene: what we claimed from the bundle, and what a ROCm
+    # elsewhere in the environment is still doing to this process.
+    if !local_rocm
+        loaded = count(p -> last(p) === :loaded, ROCm_Runtime.preload_log)
+        other = [p for p in ROCm_Runtime.preload_log if last(p) !== :loaded]
+        println(io)
+        print(io, "Preloaded $loaded artifact libraries")
+        println(io, isempty(other) ? "" : ", $(length(other)) not loaded:")
+        for (name, status) in other
+            println(io, "  $status: $name")
+        end
+
+        redirects = ROCm_Runtime.redirect_env()
+        if isempty(redirects)
+            println(io, "Device-library redirects: none")
+        else
+            println(io, "Device-library redirects (override the artifact's own):")
+            for (name, value) in redirects
+                println(io, "  $name = $value")
+            end
+        end
+
+        foreign = ROCm_Runtime.foreign_libraries()
+        if isempty(foreign)
+            println(io, "Foreign ROCm libraries loaded: none")
+        else
+            println(io, "Foreign ROCm libraries loaded (two ROCm versions at once):")
+            for path in foreign
+                println(io, "  $path")
+            end
+        end
     end
 
     if functional(:hip)
