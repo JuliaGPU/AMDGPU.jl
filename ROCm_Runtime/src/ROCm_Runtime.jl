@@ -67,6 +67,8 @@ end
 
 # Claimed from the bundle before LD_LIBRARY_PATH can resolve them elsewhere.
 # Leaves first, as (subdirectory of the library directory, prefix, open all).
+# HSA must precede HIP, or HIP's `libhsa-runtime64.so.1` binds outside the
+# bundle; the vendor libraries here are ones other vendor libraries pull in.
 const PRELOAD_LIBRARIES = [
     ("rocm_sysdeps/lib", "librocm_sysdeps_",        true),
     ("llvm/lib",         "libLLVM",                 false),
@@ -76,6 +78,10 @@ const PRELOAD_LIBRARIES = [
     ("",                 "libamd_comgr",            false),
     ("",                 "libhiprtc",               false),
     ("",                 "librocm_kpack",           false),
+    ("",                 "libamdhip64",             false),
+    ("",                 "libroctx64",              false),
+    ("",                 "libhipblaslt",            false),
+    ("",                 "librocblas",              false),
 ]
 
 # path => :loaded / :failed, prefix => :absent. Shown by `AMDGPU.versioninfo()`.
@@ -133,6 +139,10 @@ redirect_env() = [name => ENV[name] for name in REDIRECT_ENV if haskey(ENV, name
 const FOREIGN_LIBRARY_NAMES = [
     "libamd_comgr", "libhsa-runtime64", "libamdhip64", "libhiprtc",
     "librocprofiler-register", "librocm_kpack", "libLLVM", "libclang-cpp",
+    # Vendor libraries: one can pull another in, and the soname collides across
+    # ROCm versions, so these mix silently unless the bundle claims them first.
+    "librocblas", "librocsparse", "librocsolver", "librocrand", "librocfft",
+    "libhipblaslt", "libhiptensor", "libMIOpen", "libroctx64",
 ]
 
 function foreign_libraries()::Vector{String}

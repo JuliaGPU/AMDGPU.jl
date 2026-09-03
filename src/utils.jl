@@ -1,60 +1,3 @@
-# Run `code` in a subprocess and return its stdout, or `nothing` on crash,
-# timeout, or nonzero exit. The empty `JULIA_LOAD_PATH` keeps the child out of
-# the active project, so `code` must only use `Base`.
-function _version_subprocess(code::String; timeout::Real = 20)::Union{String, Nothing}
-    cmd = `$(Base.julia_cmd()) --startup-file=no -O0 --compile=min -e $code`
-    cmd = addenv(cmd, "JULIA_LOAD_PATH" => "")
-    out = IOBuffer()
-    try
-        proc = run(pipeline(ignorestatus(cmd); stdout = out, stderr = devnull); wait = false)
-        timedout = Ref(false)
-        timer = Timer(timeout) do _
-            if process_running(proc)
-                timedout[] = true
-                kill(proc)
-            end
-        end
-        wait(proc)
-        close(timer)
-        (timedout[] || !success(proc)) && return nothing
-        v = strip(String(take!(out)))
-        return isempty(v) ? nothing : v
-    catch
-        return nothing
-    end
-end
-
-# Empty until probed, then the version string or `"err"`.
-global _ROCSPARSE_VERSION::String = ""
-
-# rocSPARSE's version query needs a handle, and creating one can segfault on
-# broken ROCm installs (issue #920), so run it out-of-process.
-function _rocsparse_version_isolated(; timeout::Real = 20)
-    global _ROCSPARSE_VERSION
-    isempty(_ROCSPARSE_VERSION) || return _ROCSPARSE_VERSION
-
-    lib = repr(librocsparse)  # `repr` so Windows separators survive the parser
-    # HIP loads comgr by soname, so a system ROCm in the environment can displace
-    # the provider's copy. The parent claims the soname first (see
-    # `ROCm_Runtime.preload_bundle`); the child has to do the same. Only comgr:
-    # replaying the parent's whole closure here costs more than the probe's budget.
-    preload = isempty(libamd_comgr) ? "" :
-        "Base.Libc.Libdl.dlopen($(repr(libamd_comgr)); throw_error = false)"
-    out = _version_subprocess("""
-        $preload
-        handle = Ref{Ptr{Cvoid}}(C_NULL)
-        ccall((:rocsparse_create_handle, $lib), Cint,
-            (Ptr{Ptr{Cvoid}},), handle) == 0 || exit(2)
-        version = Ref{Cint}(0)
-        ccall((:rocsparse_get_version, $lib), Cint,
-            (Ptr{Cvoid}, Ptr{Cint}), handle[], version) == 0 || exit(2)
-        print(version[])
-        """; timeout)
-    packed = out === nothing ? nothing : tryparse(Int, out)
-    return _ROCSPARSE_VERSION =
-        packed === nothing ? "err" : string(rocSPARSE.decode_version(packed))
-end
-
 """
     versioninfo(io::IO=stdout)
 
@@ -68,10 +11,10 @@ function versioninfo(io::IO=stdout)
         "local ROCm installation" : "downloaded artifacts")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
-    _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
-
-    # `"err"` = present but the out-of-process version probe crashed/timed out.
-    rocsparse_ver = functional(:rocsparse) ? _rocsparse_version_isolated() : "-"
+    # rocSPARSE needs a handle for its version, so its query can fail where the
+    # others cannot; `"err"` keeps one library from sinking the whole report.
+    _ver(lib::Symbol, ver_fn) =
+        functional(lib) ? (try "$(ver_fn())" catch; "err" end) : "-"
 
     data = String[
         _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_path);
@@ -79,7 +22,7 @@ function versioninfo(io::IO=stdout)
         _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libamdhip64);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
         _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
-        _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                       _libpath(librocsparse);
+        _status(functional(:rocsparse))   "rocSPARSE"        _ver(:rocsparse, rocSPARSE.version) _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
         _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version) _libpath(libhiptensor);
@@ -90,10 +33,10 @@ function versioninfo(io::IO=stdout)
         "Available", "Name", "Version", "Path"],
         alignment=[:c, :l, :l, :l])
 
-    if rocsparse_ver == "err"
-        @warn """rocSPARSE is installed but its version query failed (it ran in an \
-            isolated subprocess and crashed or timed out). This usually indicates a \
-            broken or mismatched ROCm install. See \
+    if any(==("err"), @view data[:, 3])
+        @warn """A library is installed but its version query failed. Check the \
+            foreign-library report below: a ROCm from the environment mixed into \
+            this process is the usual cause. See \
             https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
     end
 
