@@ -402,3 +402,26 @@ function run_and_collect(cmd)
     log = strip(fetch(reader))
     return proc, log
 end
+
+# Run amdgpu-attributor so that the amdgpu specific attributes are added
+# This reduces some register usage
+function GPUCompiler.finish_ir!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    entry = invoke(GPUCompiler.finish_ir!,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+        job, mod, entry)
+    job.config.kernel || return entry
+
+    name = LLVM.name(entry)
+    tm = GPUCompiler.llvm_machine(job.config.target)
+    # The textual pass name is only registered since LLVM 18; it's a pure
+    # optimization, so skip it on older LLVM (e.g. Julia 1.10's LLVM 15).
+    if LLVM.version() >= v"18"
+        @dispose pb=NewPMPassBuilder() begin
+            add!(pb, "amdgpu-attributor")
+            run!(pb, mod, tm)
+        end
+    end
+    return functions(mod)[name]
+end
