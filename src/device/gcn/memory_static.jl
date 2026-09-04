@@ -2,7 +2,7 @@
 @generated function alloc_special(
     ::Val{id}, ::Type{T}, ::Val{as}, ::Val{len}, ::Val{zeroinit} = Val{false}(),
 ) where {id,T,as,len,zeroinit}
-    @dispose ctx=Context() begin
+    Context() do ctx
         eltyp = convert(LLVMType, T)
 
         # old versions of GPUArrays invoke _shmem with an integer id; make sure those are unique
@@ -24,8 +24,8 @@
         gv = GlobalVariable(mod, gv_typ, string(id), as)
         if len > 0
             if as == AS.Local
-                linkage!(gv, LLVM.API.LLVMExternalLinkage)
-                # NOTE: Backend doesn't support initializer for local AS
+                linkage!(gv, LLVM.API.LLVMInternalLinkage)
+                initializer!(gv, UndefValue(gv_typ))
             elseif as == AS.Private
                 linkage!(gv, LLVM.API.LLVMInternalLinkage)
                 initializer!(gv, null(gv_typ))
@@ -38,7 +38,7 @@
         alignment!(gv, Base.max(32, Base.datatype_alignment(T)))
 
         # generate IR
-        @dispose builder=IRBuilder() begin
+        IRBuilder() do builder
             entry = BasicBlock(llvm_f, "entry")
             position!(builder, entry)
 

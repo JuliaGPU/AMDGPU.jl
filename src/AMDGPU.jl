@@ -91,7 +91,7 @@ import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 import .Device: threadIdx, blockIdx, blockDim
-import .Device: sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
+import .Device: sync_workgroup, sync_wavefront, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
 import .Device: @rocprint, @rocprintln, @rocprintf
 
 export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
@@ -144,9 +144,14 @@ function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where OP <: Union{
     GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, syncscope_agent)
 end
 
-include("ROCKernels.jl")
+# KernelAbstractions
+include("ROCKernelsOld.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
+
+# KernelInterface
+include("ROCKernels.jl")
+import .ROCInterface
 
 include("precompile.jl")
 
