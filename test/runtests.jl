@@ -93,6 +93,13 @@ init_code = quote
     end
     TestSuite.supported_eltypes(::Type{<:AMDGPU.ROCArray}) = eltypes
 
+    # LLVM 20 still miscompiles the Int128 multiply-add that GPUArrays' `axpy!` and
+    # `axpby!` lower to, so keep Int128 out of that suite. `core/rocarray_broadcast`
+    # carries a `@test_broken` that starts failing once the miscompilation is fixed.
+    TestSuite.supported_eltypes(
+        ::Type{<:AMDGPU.ROCArray}, ::typeof(TestSuite.test_linalg_core),
+    ) = filter(!=(Int128), eltypes)
+
     macro grab_output(ex, io=stdout)
         quote
             mktemp() do fname, fout
