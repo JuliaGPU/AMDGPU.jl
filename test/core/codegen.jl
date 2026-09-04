@@ -1,7 +1,7 @@
 using Test
 using AMDGPU
 using AMDGPU: Device, ROCArray, @roc
-using AMDGPU.Device: sync_workgroup
+using AMDGPU.Device: sync_workgroup, workitemIdx, workgroupIdx, workgroupDim
 using KernelAbstractions: @atomic
 
 @testset "Synchronization" begin
@@ -75,4 +75,28 @@ end
     AMDGPU.synchronize()
     # exceeding the bound is undefined behavior; HIP rejects it at launch
     @test_throws AMDGPU.HIP.HIPError k(; groupsize=512)
+end
+
+@testset "Dimension reads stay scalar" begin
+    # workgroupDim/workgroupIdx must lower to SMEM loads of the (hidden)
+    # kernarg segment. Reading two or more dim components used to merge the
+    # u16 dispatch-packet loads into an under-aligned vector load that could
+    # only select per-wave VMEM.
+    function dim_kern!(A)
+        i = (workgroupIdx().x - 1) * workgroupDim().x + workitemIdx().x
+        j = (workgroupIdx().y - 1) * workgroupDim().y + workitemIdx().y
+        k = (workgroupIdx().z - 1) * workgroupDim().z + workitemIdx().z
+        n = i + j + k
+        n <= length(A) && (@inbounds A[n] = n)
+        return
+    end
+
+    iob = IOBuffer()
+    tt = Tuple{AMDGPU.Device.ROCDeviceVector{Float32, AMDGPU.Device.AS.Global}}
+    AMDGPU.code_gcn(iob, dim_kern!, tt; kernel=true)
+    gcn = String(take!(iob))
+    @test occursin("s_load", gcn)
+    @test !occursin("global_load", gcn)
+    @test !occursin("flat_load", gcn)
+    @test !occursin("buffer_load", gcn)
 end
