@@ -80,6 +80,19 @@ init_code = quote
     include($gpuarrays_testsuite)
     testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
 
+    const eltypes = [Int16, Int32, Int64,
+                     Float16, Float32, Float64,
+                     ComplexF16, ComplexF32, ComplexF64,
+                     Complex{Int16}, Complex{Int32}, Complex{Int64}]
+    # Kernels are compiled with Julia's in-tree LLVM, and the LLVM 18 that Julia 1.12
+    # ships with miscompiles Int128 arithmetic on AMDGPU (JuliaGPU/AMDGPU.jl#1002).
+    # Only exercise Int128 as a generic element type on newer LLVM versions.
+    const int128_supported = Base.libllvm_version >= v"19"
+    if int128_supported
+        push!(eltypes, Int128)
+    end
+    TestSuite.supported_eltypes(::Type{<:AMDGPU.ROCArray}) = eltypes
+
     macro grab_output(ex, io=stdout)
         quote
             mktemp() do fname, fout
