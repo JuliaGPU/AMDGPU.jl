@@ -1,3 +1,10 @@
+# AMDGPU.jl chooses between the ROCm_Runtime artifacts and a local ROCm through
+# ROCm_Runtime's "local" preference. Every GPU step writes that preference and
+# then asserts the provider it actually resolved to, so that a change of default
+# cannot silently swap the ROCm underneath a job. The artifacts are lazy, so
+# Pkg.instantiate/update download nothing; the pin only has to be in place
+# before AMDGPU is first loaded, which also covers the steps where the
+# julia-test plugin instantiates before the command below runs.
 steps:
   - label: "Documentation"
     plugins:
@@ -14,11 +21,12 @@ steps:
       julia --project -e '
         println("--- :julia: Instantiating project")
         using Pkg
+        Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
         Pkg.instantiate()
         Pkg.build()
 
         Pkg.activate("docs")
-        Pkg.develop(PackageSpec(path="."))
+        Pkg.develop([PackageSpec(path="."), PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
         Pkg.instantiate()
 
         push!(LOAD_PATH, @__DIR__)
@@ -31,11 +39,38 @@ steps:
     if: build.message !~ /\[skip docs\]/
     timeout_in_minutes: 20
 
-  - label: "Julia {{matrix.version}}"
+  # Julia 1.10 doesn't support [sources] in Project.toml, so the workspace
+  # packages have to be dev'ed manually before instantiating -- which rules out
+  # the julia-test plugin, whose pre-command hook instantiates the project
+  # before the step's command gets a chance to run.
+  - label: "Julia 1.10 (ROCm artifacts)"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "1.10"
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+    agents:
+      queue: "rocm"
+      rocmgpu: "*"
+    if: build.message !~ /\[skip tests\]/
+    command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
+      julia --project -e '
+        using Pkg
+        Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
+        Pkg.update()'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+      julia --project -e 'using Pkg; Pkg.test(; coverage=true, test_args=["--verbose"])'
+    timeout_in_minutes: 90
+    env:
+      JULIA_NUM_THREADS: 4
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+
+  - label: "Julia {{matrix.version}} (ROCm artifacts)"
     matrix:
       setup:
         version:
-          - "1.10"
           - "1.11"
           - "1.12"
           - "1.13"
@@ -61,45 +96,95 @@ steps:
       queue: "rocm"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
+    command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
+      julia --project -e 'using Pkg; Pkg.update()'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
     timeout_in_minutes: 90
     env:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
-  - label: "Julia {{matrix.version}} Enzyme"
-    matrix:
-      setup:
-        version:
-          - "1.10"
-          - "1.11"
+  # Coverage for the local-ROCm provider, also exercised by the CSCS
+  # MI300 pipeline. Does not use the julia-test plugin, so the provider is
+  # pinned before AMDGPU is first loaded and no artifact is fetched.
+  - label: "Julia 1.12 (local ROCm)"
     plugins:
       - JuliaCI/julia#v1:
-          version: "{{matrix.version}}"
-      - JuliaCI/julia-test#v1:
-          test_args: "enzyme"
+          version: "1.12"
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
     agents:
       queue: "rocm"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
+    command: |
+      printf '[ROCm_Runtime]\nlocal = true\n' > LocalPreferences.toml
+      julia --project -e 'using Pkg; Pkg.update()'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm || error("this step selected a local ROCm, but AMDGPU resolved to the ROCm artifacts")'
+      julia --project -e 'using Pkg; Pkg.test(; coverage=true, test_args=["--verbose"])'
+    timeout_in_minutes: 90
+    env:
+      JULIA_NUM_THREADS: 4
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+
+  # see the "Julia 1.10 (ROCm artifacts)" step for why this doesn't use the plugin
+  - label: "Julia 1.10 Enzyme (ROCm artifacts)"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "1.10"
+    agents:
+      queue: "rocm"
+      rocmgpu: "*"
+    if: build.message !~ /\[skip tests\]/
+    command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
+      julia --project -e '
+        using Pkg
+        Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
+        Pkg.update()'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+      julia --project -e 'using Pkg; Pkg.test(; test_args=["enzyme"])'
     timeout_in_minutes: 45
     soft_fail: true
     env:
       JULIA_NUM_THREADS: 4
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
+  - label: "Julia 1.11 Enzyme (ROCm artifacts)"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "1.11"
+      - JuliaCI/julia-test#v1:
+          test_args: "enzyme"
+    agents:
+      queue: "rocm"
+      rocmgpu: "*"
+    if: build.message !~ /\[skip tests\]/
+    command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
+      julia --project -e 'using Pkg; Pkg.update()'
+      julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+    timeout_in_minutes: 45
+    soft_fail: true
+    env:
+      JULIA_NUM_THREADS: 4
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+
+  # see the "Julia 1.10 (ROCm artifacts)" step for why this doesn't use the plugin
   - label: "GPU-less environment"
     plugins:
       - JuliaCI/julia#v1:
           version: "1.10"
-      - JuliaCI/julia-test#v1:
-          run_tests: false
     command: |
+      julia --project -e '
+        using Pkg
+        Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
+        Pkg.instantiate()'
       julia --project -e '
         using AMDGPU
         @assert !AMDGPU.functional()'
@@ -113,12 +198,14 @@ steps:
       - JuliaCI/julia#v1:
           version: "1.12"
     command: |
+      printf '[ROCm_Runtime]\nlocal = false\n' > perf/LocalPreferences.toml
       julia --project=perf -e '
         println("--- :julia: Instantiating benchmark project")
         using Pkg
-        Pkg.develop(PackageSpec(path="."))
-        Pkg.instantiate()
-
+        Pkg.develop([PackageSpec(path="."), PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
+        Pkg.instantiate()'
+      julia --project=perf -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
+      julia --project=perf -e '
         println("+++ :julia: Running benchmarks")
         include("perf/runbenchmarks.jl")'
     artifact_paths:
@@ -131,7 +218,6 @@ steps:
     env:
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
 env:
   JULIA_AMDGPU_LOGGING_ENABLED: true
