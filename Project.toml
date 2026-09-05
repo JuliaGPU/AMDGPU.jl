@@ -45,8 +45,8 @@ SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [sources]
-KernelAbstractions = {rev = "main", url = "https://github.com/JuliaGPU/KernelAbstractions.jl"}
 AcceleratedKernels = {rev = "main", url = "https://github.com/JuliaGPU/AcceleratedKernels.jl"}
+KernelAbstractions = {rev = "main", url = "https://github.com/JuliaGPU/KernelAbstractions.jl"}
 
 [extensions]
 AMDGPUChainRulesCoreExt = "ChainRulesCore"
@@ -85,3 +85,6 @@ StaticArraysCore = "1"
 Statistics = "1"
 UnsafeAtomics = "0.3"
 julia = "1.10"
+
+[extras]
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
