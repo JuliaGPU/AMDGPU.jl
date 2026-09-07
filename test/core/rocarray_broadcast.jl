@@ -61,16 +61,11 @@ end
 end
 
 # https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
-# The multiply-add that GPUArrays' `axpy!`/`axpby!` lower to is still miscompiled on
-# LLVM 20, which is why `runtests.jl` drops Int128 from the `gpuarrays/linalg/core`
-# element types.
-if Base.libllvm_version >= v"19"
-    @testset "Int128 axpby! miscompilation" begin
-        a, b = rand(Int128), rand(Int128)
-        x, y = rand(Int128, 5), rand(Int128, 5)
-        gx, gy = ROCArray(x), ROCArray(y)
-        gy .= gx .* a .+ gy .* b
-        @test_broken Array(gy) == x .* a .+ y .* b
-        AMDGPU.synchronize()
-    end
+@testset "Int128 axpby! miscompilation" begin
+    a, b = rand(Int128), rand(Int128)
+    x, y = rand(Int128, 5), rand(Int128, 5)
+    gx, gy = ROCArray(x), ROCArray(y)
+    gy .= gx .* a .+ gy .* b
+    @test_broken Array(gy) == x .* a .+ y .* b
+    AMDGPU.synchronize()
 end
