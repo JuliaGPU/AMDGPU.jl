@@ -83,7 +83,10 @@ redirect_env() = [name => ENV[name] for name in REDIRECT_ENV if haskey(ENV, name
 # ROCm libraries mapped from outside the bundle: two ROCm versions live at once.
 const FOREIGN_LIBRARY_NAMES = [
     "libamd_comgr", "libhsa-runtime64", "libamdhip64", "libhiprtc",
-    "librocprofiler-register", "librocm_kpack", "libLLVM", "libclang-cpp",
+    "librocprofiler-register", "librocm_kpack",
+    # comgr's LLVM: `libLLVM.so.N` / `libLLVM-N.so`, not e.g. LLVM.jl's
+    # `libLLVMExtra-N.so`, which shares the prefix and lives in the depot.
+    "libLLVM.", "libLLVM-", "libclang-cpp",
     # Vendor libraries: one can pull another in, and the soname collides across
     # ROCm versions, so these mix silently unless the bundle claims them first.
     "librocblas", "librocsparse", "librocsolver", "librocrand", "librocfft",
