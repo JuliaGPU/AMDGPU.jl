@@ -377,4 +377,55 @@ end
     end
 end
 
+@testset "Plan handle cache (#1053)" begin
+    IH = AMDGPU.rocFFT.IDLE_HANDLES
+    total_idle() = sum(length, values(IH.idle_handles); init = 0)
+
+    # SpeedyWeather's SpectralTransform access pattern: one rfft + one brfft plan
+    # per latitude ring, ring lengths differ, each plan built once and dropped.
+    function churn(lengths)
+        for len in lengths
+            x = ROCArray(rand(Float32, len))
+            pf = plan_rfft(x, (1,))
+            y = pf * x
+            pb = plan_brfft(y, len, (1,))
+            pb * y
+        end
+        GC.gc(); GC.gc()            # run finalizers -> release_plan!
+        AMDGPU.synchronize()
+    end
+
+    @testset "destructor captures a live handle, not the nulled plan.handle" begin
+        # Regression: release_plan! used to queue `() -> rocfft_plan_destroy(plan.handle)`,
+        # but unsafe_free! sets `plan.handle = C_NULL` immediately afterwards, so
+        # eviction destroyed C_NULL (a silent no-op) and leaked the real plan.
+        churn(700:2:760)
+
+        parked = collect(Iterators.flatten(values(IH.idle_dtors)))
+        @test !isempty(parked)
+        # The fixed closure closes over a local `handle`; the buggy one closed
+        # over `plan` and read `.handle` lazily.
+        @test all(d -> hasproperty(d, :handle), parked)
+        @test !any(d -> hasproperty(d, :plan), parked)
+        @test !any(d -> hasproperty(d, :handle) && UInt(getfield(d, :handle)) == 0, parked)
+    end
+
+    @testset "bookkeeping stays bounded and device memory does not leak" begin
+        churn(64:2:122)                 # warm up: kernel JIT + fill the cache
+        @test total_idle() <= IH.max_idle
+
+        free_before, _ = AMDGPU.info()
+        churn(200:2:598)                # 200 fresh distinct lengths (400 plans)
+        free_after, _ = AMDGPU.info()
+
+        @test total_idle() <= IH.max_idle
+
+        # Before the fix every one of these 400 plans leaked its device buffers
+        # (>1 GiB total here). Allow a generous margin for rocFFT's internal RTC
+        # kernel cache, which we do not control and which grows sub-linearly.
+        leaked = free_before - free_after
+        @test leaked < 400 * 2^20
+    end
+end
+
 end # testset FFT
