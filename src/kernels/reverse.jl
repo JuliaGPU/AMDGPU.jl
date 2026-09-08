@@ -83,6 +83,7 @@ function _reverse!(
 
     groupsize = 256
     gridsize = cld(length(x), groupsize)
+    iszero(gridsize) && return
     @roc groupsize=groupsize gridsize=gridsize _kernel!(y, x)
 end
 
@@ -118,5 +119,6 @@ function _reverse!(x::AnyROCArray{T, N}; dims=1:ndims(x)) where {T, N}
 
     groupsize = 256
     gridsize = cld(prod(reduced_sz), groupsize)
+    iszero(gridsize) && return
     @roc groupsize=groupsize gridsize=gridsize _kernel!(x)
 end
