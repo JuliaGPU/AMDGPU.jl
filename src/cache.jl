@@ -23,6 +23,8 @@ struct HandleCache{K, V}
     # cache for workloads that use a large number of distinct keys (e.g. rocFFT
     # plans for many different shapes), which would otherwise leak one handle
     # per key forever since no single key ever reaches `max_entries`. See #1053.
+    # Inert for caches keyed on something with few values (e.g. `HIPContext`),
+    # where the per-key `max_entries` budget is the one that matters.
     max_idle::Int
 
     function HandleCache{K, V}(max_entries::Int = 32, max_idle::Int = 64) where {K, V}
@@ -37,7 +39,7 @@ end
 
 # Take an idle handle for `key` out of the cache, or `nothing` if there is none.
 # Must be called while holding `cache.lock`.
-function _take_idle!(cache::HandleCache, key)
+function _take_idle!(cache::HandleCache{K, V}, key) where {K, V}
     handles = get(cache.idle_handles, key, nothing)
     (handles ≡ nothing || isempty(handles)) && return nothing
     handle = pop!(handles)
@@ -49,10 +51,12 @@ function _take_idle!(cache::HandleCache, key)
     return handle
 end
 
-# Evict oldest idle handles (across all keys) until at most `max_idle` remain,
-# returning the destructor closures of the evicted handles to be run by the
-# caller outside the lock. Must be called while holding `cache.lock`.
-function _evict_idle!(cache::HandleCache)
+# Evict idle handles until at most `max_idle` remain across all keys, returning
+# the destructor closures of the evicted handles to be run by the caller outside
+# the lock. This is a count budget, not an LRU: keys are visited in `Dict`
+# iteration order (arbitrary after deletions) and each key's oldest handles go
+# first. Must be called while holding `cache.lock`.
+function _evict_idle!(cache::HandleCache{K, V}) where {K, V}
     evicted = Any[]
     total = sum(length, values(cache.idle_handles); init = 0)
     total ≤ cache.max_idle && return evicted
@@ -106,7 +110,8 @@ function Base.push!(f::Function, cache::HandleCache{K, V}, key::K, handle::V) wh
         delete!(cache.active_handles, key => handle)
 
         handles = get!(() -> V[], cache.idle_handles, key)
-        # `saved` matches the original off-by-one: up to `max_entries + 1` per key.
+        # Keep the original semantics: save while the key holds ≤ `max_entries`,
+        # so a key can grow to `max_entries + 1`.
         saved = length(handles) ≤ cache.max_entries
         if saved
             push!(handles, handle)
@@ -119,8 +124,14 @@ function Base.push!(f::Function, cache::HandleCache{K, V}, key::K, handle::V) wh
         to_destroy
     end
 
+    # Run every destructor even if one throws: the handles are already gone from
+    # the bookkeeping, so bailing out here would leak the rest silently.
     for dtor in dtors
-        dtor()
+        try
+            dtor()
+        catch err
+            @error "Error while destroying cached handle" exception=(err, catch_backtrace())
+        end
     end
     return
 end
