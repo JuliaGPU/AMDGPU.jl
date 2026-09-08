@@ -105,6 +105,9 @@ function launch(
 ) where N
     gd = gridsize isa ROCDim3 ? gridsize : ROCDim3(gridsize)
     bd = groupsize isa ROCDim3 ? groupsize : ROCDim3(groupsize)
+    # the device side assumes workgroup indices fit in Int32 (see Device._max_groups)
+    (gd.x <= typemax(Int32) && gd.y <= typemax(Int32) && gd.z <= typemax(Int32)) ||
+        throw(ArgumentError("gridsize exceeds $(typemax(Int32)) workgroups in a dimension"))
     # TODO guard with try/catch & diagnose a failure
     pack_arguments(args...) do kernel_params
         # Inline into `pack_arguments`, so that `kernel_params` does not escape into a
