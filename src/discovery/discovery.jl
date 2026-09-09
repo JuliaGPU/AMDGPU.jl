@@ -22,8 +22,31 @@ end
 function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
     lld_path = find_ld_lld(rocm_path)
     isempty(lld_path) || return (lld_path, false)
-    AMDGPU_LLVM_Backend_jll.is_available() || return (lld_path, false)
-    return (AMDGPU_LLVM_Backend_jll.lld_path, true)
+    # the artifact links in-process through `libamdgpu`, so there is no tool path
+    return ("", AMDGPU_LLVM_Backend_jll.is_available())
+end
+
+# downgrade bitcode to the format of an older LLVM through `libllvm_downgrade`
+function downgrade_bitcode(input::Vector{UInt8}, version::VersionNumber)
+    lib = Libdl.dlopen(LLVMDowngrader_jll.libllvm_downgrade)
+    buffer = Ref{Ptr{Cvoid}}(C_NULL)
+    message = Ref{Cstring}(C_NULL)
+    status = @ccall $(Libdl.dlsym(lib, :LLVMDGDowngrade))(
+        input::Ptr{UInt8}, length(input)::Csize_t, version.major::Cuint, version.minor::Cuint,
+        buffer::Ptr{Ptr{Cvoid}}, message::Ptr{Cstring})::Cint
+    if status != 0
+        msg = "unknown error"
+        if message[] != C_NULL
+            msg = unsafe_string(message[])
+            @ccall $(Libdl.dlsym(lib, :LLVMDGDisposeMessage))(message[]::Cstring)::Cvoid
+        end
+        error(msg)
+    end
+    start = @ccall $(Libdl.dlsym(lib, :LLVMDGGetBufferStart))(buffer[]::Ptr{Cvoid})::Ptr{UInt8}
+    size = @ccall $(Libdl.dlsym(lib, :LLVMDGGetBufferSize))(buffer[]::Ptr{Cvoid})::Csize_t
+    output = copy(unsafe_wrap(Array, start, size))
+    @ccall $(Libdl.dlsym(lib, :LLVMDGDisposeMemoryBuffer))(buffer[]::Ptr{Cvoid})::Cvoid
+    return output
 end
 
 # bitcode versions `llvm-downgrade` can target.
@@ -50,13 +73,12 @@ function downgrade_device_libs(src_dir::String)::String
         for file in readdir(src_dir)
             endswith(file, ".bc") || continue
             # Just skip libraries the downgrader can't handle. `link_device_libs!` will throw an error if it is actually needed
-            cmd = `$(LLVMDowngrader_jll.llvm_downgrade()) --bitcode-version=$(target.major).$(target.minor) -o $(joinpath(tmp, file)) $(joinpath(src_dir, file))`
-            err_io = IOBuffer()
             try
-                run(pipeline(cmd; stderr=err_io))
-            catch
+                bitcode = downgrade_bitcode(read(joinpath(src_dir, file)), target)
+                write(joinpath(tmp, file), bitcode)
+            catch err
                 @warn """Failed to downgrade device library `$file` to LLVM $(target.major), skipping it.
-                $(rstrip(String(take!(err_io))))
+                $(sprint(showerror, err))
                 """
                 rm(joinpath(tmp, file); force=true)
             end

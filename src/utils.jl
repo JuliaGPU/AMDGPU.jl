@@ -65,7 +65,7 @@ function versioninfo(io::IO=stdout)
     rocsparse_ver = functional(:rocsparse) ? _rocsparse_version_isolated() : "-"
 
     data = String[
-        _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_path);
+        _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_artifact ? AMDGPU_LLVM_Backend_jll.libamdgpu : lld_path);
         _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
         _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
@@ -145,7 +145,7 @@ function functional(component::Symbol)
     if component == :hip
         return !isempty(libhip)
     elseif component == :lld
-        return !isempty(lld_path)
+        return !isempty(lld_path) || lld_artifact
     elseif component == :device_libs
         return !isempty(libdevice_libs)
     elseif component == :rocblas
