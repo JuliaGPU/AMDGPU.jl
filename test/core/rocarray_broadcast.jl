@@ -66,6 +66,6 @@ end
     x, y = rand(Int128, 5), rand(Int128, 5)
     gx, gy = ROCArray(x), ROCArray(y)
     gy .= gx .* a .+ gy .* b
-    @test broken = Base.libllvm_version >= v"18" Array(gy) == x .* a .+ y .* b
+    @test Array(gy) == x .* a .+ y .* b broken=(Base.libllvm_version >= v"18")
     AMDGPU.synchronize()
 end

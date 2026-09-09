@@ -84,19 +84,7 @@ init_code = quote
                      Float16, Float32, Float64,
                      ComplexF16, ComplexF32, ComplexF64,
                      Complex{Int16}, Complex{Int32}, Complex{Int64}]
-    # Kernels are compiled with Julia's in-tree LLVM, and the LLVM 18 that Julia 1.12
-    # ships with miscompiles Int128 arithmetic on AMDGPU (JuliaGPU/AMDGPU.jl#1002).
-    # Only exercise Int128 as a generic element type on newer LLVM versions.
-    const int128_supported = Base.libllvm_version >= v"19"
-    if int128_supported
-        push!(eltypes, Int128)
-    end
     TestSuite.supported_eltypes(::Type{<:AMDGPU.ROCArray}) = eltypes
-
-    # Miscompilation of Int128 arithmetic on AMDGPU (JuliaGPU/AMDGPU.jl#1002).
-    # `core/rocarray_broadcast` carries a `@test_broken` to track this.
-    TestSuite.supported_eltypes(
-        ::Type{<:AMDGPU.ROCArray}, ::typeof(TestSuite.test_linalg_core),
 
     macro grab_output(ex, io=stdout)
         quote
