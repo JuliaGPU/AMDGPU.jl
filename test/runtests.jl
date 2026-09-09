@@ -97,7 +97,6 @@ init_code = quote
     # `core/rocarray_broadcast` carries a `@test_broken` to track this.
     TestSuite.supported_eltypes(
         ::Type{<:AMDGPU.ROCArray}, ::typeof(TestSuite.test_linalg_core),
-    ) = filter(!=(Int128), eltypes)
 
     macro grab_output(ex, io=stdout)
         quote
