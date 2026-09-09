@@ -80,7 +80,7 @@ init_code = quote
     include($gpuarrays_testsuite)
     testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
 
-    const eltypes = [Int16, Int32, Int64,
+    const eltypes = [Int16, Int32, Int64, # TODO: add Int128 once #1002 is addressed
                      Float16, Float32, Float64,
                      ComplexF16, ComplexF32, ComplexF64,
                      Complex{Int16}, Complex{Int32}, Complex{Int64}]
