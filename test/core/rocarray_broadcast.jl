@@ -61,14 +61,11 @@ end
 end
 
 # https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
-# Gated on the same condition that puts Int128 into the `linalg/core` eltypes:
-if int128_supported
-    @testset "Int128 axpby! miscompilation" begin
-        a, b = rand(Int128), rand(Int128)
-        x, y = rand(Int128, 5), rand(Int128, 5)
-        gx, gy = ROCArray(x), ROCArray(y)
-        gy .= gx .* a .+ gy .* b
-        @test_broken Array(gy) == x .* a .+ y .* b
-        AMDGPU.synchronize()
-    end
+@testset "Int128 axpby! miscompilation" begin
+    a, b = rand(Int128), rand(Int128)
+    x, y = rand(Int128, 5), rand(Int128, 5)
+    gx, gy = ROCArray(x), ROCArray(y)
+    gy .= gx .* a .+ gy .* b
+    @test broken = Base.libllvm_version >= v"18" Array(gy) == x .* a .+ y .* b
+    AMDGPU.synchronize()
 end
