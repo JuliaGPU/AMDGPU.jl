@@ -49,9 +49,6 @@ AMDGPUEnzymeCoreExt = "EnzymeCore"
 AMDGPUSparseMatricesCSRExt = "SparseMatricesCSR"
 AMDGPUSpecialFunctionsExt = "SpecialFunctions"
 
-[sources]
-GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "tb/jll-libraries"}
-
 [compat]
 AMDGPU_LLVM_Backend_jll = "23"
 AbstractFFTs = "1.0"
