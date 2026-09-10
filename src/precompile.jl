@@ -56,13 +56,12 @@ if :AMDGPU in LLVM.backends()
                     # attach its artifact to the package-image CI.
                     Compiler.compile_or_lookup(job)
 
-                    # The compile above runs during precompilation, when ROCm
-                    # discovery (`__init__`) has NOT run, so `libdevice_libs` is
-                    # empty. That poisons the `DEVICE_LIBS` cache with empty entries
-                    # (e.g. an `ocml` `DevLib` with no path), which would be baked
-                    # into the precompile image and prevent device-library linking
-                    # at runtime (`unsupported call to __ocml_*`). Reset it so it is
-                    # repopulated correctly once discovery has run.
+                    # The compile above populates the `DEVICE_LIBS` cache. At
+                    # precompile time `__init__` has NOT run, so `libdevice_libs`
+                    # is empty and the cache is filled with empty entries, which
+                    # would poison it for the runtime session (and baking real
+                    # entries in would hardcode absolute paths and duplicate the
+                    # bitcode blobs). Reset it and let it repopulate at runtime.
                     empty!(Compiler.DEVICE_LIBS)
                 end
             end

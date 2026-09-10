@@ -56,8 +56,7 @@ end
 LockedObject(payload) = LockedObject(ReentrantLock(), payload)
 
 # Load binary dependencies.
-include("discovery/discovery.jl")
-using .ROCmDiscovery
+include("libs.jl")
 
 include("utils.jl")
 
@@ -151,11 +150,21 @@ export ROCBackend
 include("precompile.jl")
 
 function __init__()
-    # Discovery runs at load time; a precompiled value would be stale.
-    global _ROCSPARSE_VERSION = ""
-
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)
+
+    if Sys.islinux() && isdir("/sys/class/kfd/kfd/topology/nodes/")
+        for node_id in readdir("/sys/class/kfd/kfd/topology/nodes/")
+            node_name = readchomp(joinpath("/sys/class/kfd/kfd/topology/nodes/", node_id, "name"))
+            # CPU nodes don't have names.
+            isempty(node_name) && continue
+
+            if node_name == "navy_flounder"
+                ENV["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
+                break
+            end
+        end
+    end
 
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])
@@ -166,13 +175,23 @@ function __init__()
         end
     end
 
+    # Only worth reporting where a GPU is actually present: without GPU, not
+    # resolving an artifact is the expected outcome rather than a problem.
+    if !local_rocm && !ROCm_Runtime.is_available() &&
+            (!Sys.islinux() || ispath("/dev/kfd"))
+        warn_unresolved_rocm_artifact()
+    end
+
+    # Device libraries are needed for compiling device code even without a GPU.
+    global libdevice_libs = find_device_libs()
+
     if Sys.islinux()
         if !ispath("/dev/kfd")
             @debug "/dev/kfd not available (no AMD GPU), skipping initialization"
             return
         end
 
-        if !isempty(libhsaruntime)
+        if !isempty(libhsa_runtime64)
             status = HSA.init()
             status == HSA.STATUS_SUCCESS ?
                 atexit(() -> HSA.shut_down()) :
@@ -210,6 +229,24 @@ function __init__()
             print_build_diagnostics()
             error("Failed to load HIP runtime, but HIP must load, bailing out")
         end
+    end
+
+    # Another ROCm in the environment breaks compilation in ways that surface far
+    # from the cause, so name it up front.
+    if !local_rocm && functional(:hip)
+        redirects = ROCm_Runtime.redirect_env()
+        isempty(redirects) || @warn """These variables point at another ROCm's device \
+            libraries, which will be used in preference to the ones this artifact ships. \
+            Compilation may fail or produce wrong results, and is often reported as an \
+            unrelated error. Unset them, or select the local ROCm with \
+            `AMDGPU.set_rocm_version!(; local_rocm=true)`.""" redirects
+
+        foreign = ROCm_Runtime.foreign_libraries()
+        isempty(foreign) || @warn """ROCm libraries from outside this artifact are loaded \
+            into the process, so two ROCm versions are live at once. Compilation may fail \
+            or produce wrong results, and is often reported as an unrelated error. This \
+            usually means LD_LIBRARY_PATH points at another ROCm (a module, a uenv, a \
+            container); it has to be unset before Julia starts.""" foreign
     end
 
     hiplibs = (

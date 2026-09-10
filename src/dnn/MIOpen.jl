@@ -4,7 +4,7 @@ using CEnum
 
 using ..AMDGPU
 import AMDGPU: ROCArray, LockedObject, HandleCache, HIP, library_state
-import AMDGPU: libMIOpen_path
+import AMDGPU: libMIOpen
 import AMDGPU: check, @check
 import .HIP: hipStream_t
 
