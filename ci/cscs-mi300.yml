@@ -113,3 +113,12 @@ UnitTest julia 1.12 (ROCm artifacts):
     ROCM_LOCAL: "false"
   script: *unit_test_script
   artifacts: *trace_artifacts
+
+UnitTest julia 1.13 (ROCm artifacts):
+  extends: .baremetal-runner-beverin-mi300
+  variables:
+    <<: *common_variables
+    JULIA: /users/lraess/julia_amd/julia_amd-1.13
+    ROCM_LOCAL: "false"
+  script: *unit_test_script
+  artifacts: *trace_artifacts
