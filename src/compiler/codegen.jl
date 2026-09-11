@@ -293,12 +293,11 @@ function create_executable(obj)
     use_precompile_lld = isempty(AMDGPU.lld_path) &&
                          ccall(:jl_generating_output, Cint, ()) == 1 &&
                          AMDGPU_LLVM_Backend_jll.is_available()
-    lld = if AMDGPU.lld_artifact || use_precompile_lld
-        `$(AMDGPU_LLVM_Backend_jll.lld()) -flavor gnu`
-    else
-        @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
-        `$(AMDGPU.lld_path)`
+    if AMDGPU.lld_artifact || use_precompile_lld
+        return link_in_process(obj)
     end
+    @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
+    lld = `$(AMDGPU.lld_path)`
 
     path_o = tempname(;cleanup=false) * ".obj"
     path_exe = tempname(;cleanup=false) * ".exe"
@@ -309,6 +308,30 @@ function create_executable(obj)
 
     rm(path_o)
     rm(path_exe)
+    return bin
+end
+
+# link a relocatable object into an HSA code object through `libamdgpu`, i.e.
+# `ld.lld -flavor gnu -shared` without spawning a process or touching the file system
+function link_in_process(obj::AbstractVector{UInt8})
+    obj = convert(Vector{UInt8}, obj)
+    buffer = Ref{Ptr{Cvoid}}(C_NULL)
+    message = Ref{Cstring}(C_NULL)
+    status = @ccall libamdgpu.AMDGPULink(
+        obj::Ptr{UInt8}, length(obj)::Csize_t,
+        buffer::Ptr{Ptr{Cvoid}}, message::Ptr{Cstring})::Cint
+    if status != 0
+        msg = "Failed to link kernel"
+        if message[] != C_NULL
+            msg *= ":\n" * unsafe_string(message[])
+            @ccall libamdgpu.AMDGPUDisposeMessage(message[]::Cstring)::Cvoid
+        end
+        error(msg)
+    end
+    start = @ccall libamdgpu.AMDGPUGetBufferStart(buffer[]::Ptr{Cvoid})::Ptr{UInt8}
+    size = @ccall libamdgpu.AMDGPUGetBufferSize(buffer[]::Ptr{Cvoid})::Csize_t
+    bin = copy(unsafe_wrap(Array, start, size))
+    @ccall libamdgpu.AMDGPUDisposeMemoryBuffer(buffer[]::Ptr{Cvoid})::Cvoid
     return bin
 end
 
