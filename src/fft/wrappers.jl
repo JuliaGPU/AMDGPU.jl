@@ -18,8 +18,12 @@ function release_plan!(plan)
     key = (
         AMDGPU.context(), plan.xtype, sz,
         plan.key_T, is_inplace(plan), (plan.region...,))
-    value = (plan.handle, length(plan.workarea))
-    push!(() -> rocfft_plan_destroy(plan.handle), IDLE_HANDLES, key, value)
+    # Capture the handle by value: `unsafe_free!` sets `plan.handle = C_NULL`
+    # right after calling `release_plan!`, so a closure over `plan.handle` would
+    # later call `rocfft_plan_destroy(C_NULL)` (a silent no-op) and leak the plan.
+    handle = plan.handle
+    value = (handle, length(plan.workarea))
+    push!(() -> rocfft_plan_destroy(handle), IDLE_HANDLES, key, value)
 end
 
 function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
