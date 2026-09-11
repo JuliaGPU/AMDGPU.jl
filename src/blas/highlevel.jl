@@ -155,6 +155,16 @@ function LinearAlgebra.mul!(
     LinearAlgebra.mul!(Y, tA, 'N', A, B, alpha, beta)
 end
 
+# JuliaLang/LinearAlgebra.jl#1671 (in Julia 1.14.0-DEV.2991) moved the BLAS fast path from
+# `generic_matvecmul!` to the char-based `mul!`, whose `StridedVector{<:BlasFloat}` method
+# would send `ROCArray`s to CPU BLAS.
+@static if VERSION ≥ v"1.14.0-DEV.2991"
+    LinearAlgebra.mul!(
+        Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
+        alpha::Number, beta::Number,
+    ) = LinearAlgebra.generic_matvecmul!(Y, tA, A, B, alpha, beta)
+end
+
 #
 # BLAS 3
 #
