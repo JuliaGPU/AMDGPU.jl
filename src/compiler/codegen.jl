@@ -315,24 +315,23 @@ end
 # `ld.lld -flavor gnu -shared` without spawning a process or touching the file system
 function link_in_process(obj::AbstractVector{UInt8})
     obj = convert(Vector{UInt8}, obj)
-    lib = Libdl.dlopen(AMDGPU_LLVM_Backend_jll.libamdgpu)
     buffer = Ref{Ptr{Cvoid}}(C_NULL)
     message = Ref{Cstring}(C_NULL)
-    status = @ccall $(Libdl.dlsym(lib, :AMDGPULink))(
+    status = @ccall libamdgpu.AMDGPULink(
         obj::Ptr{UInt8}, length(obj)::Csize_t,
         buffer::Ptr{Ptr{Cvoid}}, message::Ptr{Cstring})::Cint
     if status != 0
         msg = "Failed to link kernel"
         if message[] != C_NULL
             msg *= ":\n" * unsafe_string(message[])
-            @ccall $(Libdl.dlsym(lib, :AMDGPUDisposeMessage))(message[]::Cstring)::Cvoid
+            @ccall libamdgpu.AMDGPUDisposeMessage(message[]::Cstring)::Cvoid
         end
         error(msg)
     end
-    start = @ccall $(Libdl.dlsym(lib, :AMDGPUGetBufferStart))(buffer[]::Ptr{Cvoid})::Ptr{UInt8}
-    size = @ccall $(Libdl.dlsym(lib, :AMDGPUGetBufferSize))(buffer[]::Ptr{Cvoid})::Csize_t
+    start = @ccall libamdgpu.AMDGPUGetBufferStart(buffer[]::Ptr{Cvoid})::Ptr{UInt8}
+    size = @ccall libamdgpu.AMDGPUGetBufferSize(buffer[]::Ptr{Cvoid})::Csize_t
     bin = copy(unsafe_wrap(Array, start, size))
-    @ccall $(Libdl.dlsym(lib, :AMDGPUDisposeMemoryBuffer))(buffer[]::Ptr{Cvoid})::Cvoid
+    @ccall libamdgpu.AMDGPUDisposeMemoryBuffer(buffer[]::Ptr{Cvoid})::Cvoid
     return bin
 end
 

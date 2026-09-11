@@ -7,6 +7,7 @@ export libhiptensor
 
 using AMDGPU_LLVM_Backend_jll
 using LLVMDowngrader_jll
+using LLVMDowngrader_jll: libllvm_downgrade
 using Preferences
 using Scratch
 using Libdl
@@ -28,24 +29,23 @@ end
 
 # downgrade bitcode to the format of an older LLVM through `libllvm_downgrade`
 function downgrade_bitcode(input::Vector{UInt8}, version::VersionNumber)
-    lib = Libdl.dlopen(LLVMDowngrader_jll.libllvm_downgrade)
     buffer = Ref{Ptr{Cvoid}}(C_NULL)
     message = Ref{Cstring}(C_NULL)
-    status = @ccall $(Libdl.dlsym(lib, :LLVMDGDowngrade))(
+    status = @ccall libllvm_downgrade.LLVMDGDowngrade(
         input::Ptr{UInt8}, length(input)::Csize_t, version.major::Cuint, version.minor::Cuint,
         buffer::Ptr{Ptr{Cvoid}}, message::Ptr{Cstring})::Cint
     if status != 0
         msg = "unknown error"
         if message[] != C_NULL
             msg = unsafe_string(message[])
-            @ccall $(Libdl.dlsym(lib, :LLVMDGDisposeMessage))(message[]::Cstring)::Cvoid
+            @ccall libllvm_downgrade.LLVMDGDisposeMessage(message[]::Cstring)::Cvoid
         end
         error(msg)
     end
-    start = @ccall $(Libdl.dlsym(lib, :LLVMDGGetBufferStart))(buffer[]::Ptr{Cvoid})::Ptr{UInt8}
-    size = @ccall $(Libdl.dlsym(lib, :LLVMDGGetBufferSize))(buffer[]::Ptr{Cvoid})::Csize_t
+    start = @ccall libllvm_downgrade.LLVMDGGetBufferStart(buffer[]::Ptr{Cvoid})::Ptr{UInt8}
+    size = @ccall libllvm_downgrade.LLVMDGGetBufferSize(buffer[]::Ptr{Cvoid})::Csize_t
     output = copy(unsafe_wrap(Array, start, size))
-    @ccall $(Libdl.dlsym(lib, :LLVMDGDisposeMemoryBuffer))(buffer[]::Ptr{Cvoid})::Cvoid
+    @ccall libllvm_downgrade.LLVMDGDisposeMemoryBuffer(buffer[]::Ptr{Cvoid})::Cvoid
     return output
 end
 

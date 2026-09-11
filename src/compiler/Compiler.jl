@@ -4,10 +4,10 @@ import Core: LLVMPtr
 
 using ..GPUCompiler
 using ..LLVM
-using Libdl
 using Printf
 
 import AMDGPU_LLVM_Backend_jll # used for linking; GPUCompiler uses the in-tree backend otherwise
+using AMDGPU_LLVM_Backend_jll: libamdgpu
 
 import ..AMDGPU
 import ..AMDGPU: AS
