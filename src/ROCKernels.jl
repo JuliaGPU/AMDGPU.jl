@@ -105,28 +105,28 @@ KI.shfl_down_types(::ROCBackend) = DataType[Bool,
 
 # Indexing.
 ## COV_EXCL_START
-@device_override @inline function KI.get_local_id()
-    return (; x = Int(AMDGPU.Device.workitemIdx().x), y = Int(AMDGPU.Device.workitemIdx().y), z = Int(AMDGPU.Device.workitemIdx().z))
+@device_override @inline function KI.get_local_id(::Type{T}) where {T}
+    return (; x = T(AMDGPU.Device.workitemIdx().x), y = T(AMDGPU.Device.workitemIdx().y), z = T(AMDGPU.Device.workitemIdx().z))
 end
 
-@device_override @inline function KI.get_group_id()
-    return (; x = Int(AMDGPU.Device.workgroupIdx().x), y = Int(AMDGPU.Device.workgroupIdx().y), z = Int(AMDGPU.Device.workgroupIdx().z))
+@device_override @inline function KI.get_group_id(::Type{T}) where {T}
+    return (; x = T(AMDGPU.Device.workgroupIdx().x), y = T(AMDGPU.Device.workgroupIdx().y), z = T(AMDGPU.Device.workgroupIdx().z))
 end
 
-@device_override @inline function KI.get_global_id()
-    return (; x = Int((AMDGPU.Device.workgroupIdx().x-1)*AMDGPU.Device.blockDim().x + AMDGPU.Device.workitemIdx().x), y = Int((AMDGPU.Device.workgroupIdx().y-1)*AMDGPU.Device.blockDim().y + AMDGPU.Device.workitemIdx().y), z = Int((AMDGPU.Device.workgroupIdx().z-1)*AMDGPU.Device.blockDim().z + AMDGPU.Device.workitemIdx().z))
+@device_override @inline function KI.get_global_id(::Type{T}) where {T}
+    return (; x = T((AMDGPU.Device.workgroupIdx().x-1)*AMDGPU.Device.blockDim().x + AMDGPU.Device.workitemIdx().x), y = T((AMDGPU.Device.workgroupIdx().y-1)*AMDGPU.Device.blockDim().y + AMDGPU.Device.workitemIdx().y), z = T((AMDGPU.Device.workgroupIdx().z-1)*AMDGPU.Device.blockDim().z + AMDGPU.Device.workitemIdx().z))
 end
 
-@device_override @inline function KI.get_local_size()
-    return (; x = Int(AMDGPU.Device.workgroupDim().x), y = Int(AMDGPU.Device.workgroupDim().y), z = Int(AMDGPU.Device.workgroupDim().z))
+@device_override @inline function KI.get_local_size(::Type{T}) where {T}
+    return (; x = T(AMDGPU.Device.workgroupDim().x), y = T(AMDGPU.Device.workgroupDim().y), z = T(AMDGPU.Device.workgroupDim().z))
 end
 
-@device_override @inline function KI.get_num_groups()
-    return (; x = Int(AMDGPU.Device.gridGroupDim().x), y = Int(AMDGPU.Device.gridGroupDim().y), z = Int(AMDGPU.Device.gridGroupDim().z))
+@device_override @inline function KI.get_num_groups(::Type{T}) where {T}
+    return (; x = T(AMDGPU.Device.gridGroupDim().x), y = T(AMDGPU.Device.gridGroupDim().y), z = T(AMDGPU.Device.gridGroupDim().z))
 end
 
-@device_override @inline function KI.get_global_size()
-    return (; x = Int(AMDGPU.Device.gridItemDim().x), y = Int(AMDGPU.Device.gridItemDim().y), z = Int(AMDGPU.Device.gridItemDim().z))
+@device_override @inline function KI.get_global_size(::Type{T}) where {T}
+    return (; x = T(AMDGPU.Device.gridItemDim().x), y = T(AMDGPU.Device.gridItemDim().y), z = T(AMDGPU.Device.gridItemDim().z))
 end
 
 @device_override KI.get_sub_group_size() = UInt32(Device.wavefrontsize())
