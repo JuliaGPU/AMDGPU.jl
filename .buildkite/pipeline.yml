@@ -61,7 +61,8 @@ steps:
       queue: "rocm"
       rocmgpu: "*"
     if: build.message !~ /\[skip tests\]/
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
+    command:
+      julia --project -e 'using Pkg; Pkg.update(); Pkg.develop(["AcceleratedKernels", "KernelAbstractions"])'
     timeout_in_minutes: 90
     env:
       JULIA_NUM_THREADS: 4
