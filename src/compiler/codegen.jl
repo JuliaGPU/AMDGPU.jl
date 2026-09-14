@@ -275,7 +275,9 @@ end
 # on 1.10. `obj === nothing` identifies a freshly-created `HIPResults` that hasn't been
 # compiled yet; the `compile_hook` check additionally forces the compile path so that
 # reflection consumers (`@device_code_*`) observe the compilation even on a cache hit.
-function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
+# Specialize on the target/parameter types so callers can avoid boxing CompilerJob.
+# Keep the body out of callers that specialize per kernel.
+@noinline function compile_or_lookup(job::CompilerJob)::HIPResults
     res = GPUCompiler.cached_results(HIPResults, job)
     if res === nothing || res.obj === nothing || GPUCompiler.compile_hook[] !== nothing
         compiled = hipcompile(job)
