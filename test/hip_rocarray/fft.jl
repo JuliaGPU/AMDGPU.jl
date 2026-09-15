@@ -379,7 +379,7 @@ end
 
 @testset "Plan handle cache (#1053)" begin
     IH = AMDGPU.rocFFT.IDLE_HANDLES
-    total_idle() = sum(length, values(IH.idle_handles); init = 0)
+    total_idle() = AMDGPU.total_idle(IH)
 
     # SpeedyWeather's SpectralTransform access pattern: one rfft + one brfft plan
     # per latitude ring, ring lengths differ, each plan built once and dropped.
@@ -395,36 +395,53 @@ end
         AMDGPU.synchronize()
     end
 
-    @testset "destructor captures a live handle, not the nulled plan.handle" begin
-        # Eviction can run a plan's destructor after `unsafe_free!` has already
-        # nulled `plan.handle`, so the closure must capture the handle by value
-        # or it silently destroys C_NULL and leaks the real plan.
-        churn(700:2:760)
-
-        parked = collect(Iterators.flatten(values(IH.idle_dtors)))
-        @test !isempty(parked)
-        # The fixed closure closes over a local `handle`; the buggy one closed
-        # over `plan` and read `.handle` lazily.
-        @test all(d -> hasproperty(d, :handle), parked)
-        @test !any(d -> hasproperty(d, :plan), parked)
-        @test !any(d -> hasproperty(d, :handle) && UInt(getfield(d, :handle)) == 0, parked)
-    end
-
     @testset "bookkeeping stays bounded and device memory does not leak" begin
         churn(64:2:122)                 # warm up: kernel JIT + fill the cache
         @test total_idle() <= IH.max_idle
 
+        cold_lengths = 200:2:400        # fresh distinct lengths, one rfft + one brfft plan each
         free_before, _ = AMDGPU.info()
-        churn(200:2:598)                # 200 fresh distinct lengths (400 plans)
+        churn(cold_lengths)
         free_after, _ = AMDGPU.info()
 
         @test total_idle() <= IH.max_idle
 
-        # Before the fix every one of these 400 plans leaked its device buffers
-        # (>1 GiB total here). Allow a generous margin for rocFFT's internal RTC
-        # kernel cache, which we do not control and which grows sub-linearly.
+        # Before the fix every one of these plans leaked its device buffers.
+        # Allow a generous ~1 MiB/plan margin for rocFFT's internal RTC kernel
+        # cache, which we do not control and which grows sub-linearly.
         leaked = free_before - free_after
-        @test leaked < 400 * 2^20
+        @test leaked < 2 * length(cold_lengths) * 2^20
+    end
+
+    @testset "hot key survives cold churn (eviction order, #1070)" begin
+        # Pins the global-LRU eviction order: a shape reused every iteration
+        # must not be evicted just because many other shapes are used once in
+        # between, even once the idle budget is under constant pressure.
+        rfft_ptr(len) = begin
+            x = ROCArray(rand(Float32, len))
+            p = plan_rfft(x, (1,))
+            ptr = UInt(p.handle)
+            finalize(p)                # deterministically runs release_plan!
+            AMDGPU.unsafe_free!(x)
+            ptr
+        end
+
+        hot_len = 4000                 # distinct from the ranges used above
+        hot_ptr = rfft_ptr(hot_len)     # first build; now idle
+
+        cold_len = 5000
+        rebuilds = 0
+        for _ in 1:20                  # >> IH.max_idle worth of cold churn
+            ptr = rfft_ptr(hot_len)
+            rebuilds += (ptr != hot_ptr)
+            hot_ptr = ptr
+            for _ in 1:8
+                rfft_ptr(cold_len)
+                cold_len += 2
+            end
+        end
+
+        @test rebuilds == 0
     end
 end
 

@@ -103,11 +103,11 @@ end
         push!(() -> push!(destroyed, h), cache, key, h)
     end
 
-    total_idle = sum(length, values(cache.idle_handles); init = 0)
-    @test total_idle <= max_idle
+    idle = AMDGPU.total_idle(cache)
+    @test idle <= max_idle
     @test isempty(cache.active_handles)
     # Every handle is accounted for: still idle or destroyed, never both, never lost.
-    @test total_idle + length(destroyed) == n_created == 100
+    @test idle + length(destroyed) == n_created == 100
     @test allunique(destroyed)
 end
 
