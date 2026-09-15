@@ -18,9 +18,9 @@ function release_plan!(plan)
     key = (
         AMDGPU.context(), plan.xtype, sz,
         plan.key_T, is_inplace(plan), (plan.region...,))
-    # Capture the handle by value: `unsafe_free!` sets `plan.handle = C_NULL`
-    # right after calling `release_plan!`, so a closure over `plan.handle` would
-    # later call `rocfft_plan_destroy(C_NULL)` (a silent no-op) and leak the plan.
+    # Capture the handle by value: eviction can run this closure after
+    # `unsafe_free!` has already nulled `plan.handle`, so closing over `plan`
+    # would destroy C_NULL (a silent no-op) and leak the real plan.
     handle = plan.handle
     value = (handle, length(plan.workarea))
     push!(() -> rocfft_plan_destroy(handle), IDLE_HANDLES, key, value)

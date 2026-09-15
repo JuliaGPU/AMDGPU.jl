@@ -396,9 +396,9 @@ end
     end
 
     @testset "destructor captures a live handle, not the nulled plan.handle" begin
-        # Regression: release_plan! used to queue `() -> rocfft_plan_destroy(plan.handle)`,
-        # but unsafe_free! sets `plan.handle = C_NULL` immediately afterwards, so
-        # eviction destroyed C_NULL (a silent no-op) and leaked the real plan.
+        # Eviction can run a plan's destructor after `unsafe_free!` has already
+        # nulled `plan.handle`, so the closure must capture the handle by value
+        # or it silently destroys C_NULL and leaks the real plan.
         churn(700:2:760)
 
         parked = collect(Iterators.flatten(values(IH.idle_dtors)))
