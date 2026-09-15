@@ -144,7 +144,11 @@ function Base.push!(f::Function, cache::HandleCache{K, V}, key::K, handle::V) wh
         try
             dtor()
         catch err
-            @error "Error while destroying cached handle" exception=(err, catch_backtrace())
+            # `push!` can be reached from a finalizer, where taking the logging
+            # lock and allocating a message (what `@error` does unconditionally)
+            # is best avoided; `@debug` short-circuits before either unless
+            # explicitly enabled (e.g. `JULIA_DEBUG=AMDGPU`).
+            @debug "Error while destroying cached handle" exception=(err, catch_backtrace())
         end
     end
     return
