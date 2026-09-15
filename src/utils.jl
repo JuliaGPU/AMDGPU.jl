@@ -1,3 +1,4 @@
+using GPUCompiler: LLVMDowngrader_jll
 # Run `code` in a subprocess and return its stdout, or `nothing` on crash,
 # timeout, or nonzero exit. The empty `JULIA_LOAD_PATH` keeps the child out of
 # the active project, so `code` must only use `Base`.
@@ -60,6 +61,19 @@ function versioninfo(io::IO=stdout)
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
+
+    get_module(name::Symbol) = (name, getfield(Metal, name))
+    function get_module(pkg::Tuple{String, String})
+        id = Base.PkgId(Base.UUID(pkg[1]), pkg[2])
+        (pkg[2], get(Base.loaded_modules, id, nothing))
+    end
+
+    for pkg in [:GPUArrays, :GPUCompiler, ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
+                 :LLVM, :AMDGPU_LLVM_Backend_jll, :LLVMDowngrader_jll]
+        name, mod = get_module(pkg)
+        isnothing(mod) || println(io, "- $(name): $(Base.pkgversion(mod))")
+    end
+    println(io)
 
     # `"err"` = present but the out-of-process version probe crashed/timed out.
     rocsparse_ver = functional(:rocsparse) ? _rocsparse_version_isolated() : "-"
