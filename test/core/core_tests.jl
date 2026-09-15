@@ -111,4 +111,53 @@ end
     @test allunique(destroyed)
 end
 
+@testset "HandleCache randomized invariants" begin
+    # Fuzzes pop!/push! with random cache-size budgets and a random mix of
+    # checkouts and returns, checking after every operation that no handle is
+    # lost or destroyed twice, the idle budget is never exceeded, and no
+    # empty vectors are left behind in `idle_handles`.
+    for _ in 1:200
+        max_entries = rand(0:5)
+        max_idle = rand(0:12)
+        cache = HandleCache{Int, Int}(max_entries, max_idle)
+
+        next_id = Ref(0)
+        created = Set{Int}()
+        destroyed = Int[]
+        active = Dict{Int, Vector{Int}}()   # key => handles currently checked out
+
+        for _ in 1:400
+            key = rand(1:8)
+            held = get(active, key, Int[])
+            if isempty(held) || rand(Bool)
+                h = pop!(cache, key) do
+                    id = (next_id[] += 1)
+                    push!(created, id)
+                    id
+                end
+                push!(get!(() -> Int[], active, key), h)
+            else
+                h = popat!(held, rand(eachindex(held)))
+                isempty(held) && delete!(active, key)
+                push!(() -> push!(destroyed, h), cache, key, h)
+            end
+
+            idle_handles = [e.handle for entries in values(cache.idle_handles) for e in entries]
+            live_pairs = Set(key => h for (key, hs) in active for h in hs)
+
+            @test allunique(idle_handles)                        # never idled twice
+            @test allunique(destroyed)                           # never destroyed twice
+            @test isempty(Set(idle_handles) ∩ Set(destroyed))    # never idle *and* destroyed
+            @test live_pairs == cache.active_handles             # cache agrees with the harness
+            @test all(!isempty(v) for v in values(cache.idle_handles))       # no empty vectors left behind
+            @test all(length(v) <= max_entries + 1 for v in values(cache.idle_handles))
+            @test AMDGPU.total_idle(cache) <= max_idle
+
+            accounted = length(idle_handles) + length(destroyed) +
+                        sum(length, values(active); init = 0)
+            @test accounted == length(created)                   # nothing lost
+        end
+    end
+end
+
 end
