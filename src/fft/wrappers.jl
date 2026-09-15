@@ -18,15 +18,19 @@ end
 
 function release_plan!(plan)
     sz = plan.input_sz_as_key ? plan.sz : plan.osz
+    ctx = AMDGPU.context()
     key = (
-        AMDGPU.context(), plan.xtype, sz,
+        ctx, plan.xtype, sz,
         plan.key_T, is_inplace(plan), (plan.region...,))
     # Capture the handle by value: eviction can run this closure after
     # `unsafe_free!` has already nulled `plan.handle`, so closing over `plan`
     # would destroy C_NULL (a silent no-op) and leak the real plan.
     handle = plan.handle
     value = (handle, length(plan.workarea))
-    push!(() -> rocfft_plan_destroy(handle), IDLE_HANDLES, key, value)
+    # Eviction may run this destructor later, under whatever context happens
+    # to be current at that point, not the one the plan was built under -- so
+    # pin it explicitly, same as `library_state`'s destructor does.
+    push!(() -> AMDGPU.context!(() -> rocfft_plan_destroy(handle), ctx), IDLE_HANDLES, key, value)
 end
 
 function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
