@@ -2,7 +2,10 @@
 const HandleCacheKey = Tuple{HIPContext, rocfft_transform_type, Dims, Type, Bool, Any}
 # Value: (plan, worksize).
 const HandleCacheValue = Tuple{rocfft_plan, Int}
-const IDLE_HANDLES = HandleCache{HandleCacheKey, HandleCacheValue}()
+# Unlike the other library handle caches (keyed on the small set of `HIPContext`s
+# in use), rocFFT plans are keyed on shape too, so a workload can hit many
+# distinct keys and needs an explicit global idle budget. See #1053.
+const IDLE_HANDLES = HandleCache{HandleCacheKey, HandleCacheValue}(32, 64)
 
 function get_plan(xtype, sz, T, inplace, region)
     rocfft_setup_once()

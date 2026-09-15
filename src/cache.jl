@@ -27,12 +27,16 @@ struct HandleCache{K, V}
     # cache for workloads that use a large number of distinct keys (e.g. rocFFT
     # plans for many different shapes), which would otherwise leak one handle
     # per key forever since no single key ever reaches `max_entries`. See #1053.
+    # Defaults to unbounded: caches keyed on something with few values (e.g.
+    # `HIPContext`) rely on the per-key `max_entries` budget instead, since a
+    # small default here would evict handles across unrelated contexts/devices
+    # long before any single one grows large.
     max_idle::Int
     # Stamps each idle handle so `_evict_idle!` can evict in least-recently-cached
     # order across all keys, instead of whichever key `Dict` iteration visits first.
     seq::Base.RefValue{Int}
 
-    function HandleCache{K, V}(max_entries::Int = 32, max_idle::Int = 64) where {K, V}
+    function HandleCache{K, V}(max_entries::Int = 32, max_idle::Int = typemax(Int)) where {K, V}
         new{K,V}(
             Set{Pair{K, V}}(),
             Dict{K, Vector{IdleHandle{V}}}(),
