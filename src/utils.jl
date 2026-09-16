@@ -62,7 +62,7 @@ function versioninfo(io::IO=stdout)
     _libpath(p::String) = isempty(p) ? "-" : p
     _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
 
-    get_module(name::Symbol) = (name, getfield(Metal, name))
+    get_module(name::Symbol) = (name, getfield(AMDGPU, name))
     function get_module(pkg::Tuple{String, String})
         id = Base.PkgId(Base.UUID(pkg[1]), pkg[2])
         (pkg[2], get(Base.loaded_modules, id, nothing))
