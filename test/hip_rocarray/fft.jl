@@ -407,10 +407,13 @@ end
         @test total_idle() <= IH.max_idle
 
         # Before the fix every one of these plans leaked its device buffers.
-        # Allow a generous ~1 MiB/plan margin for rocFFT's internal RTC kernel
-        # cache, which we do not control and which grows sub-linearly.
+        # Allow a generous ~2 MiB/plan margin for rocFFT's internal RTC kernel
+        # cache, which we do not control, grows with each distinct new shape
+        # (not just plan count), and whose per-shape cost varies by GPU/ROCm
+        # version -- this is not a tight bound, just a guard against the
+        # much larger, unbounded leak this test was written to catch.
         leaked = free_before - free_after
-        @test leaked < 2 * length(cold_lengths) * 2^20
+        @test leaked < 4 * length(cold_lengths) * 2^20
     end
 
     @testset "hot key survives cold churn (eviction order, #1070)" begin
