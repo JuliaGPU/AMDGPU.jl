@@ -15,11 +15,10 @@ Base.sortperm(x::AnyROCArray; dims::Union{Nothing, Integer}=nothing, kwargs...) 
         sortperm!(ROCArray(1:length(x)), x; kwargs...) :
         sortperm!(reshape(ROCArray(1:length(x)), size(x)), x; dims, kwargs...)
 
-# Sorting along `dims`. AcceleratedKernels has no `dims` argument yet
-# (JuliaGPU/AcceleratedKernels.jl#59), and one sort per slice would serialize into too many
-# tiny kernels. Instead each element is tagged with the index of its slice and the array is
-# sorted once, ordered lexicographically by `(slice, element)`; slices then come out grouped
-# and internally sorted, and are scattered back. Drop this once AK supports `dims` directly.
+# Sorting along `dims`, a stopgap until AcceleratedKernels support for it reaches AMDGPU.
+# Each element is tagged with the index of its slice and the array is sorted once, ordered
+# lexicographically by `(slice, element)`; slices then come out grouped and internally sorted,
+# and are scattered back.
 
 # Tag element `(i, j - 1)` of the `(sd * n, rest)` view of `x` with its slice index, plus its
 # linear index for `sortperm`. Broadcast alongside `x` itself, so the ranges stay lazy.
@@ -77,7 +76,7 @@ function _sortperm_dims!(
     lt=isless, by=identity, rev::Union{Nothing, Bool}=nothing,
     order::Base.Order.Ordering=Base.Order.Forward, kwargs...,
 )
-    axes(ix) == axes(x) || throw(DimensionMismatch(
+    axes(ix) == axes(x) || throw(ArgumentError(
         "index array has axes $(axes(ix)), but sorted array has axes $(axes(x))"))
     isempty(x) && return ix
     n, sd, rest = _slice_layout(x, dims)

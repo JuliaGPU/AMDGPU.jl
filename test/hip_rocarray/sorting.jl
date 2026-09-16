@@ -35,7 +35,7 @@ end
         xd = ROCArray(x)
 
         for dims in 1:length(sz), kwargs in (
-            (;), (; rev=true), (; by=k -> 2 * k), (; lt=!isless),
+            (;), (; rev=true), (; by=k -> 2 * k), (; lt=(>)),
             (; order=Base.Order.Reverse),
         )
             y = sort(x; dims, kwargs...)
@@ -47,6 +47,7 @@ end
 
             p = sortperm(xd; dims, kwargs...)
             @test size(p) == size(x)
+            @test Array(p) == sortperm(x; dims, kwargs...)
             @test y == Array(xd)[Array(p)]
         end
     end
@@ -56,9 +57,10 @@ end
     @test Array(sort(x; dims=2)) == Float32[1 3; 2 4]
     @test Array(x) == Float32[3 1; 2 4]
 
-    # `sortperm!` writes into the given index array.
+    # `sortperm!` writes into the given index array, which must be shaped like `x`.
     ix = ROCArray(reshape(collect(1:4), 2, 2))
     @test Array(sortperm!(ix, x; dims=2)) == [3 1; 2 4]
+    @test_throws ArgumentError sortperm!(ROCArray(collect(1:4)), x; dims=2)
 
     # Out-of-range dimensions error like `Base.sort!` does.
     @test_throws ArgumentError sort!(x; dims=3)
