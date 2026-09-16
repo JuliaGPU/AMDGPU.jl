@@ -33,6 +33,17 @@ if :AMDGPU in LLVM.backends()
             config = GPUCompiler.CompilerConfig(target, params;
                 kernel=true, name=nothing, always_inline=true)
 
+            # Generators run in their defining world; if `kernel_state`'s expansion fails
+            # here, `get_staged` swallows the error and inference caches `Any`-typed
+            # runtime code into our package image, miscompiling every bounds-checked
+            # kernel for users whose GPU matches this baseline target.
+            let mi = GPUCompiler.methodinstance(typeof(Device.kernel_state), Tuple{}),
+                ks_job = GPUCompiler.CompilerJob(mi, GPUCompiler.CompilerConfig(config; kernel=false))
+                rettype = GPUCompiler.code_typed(ks_job)[1][2]
+                rettype === KernelState ||
+                    error("kernel_state() inferred as $rettype during precompilation")
+            end
+
             tt = Tuple{ROCDeviceArray{Float32, 1, AS.Global}}
             source = GPUCompiler.methodinstance(typeof(_precompile_kernel), tt)
             job = GPUCompiler.CompilerJob(source, config)
