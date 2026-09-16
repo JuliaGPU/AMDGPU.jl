@@ -289,26 +289,8 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
 end
 
 function create_executable(obj)
-    # ROCm discovery does not run while generating package output.
-    use_precompile_lld = isempty(AMDGPU.lld_path) &&
-                         ccall(:jl_generating_output, Cint, ()) == 1 &&
-                         AMDGPU_LLVM_Backend_jll.is_available()
-    if AMDGPU.lld_artifact || use_precompile_lld
-        return link_in_process(obj)
-    end
-    @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
-    lld = `$(AMDGPU.lld_path)`
-
-    path_o = tempname(;cleanup=false) * ".obj"
-    path_exe = tempname(;cleanup=false) * ".exe"
-
-    write(path_o, obj)
-    run(`$lld -shared -o $path_exe $path_o`)
-    bin = read(path_exe)
-
-    rm(path_o)
-    rm(path_exe)
-    return bin
+    @assert AMDGPU_LLVM_Backend_jll.is_available() "libamdgpu was not found; cannot link kernel"
+    return link_in_process(obj)
 end
 
 # link a relocatable object into an HSA code object through `libamdgpu`, i.e.

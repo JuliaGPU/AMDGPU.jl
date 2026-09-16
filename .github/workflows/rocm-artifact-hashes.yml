@@ -1,0 +1,58 @@
+name: ROCm artifact hashes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  hash-rocm-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.12"
+      - name: Download tarballs and compute hashes
+        shell: julia {0}
+        run: |
+          import Pkg
+          Pkg.add("ArtifactUtils")
+          using ArtifactUtils, Base.BinaryPlatforms
+          const rocm_version = "10.0.0"
+          const rocm_tag = "10.0"
+
+          # Every family TheRock publishes for this release; see the listing at
+          # https://stable.repo.amd.com/rocm/core/tarball/ and
+          # https://github.com/ROCm/TheRock/blob/main/build_tools/github_actions/amdgpu_family_matrix.py.
+          # The data-center families (`-dcgpu`) are only built for Linux.
+          for rocm_arch in [
+            "gfx908",
+            "gfx90a",
+            "gfx94X-dcgpu",
+            "gfx950-dcgpu",
+            "gfx125X-dcgpu",
+            "gfx101X-dgpu",
+            "gfx103X-all",
+            "gfx110X-all",
+            "gfx1150",
+            "gfx1151",
+            "gfx1152",
+            "gfx1153",
+            "gfx120X-all",
+          ]
+            @info "Linux, $rocm_arch"
+            platform = Platform("x86_64", "linux", Dict(
+                "libc" => "glibc", "rocm" => rocm_tag,
+                "rocm_arch" => replace(rocm_arch, "-" => "_")))
+            add_artifact!("Artifacts.toml", "ROCm_Runtime", "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-$rocm_arch-$rocm_version.tar.gz"; lazy = true, platform)
+
+            endswith(rocm_arch, "-dcgpu") && continue
+            @info "Windows, $rocm_arch"
+            platform = Platform("x86_64", "windows", Dict(
+                "rocm" => rocm_tag,
+                "rocm_arch" => replace(rocm_arch, "-" => "_")))
+            add_artifact!("Artifacts.toml", "ROCm_Runtime", "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-$rocm_arch-$rocm_version.tar.gz"; lazy = true, platform)
+          end
+      - name: Upload hash report
+        uses: actions/upload-artifact@v4
+        with:
+          name: Artifacts.toml
+          path: Artifacts.toml
