@@ -48,4 +48,19 @@ using AMDGPU: ROCArray
         @test y == Array(reverse(xd; dims))
         @test y == Array(reverse!(xd; dims))
     end
+
+    @testset "empty" begin
+        for T in (Float32, Int16)
+            xd = ROCArray(T[])
+            @test Array(reverse(xd)) == reverse(T[])
+            @test Array(reverse!(xd)) == reverse(T[])
+
+            for sz in ((0, 3), (3, 0)), dims in (:, 1, 2)
+                m = Matrix{T}(undef, sz)
+                md = ROCArray(m)
+                @test Array(reverse(md; dims)) == reverse(m; dims)
+                @test Array(reverse!(md; dims)) == reverse(m; dims)
+            end
+        end
+    end
 end

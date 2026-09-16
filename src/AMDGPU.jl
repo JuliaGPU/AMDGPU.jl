@@ -209,7 +209,7 @@ function __init__()
         @warn "LLD is unavailable, compilation functionality will be disabled."
         if parse(Bool, get(ENV, "JULIA_AMDGPU_CORE_MUST_LOAD", "0"))
             print_build_diagnostics()
-            error("Failed to find ld.lld, but ld.lld must exist, bailing out")
+            error("Failed to find the kernel linker, but it must exist, bailing out")
         end
     end
 

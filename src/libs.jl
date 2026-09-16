@@ -8,11 +8,12 @@
 # otherwise. Both packages provide the same set of exported library paths
 # (empty strings when a component is missing).
 #
-# `ld.lld` and the device libraries always come from AMDGPU_LLVM_Backend_jll:
-# `ld.lld` has to match the LLVM version device code is generated with, and the
-# device bitcode libraries target that same LLVM, which is newer than Julia's,
-# so they are downgraded to Julia's bitcode version with `llvm-downgrade` at
-# first use (see `find_device_libs`).
+# The kernel linker (`libamdgpu`, i.e. an in-process `ld.lld`) and the device
+# libraries always come from AMDGPU_LLVM_Backend_jll: the linker has to match
+# the LLVM version device code is generated with, and the device bitcode
+# libraries target that same LLVM, which is newer than Julia's, so they are
+# downgraded to Julia's bitcode version through `libllvm_downgrade` at first
+# use (see `find_device_libs`).
 
 import ROCm_Runtime
 
@@ -24,13 +25,35 @@ else
 end
 
 import AMDGPU_LLVM_Backend_jll
-import AMDGPU_LLVM_Backend_jll: lld_path
 using LLVMDowngrader_jll
+using LLVMDowngrader_jll: libllvm_downgrade
 using Scratch
 
 # Set by `__init__` (through `find_device_libs`); empty until then, in
 # particular during precompilation.
 global libdevice_libs::String = ""
+
+# downgrade bitcode to the format of an older LLVM through `libllvm_downgrade`
+function downgrade_bitcode(input::Vector{UInt8}, version::VersionNumber)
+    buffer = Ref{Ptr{Cvoid}}(C_NULL)
+    message = Ref{Cstring}(C_NULL)
+    status = @ccall libllvm_downgrade.LLVMDGDowngrade(
+        input::Ptr{UInt8}, length(input)::Csize_t, version.major::Cuint, version.minor::Cuint,
+        buffer::Ptr{Ptr{Cvoid}}, message::Ptr{Cstring})::Cint
+    if status != 0
+        msg = "unknown error"
+        if message[] != C_NULL
+            msg = unsafe_string(message[])
+            @ccall libllvm_downgrade.LLVMDGDisposeMessage(message[]::Cstring)::Cvoid
+        end
+        error(msg)
+    end
+    start = @ccall libllvm_downgrade.LLVMDGGetBufferStart(buffer[]::Ptr{Cvoid})::Ptr{UInt8}
+    size = @ccall libllvm_downgrade.LLVMDGGetBufferSize(buffer[]::Ptr{Cvoid})::Csize_t
+    output = copy(unsafe_wrap(Array, start, size))
+    @ccall libllvm_downgrade.LLVMDGDisposeMemoryBuffer(buffer[]::Ptr{Cvoid})::Cvoid
+    return output
+end
 
 # bitcode versions `llvm-downgrade` can target.
 # The 15 target emits opaque pointers, but GPUCompiler uses typed pointers on LLVM 15 and 16
@@ -56,13 +79,12 @@ function downgrade_device_libs(src_dir::String)::String
         for file in readdir(src_dir)
             endswith(file, ".bc") || continue
             # Just skip libraries the downgrader can't handle. `link_device_libs!` will throw an error if it is actually needed
-            cmd = `$(LLVMDowngrader_jll.llvm_downgrade()) --bitcode-version=$(target.major).$(target.minor) -o $(joinpath(tmp, file)) $(joinpath(src_dir, file))`
-            err_io = IOBuffer()
             try
-                run(pipeline(cmd; stderr=err_io))
-            catch
+                bitcode = downgrade_bitcode(read(joinpath(src_dir, file)), target)
+                write(joinpath(tmp, file), bitcode)
+            catch err
                 @warn """Failed to downgrade device library `$file` to LLVM $(target.major), skipping it.
-                $(rstrip(String(take!(err_io))))
+                $(sprint(showerror, err))
                 """
                 rm(joinpath(tmp, file); force=true)
             end

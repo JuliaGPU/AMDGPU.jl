@@ -1,7 +1,3 @@
-# HSA dispatch packet offsets
-_packet_names = fieldnames(HSA.KernelDispatchPacket)
-_packet_offsets = fieldoffset.(HSA.KernelDispatchPacket, 1:length(_packet_names))
-
 # which Julia types map to a given ROC lib type
 const fntypes = Dict{Type,Symbol}(
     Nothing => :void,

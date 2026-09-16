@@ -17,7 +17,7 @@ function versioninfo(io::IO=stdout)
         functional(lib) ? (try "$(ver_fn())" catch; "err" end) : "-"
 
     data = String[
-        _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_path);
+        _status(functional(:lld))         "LLD"              "-"                                 _libpath(functional(:lld) ? AMDGPU_LLVM_Backend_jll.libamdgpu : "");
         _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
         _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libamdhip64);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
@@ -104,7 +104,7 @@ Returns `true` if the ROCm component `component` is configured and expected to
 function correctly. Available `component` values are:
 
 - `:hip`         - Queries HIP library availability
-- `:lld`         - Queries `ld.lld` tool availability
+- `:lld`         - Queries kernel linker (`libamdgpu`) availability
 - `:device_libs` - Queries ROCm device libraries availability
 - `:rocblas`     - Queries rocBLAS library availability
 - `:rocsolver`   - Queries rocSOLVER library availability
@@ -122,7 +122,7 @@ function functional(component::Symbol)
     if component == :hip
         return !isempty(libamdhip64)
     elseif component == :lld
-        return !isempty(lld_path)
+        return AMDGPU_LLVM_Backend_jll.is_available()
     elseif component == :device_libs
         return !isempty(libdevice_libs)
     elseif component == :rocblas

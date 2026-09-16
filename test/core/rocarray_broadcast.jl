@@ -59,3 +59,13 @@ end
     @test Array(test_kernel.(ROCArray(M), Int128(10))) == test_kernel.(M, Int128(10))
     AMDGPU.synchronize()
 end
+
+# https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
+@testset "Int128 axpby! miscompilation" begin
+    a, b = rand(Int128), rand(Int128)
+    x, y = rand(Int128, 5), rand(Int128, 5)
+    gx, gy = ROCArray(x), ROCArray(y)
+    gy .= gx .* a .+ gy .* b
+    @test Array(gy) == x .* a .+ y .* b broken=(Base.libllvm_version >= v"18")
+    AMDGPU.synchronize()
+end

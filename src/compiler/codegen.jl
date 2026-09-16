@@ -103,10 +103,15 @@ function GPUCompiler.finish_module!(
 
         # TODO add convergent, mustprogress, willreturn attributes?
 
+        # request the full hidden-argument block (code object v5+): workgroup and
+        # grid dimensions are read from it (see device/gcn/indexing.jl),
+        implicitarg_attr = StringAttribute("amdgpu-implicitarg-num-bytes", "256")
+
         attrs = LLVM.function_attributes(entry)
         push!(attrs, target_cpu_attr)
         push!(attrs, target_features_attr)
         push!(attrs, atomic_attr)
+        push!(attrs, implicitarg_attr)
     end
 
     # Workaround for the lack of zeroinitializer support for LDS.
@@ -284,18 +289,31 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
 end
 
 function create_executable(obj)
-    @assert AMDGPU_LLVM_Backend_jll.is_available() "ld.lld was not found; cannot link kernel"
-    lld = `$(AMDGPU_LLVM_Backend_jll.lld()) -flavor gnu`
+    @assert AMDGPU_LLVM_Backend_jll.is_available() "libamdgpu was not found; cannot link kernel"
+    return link_in_process(obj)
+end
 
-    path_o = tempname(;cleanup=false) * ".obj"
-    path_exe = tempname(;cleanup=false) * ".exe"
-
-    write(path_o, obj)
-    run(`$lld -shared -o $path_exe $path_o`)
-    bin = read(path_exe)
-
-    rm(path_o)
-    rm(path_exe)
+# link a relocatable object into an HSA code object through `libamdgpu`, i.e.
+# `ld.lld -flavor gnu -shared` without spawning a process or touching the file system
+function link_in_process(obj::AbstractVector{UInt8})
+    obj = convert(Vector{UInt8}, obj)
+    buffer = Ref{Ptr{Cvoid}}(C_NULL)
+    message = Ref{Cstring}(C_NULL)
+    status = @ccall libamdgpu.AMDGPULink(
+        obj::Ptr{UInt8}, length(obj)::Csize_t,
+        buffer::Ptr{Ptr{Cvoid}}, message::Ptr{Cstring})::Cint
+    if status != 0
+        msg = "Failed to link kernel"
+        if message[] != C_NULL
+            msg *= ":\n" * unsafe_string(message[])
+            @ccall libamdgpu.AMDGPUDisposeMessage(message[]::Cstring)::Cvoid
+        end
+        error(msg)
+    end
+    start = @ccall libamdgpu.AMDGPUGetBufferStart(buffer[]::Ptr{Cvoid})::Ptr{UInt8}
+    size = @ccall libamdgpu.AMDGPUGetBufferSize(buffer[]::Ptr{Cvoid})::Csize_t
+    bin = copy(unsafe_wrap(Array, start, size))
+    @ccall libamdgpu.AMDGPUDisposeMemoryBuffer(buffer[]::Ptr{Cvoid})::Cvoid
     return bin
 end
 
@@ -393,4 +411,27 @@ function run_and_collect(cmd)
     Base.wait(proc)
     log = strip(fetch(reader))
     return proc, log
+end
+
+# Run amdgpu-attributor so that the amdgpu specific attributes are added
+# This reduces some register usage
+function GPUCompiler.finish_ir!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, entry::LLVM.Function,
+)
+    entry = invoke(GPUCompiler.finish_ir!,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
+        job, mod, entry)
+    job.config.kernel || return entry
+
+    name = LLVM.name(entry)
+    tm = GPUCompiler.llvm_machine(job.config.target)
+    # The textual pass name is only registered since LLVM 18; it's a pure
+    # optimization, so skip it on older LLVM (e.g. Julia 1.10's LLVM 15).
+    if LLVM.version() >= v"18"
+        @dispose pb=NewPMPassBuilder() begin
+            add!(pb, "amdgpu-attributor")
+            run!(pb, mod, tm)
+        end
+    end
+    return functions(mod)[name]
 end
