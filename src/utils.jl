@@ -1,4 +1,3 @@
-using GPUCompiler: LLVMDowngrader_jll
 # Run `code` in a subprocess and return its stdout, or `nothing` on crash,
 # timeout, or nonzero exit. The empty `JULIA_LOAD_PATH` keeps the child out of
 # the active project, so `code` must only use `Base`.
