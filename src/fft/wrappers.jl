@@ -7,6 +7,11 @@ const HandleCacheValue = Tuple{rocfft_plan, Int}
 # distinct keys and needs an explicit global idle budget. See #1053.
 const IDLE_HANDLES = HandleCache{HandleCacheKey, HandleCacheValue}(32, 64)
 
+# Test-only bookkeeping: plans created, and plans actually destroyed (i.e.
+# `rocfft_plan_destroy` ran on a non-null handle).
+const N_PLANS_CREATED = Threads.Atomic{Int}(0)
+const N_PLANS_DESTROYED = Threads.Atomic{Int}(0)
+
 function get_plan(xtype, sz, T, inplace, region)
     rocfft_setup_once()
     reg = (region...,)
@@ -27,10 +32,13 @@ function release_plan!(plan)
     # would destroy C_NULL (a silent no-op) and leak the real plan.
     handle = plan.handle
     value = (handle, length(plan.workarea))
-    # Eviction may run this destructor later, under whatever context happens
-    # to be current at that point, not the one the plan was built under -- so
-    # pin it explicitly, same as `library_state`'s destructor does.
-    push!(() -> AMDGPU.context!(() -> rocfft_plan_destroy(handle), ctx), IDLE_HANDLES, key, value)
+    function destroy()
+        handle != C_NULL && Threads.atomic_add!(N_PLANS_DESTROYED, 1)
+        # Eviction may run this later under whatever context is current then,
+        # so pin it explicitly to `ctx`, the context current at release time.
+        AMDGPU.context!(() -> rocfft_plan_destroy(handle), ctx)
+    end
+    push!(destroy, IDLE_HANDLES, key, value)
 end
 
 function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
@@ -187,5 +195,6 @@ function create_plan(xtype::rocfft_transform_type, xdims, T, inplace, region)
         rocfft_plan_description_destroy(description)
     end
     rocfft_plan_get_work_buffer_size(handle_ref[], worksize_ref)
+    Threads.atomic_add!(N_PLANS_CREATED, 1)
     return handle_ref[], Int(worksize_ref[])
 end

@@ -1,4 +1,5 @@
 using Test
+using Random
 using AMDGPU
 using AMDGPU: HIP, Runtime, Device, Mem
 
@@ -115,10 +116,12 @@ end
     # Fuzzes pop!/push! with random cache-size budgets and a random mix of
     # checkouts and returns, checking after every operation that no handle is
     # lost or destroyed twice, the idle budget is never exceeded, and no
-    # empty vectors are left behind in `idle_handles`.
+    # empty vectors are left behind in `idle_handles`. One `@test` per trial,
+    # and a seeded RNG for reproducible failures.
+    rng = Xoshiro(0x1070)
     for _ in 1:200
-        max_entries = rand(0:5)
-        max_idle = rand(0:12)
+        max_entries = rand(rng, 0:5)
+        max_idle = rand(rng, 0:12)
         cache = HandleCache{Int, Int}(max_entries, max_idle)
 
         next_id = Ref(0)
@@ -126,10 +129,11 @@ end
         destroyed = Int[]
         active = Dict{Int, Vector{Int}}()   # key => handles currently checked out
 
+        ok = true
         for _ in 1:400
-            key = rand(1:8)
+            key = rand(rng, 1:8)
             held = get(active, key, Int[])
-            if isempty(held) || rand(Bool)
+            if isempty(held) || rand(rng, Bool)
                 h = pop!(cache, key) do
                     id = (next_id[] += 1)
                     push!(created, id)
@@ -137,7 +141,7 @@ end
                 end
                 push!(get!(() -> Int[], active, key), h)
             else
-                h = popat!(held, rand(eachindex(held)))
+                h = popat!(held, rand(rng, eachindex(held)))
                 isempty(held) && delete!(active, key)
                 push!(() -> push!(destroyed, h), cache, key, h)
             end
@@ -145,19 +149,41 @@ end
             idle_handles = [e.handle for entries in values(cache.idle_handles) for e in entries]
             live_pairs = Set(key => h for (key, hs) in active for h in hs)
 
-            @test allunique(idle_handles)                        # never idled twice
-            @test allunique(destroyed)                           # never destroyed twice
-            @test isempty(Set(idle_handles) ∩ Set(destroyed))    # never idle *and* destroyed
-            @test live_pairs == cache.active_handles             # cache agrees with the harness
-            @test all(!isempty(v) for v in values(cache.idle_handles))       # no empty vectors left behind
-            @test all(length(v) <= max_entries + 1 for v in values(cache.idle_handles))
-            @test AMDGPU.total_idle(cache) <= max_idle
+            ok &= allunique(idle_handles)                        # never idled twice
+            ok &= allunique(destroyed)                           # never destroyed twice
+            ok &= isempty(Set(idle_handles) ∩ Set(destroyed))    # never idle *and* destroyed
+            ok &= live_pairs == cache.active_handles             # cache agrees with the harness
+            ok &= all(!isempty(v) for v in values(cache.idle_handles))       # no empty vectors left behind
+            ok &= all(length(v) <= max_entries + 1 for v in values(cache.idle_handles))
+            ok &= AMDGPU.total_idle(cache) <= max_idle
 
             accounted = length(idle_handles) + length(destroyed) +
                         sum(length, values(active); init = 0)
-            @test accounted == length(created)                   # nothing lost
+            ok &= accounted == length(created)                   # nothing lost
+            ok || break
+        end
+        @test ok
+    end
+end
+
+@testset "HandleCache: hot key survives cold churn" begin
+    # Pins the global-LRU eviction order: a key reused every iteration must
+    # not be evicted just because many other keys are used once in between.
+    cache = HandleCache{Int, Int}(32, 8)
+    created = Ref(0)
+    get_put(key) = (h = pop!(() -> (created[] += 1), cache, key);
+                    push!(() -> nothing, cache, key, h); h)
+    get_put(0)                    # hot key
+    before = created[]
+    cold = 1
+    for _ in 1:50
+        get_put(0)
+        for _ in 1:4
+            get_put(cold); cold += 1
         end
     end
+    # each cold key creates one handle; anything more means the hot key was rebuilt
+    @test created[] - before == cold - 1
 end
 
 end

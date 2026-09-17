@@ -399,52 +399,31 @@ end
         churn(64:2:122)                 # warm up: kernel JIT + fill the cache
         @test total_idle() <= IH.max_idle
 
+        # rocFFT compiles and caches an RTC kernel per distinct shape here,
+        # so this first pass over fresh lengths isn't a useful leak signal.
         cold_lengths = 200:2:400        # fresh distinct lengths, one rfft + one brfft plan each
+        churn(cold_lengths)
+        @test total_idle() <= IH.max_idle
+
+        # Second pass over the *same* lengths triggers no new RTC compilation,
+        # so it's a clean leak signal. Checked deterministically rather than
+        # via device-memory deltas (too noisy across CI GPUs): every plan
+        # created here must end up either idle in the cache or actually
+        # destroyed (dtor ran with a non-null handle), never lost.
+        created_before = AMDGPU.rocFFT.N_PLANS_CREATED[]
+        destroyed_before = AMDGPU.rocFFT.N_PLANS_DESTROYED[]
+        idle_before = total_idle()
         free_before, _ = AMDGPU.info()
         churn(cold_lengths)
         free_after, _ = AMDGPU.info()
+        idle_after = total_idle()
+        @test idle_after <= IH.max_idle
+        @info "Plan handle cache churn" leaked_bytes=(free_before - free_after)
 
-        @test total_idle() <= IH.max_idle
-
-        # Before the fix every one of these plans leaked its device buffers.
-        # Allow a generous ~2 MiB/plan margin for rocFFT's internal RTC kernel
-        # cache, which we do not control, grows with each distinct new shape
-        # (not just plan count), and whose per-shape cost varies by GPU/ROCm
-        # version -- this is not a tight bound, just a guard against the
-        # much larger, unbounded leak this test was written to catch.
-        leaked = free_before - free_after
-        @test leaked < 4 * length(cold_lengths) * 2^20
-    end
-
-    @testset "hot key survives cold churn (eviction order, #1070)" begin
-        # Pins the global-LRU eviction order: a shape reused every iteration
-        # must not be evicted just because many other shapes are used once in
-        # between, even once the idle budget is under constant pressure.
-        rfft_ptr(len) = begin
-            x = ROCArray(rand(Float32, len))
-            p = plan_rfft(x, (1,))
-            ptr = UInt(p.handle)
-            finalize(p)                # deterministically runs release_plan!
-            AMDGPU.unsafe_free!(x)
-            ptr
-        end
-
-        hot_len = 4000                 # distinct from the ranges used above
-        hot_ptr = rfft_ptr(hot_len)     # first build; now idle
-
-        cold_len = 5000
-        rebuilds = 0
-        for _ in 1:20                  # >> IH.max_idle worth of cold churn
-            ptr = rfft_ptr(hot_len)
-            rebuilds += (ptr != hot_ptr)
-            hot_ptr = ptr
-            for _ in 1:8
-                rfft_ptr(cold_len)
-                cold_len += 2
-            end
-        end
-
-        @test rebuilds == 0
+        Δcreated = AMDGPU.rocFFT.N_PLANS_CREATED[] - created_before
+        Δdestroyed = AMDGPU.rocFFT.N_PLANS_DESTROYED[] - destroyed_before
+        Δidle = idle_after - idle_before
+        @test Δcreated == Δdestroyed + Δidle
     end
 end
 
