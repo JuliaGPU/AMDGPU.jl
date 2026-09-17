@@ -88,6 +88,26 @@ function versioninfo(io::IO=stdout)
             https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
     end
 
+    get_module(name::Symbol) = (name, getfield(AMDGPU, name))
+    function get_module(pkg::Tuple{String, String})
+        id = Base.PkgId(Base.UUID(pkg[1]), pkg[2])
+        (pkg[2], get(Base.loaded_modules, id, nothing))
+    end
+
+    println(io, "Julia packages: ")
+    println(io, "- AMDGPU.jl: $(Base.pkgversion(AMDGPU))")
+    for pkg in [:GPUArrays, :GPUCompiler, ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
+                 :LLVM, :AMDGPU_LLVM_Backend_jll, :LLVMDowngrader_jll]
+        name, mod = get_module(pkg)
+        isnothing(mod) || println(io, "- $(name): $(Base.pkgversion(mod))")
+    end
+    println(io)
+
+    println(io, "Toolchain:")
+    println(io, "- Julia: $VERSION")
+    println(io, "- LLVM: $(LLVM.version())")
+    println(io)
+
     if functional(:hip)
         println(io)
         println(io, "AMDGPU devices")
