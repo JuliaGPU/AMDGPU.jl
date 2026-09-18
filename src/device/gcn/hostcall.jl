@@ -86,9 +86,7 @@ function HostCallHolder(
     timeout = nothing, continuous = false, buf_len = nothing,
     maxlat = DEFAULT_HOSTCALL_LATENCY,
 )
-    signal_ref = Ref{HSA.Signal}()
-    HSA.signal_create(1, 0, C_NULL, signal_ref) |> Runtime.check
-    signal = signal_ref[]
+    signal = create_hostcall_signal(1)
 
     hc = HostCall(rettype, argtypes, signal.handle; buf_len)
     ret_bufs = Mem.HostBuffer[]
@@ -148,8 +146,8 @@ function HostCallHolder(
                         if sizeof(ret) > 0
                             src_ptr = reinterpret(Ptr{Cvoid},
                                 Base.unsafe_convert(Ptr{rettype}, ret_ref))
-                            HSA.memory_copy(
-                                ret_ptr, src_ptr, sizeof(ret)) |> Runtime.check
+                            hostcall_memcpy(
+                                ret_ptr, src_ptr, sizeof(ret))
                         end
 
                         args_buf_ptr = reinterpret(Ptr{Ptr{Cvoid}}, hc.buf_ptr)
@@ -172,7 +170,7 @@ function HostCallHolder(
                 rethrow(err)
             end
         finally
-            # We need to destroy HSA signal, but first we need to ensure
+            # We need to destroy the hostcall signal, but first we need to ensure
             # that the device is no longer using it.
             while !Runtime.RT_EXITING[]
                 prev = host_signal_load(signal)
@@ -182,7 +180,7 @@ function HostCallHolder(
                     prev == DEVICE_ERR_SENTINEL
                 not_used && break
             end
-            HSA.signal_destroy(signal) |> Runtime.check
+            destroy_hostcall_signal!(signal)
         end
         return
     end

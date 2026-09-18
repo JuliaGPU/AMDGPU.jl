@@ -1,3 +1,11 @@
+@inline function hostcall_memcpy(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Integer)
+    @static if Sys.iswindows()
+        unsafe_copyto!(reinterpret(Ptr{UInt8}, dst), reinterpret(Ptr{UInt8}, src), sz)
+    else
+        HSA.memory_copy(dst, src, sz) |> Runtime.check
+    end
+end
+
 "Calls the host function stored in `hc` with arguments `args`."
 @inline function hostcall!(hc::HostCall, args...)
     hostcall!(Val{:group}(), hc, args...)
@@ -156,9 +164,9 @@ end
         # FIXME: Use correct alignment
         push!(ex.args, quote
             lref = Ref{$T}()
-            HSA.memory_copy(
+            hostcall_memcpy(
                 reinterpret(Ptr{Cvoid}, Base.unsafe_convert(Ptr{$T}, lref)),
-                reinterpret(Ptr{Cvoid}, hc.buf_ptr + $off - 1), $sz) |> Runtime.check
+                reinterpret(Ptr{Cvoid}, hc.buf_ptr + $off - 1), $sz)
             lref[]
         end)
         off += sz
