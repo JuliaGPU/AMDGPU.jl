@@ -381,8 +381,7 @@ end
     IH = AMDGPU.rocFFT.IDLE_HANDLES
     total_idle() = AMDGPU.total_idle(IH)
 
-    # SpeedyWeather's SpectralTransform access pattern: one rfft + one brfft plan
-    # per latitude ring, ring lengths differ, each plan built once and dropped.
+    # One rfft + one brfft plan per length, built once and dropped.
     function churn(lengths)
         for len in lengths
             x = ROCArray(rand(Float32, len))
@@ -399,17 +398,14 @@ end
         churn(64:2:122)                 # warm up: kernel JIT + fill the cache
         @test total_idle() <= IH.max_idle
 
-        # rocFFT compiles and caches an RTC kernel per distinct shape here,
-        # so this first pass over fresh lengths isn't a useful leak signal.
-        cold_lengths = 200:2:400        # fresh distinct lengths, one rfft + one brfft plan each
+        # First pass over fresh lengths also triggers rocFFT RTC compilation,
+        # so it isn't a clean leak signal on its own.
+        cold_lengths = 200:2:400
         churn(cold_lengths)
         @test total_idle() <= IH.max_idle
 
-        # Second pass over the *same* lengths triggers no new RTC compilation,
-        # so it's a clean leak signal. Checked deterministically rather than
-        # via device-memory deltas (too noisy across CI GPUs): every plan
-        # created here must end up either idle in the cache or actually
-        # destroyed (dtor ran with a non-null handle), never lost.
+        # Second pass over the same lengths triggers no new RTC compilation:
+        # every plan created here must end up idle or destroyed, never lost.
         created_before = AMDGPU.rocFFT.N_PLANS_CREATED[]
         destroyed_before = AMDGPU.rocFFT.N_PLANS_DESTROYED[]
         idle_before = total_idle()

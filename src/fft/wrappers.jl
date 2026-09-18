@@ -2,13 +2,11 @@
 const HandleCacheKey = Tuple{HIPContext, rocfft_transform_type, Dims, Type, Bool, Any}
 # Value: (plan, worksize).
 const HandleCacheValue = Tuple{rocfft_plan, Int}
-# Unlike the other library handle caches (keyed on the small set of `HIPContext`s
-# in use), rocFFT plans are keyed on shape too, so a workload can hit many
-# distinct keys and needs an explicit global idle budget. See #1053.
+# Plans are keyed on shape, so a workload can hit many distinct keys; bound
+# the idle count globally too, not just per key. See #1053.
 const IDLE_HANDLES = HandleCache{HandleCacheKey, HandleCacheValue}(32, 64)
 
-# Test-only bookkeeping: plans created, and plans actually destroyed (i.e.
-# `rocfft_plan_destroy` ran on a non-null handle).
+# Test-only bookkeeping of plans created/destroyed.
 const N_PLANS_CREATED = Threads.Atomic{Int}(0)
 const N_PLANS_DESTROYED = Threads.Atomic{Int}(0)
 
@@ -27,15 +25,13 @@ function release_plan!(plan)
     key = (
         ctx, plan.xtype, sz,
         plan.key_T, is_inplace(plan), (plan.region...,))
-    # Capture the handle by value: eviction can run this closure after
-    # `unsafe_free!` has already nulled `plan.handle`, so closing over `plan`
-    # would destroy C_NULL (a silent no-op) and leak the real plan.
+    # Capture the handle by value, since `unsafe_free!` may null `plan.handle`
+    # before eviction runs this closure.
     handle = plan.handle
     value = (handle, length(plan.workarea))
     function destroy()
         handle != C_NULL && Threads.atomic_add!(N_PLANS_DESTROYED, 1)
-        # Eviction may run this later under whatever context is current then,
-        # so pin it explicitly to `ctx`, the context current at release time.
+        # Pin to `ctx`, since eviction may run this under a different context.
         AMDGPU.context!(() -> rocfft_plan_destroy(handle), ctx)
     end
     push!(destroy, IDLE_HANDLES, key, value)

@@ -2,13 +2,11 @@
 # Copied from CUDA.jl/lib/utils/cache.jl
 
 # TODO:
-# - clean cache when under memory pressure (currently only a fixed count budget,
-#   `max_idle`, bounds the total number of idle handles across all keys)
+# - clean cache when under memory pressure
 
 export HandleCache
 
-# One idle handle, together with the destructor that reclaims it and the global
-# insertion order used to pick an eviction victim.
+# An idle handle, its destructor, and the insertion order used for eviction.
 struct IdleHandle{V}
     handle::V
     dtor::Any
@@ -23,17 +21,11 @@ struct HandleCache{K, V}
 
     # Maximum number of idle handles kept per cache key.
     max_entries::Int
-    # Maximum number of idle handles kept across *all* keys. This bounds the
-    # cache for workloads that use a large number of distinct keys (e.g. rocFFT
-    # plans for many different shapes), which would otherwise leak one handle
-    # per key forever since no single key ever reaches `max_entries`. See #1053.
-    # Defaults to unbounded: caches keyed on something with few values (e.g.
-    # `HIPContext`) rely on the per-key `max_entries` budget instead, since a
-    # small default here would evict handles across unrelated contexts/devices
-    # long before any single one grows large.
+    # Maximum number of idle handles kept across all keys. Defaults to
+    # unbounded; only needed for caches with many distinct keys (e.g. rocFFT
+    # plans keyed on shape). See #1053.
     max_idle::Int
-    # Stamps each idle handle so `_evict_idle!` can evict in least-recently-cached
-    # order across all keys, instead of whichever key `Dict` iteration visits first.
+    # Insertion counter, used to evict in least-recently-cached order.
     seq::Base.RefValue{Int}
 
     function HandleCache{K, V}(max_entries::Int = 32, max_idle::Int = typemax(Int)) where {K, V}
@@ -45,14 +37,10 @@ struct HandleCache{K, V}
     end
 end
 
-# Total number of idle handles across all keys.
-# Must be called while holding `cache.lock`.
+# Total number of idle handles across all keys. Must hold `cache.lock`.
 total_idle(cache::HandleCache) = sum(length, values(cache.idle_handles); init = 0)
 
-# Take an idle handle for `key` out of the cache, or `nothing` if there is none.
-# Its destructor is dropped: the caller owns the handle again, and hands us a
-# fresh destructor when it comes back through `push!`.
-# Must be called while holding `cache.lock`.
+# Take an idle handle for `key` out of the cache, or `nothing`. Must hold `cache.lock`.
 function _take_idle!(cache::HandleCache{K, V}, key) where {K, V}
     entries = get(cache.idle_handles, key, nothing)
     entries ≡ nothing && return nothing
@@ -61,13 +49,9 @@ function _take_idle!(cache::HandleCache{K, V}, key) where {K, V}
     return entry.handle
 end
 
-# Evict idle handles until at most `max_idle` remain across all keys, returning
-# the destructors of the evicted handles to be run by the caller outside the
-# lock. Victims are chosen in least-recently-cached order across all keys, so a
-# key that keeps being reused survives churn from keys that are used once.
-# Each key's vector is in ascending `seq` order, so only its front is a
-# candidate, making the scan O(number of keys) per eviction.
-# Must be called while holding `cache.lock`.
+# Evict idle handles until at most `max_idle` remain across all keys, in
+# least-recently-cached order, returning the evicted destructors to run
+# outside the lock. Must hold `cache.lock`.
 function _evict_idle!(cache::HandleCache{K, V}) where {K, V}
     evicted = Any[]
     total = total_idle(cache)
@@ -121,33 +105,25 @@ function Base.push!(f::Function, cache::HandleCache{K, V}, key::K, handle::V) wh
         delete!(cache.active_handles, key => handle)
 
         entries = get(cache.idle_handles, key, nothing)
-        # Keep the original semantics: save while the key holds ≤ `max_entries`,
-        # so a key can grow to `max_entries + 1`.
         saved = (entries ≡ nothing ? 0 : length(entries)) ≤ cache.max_entries
         if saved
-            # Only materialise the vector once we know we are filling it, so a
-            # key is present in `idle_handles` iff it holds at least one handle.
             entries ≡ nothing &&
                 (entries = cache.idle_handles[key] = IdleHandle{V}[])
             push!(entries, IdleHandle{V}(handle, f, (cache.seq[] += 1)))
         end
 
-        # Enforce the global idle-handle budget.
         to_destroy = _evict_idle!(cache)
         saved || push!(to_destroy, f)
         to_destroy
     end
 
-    # Run every destructor even if one throws: the handles are already gone from
-    # the bookkeeping, so bailing out here would leak the rest silently.
+    # Run every destructor even if one throws, to avoid leaking the rest.
     for dtor in dtors
         try
             dtor()
         catch err
-            # `push!` can be reached from a finalizer, where taking the logging
-            # lock and allocating a message (what `@error` does unconditionally)
-            # is best avoided; `@debug` short-circuits before either unless
-            # explicitly enabled (e.g. `JULIA_DEBUG=AMDGPU`).
+            # Avoid @error here: this can run in a finalizer, and @error
+            # unconditionally allocates and takes the logging lock.
             @debug "Error while destroying cached handle" exception=(err, catch_backtrace())
         end
     end

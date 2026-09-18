@@ -87,9 +87,6 @@ end
 end
 
 @testset "HandleCache global idle budget (#1053)" begin
-    # A workload that uses many distinct keys must not accumulate one idle
-    # handle per key forever: `max_idle` caps the total across all keys, and
-    # evicted handles get their destructor run exactly once.
     max_entries, max_idle = 4, 8
     cache = HandleCache{Int, Int}(max_entries, max_idle)
 
@@ -107,17 +104,11 @@ end
     idle = AMDGPU.total_idle(cache)
     @test idle <= max_idle
     @test isempty(cache.active_handles)
-    # Every handle is accounted for: still idle or destroyed, never both, never lost.
     @test idle + length(destroyed) == n_created == 100
     @test allunique(destroyed)
 end
 
 @testset "HandleCache randomized invariants" begin
-    # Fuzzes pop!/push! with random cache-size budgets and a random mix of
-    # checkouts and returns, checking after every operation that no handle is
-    # lost or destroyed twice, the idle budget is never exceeded, and no
-    # empty vectors are left behind in `idle_handles`. One `@test` per trial,
-    # and a seeded RNG for reproducible failures.
     rng = Xoshiro(0x1070)
     for _ in 1:200
         max_entries = rand(rng, 0:5)
@@ -167,8 +158,6 @@ end
 end
 
 @testset "HandleCache: hot key survives cold churn" begin
-    # Pins the global-LRU eviction order: a key reused every iteration must
-    # not be evicted just because many other keys are used once in between.
     cache = HandleCache{Int, Int}(32, 8)
     created = Ref(0)
     get_put(key) = (h = pop!(() -> (created[] += 1), cache, key);
@@ -182,7 +171,6 @@ end
             get_put(cold); cold += 1
         end
     end
-    # each cold key creates one handle; anything more means the hot key was rebuilt
     @test created[] - before == cold - 1
 end
 
