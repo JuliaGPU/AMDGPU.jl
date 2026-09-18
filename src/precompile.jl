@@ -8,7 +8,9 @@ using PrecompileTools: @compile_workload
 # AMDGPU codegen pipeline during precompilation so that the first kernel launch
 # at runtime doesn't have to JIT-compile the entire compiler. It does NOT need a
 # GPU (or even the ROCm runtime to be discovered) -- it only uses LLVM.
-if :AMDGPU in LLVM.backends()
+#
+# Skip the step on Windows because it hangs on Windows.
+if :AMDGPU in LLVM.backends() && !Sys.iswindows()
     @compile_workload begin
         let
             function _precompile_kernel(a)
