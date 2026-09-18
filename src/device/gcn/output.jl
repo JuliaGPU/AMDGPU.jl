@@ -119,9 +119,9 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
 
     # Read format string into host buffer.
     fmt_buf = Vector{UInt8}(undef, fmt_len)
-    HSA.memory_copy(
+    hostcall_memcpy(
         convert(Ptr{Cvoid}, pointer(fmt_buf)),
-        convert(Ptr{Cvoid}, fmt_ptr), fmt_len) |> Runtime.check
+        convert(Ptr{Cvoid}, fmt_ptr), fmt_len)
     fmt = String(fmt_buf)
 
     # Read arguments
