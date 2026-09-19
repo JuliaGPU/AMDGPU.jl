@@ -377,4 +377,50 @@ end
     end
 end
 
+@testset "Plan handle cache (#1053)" begin
+    IH = AMDGPU.rocFFT.IDLE_HANDLES
+    total_idle() = AMDGPU.total_idle(IH)
+
+    # One rfft + one brfft plan per length, built once and dropped.
+    function churn(lengths)
+        for len in lengths
+            x = ROCArray(rand(Float32, len))
+            pf = plan_rfft(x, (1,))
+            y = pf * x
+            pb = plan_brfft(y, len, (1,))
+            pb * y
+        end
+        GC.gc(); GC.gc()            # run finalizers -> release_plan!
+        AMDGPU.synchronize()
+    end
+
+    @testset "bookkeeping stays bounded and device memory does not leak" begin
+        churn(64:2:122)                 # warm up: kernel JIT + fill the cache
+        @test total_idle() <= IH.max_idle
+
+        # First pass over fresh lengths also triggers rocFFT RTC compilation,
+        # so it isn't a clean leak signal on its own.
+        cold_lengths = 200:2:400
+        churn(cold_lengths)
+        @test total_idle() <= IH.max_idle
+
+        # Second pass over the same lengths triggers no new RTC compilation:
+        # every plan created here must end up idle or destroyed, never lost.
+        created_before = AMDGPU.rocFFT.N_PLANS_CREATED[]
+        destroyed_before = AMDGPU.rocFFT.N_PLANS_DESTROYED[]
+        idle_before = total_idle()
+        free_before, _ = AMDGPU.info()
+        churn(cold_lengths)
+        free_after, _ = AMDGPU.info()
+        idle_after = total_idle()
+        @test idle_after <= IH.max_idle
+        @info "Plan handle cache churn" leaked_bytes=(free_before - free_after)
+
+        Δcreated = AMDGPU.rocFFT.N_PLANS_CREATED[] - created_before
+        Δdestroyed = AMDGPU.rocFFT.N_PLANS_DESTROYED[] - destroyed_before
+        Δidle = idle_after - idle_before
+        @test Δcreated == Δdestroyed + Δidle
+    end
+end
+
 end # testset FFT

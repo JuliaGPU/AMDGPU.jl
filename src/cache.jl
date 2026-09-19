@@ -2,46 +2,88 @@
 # Copied from CUDA.jl/lib/utils/cache.jl
 
 # TODO:
-# - store ctor/dtor in cache
 # - clean cache when under memory pressure
 
 export HandleCache
 
+# An idle handle, its destructor, and the insertion order used for eviction.
+struct IdleHandle{V}
+    handle::V
+    dtor::Any
+    seq::Int
+end
+
 struct HandleCache{K, V}
     active_handles::Set{Pair{K, V}}
-    idle_handles::Dict{K, Vector{V}}
+    idle_handles::Dict{K, Vector{IdleHandle{V}}}
     lock::Base.ThreadSynchronizer
     # TODO when finalizers are run on their own tasks use reentrant lock
 
+    # Maximum number of idle handles kept per cache key.
     max_entries::Int
+    # Maximum number of idle handles kept across all keys. Defaults to
+    # unbounded; only needed for caches with many distinct keys (e.g. rocFFT
+    # plans keyed on shape). See #1053.
+    max_idle::Int
+    # Insertion counter, used to evict in least-recently-cached order.
+    seq::Base.RefValue{Int}
 
-    function HandleCache{K, V}(max_entries::Int = 32) where {K, V}
+    function HandleCache{K, V}(max_entries::Int = 32, max_idle::Int = typemax(Int)) where {K, V}
         new{K,V}(
             Set{Pair{K, V}}(),
-            Dict{K, Vector{V}}(),
+            Dict{K, Vector{IdleHandle{V}}}(),
             Base.ThreadSynchronizer(),
-            max_entries)
+            max_entries, max_idle, Ref(0))
     end
+end
+
+# Total number of idle handles across all keys. Must hold `cache.lock`.
+total_idle(cache::HandleCache) = sum(length, values(cache.idle_handles); init = 0)
+
+# Take an idle handle for `key` out of the cache, or `nothing`. Must hold `cache.lock`.
+function _take_idle!(cache::HandleCache{K, V}, key) where {K, V}
+    entries = get(cache.idle_handles, key, nothing)
+    entries ≡ nothing && return nothing
+    entry = pop!(entries)
+    isempty(entries) && delete!(cache.idle_handles, key)
+    return entry.handle
+end
+
+# Evict idle handles until at most `max_idle` remain across all keys, in
+# least-recently-cached order, returning the evicted destructors to run
+# outside the lock. Must hold `cache.lock`.
+function _evict_idle!(cache::HandleCache{K, V}) where {K, V}
+    evicted = Any[]
+    total = total_idle(cache)
+    while total > cache.max_idle
+        victim, oldest = nothing, typemax(Int)
+        for (key, entries) in cache.idle_handles
+            if entries[1].seq < oldest
+                victim, oldest = key, entries[1].seq
+            end
+        end
+        victim ≡ nothing && break
+
+        entries = cache.idle_handles[victim]
+        push!(evicted, popfirst!(entries).dtor)
+        isempty(entries) && delete!(cache.idle_handles, victim)
+        total -= 1
+    end
+    return evicted
 end
 
 # remove a handle from the cache, or create a new one
 function Base.pop!(f::Function, cache::HandleCache{K, V}, key) where {K, V}
     # Check cache.
     handle, n_active_handles = Base.@lock cache.lock begin
-        if haskey(cache.idle_handles, key) && !isempty(cache.idle_handles[key])
-            pop!(cache.idle_handles[key]), length(cache.active_handles)
-        else
-            nothing, length(cache.active_handles)
-        end
+        _take_idle!(cache, key), length(cache.active_handles)
     end
 
     # If didn't find anything, but lots of active handles - try to free some.
     if handle ≡ nothing && n_active_handles > cache.max_entries
         GC.gc(false)
         Base.@lock cache.lock begin
-            if haskey(cache.idle_handles, key) && !isempty(cache.idle_handles[key])
-                handle = pop!(cache.idle_handles[key])
-            end
+            handle = _take_idle!(cache, key)
         end
     end
 
@@ -54,7 +96,7 @@ end
 
 # put a handle in the cache, or destroy it if it doesn't fit
 function Base.push!(f::Function, cache::HandleCache{K, V}, key::K, handle::V) where {K, V}
-    saved = Base.@lock cache.lock begin
+    dtors = Base.@lock cache.lock begin
         (key => handle) ∉ cache.active_handles && error(
             """Trying to free active handle that is not managed by cache.
             - Key: $key
@@ -62,20 +104,29 @@ function Base.push!(f::Function, cache::HandleCache{K, V}, key::K, handle::V) wh
             """)
         delete!(cache.active_handles, key => handle)
 
-        if haskey(cache.idle_handles, key)
-            if length(cache.idle_handles[key]) > cache.max_entries
-                false
-            else
-                push!(cache.idle_handles[key], handle)
-                true
-            end
-        else
-            cache.idle_handles[key] = [handle]
-            true
+        entries = get(cache.idle_handles, key, nothing)
+        saved = (entries ≡ nothing ? 0 : length(entries)) ≤ cache.max_entries
+        if saved
+            entries ≡ nothing &&
+                (entries = cache.idle_handles[key] = IdleHandle{V}[])
+            push!(entries, IdleHandle{V}(handle, f, (cache.seq[] += 1)))
         end
+
+        to_destroy = _evict_idle!(cache)
+        saved || push!(to_destroy, f)
+        to_destroy
     end
 
-    saved || f()
+    # Run every destructor even if one throws, to avoid leaking the rest.
+    for dtor in dtors
+        try
+            dtor()
+        catch err
+            # Avoid @error here: this can run in a finalizer, and @error
+            # unconditionally allocates and takes the logging lock.
+            @debug "Error while destroying cached handle" exception=(err, catch_backtrace())
+        end
+    end
     return
 end
 

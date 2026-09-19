@@ -1,4 +1,5 @@
 using Test
+using Random
 using AMDGPU
 using AMDGPU: HIP, Runtime, Device, Mem
 
@@ -83,6 +84,94 @@ end
 
     d = AMDGPU.device()
     @test d == deepcopy(d)
+end
+
+@testset "HandleCache global idle budget (#1053)" begin
+    max_entries, max_idle = 4, 8
+    cache = HandleCache{Int, Int}(max_entries, max_idle)
+
+    destroyed = Int[]
+    n_created = 0
+    for key in 1:100
+        h = pop!(cache, key) do
+            n_created += 1
+            key + 1000
+        end
+        @test h == key + 1000
+        push!(() -> push!(destroyed, h), cache, key, h)
+    end
+
+    idle = AMDGPU.total_idle(cache)
+    @test idle <= max_idle
+    @test isempty(cache.active_handles)
+    @test idle + length(destroyed) == n_created == 100
+    @test allunique(destroyed)
+end
+
+@testset "HandleCache randomized invariants" begin
+    rng = Xoshiro(0x1070)
+    for _ in 1:200
+        max_entries = rand(rng, 0:5)
+        max_idle = rand(rng, 0:12)
+        cache = HandleCache{Int, Int}(max_entries, max_idle)
+
+        next_id = Ref(0)
+        created = Set{Int}()
+        destroyed = Int[]
+        active = Dict{Int, Vector{Int}}()   # key => handles currently checked out
+
+        ok = true
+        for _ in 1:400
+            key = rand(rng, 1:8)
+            held = get(active, key, Int[])
+            if isempty(held) || rand(rng, Bool)
+                h = pop!(cache, key) do
+                    id = (next_id[] += 1)
+                    push!(created, id)
+                    id
+                end
+                push!(get!(() -> Int[], active, key), h)
+            else
+                h = popat!(held, rand(rng, eachindex(held)))
+                isempty(held) && delete!(active, key)
+                push!(() -> push!(destroyed, h), cache, key, h)
+            end
+
+            idle_handles = [e.handle for entries in values(cache.idle_handles) for e in entries]
+            live_pairs = Set(key => h for (key, hs) in active for h in hs)
+
+            ok &= allunique(idle_handles)                        # never idled twice
+            ok &= allunique(destroyed)                           # never destroyed twice
+            ok &= isempty(Set(idle_handles) ∩ Set(destroyed))    # never idle *and* destroyed
+            ok &= live_pairs == cache.active_handles             # cache agrees with the harness
+            ok &= all(!isempty(v) for v in values(cache.idle_handles))       # no empty vectors left behind
+            ok &= all(length(v) <= max_entries + 1 for v in values(cache.idle_handles))
+            ok &= AMDGPU.total_idle(cache) <= max_idle
+
+            accounted = length(idle_handles) + length(destroyed) +
+                        sum(length, values(active); init = 0)
+            ok &= accounted == length(created)                   # nothing lost
+            ok || break
+        end
+        @test ok
+    end
+end
+
+@testset "HandleCache: hot key survives cold churn" begin
+    cache = HandleCache{Int, Int}(32, 8)
+    created = Ref(0)
+    get_put(key) = (h = pop!(() -> (created[] += 1), cache, key);
+                    push!(() -> nothing, cache, key, h); h)
+    get_put(0)                    # hot key
+    before = created[]
+    cold = 1
+    for _ in 1:50
+        get_put(0)
+        for _ in 1:4
+            get_put(cold); cold += 1
+        end
+    end
+    @test created[] - before == cold - 1
 end
 
 end
