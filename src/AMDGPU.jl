@@ -85,6 +85,16 @@ const syncscope_workgroup = UnsafeAtomics.Internal.LLVMSyncScope{:workgroup}()
 
 # Device sources must load _before_ the compiler infrastructure,
 # because of generated functions.
+# Device.runtime's generated `kernel_state()` references this type; generators run in
+# their defining world (Julia 1.12+), so it must exist before the device code is included.
+struct KernelState
+    exception_info::Ptr{UInt64}
+    malloc_hc::Ptr{Cvoid}
+    free_hc::Ptr{Cvoid}
+    output_context::Ptr{Cvoid}
+    printf_output_context::Ptr{Cvoid}
+end
+
 include("device/Device.jl")
 import .Device: malloc, signal_exception, report_exception, report_oom
 import .Device: report_exception_frame, report_exception_name
@@ -99,14 +109,6 @@ export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
 export @rocprint, @rocprintln, @rocprintf
 export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
-
-struct KernelState
-    exception_info::Ptr{UInt64}
-    malloc_hc::Ptr{Cvoid}
-    free_hc::Ptr{Cvoid}
-    output_context::Ptr{Cvoid}
-    printf_output_context::Ptr{Cvoid}
-end
 
 include("compiler/Compiler.jl")
 import .Compiler
