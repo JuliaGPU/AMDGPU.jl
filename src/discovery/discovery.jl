@@ -14,12 +14,6 @@ using Libdl
 
 include("utils.jl")
 
-function get_artifact_library(pkg::Symbol, libname::Symbol)::String
-    succ, res = safe_exec("import $pkg; println($pkg.$libname)")
-    (succ && ispath(res)) || return ""
-    return res
-end
-
 function get_ld_lld(rocm_path::String)::Tuple{String, Bool}
     lld_path = find_ld_lld(rocm_path)
     isempty(lld_path) || return (lld_path, false)
