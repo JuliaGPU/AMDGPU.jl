@@ -6,6 +6,8 @@ using ..GPUCompiler
 using ..LLVM
 using Printf
 
+import GPUToolbox: @gcsafe_ccall
+
 import AMDGPU_LLVM_Backend_jll # used for linking; GPUCompiler uses the in-tree backend otherwise
 using AMDGPU_LLVM_Backend_jll: libamdgpu
 
