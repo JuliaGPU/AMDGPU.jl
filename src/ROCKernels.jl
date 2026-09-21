@@ -48,7 +48,7 @@ function KI.record_event(::ROCBackend)
 end
 
 function KI.wait_event(::ROCBackend, ev::HIP.HIPEvent)
-    HIP.hipStreamWaitEvent(AMDGPU.stream(), ev, 0)
+    # HIP.hipStreamWaitEvent(AMDGPU.stream(), ev, 0)
     return
 end
 
