@@ -52,6 +52,20 @@ GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
 GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
 
+# Same situation as the `llvm.frexp`/`llvm.ldexp` note in GPUCompiler's gcn.jl: the ROCm
+# device libraries are built against a newer LLVM than the one in this process, so they
+# use intrinsics it does not know and will not accept as such. Final code generation goes
+# through AMDGPU_LLVM_Backend_jll, which does know them.
+#
+# `llvm.readsteadycounter` (LLVM 19) is reached from `__ockl_dm_alloc`, i.e. by every
+# module that uses the device allocator.
+const _backend_only_intrinsics = ("llvm.readsteadycounter",)
+
+GPUCompiler.isintrinsic(@nospecialize(job::HIPCompilerJob), fn::String) =
+    fn in _backend_only_intrinsics ||
+    invoke(GPUCompiler.isintrinsic,
+        Tuple{CompilerJob{GCNCompilerTarget}, typeof(fn)}, job, fn)
+
 # Julia codegen embeds host addresses
 # (type tags, boxed values, words read from libjulia globals)
 # into the IR it hands us.
@@ -76,6 +90,9 @@ function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LL
 
     # Only the final kernel module needs the device libraries.
     job.config.toplevel || return
+    # Before linking, so that the `__ockl_dm_alloc`/`__ockl_dm_dealloc` this introduces
+    # are among the undefined symbols that pull in `ockl`.
+    lower_device_malloc!(mod)
     link_device_libs!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
@@ -91,9 +108,12 @@ function GPUCompiler.finish_module!(
     # Re-link device libs to resolve references introduced by the GPUCompiler runtime,
     # e.g. boxing → malloc → hostcall → __ockl_hsa_signal*
     # which are added after link_libraries! has already run.
-    job.config.toplevel && link_device_libs!(
-        job.config.target, mod;
-        wavefrontsize64=job.config.params.wavefrontsize64)
+    if job.config.toplevel
+        lower_device_malloc!(mod)
+        link_device_libs!(
+            job.config.target, mod;
+            wavefrontsize64=job.config.params.wavefrontsize64)
+    end
 
     # Set kernel target cpu and features.
     if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
