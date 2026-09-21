@@ -43,6 +43,15 @@ KI.get_backend(::AMDGPU.rocSPARSE.ROCSparseMatrixCSR) = ROCBackend()
 
 KI.synchronize(::ROCBackend) = AMDGPU.synchronize()
 
+function KI.record_event(::ROCBackend)
+    return HIP.HIPEvent(AMDGPU.stream())
+end
+
+function KI.wait_event(::ROCBackend, ev::HIP.HIPEvent)
+    HIP.hipStreamWaitEvent(AMDGPU.stream(), ev, 0)
+    return
+end
+
 KI.unsafe_free!(x::AMDGPU.ROCArray) = AMDGPU.unsafe_free!(x)
 KI.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
 KI.zeros(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.zeros(T, dims)
