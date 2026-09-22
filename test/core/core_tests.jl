@@ -40,6 +40,16 @@ end
     end
 end
 
+@testset "versioninfo `_ver` crash guard" begin
+    # A library whose version query throws on a broken/mismatched install
+    # (e.g. a missing symbol in an ABI-mismatched .so) must not take down
+    # `versioninfo()` -- it should degrade to `"err"`, same as rocSPARSE's
+    # isolated probe does for a crash.
+    @test AMDGPU._ver(true, () -> error("boom")) == "err"
+    @test AMDGPU._ver(true, () -> "1.2.3") == "1.2.3"
+    @test AMDGPU._ver(false, () -> error("never called")) == "-"
+end
+
 @testset "HIPDevice" begin
     @testset "Device props" begin
         devices = AMDGPU.devices()
