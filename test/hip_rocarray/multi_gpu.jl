@@ -118,5 +118,29 @@ else
         @test AMDGPU.device() == AMDGPU.device(1)
         @test AMDGPU.HIP.device() == AMDGPU.device(1)
     end
+
+    if AMDGPU.functional(:rocblas)
+        @testset "Library handle cache keys on the creation context (#1094)" begin
+            IH = AMDGPU.rocBLAS.IDLE_HANDLES
+            total_idle() = Base.@lock IH.lock AMDGPU.total_idle(IH)
+
+            idle_before = total_idle()
+            # Take a handle on device 1, then switch before the task dies.
+            for _ in 1:8
+                fetch(Threads.@spawn begin
+                    AMDGPU.device_id!(1)
+                    AMDGPU.rocBLAS.handle()
+                    AMDGPU.device_id!(2)
+                end)
+            end
+            GC.gc(true); GC.gc(true)
+
+            # Task finalization is not deterministic; on the buggy path the
+            # count could only shrink, so growth is the signal.
+            @test total_idle() > idle_before
+
+            AMDGPU.device_id!(1)
+        end
+    end
 end
 end
