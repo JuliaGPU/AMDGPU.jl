@@ -43,10 +43,6 @@ steps:
           - "--verbose "
       adjustments:
         - with:
-            version: "1.13"
-            test_args: "--verbose "
-          soft_fail: true
-        - with:
             version: "nightly"
             test_args: "--verbose --quickfail"
           soft_fail: true
@@ -111,7 +107,7 @@ steps:
   - label: ":racehorse: Benchmarks"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.12"
+          version: "1.13"
     command: |
       julia --project=perf -e '
         println("--- :julia: Instantiating benchmark project")
