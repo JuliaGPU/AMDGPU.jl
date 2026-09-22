@@ -43,10 +43,6 @@ steps:
           - "--verbose "
       adjustments:
         - with:
-            version: "1.13"
-            test_args: "--verbose "
-          soft_fail: true
-        - with:
             version: "nightly"
             test_args: "--verbose --quickfail"
           soft_fail: true
