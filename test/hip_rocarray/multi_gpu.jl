@@ -2,6 +2,7 @@ using Test
 using AMDGPU
 using AMDGPU: ROCArray, @roc
 using AMDGPU.Device: workitemIdx, workgroupIdx, workgroupDim
+using FFTW
 
 if length(AMDGPU.devices()) <= 1
     @info "Skipping Multi-GPU tests (requires more than 1 GPU)"
@@ -117,6 +118,95 @@ else
         @test AMDGPU.stream().device == AMDGPU.HIP.device()
         @test AMDGPU.device() == AMDGPU.device(1)
         @test AMDGPU.HIP.device() == AMDGPU.device(1)
+    end
+
+    if AMDGPU.functional(:rocfft)
+    @testset "FFT plan cache across devices" begin
+        using AMDGPU.rocFFT: IDLE_HANDLES,
+            N_PLANS_CREATED, N_PLANS_DESTROYED, rocfft_transform_type_real_forward
+
+        # A length not used by any other testset, to avoid key collisions.
+        len = 8191
+
+        AMDGPU.device_id!(1)
+        ctx1 = AMDGPU.context()
+        x1 = ROCArray(rand(Float32, len))
+        p1 = plan_rfft(x1, (1,))
+        @test p1.ctx == ctx1
+        handle1 = p1.handle
+
+        key(ctx) = (ctx, rocfft_transform_type_real_forward, size(x1), Float32, false, (1,))
+        idle_handles_for(key) = Base.@lock IDLE_HANDLES.lock begin
+            get(IDLE_HANDLES.idle_handles, key, nothing)
+        end
+        has_handle(entries, h) = entries !== nothing && any(e -> e.handle[1] == h, entries)
+
+        # Switch devices, then finalize the device-1 plan while device 2 is current.
+        AMDGPU.device_id!(2)
+        ctx2 = AMDGPU.context()
+        @test ctx1 != ctx2
+        finalize(p1)
+
+        # The handle must be filed under device 1's key, not device 2's.
+        @test has_handle(idle_handles_for(key(ctx1)), handle1)
+        @test !has_handle(idle_handles_for(key(ctx2)), handle1)
+
+        # A fresh plan for the same shape on device 1 must hit the cache
+        # (same underlying rocfft_plan handle), not rebuild.
+        AMDGPU.device_id!(1)
+        x1b = ROCArray(rand(Float32, len))
+        p1b = plan_rfft(x1b, (1,))
+        @test p1b.ctx == ctx1
+        @test p1b.handle == handle1
+        finalize(p1b)
+        AMDGPU.unsafe_free!(x1)
+        AMDGPU.unsafe_free!(x1b)
+
+        # A second, distinct-shape plan: create on device 1, finalize while
+        # device 2 is current (so it goes idle under device 1's key), then
+        # force it out via eviction while still on device 2. If the evicted
+        # destructor were pinned to the wrong (finalization-time) context,
+        # this is the path that would corrupt state or crash on real
+        # hardware; here we check it doesn't and that the create/destroy/idle
+        # bookkeeping stays consistent throughout.
+        len_c = len + 2
+        xc = ROCArray(rand(Float32, len_c))
+        pc = plan_rfft(xc, (1,))
+        @test pc.ctx == ctx1
+        handle_c = pc.handle
+        key_c = (ctx1, rocfft_transform_type_real_forward, (len_c,), Float32, false, (1,))
+
+        AMDGPU.device_id!(2)
+        finalize(pc)
+        AMDGPU.unsafe_free!(xc)
+        @test has_handle(idle_handles_for(key_c), handle_c)
+
+        created_before = N_PLANS_CREATED[]
+        destroyed_before = N_PLANS_DESTROYED[]
+        idle_before = AMDGPU.total_idle(IDLE_HANDLES)
+
+        # Push enough distinct-shape idle entries (on device 2) to blow past
+        # the global idle cap and guarantee `handle_c`'s entry is evicted.
+        for i in 1:(2 * IDLE_HANDLES.max_idle + 16)
+            xi = ROCArray(rand(Float32, 4096 + 2i))
+            pi_ = plan_rfft(xi, (1,))
+            yi = pi_ * xi
+            AMDGPU.unsafe_free!(yi)
+            finalize(pi_)
+            AMDGPU.unsafe_free!(xi)
+        end
+
+        @test !has_handle(idle_handles_for(key_c), handle_c)
+
+        idle_after = AMDGPU.total_idle(IDLE_HANDLES)
+        @test idle_after <= IDLE_HANDLES.max_idle
+        Δcreated = N_PLANS_CREATED[] - created_before
+        Δdestroyed = N_PLANS_DESTROYED[] - destroyed_before
+        Δidle = idle_after - idle_before
+        @test Δcreated == Δdestroyed + Δidle
+
+        AMDGPU.device_id!(1)
+    end
     end
 end
 end
