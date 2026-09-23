@@ -3,8 +3,6 @@
 # math.jl
 @device_override Base.Math.throw_complex_domainerror(f::Symbol, x) =
     @gpu_throw "DomainError: This operation requires a complex input to return a complex result"
-@device_override Base.Math.throw_exp_domainerror(f::Symbol, x) =
-    @gpu_throw "DomainError: Exponentiation yielding a complex result requires a complex argument"
 
 # intfuncs.jl
 @device_override Base.throw_domerr_powbysq(::Any, p) =
@@ -19,8 +17,6 @@
 # checked.jl
 @device_override Base.Checked.throw_overflowerr_binaryop(op, x, y) =
     @gpu_throw "OverflowError: Binary operation overflowed"
-@device_override Base.Checked.throw_overflowerr_negation(op, x, y) =
-    @gpu_throw "OverflowError: Negation overflowed"
 @device_override function Base.Checked.checked_abs(x::Base.Checked.SignedInt)
     r = ifelse(x < 0, -x, x)
     r < 0 && @gpu_throw "OverflowError: checked arithmetic: cannot compute |x|"
