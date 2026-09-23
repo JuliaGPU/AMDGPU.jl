@@ -54,4 +54,14 @@ end
         # Must return true without segfaulting on an already-finalized stream.
         @test AMDGPU.HIP.isdone(s) == true
     end
+
+    @testset "Finalizer leaves task-local state alone" begin
+        # Finalizers run on whichever task triggers GC. If the stream finalizer
+        # initializes that task's state, the task is stuck on the stream's device.
+        s = HIPStream()
+        @test fetch(@async begin
+            finalize(s)
+            AMDGPU.task_local_state() ≡ nothing
+        end)
+    end
 end
