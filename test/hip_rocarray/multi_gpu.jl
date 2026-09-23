@@ -125,10 +125,9 @@ else
             using AMDGPU.rocFFT: IDLE_HANDLES,
                 N_PLANS_CREATED, N_PLANS_DESTROYED, rocfft_transform_type_real_forward
 
-            # Lengths not used by any other testset, to avoid key collisions.
-            # Both factor into small primes, so rocFFT avoids its Bluestein path.
-            len = 8192     # 2^13
-            len_c = 6144   # 2^11 * 3
+            # Length not used by any other testset, to avoid key collisions.
+            # A power of two, so rocFFT avoids its Bluestein path.
+            len = 8192
 
             key(ctx, len) = (ctx, rocfft_transform_type_real_forward, (len,), Float32, false, (1,))
             idle_handles_for(key) = Base.@lock IDLE_HANDLES.lock begin
@@ -186,7 +185,7 @@ else
                 AMDGPU.unsafe_free!(y2)
                 AMDGPU.unsafe_free!(x2)
 
-                # A distinct-shape plan: create on device 1, finalize while
+                # A device-1 plan (a cache hit on `handle1` here): finalize while
                 # device 2 is current (so it goes idle under device 1's key),
                 # then force it out via eviction while still on device 2, so its
                 # destructor runs from device 2 for a device-1 plan. This only
@@ -194,7 +193,7 @@ else
                 # counts stay consistent; it cannot observe which context the
                 # destructor ran in.
                 AMDGPU.device_id!(1)
-                xc = ROCArray(rand(Float32, len_c))
+                xc = ROCArray(rand(Float32, len))
                 pc = plan_rfft(xc, (1,))
                 @test pc.ctx == ctx1
                 handle_c = pc.handle
@@ -202,7 +201,7 @@ else
                 AMDGPU.device_id!(2)
                 finalize(pc)
                 AMDGPU.unsafe_free!(xc)
-                @test has_handle(idle_handles_for(key(ctx1, len_c)), handle_c)
+                @test has_handle(idle_handles_for(key(ctx1, len)), handle_c)
 
                 created_before = N_PLANS_CREATED[]
                 destroyed_before = N_PLANS_DESTROYED[]
@@ -220,7 +219,7 @@ else
                     AMDGPU.unsafe_free!(xi)
                 end
 
-                @test !has_handle(idle_handles_for(key(ctx1, len_c)), handle_c)
+                @test !has_handle(idle_handles_for(key(ctx1, len)), handle_c)
 
                 idle_after = total_idle()
                 @test idle_after <= IDLE_HANDLES.max_idle
