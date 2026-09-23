@@ -55,13 +55,15 @@ end
         @test AMDGPU.HIP.isdone(s) == true
     end
 
-    @testset "Finalizer leaves task-local state alone" begin
-        # Finalizers run on whichever task triggers GC. If the stream finalizer
-        # initializes that task's state, the task is stuck on the stream's device.
-        s = HIPStream()
-        @test fetch(@async begin
-            finalize(s)
-            AMDGPU.task_local_state() ≡ nothing
-        end)
+    if length(AMDGPU.devices()) > 1
+        @testset "Stream finalizer keeps the running task's device" begin
+            # Finalizers run on whichever task triggers GC. The stream finalizer
+            # must not move that task onto the stream's device.
+            default = fetch(@async AMDGPU.device())
+            other = first(d for d in AMDGPU.devices() if d != default)
+            s = AMDGPU.device!(() -> HIPStream(), other)
+            @test s.device == other
+            @test fetch(@async (finalize(s); AMDGPU.device())) == default
+        end
     end
 end
