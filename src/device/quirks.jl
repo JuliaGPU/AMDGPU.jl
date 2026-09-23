@@ -2,40 +2,40 @@
 
 # math.jl
 @device_override Base.Math.throw_complex_domainerror(f::Symbol, x) =
-    @gpu_throw "DomainError: This operation requires a complex input to return a complex result"
+    @gputhrow "DomainError" "This operation requires a complex input to return a complex result"
 
 # intfuncs.jl
 @device_override Base.throw_domerr_powbysq(::Any, p) =
-    @gpu_throw "DomainError: Cannot raise an integer to a negative power"
+    @gputhrow "DomainError" "Cannot raise an integer to a negative power"
 @device_override Base.throw_domerr_powbysq(::Integer, p) =
-    @gpu_throw "DomainError: Cannot raise an integer to a negative power"
+    @gputhrow "DomainError" "Cannot raise an integer to a negative power"
 @device_override Base.throw_domerr_powbysq(::AbstractMatrix, p) =
-    @gpu_throw "DomainError: Cannot raise an integer to a negative power"
+    @gputhrow "DomainError" "Cannot raise an integer to a negative power"
 @device_override Base.__throw_gcd_overflow(a, b) =
-    @gpu_throw "OverflowError: GCD overflow"
+    @gputhrow "OverflowError" "GCD overflow"
 
 # checked.jl
 @device_override Base.Checked.throw_overflowerr_binaryop(op, x, y) =
-    @gpu_throw "OverflowError: Binary operation overflowed"
+    @gputhrow "OverflowError" "Binary operation overflowed"
 @device_override function Base.Checked.checked_abs(x::Base.Checked.SignedInt)
     r = ifelse(x < 0, -x, x)
-    r < 0 && @gpu_throw "OverflowError: checked arithmetic: cannot compute |x|"
+    r < 0 && @gputhrow "OverflowError" "checked arithmetic: cannot compute |x|"
     r
 end
 
 # boot.jl
 @device_override Core.throw_inexacterror(f::Symbol, ::Type{T}, val) where {T} =
     throw(nothing)
-    # @gpu_throw "InexactError: Inexact conversion"
+    # @gputhrow "InexactError" "Inexact conversion"
     # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/808
 
 # abstractarray.jl
 @device_override Base.throw_boundserror(A, I) =
-    @gpu_throw "BoundsError: Out-of-bounds array access"
+    @gputhrow "BoundsError" "Out-of-bounds array access"
 
 # trig.jl
 @device_override Base.Math.sincos_domain_error(x) =
-    @gpu_throw "DomainError: sincos(x) is only defined for finite x"
+    @gputhrow "DomainError" "sincos(x) is only defined for finite x"
 
 # Bodies copied from Base (`base/special/trig.jl`) with the inline `DomainError`
 # throw replaced: boxing its untyped `val` field emits a device-side allocation.
@@ -43,7 +43,7 @@ end
 # which these collapse to two overrides, once the compat floor reaches 1.14.
 @device_override function Base.Math.sind(x::Real)
     if isinf(x)
-        @gpu_throw "DomainError: sind(x) is only defined for finite x"
+        @gputhrow "DomainError" "sind(x) is only defined for finite x"
     elseif isnan(x)
         return x
     end
@@ -74,7 +74,7 @@ end
 
 @device_override function Base.Math.cosd(x::Real)
     if isinf(x)
-        @gpu_throw "DomainError: cosd(x) is only defined for finite x"
+        @gputhrow "DomainError" "cosd(x) is only defined for finite x"
     elseif isnan(x)
         return x
     end
@@ -115,13 +115,13 @@ end
         ref::R, step::S, len::Integer, offset::Integer=1,
     ) where {T,R,S,L}
         if T <: Integer && !isinteger(ref + step)
-            @gpu_throw "ArgumentError: StepRangeLen{<:Integer} cannot have non-integer step"
+            @gputhrow "ArgumentError" "StepRangeLen{<:Integer} cannot have non-integer step"
         end
         len = convert(L, len)
-        len >= zero(len) || @gpu_throw "ArgumentError: StepRangeLen length cannot be negative"
+        len >= zero(len) || @gputhrow "ArgumentError" "StepRangeLen length cannot be negative"
         offset = convert(L, offset)
         L1 = oneunit(typeof(len))
-        L1 <= offset <= max(L1, len) || @gpu_throw "ArgumentError: StepRangeLen: offset must be in [1,...]"
+        L1 <= offset <= max(L1, len) || @gputhrow "ArgumentError" "StepRangeLen: offset must be in [1,...]"
         $(Expr(:new, :(StepRangeLen{T,R,S,L}), :ref, :step, :len, :offset))
     end
 end
@@ -134,11 +134,11 @@ end
     if i == j
         @inbounds D.diag[i] = v
     elseif !iszero(v)
-        @gpu_throw "ArgumentError: Cannot set off-diagonal entry to a nonzero value"
+        @gputhrow "ArgumentError" "Cannot set off-diagonal entry to a nonzero value"
     end
     return v
 end
 
 # TODO remove once we support strings/exceptions.
 @device_override Base._throw_dmrs(n, str, dims) =
-    @gpu_throw "DimensionMismatch: Dimensions mismatch when reshaping. New dimensions must be consistent with array size"
+    @gputhrow "DimensionMismatch" "Dimensions mismatch when reshaping. New dimensions must be consistent with array size"
