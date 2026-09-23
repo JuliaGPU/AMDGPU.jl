@@ -189,7 +189,11 @@ function priority!(f::Function, p::Symbol)
     end
 end
 
-@inline function prepare_state(state = task_local_state!())
+@inline function prepare_state(state = nothing)
+    # Finalizers run on whichever task GC interrupted and pick their own context
+    # with `HIP.context!`, so leave that task's state and sticky error alone.
+    GC.in_finalizer() && return
+    isnothing(state) && (state = task_local_state!())
     HIP.clear_last_error() # Drain any sticky HIP error left by a prior kernel failure
     hip_ctx = Ref{HIP.hipCtx_t}()
     HIP.hipCtxGetCurrent(hip_ctx)
