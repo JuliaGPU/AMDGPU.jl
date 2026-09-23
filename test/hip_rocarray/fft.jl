@@ -379,7 +379,7 @@ end
 
 @testset "Plan handle cache (#1053)" begin
     IH = AMDGPU.rocFFT.IDLE_HANDLES
-    total_idle() = AMDGPU.total_idle(IH)
+    total_idle() = Base.@lock IH.lock AMDGPU.total_idle(IH)
 
     # One rfft + one brfft plan per length, built once and dropped.
     function churn(lengths)
