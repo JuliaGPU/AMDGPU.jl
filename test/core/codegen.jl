@@ -87,7 +87,9 @@ end
         j = (workgroupIdx().y - 1) * workgroupDim().y + workitemIdx().y
         k = (workgroupIdx().z - 1) * workgroupDim().z + workitemIdx().z
         n = i + j + k
-        n <= length(A) && (@inbounds A[n] = n)
+        # not `A[n] = n`: under --check-bounds=yes its exception path emits
+        # private-memory buffer_loads on gfx90a
+        n <= length(A) && unsafe_store!(pointer(A), Float32(n), n)
         return
     end
 

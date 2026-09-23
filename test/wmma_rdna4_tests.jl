@@ -8,8 +8,8 @@ AMDGPU.allowscalar(false)
 
 # Only run WMMA_RDNA4 tests on RDNA4+ (gfx1200+)
 _arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
-gfx = parse(Int, _arch_str[4:end])
-is_rdna4 = 1200 <= gfx < 1300
+gfx = parse(Int, _arch_str[4:end]; base=16)  # hex: gfx90a
+is_rdna4 = 0x1200 <= gfx < 0x1300
 
 if !is_rdna4
   @info "Skipping WMMA_RDNA4 tests (requires RDNA4+ / gfx1200+)"
