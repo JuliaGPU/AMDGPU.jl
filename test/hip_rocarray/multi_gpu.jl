@@ -158,9 +158,7 @@ else
                 @test !is_active(handle1)
                 @test has_handle(idle_handles_for(key(ctx1, len)), handle1)
 
-                # A fresh plan for the same shape on device 1 must hit the cache
-                # (same underlying rocfft_plan handle), not rebuild, and still
-                # compute the right FFT.
+                # Same shape on device 1 must reuse the cached handle and stay correct.
                 AMDGPU.device_id!(1)
                 x1b = ROCArray(rand(Float32, len))
                 p1b = plan_rfft(x1b, (1,))
@@ -185,13 +183,8 @@ else
                 AMDGPU.unsafe_free!(y2)
                 AMDGPU.unsafe_free!(x2)
 
-                # A device-1 plan (a cache hit on `handle1` here): finalize while
-                # device 2 is current (so it goes idle under device 1's key),
-                # then force it out via eviction while still on device 2, so its
-                # destructor runs from device 2 for a device-1 plan. This only
-                # checks that the eviction happens and the create/destroy/idle
-                # counts stay consistent; it cannot observe which context the
-                # destructor ran in.
+                # Release a device-1 plan on device 2, then evict it from there. This only
+                # checks eviction and counts, not which context the destructor ran in.
                 AMDGPU.device_id!(1)
                 xc = ROCArray(rand(Float32, len))
                 pc = plan_rfft(xc, (1,))
@@ -207,9 +200,7 @@ else
                 destroyed_before = N_PLANS_DESTROYED[]
                 idle_before = total_idle()
 
-                # Eviction is oldest-first and at most `max_idle` entries are
-                # idle, so `max_idle` newer distinct-shape entries are enough to
-                # evict `handle_c`; a few more for margin.
+                # Eviction is oldest-first, so `max_idle` newer entries evict `handle_c`.
                 for i in 1:(IDLE_HANDLES.max_idle + 4)
                     xi = ROCArray(rand(Float32, 4096 + 2i))
                     pi_ = plan_rfft(xi, (1,))
