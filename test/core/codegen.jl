@@ -1,5 +1,6 @@
 using Test
 using AMDGPU
+import GPUCompiler
 using AMDGPU: Device, ROCArray, @roc
 using AMDGPU.Device: sync_workgroup, workitemIdx, workgroupIdx, workgroupDim
 using KernelAbstractions: @atomic
@@ -101,4 +102,25 @@ end
     @test !occursin("global_load", gcn)
     @test !occursin("flat_load", gcn)
     @test !occursin("buffer_load", gcn)
+end
+
+@testset "Bounds checks for the precompiled target" begin
+    # same configuration as the precompile workload, whose results the package image caches
+    function oob_kern!(a)
+        a[workitemIdx().x] += 1f0
+        return
+    end
+
+    target = GPUCompiler.GCNCompilerTarget(;
+        dev_isa="gfx1030", features="+wavefrontsize32,-wavefrontsize64")
+    params = AMDGPU.Compiler.HIPCompilerParams(false, true)
+    config = GPUCompiler.CompilerConfig(target, params;
+        kernel=true, name=nothing, always_inline=true)
+    tt = Tuple{AMDGPU.Device.ROCDeviceVector{Float32, AMDGPU.Device.AS.Global}}
+    job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(oob_kern!), tt), config)
+    asm, _ = GPUCompiler.JuliaContext() do _
+        GPUCompiler.compile(:asm, job)
+    end
+    # the exception path signals through an atomic compare-and-swap
+    @test occursin("cmpswap", asm)
 end

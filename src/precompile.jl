@@ -37,17 +37,6 @@ if :AMDGPU in LLVM.backends()
             source = GPUCompiler.methodinstance(typeof(_precompile_kernel), tt)
             job = GPUCompiler.CompilerJob(source, config)
 
-            # Under `--check-bounds=yes` (used by `Pkg.test`) or `--code-coverage`,
-            # `@inbounds` is ignored, so `a[i]` emits a bounds-error path
-            # (`throw_boundserror` -> `signal_exception` -> `kernel_state()`). That
-            # path compiles fine at *runtime*, but NOT during precompilation: the
-            # `@generated kernel_state()` fails to inline there, leaving a dynamic
-            # call -> invalid GPU IR. Those flags only occur during testing, never
-            # in normal user precompilation (where `@inbounds` elides the path), so
-            # skip the warming compile then -- users still get the full benefit.
-            instrumented = Base.JLOptions().code_coverage != 0 ||
-                           Base.JLOptions().check_bounds == 1
-
             # `AMDGPULink` deadlocks in a precompilation worker on Windows (#1083); only
             # compile a kernel here if a real `ld.lld` is available to link it with instead.
             linkable = !Sys.iswindows() || !isempty(Compiler.external_lld())
@@ -55,7 +44,7 @@ if :AMDGPU in LLVM.backends()
             # On Julia < 1.12, GPU compilation during precompilation leaks foreign
             # MIs into native compilation, causing LLVM errors. Guard like CUDA.jl.
             @static if VERSION >= v"1.12-"
-                if !instrumented && linkable
+                if linkable
                     # Exercise the same compile-or-lookup path used by kernel launches, and
                     # attach its artifact to the package-image CI.
                     Compiler.compile_or_lookup(job)
