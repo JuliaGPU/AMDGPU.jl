@@ -162,13 +162,16 @@ function library_state(
     end::Dict{HIPContext, LibraryState}
 
     @noinline function new_state(tls)
+        # `tls` is mutable and `device!` rewrites it in place, so the finalizer
+        # must not read `tls.context`.
+        ctx = tls.context
         new_handle = pop!(
-            () -> create_handle(), idle_handles, tls.context)::HandleType
+            () -> create_handle(), idle_handles, ctx)::HandleType
 
         finalizer(current_task()) do task
-            push!(idle_handles, tls.context, new_handle) do
-                context!(tls.context) do
-                    destroy_handle!(new_handle)
+            push!(idle_handles, ctx, new_handle) do
+                HIP.context!(ctx) do
+                    destroy_handle(new_handle)
                 end
             end
         end

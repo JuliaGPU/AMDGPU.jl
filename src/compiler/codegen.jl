@@ -275,7 +275,9 @@ end
 # on 1.10. `obj === nothing` identifies a freshly-created `HIPResults` that hasn't been
 # compiled yet; the `compile_hook` check additionally forces the compile path so that
 # reflection consumers (`@device_code_*`) observe the compilation even on a cache hit.
-function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
+# Specialize on the target/parameter types so callers can avoid boxing CompilerJob.
+# Keep the body out of callers that specialize per kernel.
+@noinline function compile_or_lookup(job::CompilerJob)::HIPResults
     res = GPUCompiler.cached_results(HIPResults, job)
     if res === nothing || res.obj === nothing || GPUCompiler.compile_hook[] !== nothing
         compiled = hipcompile(job)
@@ -288,16 +290,21 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
     return res
 end
 
+# Path of an `ld.lld` to link with, or "" to fall back to the in-process linker. Discovery
+# has not run while generating package output, so look one up directly there: `AMDGPULink`
+# deadlocks in a precompilation worker on Windows (#1083).
+function external_lld()::String
+    isempty(AMDGPU.lld_path) || return AMDGPU.lld_path
+    ccall(:jl_generating_output, Cint, ()) == 1 || return ""
+    return AMDGPU.ROCmDiscovery.find_ld_lld(AMDGPU.ROCmDiscovery.find_roc_path())
+end
+
 function create_executable(obj)
-    # ROCm discovery does not run while generating package output.
-    use_precompile_lld = isempty(AMDGPU.lld_path) &&
-                         ccall(:jl_generating_output, Cint, ()) == 1 &&
-                         AMDGPU_LLVM_Backend_jll.is_available()
-    if AMDGPU.lld_artifact || use_precompile_lld
+    lld = external_lld()
+    if isempty(lld)
+        @assert AMDGPU.lld_artifact || AMDGPU_LLVM_Backend_jll.is_available() "ld.lld was not found; cannot link kernel"
         return link_in_process(obj)
     end
-    @assert !isempty(AMDGPU.lld_path) "ld.lld was not found; cannot link kernel"
-    lld = `$(AMDGPU.lld_path)`
 
     path_o = tempname(;cleanup=false) * ".obj"
     path_exe = tempname(;cleanup=false) * ".exe"
@@ -317,7 +324,8 @@ function link_in_process(obj::AbstractVector{UInt8})
     obj = convert(Vector{UInt8}, obj)
     buffer = Ref{Ptr{Cvoid}}(C_NULL)
     message = Ref{Cstring}(C_NULL)
-    status = @ccall libamdgpu.AMDGPULink(
+    # linking can take a while, so don't block the GC
+    status = @gcsafe_ccall libamdgpu.AMDGPULink(
         obj::Ptr{UInt8}, length(obj)::Csize_t,
         buffer::Ptr{Ptr{Cvoid}}, message::Ptr{Cstring})::Cint
     if status != 0
