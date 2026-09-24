@@ -83,6 +83,16 @@ Base.Experimental.@MethodTable(method_table)
 const syncscope_agent = UnsafeAtomics.Internal.LLVMSyncScope{:agent}()
 const syncscope_workgroup = UnsafeAtomics.Internal.LLVMSyncScope{:workgroup}()
 
+# Referenced by the generated `kernel_state()`, and generators run in the world they are
+# defined in, so this has to precede the device code.
+struct KernelState
+    exception_info::Ptr{UInt64}
+    malloc_hc::Ptr{Cvoid}
+    free_hc::Ptr{Cvoid}
+    output_context::Ptr{Cvoid}
+    printf_output_context::Ptr{Cvoid}
+end
+
 # Device sources must load _before_ the compiler infrastructure,
 # because of generated functions.
 include("device/Device.jl")
@@ -99,14 +109,6 @@ export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
 export @rocprint, @rocprintln, @rocprintf
 export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
-
-struct KernelState
-    exception_info::Ptr{UInt64}
-    malloc_hc::Ptr{Cvoid}
-    free_hc::Ptr{Cvoid}
-    output_context::Ptr{Cvoid}
-    printf_output_context::Ptr{Cvoid}
-end
 
 include("compiler/Compiler.jl")
 import .Compiler
