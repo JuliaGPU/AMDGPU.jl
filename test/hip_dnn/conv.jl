@@ -5,16 +5,22 @@ using AMDGPU.MIOpen
 
 @assert AMDGPU.functional(:MIOpen)
 
-# ConvHipImplicitGemmGroupBwdXdlops segfaults in MIOpen's CK grouped-conv invoker
-# setup. Not gfx942-specific (reproduces on gfx90a too) and not fixed by rebuilding
-# MIOpen with matching gfx942 code objects; we gate on gfx942 only because that is
-# where CI runs. The solver's disable flag is inverted upstream:
-# MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_HIP_GROUP_BWD_XDLOPS=1 disables it, =0 does not,
-# so we skip rather than depend on that. Skip until fixed upstream:
+# MIOpen's CK grouped-conv XDLOPS solvers segfault on gfx90a/gfx942:
 # https://github.com/ROCm/rocm-libraries/issues/9088
+# Disable fwd/wrw ones (read once, so before the first convolution) and skip
+# bwd-data, whose disable flag is inverted upstream.
 _arch_str = first(split(AMDGPU.HIP.gcn_arch(AMDGPU.device()), ':'))
-_skip_bwd_data = _arch_str == "gfx942"
-_skip_bwd_data && @info "Skipping convolution backward-data tests (MIOpen bug on gfx942)"
+_xdlops_bug = _arch_str in ("gfx90a", "gfx942")
+if _xdlops_bug
+    for var in ("MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC",
+                "MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS",
+                "MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS",
+                "MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS",
+                "MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS")
+        get!(ENV, var, "0")
+    end
+    @info "Skipping convolution backward-data tests (MIOpen bug on $_arch_str)"
+end
 
 @testset "Simple Convolution" begin
     for T in (Float16, Float32), nd in 2:3
@@ -38,7 +44,7 @@ _skip_bwd_data && @info "Skipping convolution backward-data tests (MIOpen bug on
         ∇w = MIOpen.∇convolution_weight(Δ, x, w; padding, stride, dilation, groups)
         @test size(∇w) == size(w)
 
-        if _skip_bwd_data
+        if _xdlops_bug
             @test_skip false
         else
             ∇x = MIOpen.∇convolution_data(Δ, x, w; padding, stride, dilation, groups)
