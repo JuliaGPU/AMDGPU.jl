@@ -221,6 +221,9 @@ else
             finally
                 AMDGPU.device_id!(1)
             end
+        end
+    end
+
     if AMDGPU.functional(:rocblas)
         @testset "Library handle cache keys on the creation context (#1094)" begin
             IH = AMDGPU.rocBLAS.IDLE_HANDLES
