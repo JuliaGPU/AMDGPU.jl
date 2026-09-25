@@ -1,3 +1,8 @@
+# Commit message tags select what to run: `[only X]` runs only the listed steps, `[skip X]`
+# skips them, where X is a comma-separated list of: `tests` (everything but docs and
+# benchmarks), `julia` (released Julia versions), `nightly`, `enzyme`, `special`, `docs`,
+# `benchmarks`. Draft pull requests only test the newest Julia release and nightly, unless
+# steps are selected explicitly. See also GPUCompiler.jl's CI, which uses the same tags.
 steps:
   - label: "Documentation"
     plugins:
@@ -28,24 +33,21 @@ steps:
     agents:
       queue: "rocm"
       rocmgpu: "*"
-    if: build.message !~ /\[skip docs\]/
+    if: |
+      build.message !~ /\[skip [^\]]*(docs)/ &&
+      (build.message =~ /\[only [^\]]*(docs)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
     timeout_in_minutes: 20
 
-  - label: "Julia {{matrix.version}}"
+  # the newest release, also tested on draft pull requests
+  - &julia
+    label: "Julia {{matrix.version}}"
     matrix:
       setup:
         version:
-          - "1.10"
-          - "1.11"
-          - "1.12"
           - "1.13"
         test_args:
-          - "--verbose "
-      adjustments:
-        - with:
-            version: "nightly"
-            test_args: "--verbose --quickfail"
-          soft_fail: true
+          - "--verbose"
     plugins:
       - JuliaCI/julia#v1:
           version: "{{matrix.version}}"
@@ -56,7 +58,9 @@ steps:
     agents:
       queue: "rocm"
       rocmgpu: "*"
-    if: build.message !~ /\[skip tests\]/
+    if: |
+      build.message !~ /\[skip [^\]]*(tests|julia)/ &&
+      (build.message =~ /\[only [^\]]*(tests|julia)/ || build.message !~ /\[only /)
     command: "julia --project -e 'using Pkg; Pkg.update()'"
     timeout_in_minutes: 90
     env:
@@ -64,6 +68,33 @@ steps:
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+
+  # older releases
+  - <<: *julia
+    matrix:
+      setup:
+        version:
+          - "1.10"
+          - "1.11"
+          - "1.12"
+        test_args:
+          - "--verbose"
+    if: |
+      build.message !~ /\[skip [^\]]*(tests|julia)/ &&
+      (build.message =~ /\[only [^\]]*(tests|julia)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
+
+  - <<: *julia
+    matrix:
+      setup:
+        version:
+          - "nightly"
+        test_args:
+          - "--verbose --quickfail"
+    if: |
+      build.message !~ /\[skip [^\]]*(tests|nightly)/ &&
+      (build.message =~ /\[only [^\]]*(tests|nightly)/ || build.message !~ /\[only /)
+    soft_fail: true
 
   - label: "Julia {{matrix.version}} Enzyme"
     matrix:
@@ -79,7 +110,10 @@ steps:
     agents:
       queue: "rocm"
       rocmgpu: "*"
-    if: build.message !~ /\[skip tests\]/
+    if: |
+      build.message !~ /\[skip [^\]]*(tests|enzyme)/ &&
+      (build.message =~ /\[only [^\]]*(tests|enzyme)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
     command: "julia --project -e 'using Pkg; Pkg.update()'"
     timeout_in_minutes: 45
     soft_fail: true
@@ -101,7 +135,10 @@ steps:
         @assert !AMDGPU.functional()'
     agents:
       queue: "oneapi"
-    if: build.message !~ /\[skip tests\]/
+    if: |
+      build.message !~ /\[skip [^\]]*(tests|special)/ &&
+      (build.message =~ /\[only [^\]]*(tests|special)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
     timeout_in_minutes: 10
 
   - label: ":racehorse: Benchmarks"
@@ -122,7 +159,10 @@ steps:
     agents:
       queue: "rocm"
       rocmgpu: "gfx1100"
-    if: build.message !~ /\[skip benchmarks\]/
+    if: |
+      build.message !~ /\[skip [^\]]*(benchmarks)/ &&
+      (build.message =~ /\[only [^\]]*(benchmarks)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
     timeout_in_minutes: 120
     env:
       JULIA_AMDGPU_CORE_MUST_LOAD: "1"
