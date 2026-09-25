@@ -29,8 +29,7 @@ function HIPStream(priority::Symbol = :normal)
     stream = HIPStream(stream_ref[], priority, d, HIPContext(d), true)
     return finalizer(stream) do s
         Base.@atomic s.valid = false
-        # Not `AMDGPU.context!`: finalizers run on arbitrary tasks.
-        HIP.context!(s.ctx) do
+        AMDGPU.context!(s.ctx) do
             hipStreamDestroy(s.stream)
         end
     end

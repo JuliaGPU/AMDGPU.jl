@@ -170,7 +170,7 @@ function library_state(
 
         finalizer(current_task()) do task
             push!(idle_handles, ctx, new_handle) do
-                HIP.context!(ctx) do
+                AMDGPU.context!(ctx) do
                     destroy_handle(new_handle)
                 end
             end
