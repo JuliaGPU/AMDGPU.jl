@@ -33,7 +33,8 @@ function release_plan!(plan)
     function destroy()
         handle != C_NULL && Threads.atomic_add!(N_PLANS_DESTROYED, 1)
         # Pin to `ctx`, since eviction may run this under a different context.
-        AMDGPU.context!(() -> rocfft_plan_destroy(handle), ctx)
+        # HIP-level, since eviction can run in a finalizer.
+        HIP.context!(() -> rocfft_plan_destroy(handle), ctx)
     end
     push!(destroy, IDLE_HANDLES, key, value)
 end
