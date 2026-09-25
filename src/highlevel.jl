@@ -10,8 +10,8 @@ device_id(device::HIPDevice)::Int = device.device_id
 """
     device_id!(idx::Integer)
 
-Sets the current device to `AMDGPU.devices()[idx]`. See
-[`device_id`](@ref) for details on the numbering semantics.
+Same as [`device!`](@ref)`(AMDGPU.devices()[idx])`, so it also sets the default
+device. See [`device_id`](@ref) for details on the numbering semantics.
 """
 device_id!(idx::Integer) = device!(devices()[idx])
 
