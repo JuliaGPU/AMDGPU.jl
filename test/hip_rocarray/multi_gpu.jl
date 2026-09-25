@@ -30,6 +30,15 @@ else
         @test d1 == AMDGPU.device()
     end
 
+    @testset "Scoped switch on a fresh task" begin
+        # `device!(f, dev)` must switch back even on a task that had no state yet.
+        default = fetch(@async AMDGPU.device())
+        other = first(d for d in AMDGPU.devices() if d != default)
+        inside, after = fetch(@async (AMDGPU.device!(AMDGPU.device, other), AMDGPU.device()))
+        @test inside == other
+        @test after == default
+    end
+
     @testset "Arrays" begin
         d1 = AMDGPU.device()
 

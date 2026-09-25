@@ -312,7 +312,8 @@ function pool_cleanup()
             pool_mark!(dev, false)
 
             if get(idle_counters, did, 0) >= 5
-                HIP.device!(dev) do
+                # `reclaim` trims the pool of the task-local device.
+                AMDGPU.device!(dev) do
                     reclaim()
                 end
             end

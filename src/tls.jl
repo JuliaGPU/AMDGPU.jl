@@ -118,32 +118,24 @@ end
 context() = task_local_state!().context
 
 function context!(ctx::HIPContext)
-    state = task_local_state()
-    if state ≡ nothing
-        old_ctx = nothing
+    # Start from the default state, so that `context!(f, ctx)` has a context
+    # to switch back to even on a task that had no state yet.
+    state = task_local_state!()
+    old_ctx = state.context
+    if old_ctx != ctx
         HIP.context!(ctx)
-        task_local_state!(HIP.device(), ctx)
-    else
-        old_ctx = state.context
-        if old_ctx != ctx
-            HIP.context!(ctx)
-            state.device = HIP.device()
-            state.context = ctx
-        end
+        state.device = HIP.device()
+        state.context = ctx
     end
     return old_ctx
 end
 
 function context!(f::Function, ctx::HIPContext)
-    if ctx.valid
-        old_ctx = context!(ctx)
-        return try
-            f()
-        finally
-            old_ctx ≢ nothing && old_ctx != ctx && context!(old_ctx)
-        end
-    else
-        @warn "CTX not valid"
+    old_ctx = context!(ctx)
+    return try
+        f()
+    finally
+        old_ctx != ctx && context!(old_ctx)
     end
 end
 
