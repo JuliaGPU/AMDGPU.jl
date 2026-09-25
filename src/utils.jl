@@ -166,8 +166,9 @@ function correctly. Available `component` values are:
 - `:rocsparse`   - Queries rocSPARSE library availability
 - `:rocrand`     - Queries rocRAND library availability
 - `:rocfft`      - Queries rocFFT library availability
-- `:hiptensor`   - Queries hipTENSOR library availability and whether every
-                   present device has an architecture supported by it
+- `:hiptensor`   - Queries hipTENSOR library availability, whether it exports
+                   the C API (ROCm 7.2+) and whether every present device has an
+                   architecture supported by it
 - `:MIOpen`      - Queries MIOpen library availability
 - `:all`         - Queries all above components
 
@@ -192,6 +193,7 @@ function functional(component::Symbol)
         return !isempty(librocfft)
     elseif component == :hiptensor
         isempty(libhiptensor) && return false
+        _hiptensor_has_c_api() || return false
         functional(:hip) || return false
         # Having the library is not enough: it only carries kernels for a few
         # architectures. Require every device to be supported, so that this
@@ -225,6 +227,24 @@ end
 # that ROCm 6.x builds still supported.
 const HIPTENSOR_ARCHS = (
     "gfx908", "gfx90a", "gfx940", "gfx941", "gfx942", "gfx950")
+
+# hipTensor only exports a C API (`extern "C"`) since ROCm 7.2. Older versions
+# export C++-mangled names only, so none of our bindings (generated from the 7.2
+# headers) resolve and every call fails with "could not load symbol".
+# `hiptensorGetVersion` is part of that C API. Cached since `functional` is hit
+# on every handle creation.
+const _HIPTENSOR_HAS_C_API = Ref{Union{Nothing, Bool}}(nothing)
+function _hiptensor_has_c_api()
+    cached = _HIPTENSOR_HAS_C_API[]
+    cached === nothing || return cached
+    ok = try
+        Libdl.dlsym_e(Libdl.dlopen(libhiptensor), :hiptensorGetVersion) != C_NULL
+    catch
+        false
+    end
+    _HIPTENSOR_HAS_C_API[] = ok
+    return ok
+end
 
 """
     hiptensor_supported(arch::AbstractString) -> Bool
