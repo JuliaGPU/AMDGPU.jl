@@ -28,6 +28,35 @@ end
     @test no_state
 end
 
+if length(AMDGPU.devices()) > 1
+    @testset "Scoped switch in a GC finalizer" begin
+        # Destructors use `context!(f, ctx)`. In a GC finalizer, it must switch
+        # for the HIP calls in `f` without touching the interrupted task's state.
+        default = fetch(@async AMDGPU.device())
+        other = first(d for d in AMDGPU.devices() if d != default)
+        ctx = AMDGPU.HIPContext(other)
+        seen = Ref{Any}(nothing)
+        function weak_switcher()
+            obj = Ref(0)
+            finalizer(obj) do _
+                seen[] = AMDGPU.context!(ctx) do
+                    AMDGPU.HIP.hipDeviceSynchronize() # a checked call
+                    AMDGPU.HIP.device()
+                end
+            end
+            return WeakRef(obj)
+        end
+        w = weak_switcher()
+        no_state, collected = fetch(@async begin
+            GC.gc(true)
+            (AMDGPU.task_local_state() ≡ nothing, w.value ≡ nothing)
+        end)
+        @test collected
+        @test seen[] == other
+        @test no_state
+    end
+end
+
 @testset "Stream" begin
     s1 = @inferred AMDGPU.stream()
     @test s1 isa AMDGPU.HIPStream
