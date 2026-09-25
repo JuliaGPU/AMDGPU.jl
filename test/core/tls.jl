@@ -54,4 +54,16 @@ end
         # Must return true without segfaulting on an already-finalized stream.
         @test AMDGPU.HIP.isdone(s) == true
     end
+
+    if length(AMDGPU.devices()) > 1
+        @testset "Stream finalizer keeps the running task's device" begin
+            # Finalizers run on whichever task triggers GC. The stream finalizer
+            # must not move that task onto the stream's device.
+            default = fetch(@async AMDGPU.device())
+            other = first(d for d in AMDGPU.devices() if d != default)
+            s = AMDGPU.device!(() -> HIPStream(), other)
+            @test s.device == other
+            @test fetch(@async (finalize(s); AMDGPU.device())) == default
+        end
+    end
 end

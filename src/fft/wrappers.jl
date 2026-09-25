@@ -13,15 +13,16 @@ const N_PLANS_DESTROYED = Threads.Atomic{Int}(0)
 function get_plan(xtype, sz, T, inplace, region)
     rocfft_setup_once()
     reg = (region...,)
-    key = (AMDGPU.context(), xtype, sz, T, inplace, reg)
+    ctx = AMDGPU.context()
+    key = (ctx, xtype, sz, T, inplace, reg)
     handle, worksize = pop!(() -> create_plan(xtype, sz, T, inplace, reg),
         IDLE_HANDLES, key)
-    return handle, ROCVector{Int8}(undef, worksize)
+    return handle, ROCVector{Int8}(undef, worksize), ctx
 end
 
 function release_plan!(plan)
     sz = plan.input_sz_as_key ? plan.sz : plan.osz
-    ctx = AMDGPU.context()
+    ctx = plan.ctx
     key = (
         ctx, plan.xtype, sz,
         plan.key_T, is_inplace(plan), (plan.region...,))
@@ -32,7 +33,8 @@ function release_plan!(plan)
     function destroy()
         handle != C_NULL && Threads.atomic_add!(N_PLANS_DESTROYED, 1)
         # Pin to `ctx`, since eviction may run this under a different context.
-        AMDGPU.context!(() -> rocfft_plan_destroy(handle), ctx)
+        # HIP-level, since eviction can run in a finalizer.
+        HIP.context!(() -> rocfft_plan_destroy(handle), ctx)
     end
     push!(destroy, IDLE_HANDLES, key, value)
 end

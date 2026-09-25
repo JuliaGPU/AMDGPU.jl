@@ -1,5 +1,3 @@
-## COV_EXCL_START
-
 # TODO
 # - serial version for lower latency
 # - group-stride loop to delay need for second kernel launch
@@ -80,8 +78,6 @@ function partial_mapreduce_device(f, op, neutral, Rreduce, Rother, R, As...)
 
     return
 end
-
-## COV_EXCL_STOP
 
 function GPUArrays.mapreducedim!(
     f::F, op::OP, R::AnyROCArray{T},

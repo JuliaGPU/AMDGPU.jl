@@ -30,7 +30,7 @@ include:
       Pkg.test("AMDGPU"; test_args=`--jobs=32`);'
 
 UnitTest julia 1.12:
-  extends: .baremetal-runner-beverin-mi300
+  extends: .baremetal-runner-beverin-mi200
   variables:
     JULIA: /users/lraess/julia_amd/julia_amd-1.12
     UENV: 56ebb909a6164680
@@ -38,7 +38,7 @@ UnitTest julia 1.12:
     SLURM_JOB_NUM_NODES: 1
     SLURM_NTASKS_PER_NODE: 1
     SLURM_GPUS_PER_TASK: 2
-    SLURM_TIMELIMIT: "00:45:00"
+    SLURM_TIMELIMIT: "01:00:00"
     JULIA_NUM_THREADS: 4
     JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia" # overrides default ~/.julia
     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
@@ -55,7 +55,7 @@ UnitTest julia 1.12:
       - rocfft-trace.log
 
 UnitTest julia 1.13:
-  extends: .baremetal-runner-beverin-mi300
+  extends: .baremetal-runner-beverin-mi200
   variables:
     JULIA: /users/lraess/julia_amd/julia_amd-1.13
     UENV: 56ebb909a6164680
@@ -63,7 +63,7 @@ UnitTest julia 1.13:
     SLURM_JOB_NUM_NODES: 1
     SLURM_NTASKS_PER_NODE: 1
     SLURM_GPUS_PER_TASK: 2
-    SLURM_TIMELIMIT: "00:45:00"
+    SLURM_TIMELIMIT: "01:00:00"
     JULIA_NUM_THREADS: 4
     JULIA_DEPOT_PATH: "${CI_PROJECT_DIR}/.julia" # overrides default ~/.julia
     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
