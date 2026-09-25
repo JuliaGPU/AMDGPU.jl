@@ -15,6 +15,19 @@ using AMDGPU: ROCArray, HIPDevice, HIPStream
     @test AMDGPU.device(x) ≡ d1
 end
 
+@testset "GC finalizers leave task-local state alone" begin
+    # GC runs finalizers on whichever task it interrupts. Freeing an array makes
+    # HIP calls, which must not create state on that task.
+    weak_array() = WeakRef(ROCArray{Float32}(undef, 16))
+    w = weak_array()
+    no_state, collected = fetch(@async begin
+        GC.gc(true)
+        (AMDGPU.task_local_state() ≡ nothing, w.value ≡ nothing)
+    end)
+    @test collected
+    @test no_state
+end
+
 @testset "Stream" begin
     s1 = @inferred AMDGPU.stream()
     @test s1 isa AMDGPU.HIPStream
