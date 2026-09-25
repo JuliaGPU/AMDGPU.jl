@@ -32,6 +32,14 @@ end
 # abstractarray.jl
 @device_override Base.throw_boundserror(A, I) =
     @gputhrow "BoundsError" "Out-of-bounds array access"
+# Julia 1.14 routes indexed bounds errors through `_throw_boundserror_indices`
+# rather than `throw_boundserror`, bypassing the override above.
+@static if isdefined(Base, :_throw_boundserror_indices)
+    @device_override Base._throw_boundserror_indices(A) =
+        @gputhrow "BoundsError" "Out-of-bounds array access"
+    @device_override Base._throw_boundserror_indices(A, i1, I...) =
+        @gputhrow "BoundsError" "Out-of-bounds array access"
+end
 
 # trig.jl
 @device_override Base.Math.sincos_domain_error(x) =
