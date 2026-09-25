@@ -48,6 +48,13 @@ function _rocsparse_version_isolated(; timeout::Real = 20)
         packed === nothing ? "err" : string(rocSPARSE.decode_version(packed))
 end
 
+# `"err"` = present but the version query threw. Guards against a
+# broken/mismatched install crashing `versioninfo()` itself (same class of
+# bug as rocSPARSE's #920; these queries run in-process rather than isolated
+# since they've only been observed to throw, not segfault).
+_ver(is_functional::Bool, ver_fn) =
+    is_functional ? (try "$(ver_fn())" catch; "err" end) : "-"
+
 """
     versioninfo(io::IO=stdout)
 
@@ -59,22 +66,20 @@ function versioninfo(io::IO=stdout)
     println(io, "AMDGPU versioninfo")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
-    _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
 
-    # `"err"` = present but the out-of-process version probe crashed/timed out.
     rocsparse_ver = functional(:rocsparse) ? _rocsparse_version_isolated() : "-"
 
     data = String[
-        _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_artifact ? AMDGPU_LLVM_Backend_jll.libamdgpu : lld_path);
-        _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
-        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
-        _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
-        _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
-        _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                       _libpath(librocsparse);
-        _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
-        _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
-        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version) _libpath(libhiptensor);
-        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
+        _status(functional(:lld))         "LLD"              "-"                                                  _libpath(lld_artifact ? AMDGPU_LLVM_Backend_jll.libamdgpu : lld_path);
+        _status(functional(:device_libs)) "Device Libraries" "-"                                                  _libpath(libdevice_libs);
+        _status(functional(:hip))         "HIP"              _ver(functional(:hip), HIP.runtime_version)         _libpath(libhip);
+        _status(functional(:rocblas))     "rocBLAS"          _ver(functional(:rocblas), rocBLAS.version)         _libpath(librocblas);
+        _status(functional(:rocsolver))   "rocSOLVER"        _ver(functional(:rocsolver), rocSOLVER.version)     _libpath(librocsolver);
+        _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                                       _libpath(librocsparse);
+        _status(functional(:rocrand))     "rocRAND"          _ver(functional(:rocrand), rocRAND.version)         _libpath(librocrand);
+        _status(functional(:rocfft))      "rocFFT"           _ver(functional(:rocfft), rocFFT.version)           _libpath(librocfft);
+        _status(functional(:hiptensor))   "hipTENSOR"        _ver(functional(:hiptensor), hipTENSOR.version)     _libpath(libhiptensor);
+        _status(functional(:MIOpen))      "MIOpen"           _ver(functional(:MIOpen), MIOpen.version)           _libpath(libMIOpen_path);
     ]
 
     PrettyTables.pretty_table(io, data; column_labels=[
@@ -86,6 +91,13 @@ function versioninfo(io::IO=stdout)
             isolated subprocess and crashed or timed out). This usually indicates a \
             broken or mismatched ROCm install. See \
             https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
+    end
+
+    broken = [row[2] for row in eachrow(data) if row[3] == "err"]
+    if !isempty(broken)
+        @warn """$(join(broken, ", ")) $(length(broken) == 1 ? "is" : "are") installed \
+            but its version query failed. This usually indicates a broken or \
+            mismatched ROCm install."""
     end
 
     get_module(name::Symbol) = (name, getfield(AMDGPU, name))
@@ -154,8 +166,9 @@ function correctly. Available `component` values are:
 - `:rocsparse`   - Queries rocSPARSE library availability
 - `:rocrand`     - Queries rocRAND library availability
 - `:rocfft`      - Queries rocFFT library availability
-- `:hiptensor`   - Queries hipTENSOR library availability and whether every
-                   present device has an architecture supported by it
+- `:hiptensor`   - Queries hipTENSOR library availability, whether it exports
+                   the C API (ROCm 7.2+) and whether every present device has an
+                   architecture supported by it
 - `:MIOpen`      - Queries MIOpen library availability
 - `:all`         - Queries all above components
 
@@ -180,6 +193,7 @@ function functional(component::Symbol)
         return !isempty(librocfft)
     elseif component == :hiptensor
         isempty(libhiptensor) && return false
+        _hiptensor_has_c_api() || return false
         functional(:hip) || return false
         # Having the library is not enough: it only carries kernels for a few
         # architectures. Require every device to be supported, so that this
@@ -213,6 +227,24 @@ end
 # that ROCm 6.x builds still supported.
 const HIPTENSOR_ARCHS = (
     "gfx908", "gfx90a", "gfx940", "gfx941", "gfx942", "gfx950")
+
+# hipTensor only exports a C API (`extern "C"`) since ROCm 7.2. Older versions
+# export C++-mangled names only, so none of our bindings (generated from the 7.2
+# headers) resolve and every call fails with "could not load symbol".
+# `hiptensorGetVersion` is part of that C API. Cached since `functional` is hit
+# on every handle creation.
+const _HIPTENSOR_HAS_C_API = Ref{Union{Nothing, Bool}}(nothing)
+function _hiptensor_has_c_api()
+    cached = _HIPTENSOR_HAS_C_API[]
+    cached === nothing || return cached
+    ok = try
+        Libdl.dlsym_e(Libdl.dlopen(libhiptensor), :hiptensorGetVersion) != C_NULL
+    catch
+        false
+    end
+    _HIPTENSOR_HAS_C_API[] = ok
+    return ok
+end
 
 """
     hiptensor_supported(arch::AbstractString) -> Bool
