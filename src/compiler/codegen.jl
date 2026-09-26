@@ -158,10 +158,8 @@ function GPUCompiler.finish_module!(
     return entry
 end
 
-# The wavefront size is fixed per job, but LLVM leaves `llvm.amdgcn.wavefrontsize` to
-# instruction selection, which also selects code in branches it would never take. Fold it
-# before optimization, so code branching on `wavefrontsize()` keeps only the branch for
-# this wavefront size (`ballot`'s other branch uses a width the target cannot select).
+# LLVM only folds `llvm.amdgcn.wavefrontsize` during instruction selection, which then
+# fails on branches for the other wavefront size (e.g. in `ballot`), so fold it here.
 function fold_wavefrontsize!(mod::LLVM.Module, wavefrontsize64::Bool)
     haskey(LLVM.functions(mod), "llvm.amdgcn.wavefrontsize") || return
     f = LLVM.functions(mod)["llvm.amdgcn.wavefrontsize"]
