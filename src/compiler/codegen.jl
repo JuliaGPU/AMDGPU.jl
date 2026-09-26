@@ -95,6 +95,8 @@ function GPUCompiler.finish_module!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
 
+    fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
+
     # Set kernel target cpu and features.
     if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
@@ -154,6 +156,22 @@ function GPUCompiler.finish_module!(
     end
 
     return entry
+end
+
+# The wavefront size is fixed per job, but LLVM leaves `llvm.amdgcn.wavefrontsize` to
+# instruction selection, which also selects code in branches it would never take. Fold it
+# before optimization, so code branching on `wavefrontsize()` keeps only the branch for
+# this wavefront size (`ballot`'s other branch uses a width the target cannot select).
+function fold_wavefrontsize!(mod::LLVM.Module, wavefrontsize64::Bool)
+    haskey(LLVM.functions(mod), "llvm.amdgcn.wavefrontsize") || return
+    f = LLVM.functions(mod)["llvm.amdgcn.wavefrontsize"]
+    ws = ConstantInt(LLVM.return_type(LLVM.function_type(f)), wavefrontsize64 ? 64 : 32)
+    for use in collect(LLVM.uses(f))
+        call = LLVM.user(use)::LLVM.CallInst
+        LLVM.replace_uses!(call, ws)
+        LLVM.erase!(call)
+    end
+    return
 end
 
 function parse_llvm_features(arch::String)
