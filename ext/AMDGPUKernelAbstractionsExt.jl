@@ -33,9 +33,10 @@ function KA.launch_config(kernel::KA.Kernel{ROCBackend}, ndrange, workgroupsize)
     end
 
     iterspace, dynamic = if KA.workgroupsize(kernel) <: KA.DynamicSize && workgroupsize === nothing
+        extents = KA.NDIteration.extents(ndrange)
         workgroupsize = ntuple(
-            i -> i == 1 ? min(prod(ndrange), AMDGPU.Device._max_group_size) : 1,
-            length(ndrange))
+            i -> i == 1 ? min(prod(extents), AMDGPU.Device._max_group_size) : 1,
+            length(extents))
         KA.partition(kernel, ndrange, workgroupsize)
     else
         KA.partition(kernel, ndrange, workgroupsize)
@@ -47,7 +48,7 @@ end
 function threads_to_workgroupsize(threads, ndrange)
     total = 1
     return map(ndrange) do n
-        x = min(div(threads, total), n)
+        x = max(min(div(threads, total), n), 1)
         total *= x
         return x
     end
@@ -55,6 +56,9 @@ end
 
 function (obj::KA.Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=nothing)
     ndrange, new_workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
+    # nothing to launch (or compile) for an empty ndrange
+    length(KA.blocks(iterspace)) == 0 && return
+
     ctx = KA.mkcontext(obj, ndrange, iterspace)
     if KA.workgroupsize(obj) <: KA.StaticSize
         maxthreads = prod(KA.get(KA.workgroupsize(obj)))
@@ -69,14 +73,13 @@ function (obj::KA.Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=no
         isnothing(workgroupsize)
     if is_dynamic
         (; groupsize) = AMDGPU.launch_configuration(kernel)
-        new_workgroupsize = threads_to_workgroupsize(groupsize, ndrange)
+        new_workgroupsize = threads_to_workgroupsize(groupsize, KA.NDIteration.extents(ndrange))
         iterspace, dynamic = KA.partition(obj, ndrange, new_workgroupsize)
         ctx = KA.mkcontext(obj, ndrange, iterspace)
     end
 
     nblocks = length(KA.blocks(iterspace))
     nthreads = length(KA.workitems(iterspace))
-    nblocks == 0 && return
 
     kernel(ctx, args...; groupsize=nthreads, gridsize=nblocks)
     return
