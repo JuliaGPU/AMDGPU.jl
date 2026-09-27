@@ -540,5 +540,5 @@ function _pool_free(buf, stream::HIPStream)
     if !HIP.isvalid(stream)
         stream = AMDGPU.default_stream()
     end
-    HIP.context!(() -> Mem.free(buf; stream), buf.ctx)
+    AMDGPU.context!(() -> Mem.free(buf; stream), buf.ctx)
 end

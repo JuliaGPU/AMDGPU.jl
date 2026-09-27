@@ -131,6 +131,10 @@ function context!(ctx::HIPContext)
 end
 
 function context!(f::Function, ctx::HIPContext)
+    # GC runs finalizers on whichever task it interrupts, so switch only the
+    # thread there and leave that task's state alone. `prepare_state` skips
+    # finalizers, so the switch holds for the calls inside `f`.
+    GC.in_finalizer() && return HIP.context!(f, ctx)
     old_ctx = context!(ctx)
     return try
         f()
@@ -183,7 +187,7 @@ end
 
 @inline function prepare_state(state = nothing)
     # Finalizers run on whichever task GC interrupted and pick their own context
-    # with `HIP.context!`, so leave that task's state and sticky error alone.
+    # with `context!(f, ctx)`, so leave that task's state and sticky error alone.
     GC.in_finalizer() && return
     isnothing(state) && (state = task_local_state!())
     HIP.clear_last_error() # Drain any sticky HIP error left by a prior kernel failure
