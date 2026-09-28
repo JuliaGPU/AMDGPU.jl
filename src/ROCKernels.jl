@@ -93,7 +93,7 @@ function KI.kernel_function(backend::ROCBackend, f::F, tt::TT=Tuple{}; name=noth
     KI.Kernel{ROCBackend, typeof(kern)}(backend, kern)
 end
 
-function KI.launch(obj::KI.Kernel{ROCBackend}, groups::Dims{3}, items::Dims{3}, args...; kwargs...)
+function KI.launch(obj::KI.Kernel{ROCBackend}, groups::Dims{3}, items::Dims{3}, args::Vararg{Any, N}; kwargs...) where {N}
     obj.kern(args...; groupsize = items, gridsize = groups, kwargs...)
     return
 end
