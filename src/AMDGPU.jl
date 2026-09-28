@@ -60,6 +60,7 @@ include("discovery/discovery.jl")
 using .ROCmDiscovery
 using .ROCmDiscovery: AMDGPU_LLVM_Backend_jll, LLVMDowngrader_jll
 
+using KernelInterface
 include("utils.jl")
 
 include("hsa/HSA.jl")
