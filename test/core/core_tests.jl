@@ -48,6 +48,12 @@ end
     @test AMDGPU._ver(true, () -> error("boom")) == "err"
     @test AMDGPU._ver(true, () -> "1.2.3") == "1.2.3"
     @test AMDGPU._ver(false, () -> error("never called")) == "-"
+
+    # The exception is handed to `on_error` so `versioninfo()` can report it.
+    errs = Pair{Symbol, String}[]
+    @test AMDGPU._ver(true, () -> error("boom");
+        on_error = e -> push!(errs, :lib => sprint(showerror, e))) == "err"
+    @test errs == [:lib => "boom"]
 end
 
 @testset "HIPDevice" begin
