@@ -193,18 +193,21 @@ function functional(component::Symbol)
         return !isempty(librocfft)
     elseif component == :hiptensor
         isempty(libhiptensor) && return false
-        _hiptensor_has_c_api() || return false
         functional(:hip) || return false
         # Having the library is not enough: it only carries kernels for a few
         # architectures. Require every device to be supported, so that this
         # stays valid no matter which one is current. Enumerating devices may
         # throw on a broken install.
-        return try
+        supported = try
             devs = devices()
             !isempty(devs) && all(hiptensor_supported, devs)
         catch
             false
         end
+        supported || return false
+        # Only load the library once the arch check has passed: on an
+        # unsupported device hipTENSOR's init calls `exit()`, killing Julia.
+        return _hiptensor_has_c_api()
     elseif component == :MIOpen
         return !isempty(libMIOpen_path)
     elseif component == :all
