@@ -130,10 +130,11 @@ julia> x
 ```
 """
 @device_function function ballot(predicate::Bool)
+    # `llvm.amdgcn.ballot` is overloaded on its result, so the suffix is the result type.
     if wavefrontsize() == 32
-        UInt64(ccall("llvm.amdgcn.ballot", llvmcall, UInt32, (Bool,), predicate))
+        UInt64(ccall("llvm.amdgcn.ballot.i32", llvmcall, UInt32, (Bool,), predicate))
     else
-        ccall("llvm.amdgcn.ballot.w64", llvmcall, UInt64, (Bool,), predicate)
+        ccall("llvm.amdgcn.ballot.i64", llvmcall, UInt64, (Bool,), predicate)
     end
 end
 

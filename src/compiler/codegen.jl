@@ -95,6 +95,8 @@ function GPUCompiler.finish_module!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
 
+    fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
+
     # Set kernel target cpu and features.
     if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
@@ -124,13 +126,19 @@ function GPUCompiler.finish_module!(
     # always-inline attributes on them. Add them here.
     target_fns = ("signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
+    noinline_attr = EnumAttribute("noinline")
 
     for fn in LLVM.functions(mod)
         do_inline = any(occursin.(target_fns, LLVM.name(fn)))
         if job.config.params.unsafe_fp_atomics || do_inline
             attrs = LLVM.function_attributes(fn)
 
-            do_inline && inline_attr ∉ collect(attrs) && push!(attrs, inline_attr)
+            if do_inline && inline_attr ∉ collect(attrs)
+                # the two are mutually exclusive, and some matched functions are
+                # `@noinline` in Base (e.g. `_throw_boundserror_indices` on Julia 1.14)
+                delete!(attrs, noinline_attr)
+                push!(attrs, inline_attr)
+            end
         end
     end
 
@@ -154,6 +162,20 @@ function GPUCompiler.finish_module!(
     end
 
     return entry
+end
+
+# LLVM only folds `llvm.amdgcn.wavefrontsize` during instruction selection, which then
+# fails on branches for the other wavefront size (e.g. in `ballot`), so fold it here.
+function fold_wavefrontsize!(mod::LLVM.Module, wavefrontsize64::Bool)
+    haskey(LLVM.functions(mod), "llvm.amdgcn.wavefrontsize") || return
+    f = LLVM.functions(mod)["llvm.amdgcn.wavefrontsize"]
+    ws = ConstantInt(LLVM.return_type(LLVM.function_type(f)), wavefrontsize64 ? 64 : 32)
+    for use in collect(LLVM.uses(f))
+        call = LLVM.user(use)::LLVM.CallInst
+        LLVM.replace_uses!(call, ws)
+        LLVM.erase!(call)
+    end
+    return
 end
 
 function parse_llvm_features(arch::String)
