@@ -51,8 +51,7 @@ end
 # `"err"` = present but the version query threw. Guards against a
 # broken/mismatched install crashing `versioninfo()` itself (same class of
 # bug as rocSPARSE's #920; these queries run in-process rather than isolated
-# since they've only been observed to throw, not segfault). `on_error` receives
-# the exception so the caller can report it.
+# since they've only been observed to throw, not segfault).
 function _ver(is_functional::Bool, ver_fn; on_error = Returns(nothing))
     is_functional || return "-"
     try
@@ -243,13 +242,9 @@ end
 const HIPTENSOR_ARCHS = (
     "gfx908", "gfx90a", "gfx940", "gfx941", "gfx942", "gfx950")
 
-# hipTensor only exports a C API (`extern "C"`) since ROCm 7.2. Older versions
-# export C++-mangled names only, so none of our bindings (generated from the 7.2
-# headers) resolve and every call fails with "could not load symbol".
-# `hiptensorGetVersion` is part of that C API. Its presence alone doesn't
-# guarantee the API matches our bindings, so also require the library to be at
-# least the header version they were generated from. Cached since `functional`
-# is hit on every handle creation.
+# hipTENSOR only exports a C API since ROCm 7.2; older versions only have
+# C++-mangled names, so none of our bindings resolve. Also require at least the
+# header version the bindings were generated from. Cached: hit on every handle creation.
 const _HIPTENSOR_API_COMPATIBLE = Ref{Union{Nothing, Bool}}(nothing)
 function _hiptensor_api_compatible()
     cached = _HIPTENSOR_API_COMPATIBLE[]
