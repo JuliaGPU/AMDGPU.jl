@@ -42,6 +42,7 @@ AMDGPU.device_id!
 AMDGPU.HIP.name
 AMDGPU.HIP.wavefrontsize
 AMDGPU.HIP.gcn_arch
+AMDGPU.HIP.max_workgroup_dims
 AMDGPU.HIP.device_id
 AMDGPU.HIP.properties
 ```
