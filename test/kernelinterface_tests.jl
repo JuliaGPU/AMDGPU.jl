@@ -9,7 +9,6 @@ AMDGPU.allowscalar(false)
 
 @testset "kernelinterface" begin
 
-Testsuite.testsuite(
-    ROCInterface.ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray)
+Testsuite.testsuite(ROCInterface.ROCBackend(), ROCArray)
 
 end

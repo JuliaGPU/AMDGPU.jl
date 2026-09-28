@@ -49,6 +49,9 @@ AMDGPUEnzymeCoreExt = "EnzymeCore"
 AMDGPUSparseMatricesCSRExt = "SparseMatricesCSR"
 AMDGPUSpecialFunctionsExt = "SpecialFunctions"
 
+[sources]
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "tb/ki-0.3", subdir = "lib/KernelInterface"}
+
 [compat]
 AMDGPU_LLVM_Backend_jll = "23"
 AbstractFFTs = "1.0"
@@ -64,7 +67,7 @@ GPUArrays = "11.5.14"
 GPUCompiler = "2.9"
 GPUToolbox = "3"
 KernelAbstractions = "0.9.2"
-KernelInterface = "0.2.3"
+KernelInterface = "0.3"
 LLVM = "9"
 LLVMDowngrader_jll = "0.11"
 Libdl = "1"

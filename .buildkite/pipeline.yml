@@ -74,11 +74,36 @@ steps:
     matrix:
       setup:
         version:
-          - "1.10"
           - "1.11"
           - "1.12"
         test_args:
           - "--verbose"
+    if: |
+      build.message !~ /\[skip [^\]]*(tests|julia)/ &&
+      (build.message =~ /\[only [^\]]*(tests|julia)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
+
+  # XXX: KernelInterface 0.3 isn't registered yet, and Julia 1.10 ignores [sources]: develop
+  #      it from a clone before instantiating, which the julia-test plugin would do first
+  - <<: *julia
+    matrix:
+      setup:
+        version:
+          - "1.10"
+        test_args:
+          - "--verbose"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "{{matrix.version}}"
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+    command: |
+      git clone --depth 1 --branch tb/ki-0.3 https://github.com/JuliaGPU/KernelAbstractions.jl ka
+      julia --project -e '
+        using Pkg
+        Pkg.develop(path="ka/lib/KernelInterface")
+        Pkg.instantiate()
+        Pkg.test(; coverage=true, test_args=`{{matrix.test_args}}`)'
     if: |
       build.message !~ /\[skip [^\]]*(tests|julia)/ &&
       (build.message =~ /\[only [^\]]*(tests|julia)/ ||
@@ -127,10 +152,14 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: "1.10"
-      - JuliaCI/julia-test#v1:
-          run_tests: false
+    # XXX: KernelInterface 0.3 isn't registered yet, and Julia 1.10 ignores [sources]
     command: |
+      git clone --depth 1 --branch tb/ki-0.3 https://github.com/JuliaGPU/KernelAbstractions.jl ka
       julia --project -e '
+        using Pkg
+        Pkg.develop(path="ka/lib/KernelInterface")
+        Pkg.instantiate()
+
         using AMDGPU
         @assert !AMDGPU.functional()'
     agents:
