@@ -152,15 +152,35 @@ end
     return (; x = Device.gridGroupDim().x % T, y = Device.gridGroupDim().y % T, z = Device.gridGroupDim().z % T)
 end
 
-@device_override KI.get_sub_group_size(::Type{T}) where {T} = Device.wavefrontsize() % T
+# wavefronts are formed from consecutive linear work-item indices
+@inline function linear_workitem_id()
+    return (Device.workitemIdx().x - 0x1) +
+           (Device.workitemIdx().y - 0x1) * Device.workgroupDim().x +
+           (Device.workitemIdx().z - 0x1) * Device.workgroupDim().x * Device.workgroupDim().y
+end
+
+@inline workgroup_items() = Device.workgroupDim().x * Device.workgroupDim().y * Device.workgroupDim().z
+
+# the 0-based lane of the work-item in its wavefront. unlike `Device.activelane()`, this
+# doesn't depend on which lanes are active. `mbcnt.hi` adds nothing in wave32 mode.
+@inline function hardware_lane()
+    lo = ccall("llvm.amdgcn.mbcnt.lo", llvmcall, UInt32, (UInt32, UInt32), typemax(UInt32), 0x0)
+    return ccall("llvm.amdgcn.mbcnt.hi", llvmcall, UInt32, (UInt32, UInt32), typemax(UInt32), lo)
+end
+
+# the last wavefront of a workgroup can be partial
+@device_override @inline function KI.get_sub_group_size(::Type{T}) where {T}
+    ws = Device.wavefrontsize()
+    return min(ws, workgroup_items() - (linear_workitem_id() ÷ ws) * ws) % T
+end
 
 @device_override KI.get_max_sub_group_size(::Type{T}) where {T} = Device.wavefrontsize() % T
 
-@device_override KI.get_num_sub_groups(::Type{T}) where {T} = (prod(Device.workgroupDim()) ÷ Device.wavefrontsize()) % T
+@device_override KI.get_num_sub_groups(::Type{T}) where {T} = cld(workgroup_items(), Device.wavefrontsize()) % T
 
-@device_override KI.get_sub_group_id(::Type{T}) where {T} = (((Device.workitemIdx().x - 0x1) + Device.workgroupDim().x * (Device.workitemIdx().y - 0x1) + Device.workgroupDim().x * Device.workgroupDim().y * (Device.workitemIdx().z - 0x1)) ÷ Device.wavefrontsize() + 0x1) % T
+@device_override KI.get_sub_group_id(::Type{T}) where {T} = (linear_workitem_id() ÷ Device.wavefrontsize() + 0x1) % T
 
-@device_override KI.get_sub_group_local_id(::Type{T}) where {T} = (Device.activelane() + 0x1) % T
+@device_override KI.get_sub_group_local_id(::Type{T}) where {T} = (hardware_lane() + 0x1) % T
 
 # Shared memory.
 
