@@ -61,3 +61,37 @@ The last command serves the built site locally; open the printed URL in a browse
     ````
 
     is executed on a real device. Building the docs therefore requires a functional AMD GPU, and a clean build means all examples still produce their documented output. When writing examples, prefer showing `Array(x)` rather than a raw `ROCArray` so the output does not depend on internal buffer types.
+
+## Continuous integration
+
+Pull requests are tested on [Buildkite](https://buildkite.com/julialang/amdgpu-dot-jl), and by external CI providers. The step selection below applies to Buildkite only.
+
+### Draft pull requests
+
+To save CI time, draft pull requests are only tested on the newest Julia release and on nightly. The other steps (older Julia releases, Enzyme, the GPU-less environment, the documentation and the benchmarks) run once the pull request is marked ready for review.
+
+!!! warning "Marking a pull request ready does not start a build"
+    Buildkite does not start a new build when a draft is marked ready for review. Push a new commit afterwards to run the remaining steps, otherwise the pull request can show a green status with only the newest release and nightly tested. An empty commit is enough:
+
+    ```
+    git commit --allow-empty -m "Run full CI"
+    git push
+    ```
+
+### Selecting steps
+
+Tags in the message of the most recently pushed commit select which steps run: `[only X]` runs only the listed steps, and `[skip X]` skips them, where `X` is a comma-separated list of:
+
+| Tag          | Steps                                                      |
+|:-------------|:-----------------------------------------------------------|
+| `tests`      | all tests, i.e. `julia`, `nightly`, `enzyme` and `special` |
+| `julia`      | tests on released Julia versions                           |
+| `nightly`    | tests on Julia nightly                                     |
+| `enzyme`     | Enzyme tests                                               |
+| `special`    | tests in a GPU-less environment                            |
+| `docs`       | documentation build                                        |
+| `benchmarks` | benchmarks                                                 |
+
+For example, `[only nightly]` runs only the nightly tests, and `[skip enzyme, docs]` runs everything but Enzyme and the documentation. Selecting steps with `[only X]` also lifts the draft restriction, so `[only tests, docs]` tests a draft pull request like a ready one, minus the benchmarks.
+
+Tags are matched anywhere in the message, so quoting one, e.g. when describing a CI change, applies it too. Squash and merge commits on `main` carry the pull request title, so a tag in the title also applies to the build on `main`. [GPUCompiler.jl](https://github.com/JuliaGPU/GPUCompiler.jl) uses the same tags.

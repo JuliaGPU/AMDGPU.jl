@@ -1,8 +1,7 @@
-# Commit message tags select what to run: `[only X]` runs only the listed steps, `[skip X]`
-# skips them, where X is a comma-separated list of: `tests` (everything but docs and
-# benchmarks), `julia` (released Julia versions), `nightly`, `enzyme`, `special`, `docs`,
-# `benchmarks`. Draft pull requests only test the newest Julia release and nightly, unless
-# steps are selected explicitly. See also GPUCompiler.jl's CI, which uses the same tags.
+# Commit message tags `[only X]` and `[skip X]` select steps, where X is a comma-separated
+# list of: `tests`, `julia`, `nightly`, `enzyme`, `special`, `docs`, `benchmarks`. Drafts
+# only run the newest release and nightly, and marking ready does not start a new build.
+# See "Continuous integration" in docs/src/testing.md.
 steps:
   - label: "Documentation"
     plugins:
