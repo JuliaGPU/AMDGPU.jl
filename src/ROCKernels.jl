@@ -84,6 +84,11 @@ KI.supports_atomics(::ROCBackend) = true
 KI.argconvert(::ROCBackend, arg) = rocconvert(arg)
 
 function KI.kernel_function(backend::ROCBackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+    # kernels have to execute with the wavefront size that `KI.sub_group_size` reports,
+    # the device's, which is also what `hipfunction` compiles for by default
+    if haskey(kwargs, :wavefrontsize64) && kwargs[:wavefrontsize64] != (KI.sub_group_size(backend) == 64)
+        throw(ArgumentError("`wavefrontsize64=$(kwargs[:wavefrontsize64])` conflicts with the wavefront size of the device, $(KI.sub_group_size(backend))"))
+    end
     kern = hipfunction(f, tt; name, kwargs...)
     KI.Kernel{ROCBackend, typeof(kern)}(backend, kern)
 end

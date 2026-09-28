@@ -53,6 +53,24 @@ Testsuite.testsuite(backend, ROCArray)
     @test Array(lane) == [rem(i, ws) + 1 for i in 0:n-1]
 end
 
+function ki_wavefront_size_kernel(ws)
+    @inbounds ws[1] = KI.get_max_sub_group_size()
+    return
+end
+
+@testset "wavefront size" begin
+    ws = KI.sub_group_size(backend)
+    @test ws in (32, 64)
+    out = AMDGPU.zeros(Int, 1)
+    KI.@launch backend ki_wavefront_size_kernel(out)
+    @test Array(out)[1] == ws
+
+    # compiling for another wavefront size would break the guarantee
+    tt = Tuple{typeof(KI.argconvert(backend, out))}
+    @test_throws ArgumentError KI.kernel_function(backend, ki_wavefront_size_kernel, tt; wavefrontsize64 = ws == 32)
+    @test KI.kernel_function(backend, ki_wavefront_size_kernel, tt; wavefrontsize64 = ws == 64) isa KI.Kernel
+end
+
 @testset "lane ids under divergence" begin
     ws = KI.sub_group_size(backend)
     lane = AMDGPU.zeros(UInt32, 2ws)
