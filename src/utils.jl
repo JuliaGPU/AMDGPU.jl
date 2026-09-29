@@ -48,6 +48,22 @@ function _rocsparse_version_isolated(; timeout::Real = 20)
         packed === nothing ? "err" : string(rocSPARSE.decode_version(packed))
 end
 
+# `"err"` = present but the version query threw. Guards against a
+# broken/mismatched install crashing `versioninfo()` itself (same class of
+# bug as rocSPARSE's #920; these queries run in-process rather than isolated
+# since they've only been observed to throw, not segfault).
+function _ver(is_functional::Bool, ver_fn; on_error = Returns(nothing))
+    is_functional || return "-"
+    try
+        return string(ver_fn())
+    catch e
+        on_error(e)
+        return "err"
+    end
+end
+_ver(lib::Symbol, ver_fn, errors::Vector{Pair{Symbol, String}}) = _ver(
+    functional(lib), ver_fn; on_error = e -> push!(errors, lib => sprint(showerror, e)))
+
 """
     versioninfo(io::IO=stdout)
 
@@ -59,22 +75,21 @@ function versioninfo(io::IO=stdout)
     println(io, "AMDGPU versioninfo")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
-    _ver(lib::Symbol, ver_fn) = functional(lib) ? "$(ver_fn())" : "-"
 
-    # `"err"` = present but the out-of-process version probe crashed/timed out.
     rocsparse_ver = functional(:rocsparse) ? _rocsparse_version_isolated() : "-"
+    errs = Pair{Symbol, String}[]
 
     data = String[
-        _status(functional(:lld))         "LLD"              "-"                                 _libpath(lld_artifact ? AMDGPU_LLVM_Backend_jll.libamdgpu : lld_path);
-        _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
-        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libhip);
-        _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
-        _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
-        _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                       _libpath(librocsparse);
-        _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
-        _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
-        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version) _libpath(libhiptensor);
-        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen_path);
+        _status(functional(:lld))         "LLD"              "-"                                       _libpath(lld_artifact ? AMDGPU_LLVM_Backend_jll.libamdgpu : lld_path);
+        _status(functional(:device_libs)) "Device Libraries" "-"                                       _libpath(libdevice_libs);
+        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version, errs)     _libpath(libhip);
+        _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version, errs)     _libpath(librocblas);
+        _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version, errs) _libpath(librocsolver);
+        _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                             _libpath(librocsparse);
+        _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version, errs)     _libpath(librocrand);
+        _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version, errs)       _libpath(librocfft);
+        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version, errs) _libpath(libhiptensor);
+        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version, errs)       _libpath(libMIOpen_path);
     ]
 
     PrettyTables.pretty_table(io, data; column_labels=[
@@ -86,6 +101,13 @@ function versioninfo(io::IO=stdout)
             isolated subprocess and crashed or timed out). This usually indicates a \
             broken or mismatched ROCm install. See \
             https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
+    end
+
+    # rocSPARSE never lands in `errs`: it has its own warning above.
+    if !isempty(errs)
+        @warn """Some installed libraries failed their version query. This usually \
+            indicates a broken or mismatched ROCm install:
+            $(join(("  $lib: $msg" for (lib, msg) in errs), "\n"))"""
     end
 
     get_module(name::Symbol) = (name, getfield(AMDGPU, name))
@@ -154,8 +176,10 @@ function correctly. Available `component` values are:
 - `:rocsparse`   - Queries rocSPARSE library availability
 - `:rocrand`     - Queries rocRAND library availability
 - `:rocfft`      - Queries rocFFT library availability
-- `:hiptensor`   - Queries hipTENSOR library availability and whether every
-                   present device has an architecture supported by it
+- `:hiptensor`   - Queries hipTENSOR library availability, whether every
+                   present device has an architecture supported by it, and
+                   whether it exports the C API (ROCm 7.2+) at a version at
+                   least that of the headers the bindings were generated from
 - `:MIOpen`      - Queries MIOpen library availability
 - `:all`         - Queries all above components
 
@@ -185,12 +209,16 @@ function functional(component::Symbol)
         # architectures. Require every device to be supported, so that this
         # stays valid no matter which one is current. Enumerating devices may
         # throw on a broken install.
-        return try
+        supported = try
             devs = devices()
             !isempty(devs) && all(hiptensor_supported, devs)
         catch
             false
         end
+        supported || return false
+        # Only load the library once the arch check has passed: on an
+        # unsupported device hipTENSOR's init calls `exit()`, killing Julia.
+        return _hiptensor_api_compatible()
     elseif component == :MIOpen
         return !isempty(libMIOpen_path)
     elseif component == :all
@@ -213,6 +241,26 @@ end
 # that ROCm 6.x builds still supported.
 const HIPTENSOR_ARCHS = (
     "gfx908", "gfx90a", "gfx940", "gfx941", "gfx942", "gfx950")
+
+# hipTENSOR only exports a C API since ROCm 7.2; older versions only have
+# C++-mangled names, so none of our bindings resolve. Also require at least the
+# header version the bindings were generated from. Cached: hit on every handle creation.
+const _HIPTENSOR_API_COMPATIBLE = Ref{Union{Nothing, Bool}}(nothing)
+function _hiptensor_api_compatible()
+    cached = _HIPTENSOR_API_COMPATIBLE[]
+    cached === nothing || return cached
+    bindings_version = VersionNumber(
+        hipTENSOR.HIPTENSOR_MAJOR_VERSION, hipTENSOR.HIPTENSOR_MINOR_VERSION,
+        hipTENSOR.HIPTENSOR_PATCH_VERSION)
+    ok = try
+        Libdl.dlsym_e(Libdl.dlopen(libhiptensor), :hiptensorGetVersion) != C_NULL &&
+            hipTENSOR.version() >= bindings_version
+    catch
+        false
+    end
+    _HIPTENSOR_API_COMPATIBLE[] = ok
+    return ok
+end
 
 """
     hiptensor_supported(arch::AbstractString) -> Bool
