@@ -282,7 +282,7 @@ memory or to host memory; host memory that is not yet page-locked is registered 
 When wrapping an `Array`, the returned `ROCArray` keeps it alive. When wrapping a pointer,
 the caller has to keep the memory valid for as long as the `ROCArray` is used. If `own` is
 set, the memory is freed (or, for registered host memory, unregistered) when the
-`ROCArray` is freed.
+`ROCArray` is freed, as soon as the device is done using it.
 
 Device operations execute asynchronously, so synchronize (e.g., using
 `AMDGPU.synchronize()`) before accessing wrapped host memory on the host.
@@ -311,104 +311,98 @@ function wrap_memory(ptr::Ptr{T}, dims::NTuple{N, <:Integer}, own::Bool,
     end
 
     sz = prod(dims) * aligned_sizeof(T)
-    B == Mem.HostBuffer && start_host_release_task()
     if B == Mem.HostBuffer && sz == 0
         # registering an empty range is invalid
         buf = Mem.HostBuffer()
     else
         buf = B(Ptr{Cvoid}(ptr), sz; own)
     end
+    managed = Managed(buf)
     finalize_buffer = if buf isa Mem.HostBuffer && buf.ptr != C_NULL &&
                          (own || Mem.is_registered(buf.ptr))
         # constructing the buffer registered the memory (or took another reference to an
         # existing registration), which needs to be undone even if we don't own it
-        managed -> release_host_memory(managed, own, owner)
+        release_after_use(() -> release_host_memory(managed, own), owner)
     elseif own
         pool_free
+    elseif owner !== nothing
+        release_after_use(Returns(nothing), owner)
     else
-        managed -> GC.@preserve owner nothing
+        Returns(nothing)
     end
-    dref = DataRef(finalize_buffer, Managed(buf))
+    dref = DataRef(finalize_buffer, managed)
     return ROCArray{T, N}(dref, dims)
 end
 
-# Releasing wrapped host memory has to wait for the device to finish using it. That is not
-# possible from a finalizer: finalizers cannot yield, and blocking could deadlock with a
-# kernel waiting for the host to service a hostcall. So when finalized, the memory is
-# queued for release by a background task instead.
-const host_release_lock = Threads.SpinLock()
-const host_release_queue = Tuple{Managed{Mem.HostBuffer}, Bool, Any}[]
-const host_release_cond = Ref{Base.AsyncCondition}()
-const host_release_start_lock = ReentrantLock()
-# memory whose release failed, kept pinned and rooted rather than risking use after free
-const host_release_leaked = Any[]
-
-function release_host_memory(managed::Managed{Mem.HostBuffer}, own::Bool, owner)
-    if GC.in_finalizer()
-        @lock host_release_lock begin
-            push!(host_release_queue, (managed, own, owner))
-        end
-        # safe to call from finalizers and any thread
-        ccall(:uv_async_send, Cint, (Ptr{Cvoid},), host_release_cond[])
-    else
-        _release_host_memory(managed, own, owner)
+# Returns a finalizer for the `Managed` memory of a wrapper, which calls `release` and lets
+# go of `owner` once the device is done with that memory.
+#
+# Waiting for the device is not possible from a finalizer: finalizers cannot yield, and
+# blocking could deadlock with a kernel waiting for the host to service a hostcall. Instead,
+# a host function launched on the stream that last used the memory signals an async
+# condition when the device reaches it, and the task waiting for that condition performs
+# the release. That task keeps `owner` alive, so if the condition can't be signalled, the
+# memory is leaked rather than released while it may still be in use. The task is not
+# affected by cancellation of the scope that wrapped the memory.
+function release_after_use(release, owner)
+    released = Threads.Atomic{Bool}(false)
+    release_once() = Threads.atomic_xchg!(released, true) || release()
+    cond = Base.AsyncCondition() do cond
+        close(cond)
+        GC.@preserve owner release_once()
     end
-    return
+    return managed -> release_when_done(managed, release_once, cond)
 end
 
-function _release_host_memory(managed::Managed{Mem.HostBuffer}, own::Bool, owner = nothing)
-    buf = managed.mem
-    # the owner has to stay alive until its memory has been released
-    GC.@preserve owner Base.@lock managed.lock begin
-        try
-            # wait without blocking the thread, regardless of the synchronization
-            # preference, as a kernel may be waiting for us to service a hostcall
-            if managed.dirty
-                spins = 0
-                while !HIP.isdone(managed.stream)
-                    spins < 100 ? yield() : sleep(0.001)
-                    spins += 1
-                end
-                managed.dirty = false
-            end
-        catch ex
-            @error "Error while waiting to release $(Base.format_bytes(buf.bytesize)) of wrapped host memory; leaking it" exception=(ex, catch_backtrace())
-            @lock host_release_lock push!(host_release_leaked, (managed, owner))
-            return
-        end
-        try
-            if own
-                pool_free(managed)
-            else
-                AMDGPU.context!(() -> Mem.unregister(buf.ptr), buf.ctx)
-            end
-        catch ex
-            @error "Error while releasing $(Base.format_bytes(buf.bytesize)) of wrapped host memory" exception=(ex, catch_backtrace())
-        end
+function release_when_done(managed::Managed, release, cond::Base.AsyncCondition)
+    if !managed.dirty
+        GC.in_finalizer() || release()
+        ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
+        return
     end
-    return
-end
-
-# started when host memory is first wrapped, i.e., outside of a finalizer
-function start_host_release_task()
-    isassigned(host_release_cond) && return
-    Base.@lock host_release_start_lock begin
-        isassigned(host_release_cond) && return
-        cond = Base.AsyncCondition()
-        errormonitor(Threads.@spawn begin
-            while true
-                wait(cond)
-                while true
-                    entry = @lock host_release_lock begin
-                        isempty(host_release_queue) ? nothing : popfirst!(host_release_queue)
+    try
+        stream = managed.stream
+        AMDGPU.context!(stream.ctx) do
+            # a destroyed stream may still have work in flight. our streams are blocking,
+            # so the default stream waits for that work.
+            HIP.isvalid(stream) || (stream = AMDGPU.default_stream())
+            if HIP.is_capturing(stream)
+                # a host function launched on a capturing stream would become part of the
+                # graph, so retry after the capture. finalizers can't switch tasks, but
+                # they can schedule them. note that this can't be checked atomically, so a
+                # capture started concurrently by another thread may still record it.
+                @async begin
+                    while AMDGPU.context!(() -> HIP.is_capturing(stream), stream.ctx)
+                        sleep(0.01)
                     end
-                    entry === nothing && break
-                    managed, own, owner = entry
-                    _release_host_memory(managed, own, owner)
+                    release_when_done(managed, release, cond)
                 end
+            elseif !GC.in_finalizer() && HIP.isdone(stream)
+                # freed explicitly after the device is done with the memory: release it now
+                release()
+                ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
+            else
+                HIP.hipLaunchHostFunc(stream, cglobal(:uv_async_send), cond)
             end
-        end)
-        host_release_cond[] = cond
+        end
+    catch ex
+        Base.showerror_nostdio(ex, "WARNING: Error while releasing wrapped memory; leaking it")
+        Base.show_backtrace(Core.stdout, catch_backtrace())
+        Core.println()
+    end
+    return
+end
+
+function release_host_memory(managed::Managed{Mem.HostBuffer}, own::Bool)
+    buf = managed.mem
+    try
+        if own
+            pool_free(managed)
+        else
+            AMDGPU.context!(() -> Mem.unregister(buf.ptr), buf.ctx)
+        end
+    catch ex
+        @error "Error while releasing $(Base.format_bytes(buf.bytesize)) of wrapped host memory" exception=(ex, catch_backtrace())
     end
     return
 end
