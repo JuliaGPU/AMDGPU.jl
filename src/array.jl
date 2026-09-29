@@ -221,7 +221,7 @@ function Base.copyto!(
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
     stm = stream()
-    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+    GC.@preserve dest source Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
     async || synchronize(stm)
     return dest
 end
@@ -233,7 +233,7 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
+    GC.@preserve dest source Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
     return dest
 end
 
@@ -244,7 +244,7 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
+    GC.@preserve dest source Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
     return dest
 end
 
@@ -271,11 +271,33 @@ function Base.copy(X::ROCArray{T}) where T
     return Xnew
 end
 
+"""
+    unsafe_wrap(ROCArray, ptr::Ptr{T}, dims; own=false)
+    unsafe_wrap(ROCArray, a::Array)
+
+Wrap a `ROCArray` around existing memory, without copying it. `ptr` can point to device
+memory or to host memory; host memory that is not yet page-locked is registered with
+`hipHostRegister` for as long as the wrapper exists, which can be slow.
+
+When wrapping an `Array`, the returned `ROCArray` keeps it alive. When wrapping a pointer,
+the caller has to keep the memory valid for as long as the `ROCArray` is used. If `own` is
+set, the memory is freed (or, for registered host memory, unregistered) when the
+`ROCArray` is freed.
+
+Device operations execute asynchronously, so synchronize (e.g., using
+`AMDGPU.synchronize()`) before accessing wrapped host memory on the host.
+"""
 function Base.unsafe_wrap(
     ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
     own::Bool = false,
 ) where {T,N}
-    check_eltype("unsafe_wrap(CuArray, ...)", T)
+    return wrap_memory(ptr, dims, own)
+end
+
+# `owner` is kept alive for as long as the wrapper
+function wrap_memory(ptr::Ptr{T}, dims::NTuple{N, <:Integer}, own::Bool,
+                     owner = nothing) where {T,N}
+    check_eltype("unsafe_wrap(ROCArray, ...)", T)
 
     memtype = Mem.attributes(ptr).type
     B = if memtype == HIP.hipMemoryTypeUnregistered
@@ -289,9 +311,106 @@ function Base.unsafe_wrap(
     end
 
     sz = prod(dims) * aligned_sizeof(T)
-    buf = B(Ptr{Cvoid}(ptr), sz; own)
-    dref = DataRef(own ? pool_free : Returns(nothing), Managed(buf))
+    B == Mem.HostBuffer && start_host_release_task()
+    if B == Mem.HostBuffer && sz == 0
+        # registering an empty range is invalid
+        buf = Mem.HostBuffer()
+    else
+        buf = B(Ptr{Cvoid}(ptr), sz; own)
+    end
+    finalize_buffer = if buf isa Mem.HostBuffer && buf.ptr != C_NULL &&
+                         (own || Mem.is_registered(buf.ptr))
+        # constructing the buffer registered the memory (or took another reference to an
+        # existing registration), which needs to be undone even if we don't own it
+        managed -> release_host_memory(managed, own, owner)
+    elseif own
+        pool_free
+    else
+        managed -> GC.@preserve owner nothing
+    end
+    dref = DataRef(finalize_buffer, Managed(buf))
     return ROCArray{T, N}(dref, dims)
+end
+
+# Releasing wrapped host memory has to wait for the device to finish using it. That is not
+# possible from a finalizer: finalizers cannot yield, and blocking could deadlock with a
+# kernel waiting for the host to service a hostcall. So when finalized, the memory is
+# queued for release by a background task instead.
+const host_release_lock = Threads.SpinLock()
+const host_release_queue = Tuple{Managed{Mem.HostBuffer}, Bool, Any}[]
+const host_release_cond = Ref{Base.AsyncCondition}()
+const host_release_start_lock = ReentrantLock()
+# memory whose release failed, kept pinned and rooted rather than risking use after free
+const host_release_leaked = Any[]
+
+function release_host_memory(managed::Managed{Mem.HostBuffer}, own::Bool, owner)
+    if GC.in_finalizer()
+        @lock host_release_lock begin
+            push!(host_release_queue, (managed, own, owner))
+        end
+        # safe to call from finalizers and any thread
+        ccall(:uv_async_send, Cint, (Ptr{Cvoid},), host_release_cond[])
+    else
+        _release_host_memory(managed, own, owner)
+    end
+    return
+end
+
+function _release_host_memory(managed::Managed{Mem.HostBuffer}, own::Bool, owner = nothing)
+    buf = managed.mem
+    # the owner has to stay alive until its memory has been released
+    GC.@preserve owner Base.@lock managed.lock begin
+        try
+            # wait without blocking the thread, regardless of the synchronization
+            # preference, as a kernel may be waiting for us to service a hostcall
+            if managed.dirty
+                spins = 0
+                while !HIP.isdone(managed.stream)
+                    spins < 100 ? yield() : sleep(0.001)
+                    spins += 1
+                end
+                managed.dirty = false
+            end
+        catch ex
+            @error "Error while waiting to release $(Base.format_bytes(buf.bytesize)) of wrapped host memory; leaking it" exception=(ex, catch_backtrace())
+            @lock host_release_lock push!(host_release_leaked, (managed, owner))
+            return
+        end
+        try
+            if own
+                pool_free(managed)
+            else
+                AMDGPU.context!(() -> Mem.unregister(buf.ptr), buf.ctx)
+            end
+        catch ex
+            @error "Error while releasing $(Base.format_bytes(buf.bytesize)) of wrapped host memory" exception=(ex, catch_backtrace())
+        end
+    end
+    return
+end
+
+# started when host memory is first wrapped, i.e., outside of a finalizer
+function start_host_release_task()
+    isassigned(host_release_cond) && return
+    Base.@lock host_release_start_lock begin
+        isassigned(host_release_cond) && return
+        cond = Base.AsyncCondition()
+        errormonitor(Threads.@spawn begin
+            while true
+                wait(cond)
+                while true
+                    entry = @lock host_release_lock begin
+                        isempty(host_release_queue) ? nothing : popfirst!(host_release_queue)
+                    end
+                    entry === nothing && break
+                    managed, own, owner = entry
+                    _release_host_memory(managed, own, owner)
+                end
+            end
+        end)
+        host_release_cond[] = cond
+    end
+    return
 end
 
 Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr, dim::Integer; own::Bool=false) =
@@ -299,6 +418,31 @@ Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr, dim::Integer; own::Bool=false) =
 
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims::NTuple{N, <:Integer}; kwargs...) where {T, N} =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
+
+# array input: keep the array alive for as long as the wrapper
+Base.unsafe_wrap(::Union{Type{ROCArray}, Type{ROCArray{T}}, Type{ROCArray{T, N}}},
+                 a::Array{T, N}) where {T, N} =
+    wrap_memory(pointer(a), size(a), false, a)
+
+"""
+    unsafe_wrap(Array, a::ROCArray)
+
+Wrap an `Array` around the memory of a `ROCArray`, without copying it. This is only
+possible for arrays backed by host memory, i.e., with buffer type `Mem.HostBuffer`.
+
+!!! warning
+
+    The returned `Array` does **not** keep the `ROCArray` alive. The caller has to keep a
+    reference to the `ROCArray` for as long as the `Array`, or anything derived from it,
+    is used; otherwise the `Array` may end up referring to freed memory. Device operations
+    execute asynchronously, so synchronize before accessing the returned array.
+"""
+function Base.unsafe_wrap(::Type{Array}, a::ROCArray{T, N, Mem.HostBuffer}) where {T, N}
+    ptr = convert(Ptr{T}, a.buf[].mem.ptr) + a.offset
+    return unsafe_wrap(Array, ptr, size(a))
+end
+Base.unsafe_wrap(::Type{Array}, a::ROCArray) =
+    throw(ArgumentError("Can only wrap an Array around a ROCArray backed by host memory"))
 
 ## interop with CPU arrays
 
