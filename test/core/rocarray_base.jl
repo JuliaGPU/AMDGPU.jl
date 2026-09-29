@@ -162,6 +162,37 @@ end
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x))) == false
     end
 
+    @testset "Registration is undone when freeing" begin
+        x = zeros(Float32, 16)
+        xd = unsafe_wrap(ROCArray, pointer(x), size(x))
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x)))
+        AMDGPU.unsafe_free!(xd)
+        @test !AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x)))
+        @test !AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(x)))
+    end
+
+    @testset "Wrap Array" begin
+        for AT in [ROCArray, ROCArray{Float32}, ROCArray{Float32, 1}]
+            a = Float32[1, 2, 3]
+            b = unsafe_wrap(AT, a)
+            @test b isa ROCVector{Float32, AMDGPU.Mem.HostBuffer}
+            @test Array(b) == a
+        end
+        @test isempty(Array(unsafe_wrap(ROCArray, Float32[])))
+
+        # the wrapper keeps the array alive
+        xd = unsafe_wrap(ROCArray, fill(1f0, 1024))
+        GC.gc(true)
+        AMDGPU.@sync xd .+= 1f0
+        @test all(==(2f0), Array(xd))
+
+        # and the other way around
+        a = Float32[1, 2, 3]
+        b = unsafe_wrap(ROCArray, a)
+        @test pointer(unsafe_wrap(Array, b)) == pointer(a)
+        @test_throws ArgumentError unsafe_wrap(Array, AMDGPU.zeros(Float32, 3))
+    end
+
     @testset "Broadcasting different buffer types" begin
         x = rand(Float32, 4, 16, 16)
         xd = unsafe_wrap(ROCArray, pointer(x), size(x))
