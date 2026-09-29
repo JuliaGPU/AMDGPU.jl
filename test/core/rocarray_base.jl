@@ -186,6 +186,23 @@ end
         AMDGPU.@sync xd .+= 1f0
         @test all(==(2f0), Array(xd))
 
+        # ... and lets go of it once the device is done using it
+        function wrap_tracked(collected)
+            a = fill(1f0, 1024)
+            finalizer(_ -> collected[] = true, a)
+            xd = unsafe_wrap(ROCArray, a)
+            xd .+= 1f0
+            return
+        end
+        collected = Threads.Atomic{Bool}(false)
+        wrap_tracked(collected)
+        t = time()
+        while !collected[] && time() - t < 10
+            GC.gc(true)
+            sleep(0.01)
+        end
+        @test collected[]
+
         # and the other way around
         a = Float32[1, 2, 3]
         b = unsafe_wrap(ROCArray, a)
