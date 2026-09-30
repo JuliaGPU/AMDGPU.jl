@@ -83,11 +83,10 @@ function KA.launch_config(kernel::KA.Kernel{ROCBackend}, ndrange, workgroupsize)
         ndrange = nothing
     end
 
-    iterspace, dynamic = if KA.workgroupsize(kernel) <: KA.DynamicSize && workgroupsize === nothing
-        workgroupsize = ntuple(
-            i -> i == 1 ? min(prod(ndrange), AMDGPU.Device._max_group_size) : 1,
-            length(ndrange))
-        KA.partition(kernel, ndrange, workgroupsize)
+    iterspace, dynamic = if KA.workgroupsize(kernel) <: KA.DynamicSize &&
+        workgroupsize === nothing
+        # use ndrange as preliminary workgroupsize for autotuning
+        KA.partition(kernel, ndrange, ndrange)
     else
         KA.partition(kernel, ndrange, workgroupsize)
     end
@@ -95,13 +94,11 @@ function KA.launch_config(kernel::KA.Kernel{ROCBackend}, ndrange, workgroupsize)
     return ndrange, workgroupsize, iterspace, dynamic
 end
 
-function threads_to_workgroupsize(threads, ndrange)
-    total = 1
-    return map(ndrange) do n
-        x = min(div(threads, total), n)
-        total *= x
-        return x
-    end
+threads_to_workgroupsize(threads, ndrange::Tuple) = _threads_to_workgroupsize(threads, 1, ndrange)
+_threads_to_workgroupsize(threads, total, ::Tuple{}) = ()
+function _threads_to_workgroupsize(threads, total, ndrange::Tuple)
+    x = min(div(threads, total), first(ndrange))
+    return (x, _threads_to_workgroupsize(threads, total * x, Base.tail(ndrange))...)
 end
 
 function (obj::KA.Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=nothing)
