@@ -11,7 +11,7 @@ import ..AMDGPU
 import ..AMDGPU.libhip
 import .AMDGPU: @check, check
 
-import GPUToolbox: @gcsafe_ccall, @checked
+import GPUToolbox: @gcsafe_ccall, @checked, cooperative_wait
 
 include("libhip.jl")
 include("error.jl")
