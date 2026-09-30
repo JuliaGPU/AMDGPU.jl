@@ -22,30 +22,25 @@ function isdone(event::HIPEvent)
     end
 end
 
-function non_blocking_synchronize(event::HIPEvent)
-    isdone(event) && return true
-
-    # spin (initially without yielding to minimize latency)
-    spins = 0
-    while spins < 256
-        if spins < 32
-            ccall(:jl_cpu_pause, Cvoid, ())
-            # Temporary solution before we have gc transition support in codegen.
-            ccall(:jl_gc_safepoint, Cvoid, ())
-        else
-            yield()
-        end
-        isdone(event) && return true
-        spins += 1
-    end
-    return false
-end
-
 wait(event::HIPEvent) = hipEventSynchronize(event)
 
-function synchronize(event::HIPEvent)
-    non_blocking_synchronize(event) || AMDGPU.maybe_collect(; blocking=true)
-    wait(event)
+# same, but callable from any thread (events know their device)
+worker_synchronize(event::HIPEvent) =
+    @gcsafe_ccall(libhip.hipEventSynchronize(event::hipEvent_t)::hipError_t)
+
+function synchronize(event::HIPEvent; blocking::Bool = false, spin::Bool = true)
+    if use_nonblocking_synchronize && !blocking
+        res = cooperative_wait(worker_synchronize, event; isdone, spin)
+        if res === nothing
+            wait(event)
+        else
+            check(something(res))
+            AMDGPU.maybe_collect(; blocking=true)
+        end
+    else
+        AMDGPU.maybe_collect(; blocking=true)
+        wait(event)
+    end
     return
 end
 

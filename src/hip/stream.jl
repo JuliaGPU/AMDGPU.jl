@@ -167,83 +167,37 @@ function isdone(stream::HIPStream)
     end
 end
 
-function _low_latency_synchronize(stream::HIPStream)
-    isdone(stream) && return true
-
-    # spin (initially without yielding to minimize latency)
-    spins = 0
-    while spins < 256
-        if spins < 32
-            ccall(:jl_cpu_pause, Cvoid, ())
-            # Temporary solution before we have gc transition support in codegen.
-            ccall(:jl_gc_safepoint, Cvoid, ())
-        else
-            yield()
-        end
-        isdone(stream) && return true
-        spins += 1
-    end
-    return false
-end
-
-function launch(f::Base.Callable; stream::HIPStream)
-    # Condition object is embedded in a task, Julia scheduler keeps it alive.
-    cond = Base.AsyncCondition() do async_cond
-        f()
-        close(async_cond)
-    end
-    callback = cglobal(:uv_async_send)
-    hipLaunchHostFunc(stream, callback, cond)
-end
-
-function nonblocking_synchronize(stream::HIPStream)
-    # Wait for an event signalled by HIP.
-    event = Base.Event()
-    launch(() -> notify(event); stream)
-
-    # If an error occurs, the callback may never fire.
-    # Create a timer to detect such cases.
-    dev = device()
-    timer = Timer(0; interval=1)
-
-    Base.@sync begin
-        # Launch timer.
-        Threads.@spawn try
-            device!(dev)
-            while true
-                try
-                    Base.wait(timer)
-                catch err
-                    err isa EOFError && break
-                    rethrow()
-                end
-                (!isvalid(stream) || hipStreamQuery(stream) != hipErrorNotReady) && break
-            end
-        finally
-            notify(event)
-        end
-        # Wait for `event`.
-        Threads.@spawn begin
-            Base.wait(event)
-            close(timer)
-        end
-    end
-    return
-end
-
 wait(stream::HIPStream) = hipStreamSynchronize(stream)
 
-function synchronize(stream::HIPStream; blocking::Bool = false)
-    if use_nonblocking_synchronize && !blocking
-        if !_low_latency_synchronize(stream)
-            nonblocking_synchronize(stream)
+# same, but callable from any thread. this bypasses the task-local state, so select the
+# caller's device ourselves: the null stream refers to the current device's.
+function worker_synchronize(stream::HIPStream, dev::HIPDevice)
+    isvalid(stream) || return hipSuccess
+    res = unchecked_hipSetDevice(device_id(dev))
+    res == hipSuccess || return res
+    @gcsafe_ccall(libhip.hipStreamSynchronize(stream::hipStream_t)::hipError_t)
+end
+
+function synchronize(stream::HIPStream; blocking::Bool = false, spin::Bool = true)
+    if GC.in_finalizer()
+        # we can't switch tasks here, and the finalizer selected the context to use
+        wait(stream)
+    elseif use_nonblocking_synchronize && !blocking
+        # wait on a worker thread, so that other tasks (e.g. hostcalls) can run on this one
+        dev = AMDGPU.device()
+        res = cooperative_wait(s -> worker_synchronize(s, dev), stream; isdone, spin)
+        if res === nothing
+            # polling found the stream done. synchronize anyway, which reports errors and
+            # lets HIP release resources.
+            wait(stream)
+        else
+            check(something(res))
             AMDGPU.maybe_collect(; blocking=true)
         end
     else
         AMDGPU.maybe_collect(; blocking=true)
+        wait(stream)
     end
-    # Perform an actual API call even after non-blocking synchronization.
-    wait(stream)
     return
 end
 
