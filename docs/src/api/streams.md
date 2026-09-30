@@ -60,7 +60,7 @@ By default, [`AMDGPU.synchronize`](@ref) does not block the calling thread:
 it briefly polls the stream, and then waits for it on a separate worker
 thread, so that other tasks can run on the calling thread in the meantime.
 This is required for [Hostcall](@ref), whose host side runs as a task.
-Synchronizing events works the same way.
+Synchronizing events and `HIP.device_synchronize()` works the same way.
 Inside finalizers, which cannot switch tasks, synchronization blocks.
 
 Users, however, can switch to a blocking synchronization globally

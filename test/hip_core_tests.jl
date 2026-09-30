@@ -59,6 +59,7 @@ end
         busy(1; stream=s)
         progress_during(() -> AMDGPU.synchronize(s))
         progress_during(() -> HIP.synchronize(HIP.HIPEvent(s)))
+        progress_during(HIP.device_synchronize)
         progress_during(() -> AMDGPU.synchronize(s; blocking=true))
     end
 
@@ -92,6 +93,13 @@ end
         @test HIP.isdone(e)
     end
 
+    let s = HIPStream()
+        busy(n; stream=s)
+        @test !HIP.isdone(s)
+        @test progress_during(HIP.device_synchronize) > 1000
+        @test HIP.isdone(s)
+    end
+
     # the null stream belongs to the current device, which the worker has to select
     let s = HIP.default_stream()
         busy(n; stream=s)
@@ -115,6 +123,7 @@ end
         AMDGPU.device!(() -> busy(1; stream=s), other)
         HIP.synchronize(s; spin=false)
         @test HIP.isdone(s)
+        AMDGPU.device!(HIP.device_synchronize, other)
         @test AMDGPU.device() == dev
     end
 end
