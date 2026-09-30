@@ -24,8 +24,10 @@
         gv = GlobalVariable(mod, gv_typ, string(id), as)
         if len > 0
             if as == AS.Local
-                linkage!(gv, LLVM.API.LLVMExternalLinkage)
-                # NOTE: Backend doesn't support initializer for local AS
+                # every call site gets its own allocation. local memory can't be
+                # initialized, so use an `undef` initializer, which the backend accepts.
+                linkage!(gv, LLVM.API.LLVMInternalLinkage)
+                initializer!(gv, UndefValue(gv_typ))
             elseif as == AS.Private
                 linkage!(gv, LLVM.API.LLVMInternalLinkage)
                 initializer!(gv, null(gv_typ))
