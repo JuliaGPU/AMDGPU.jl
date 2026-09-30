@@ -42,6 +42,10 @@ KI.synchronize(::ROCBackend) = AMDGPU.synchronize()
 
 KI.supports_float64(::ROCBackend) = true
 KI.supports_atomics(::ROCBackend) = true
+KI.supports_subgroups(::ROCBackend) = true
+# `shfl_down` decomposes other types into 32-bit shuffles
+KI.supports_shuffle(::ROCBackend, ::Type{T}) where {T} =
+    T <: Union{Bool, Base.BitInteger, Base.IEEEFloat, Complex{<:Union{Base.BitInteger, Base.IEEEFloat}}}
 
 function KI.priority!(::ROCBackend, priority::Symbol)
     priority ∉ (:high, :normal, :low) && error(
@@ -155,6 +159,10 @@ function KI.max_num_groups(backend::ROCBackend)::NTuple{3, Int}
         Int(min(Device._max_groups[d], Device._max_grid_size[d] ÷ dims[d]))
     end
 end
+# `KI.kernel_function` compiles for the device's wavefront size
+function KI.sub_group_size(::ROCBackend)::Int
+    Int(HIP.wavefrontsize(AMDGPU.device()))
+end
 function KI.multiprocessor_count(::ROCBackend)::Int
     Int(HIP.attribute(AMDGPU.device(), HIP.hipDeviceAttributeMultiprocessorCount))
 end
@@ -181,6 +189,38 @@ end
     return (; x = Device.gridGroupDim().x % T, y = Device.gridGroupDim().y % T, z = Device.gridGroupDim().z % T)
 end
 
+## sub-groups
+
+# wavefronts are formed from consecutive linear work-item indices
+@inline function linear_workitem_id()
+    return (Device.workitemIdx().x - 0x1) +
+           (Device.workitemIdx().y - 0x1) * Device.workgroupDim().x +
+           (Device.workitemIdx().z - 0x1) * Device.workgroupDim().x * Device.workgroupDim().y
+end
+
+@inline workgroup_items() = Device.workgroupDim().x * Device.workgroupDim().y * Device.workgroupDim().z
+
+# the 0-based lane of the work-item in its wavefront. unlike `Device.activelane()`, this
+# doesn't depend on which lanes are active. `mbcnt.hi` adds nothing in wave32 mode.
+@inline function hardware_lane()
+    lo = ccall("llvm.amdgcn.mbcnt.lo", llvmcall, UInt32, (UInt32, UInt32), typemax(UInt32), 0x0)
+    return ccall("llvm.amdgcn.mbcnt.hi", llvmcall, UInt32, (UInt32, UInt32), typemax(UInt32), lo)
+end
+
+# the last wavefront of a workgroup can be partial
+@device_override @inline function KI.get_sub_group_size(::Type{T}) where {T}
+    ws = Device.wavefrontsize()
+    return min(ws, workgroup_items() - (linear_workitem_id() ÷ ws) * ws) % T
+end
+
+@device_override KI.get_max_sub_group_size(::Type{T}) where {T} = Device.wavefrontsize() % T
+
+@device_override KI.get_num_sub_groups(::Type{T}) where {T} = cld(workgroup_items(), Device.wavefrontsize()) % T
+
+@device_override KI.get_sub_group_id(::Type{T}) where {T} = (linear_workitem_id() ÷ Device.wavefrontsize() + 0x1) % T
+
+@device_override KI.get_sub_group_local_id(::Type{T}) where {T} = (hardware_lane() + 0x1) % T
+
 ## shared memory
 
 @device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
@@ -193,6 +233,14 @@ end
 
 @device_override @inline function KI.barrier()
     Device.sync_workgroup()
+end
+
+@device_override @inline function KI.sub_group_barrier()
+    Device.sync_wavefront()
+end
+
+@device_override function KI.shfl_down(val::T, offset::Integer) where T
+    @inline Device.shfl_down(val, offset % Cint)
 end
 
 # not supported, see the `ROCBackend` docstring
