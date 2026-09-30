@@ -222,6 +222,7 @@ _shfl(op, x::UInt128) =
     (UInt128(_shfl(op, (x >>> 64) % UInt64)) << 64) |
     UInt128(_shfl(op, ((x & typemax(UInt64)) % UInt64)))
 
+_shfl(op, x::Cint) = op(x)
 _shfl(op, x::Int8) = reinterpret(Int8, _shfl(op, reinterpret(UInt8, x)))
 _shfl(op, x::Int16) = reinterpret(Int16, _shfl(op, reinterpret(UInt16, x)))
 _shfl(op, x::Int64) = reinterpret(Int64, _shfl(op, reinterpret(UInt64, x)))
