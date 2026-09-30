@@ -21,6 +21,7 @@ Printing from a kernel (`KernelAbstractions.@print`) is not supported: it does n
 struct ROCBackend <: KI.Backend end
 
 KI.functional(::ROCBackend) = AMDGPU.functional()
+KI.versioninfo(io::IO, ::ROCBackend) = AMDGPU.versioninfo(io)
 KI.ndevices(::ROCBackend) = AMDGPU.HIP.ndevices()
 KI.device(::ROCBackend) = AMDGPU.device_id()
 function KI.device!(kab::ROCBackend, id::Int)
