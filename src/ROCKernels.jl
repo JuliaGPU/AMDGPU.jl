@@ -40,6 +40,13 @@ KI.get_backend(::AMDGPU.rocSPARSE.ROCSparseMatrixCSR) = ROCBackend()
 
 KI.synchronize(::ROCBackend) = AMDGPU.synchronize()
 
+# an event recorded on, and waited for by, the task's stream
+KI.record_event(::ROCBackend) = HIP.HIPEvent(AMDGPU.stream())
+function KI.wait_event(::ROCBackend, ev::HIP.HIPEvent)
+    HIP.hipStreamWaitEvent(AMDGPU.stream(), ev, 0)
+    return
+end
+
 KI.supports_float64(::ROCBackend) = true
 KI.supports_atomics(::ROCBackend) = true
 KI.supports_subgroups(::ROCBackend) = true
