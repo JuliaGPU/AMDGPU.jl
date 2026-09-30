@@ -12,6 +12,7 @@ using Preferences
 using Printf
 
 import AcceleratedKernels as AK
+import KernelInterface
 import UnsafeAtomics
 import Atomix
 import Atomix: @atomic, @atomicswap, @atomicreplace
@@ -147,6 +148,7 @@ function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where OP <: Union{
     GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, syncscope_agent)
 end
 
+# KernelInterface
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend

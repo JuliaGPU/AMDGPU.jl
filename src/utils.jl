@@ -118,7 +118,8 @@ function versioninfo(io::IO=stdout)
 
     println(io, "Julia packages: ")
     println(io, "- AMDGPU.jl: $(Base.pkgversion(AMDGPU))")
-    for pkg in [:GPUArrays, :GPUCompiler, ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
+    for pkg in [:GPUArrays, :GPUCompiler, :KernelInterface,
+                 ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
                  :LLVM, :AMDGPU_LLVM_Backend_jll, :LLVMDowngrader_jll]
         name, mod = get_module(pkg)
         isnothing(mod) || println(io, "- $(name): $(Base.pkgversion(mod))")
