@@ -118,4 +118,8 @@ end
     @test Array(lane) == [isodd(i) ? mod1(i, ws) : 0 for i in 1:2ws]
 end
 
+@testset "versioninfo" begin
+    @test occursin("AMDGPU.jl", sprint(KI.versioninfo, backend))
+end
+
 end
