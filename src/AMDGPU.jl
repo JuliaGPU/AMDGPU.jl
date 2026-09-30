@@ -12,6 +12,7 @@ using Preferences
 using Printf
 
 import AcceleratedKernels as AK
+import KernelInterface
 import UnsafeAtomics
 import Atomix
 import Atomix: @atomic, @atomicswap, @atomicreplace
@@ -82,6 +83,7 @@ Base.Experimental.@MethodTable(method_table)
 #needs to be before Device since sync uses this
 const syncscope_agent = UnsafeAtomics.Internal.LLVMSyncScope{:agent}()
 const syncscope_workgroup = UnsafeAtomics.Internal.LLVMSyncScope{:workgroup}()
+const syncscope_wavefront = UnsafeAtomics.Internal.LLVMSyncScope{:wavefront}()
 
 # Referenced by the generated `kernel_state()`, and generators run in the world they are
 # defined in, so this has to precede the device code.
@@ -102,7 +104,7 @@ import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 import .Device: threadIdx, blockIdx, blockDim
-import .Device: sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
+import .Device: sync_workgroup, sync_wavefront, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
 import .Device: @rocprint, @rocprintln, @rocprintf
 
 export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
@@ -147,6 +149,7 @@ function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where OP <: Union{
     GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, syncscope_agent)
 end
 
+# KernelInterface
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend

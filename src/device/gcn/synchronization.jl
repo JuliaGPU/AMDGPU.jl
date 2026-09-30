@@ -1,6 +1,6 @@
 
 for ord in UnsafeAtomics.Internal.orderings
-    for sync in (AMDGPU.syncscope_agent, AMDGPU.syncscope_workgroup)
+    for sync in (AMDGPU.syncscope_agent, AMDGPU.syncscope_workgroup, AMDGPU.syncscope_wavefront)
         @eval @device_function function UnsafeAtomics.fence(::$(typeof(ord)), ::$(typeof(sync)))
             Base.llvmcall(
                     $("""
@@ -27,6 +27,22 @@ Waits until all wavefronts in a workgroup have reached this call and that their 
     UnsafeAtomics.fence(UnsafeAtomics.seq_cst, AMDGPU.syncscope_workgroup)
     ccall("llvm.amdgcn.s.barrier", llvmcall, Cvoid, ())
     UnsafeAtomics.fence(UnsafeAtomics.seq_cst, AMDGPU.syncscope_workgroup)
+end
+
+"""
+    sync_wavefront()
+
+Waits until all lanes of the wavefront have reached this call, and makes their memory
+accesses before it visible to the other lanes of the wavefront.
+"""
+@device_function @inline function sync_wavefront()
+    # the lanes of a wavefront execute in lockstep, so the barrier doesn't generate any
+    # code (https://github.com/llvm/llvm-project/blob/88b77d5eaa66747538a12c9876eeffdce31ddb71/openmp/device/src/Synchronization.cpp#L136-L140),
+    # but it keeps the compiler from moving code across it. like `sync_workgroup`, it needs
+    # fences to order memory.
+    UnsafeAtomics.fence(UnsafeAtomics.seq_cst, AMDGPU.syncscope_wavefront)
+    ccall("llvm.amdgcn.wave.barrier", llvmcall, Cvoid, ())
+    UnsafeAtomics.fence(UnsafeAtomics.seq_cst, AMDGPU.syncscope_wavefront)
 end
 
 """
