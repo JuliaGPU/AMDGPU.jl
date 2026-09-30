@@ -103,7 +103,8 @@ function KI.max_work_group_size(kernel::KI.Kernel{ROCBackend})::Int
     HIP.hipFuncGetAttribute(max_items, HIP.HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, kernel.kern.fun)
     return Int(max_items[])
 end
-function KI.launch_configuration(kernel::KI.Kernel{ROCBackend}; max_work_group_size::Integer=typemax(Int))
+function KI.launch_configuration(kernel::KI.Kernel{ROCBackend}; nitems::Union{Integer,Nothing}=nothing,
+                                 max_work_group_size::Integer=typemax(Int))
     max_items = min(max_work_group_size, KI.max_work_group_size(kernel))
     (; groupsize) = AMDGPU.launch_configuration(kernel.kern; max_block_size = max_items)
     return (; workgroupsize = Int(min(groupsize, max_items)))
