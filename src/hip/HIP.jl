@@ -54,6 +54,7 @@ function HIPContext(device::HIPDevice)
 
     Base.@lock CONTEXTS.lock begin
         get!(contexts, device) do
+            check_system_scope_fences(device)
             ctx_ref = Ref{hipCtx_t}()
             hipCtxCreate(ctx_ref, Cuint(0), device.device)
             ctx = HIPContext(ctx_ref[], true)
