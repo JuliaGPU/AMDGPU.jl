@@ -18,7 +18,7 @@ import RandomNumbers
     # create a global memory global variable
     T_global = LLVM.ArrayType(T_val, 32)
     gv = GlobalVariable(current_module(builder), T_global, "__zeroinit_global_random_$(name)", AS.Local)
-    gv.linkage = LLVM.API.LLVMExternalLinkage
+    gv.linkage = LLVM.Linkage.External
 
     ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
     bitcast!(builder, ptr, T_ptr)
@@ -181,7 +181,7 @@ end
     # XXX: why can't we use a single name like emit_shmem
     gv = GlobalVariable(current_module(builder), T_global, "gpu_$(name)_data", AS.Constant)
     gv.alignment = 16
-    gv.linkage = LLVM.API.LLVMInternalLinkage
+    gv.linkage = LLVM.Linkage.Internal
     gv.initializer = ConstantArray(data)
 
     ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
