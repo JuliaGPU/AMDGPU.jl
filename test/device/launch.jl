@@ -77,6 +77,38 @@ end
     end
 end
 
+@testset "Many arguments" begin
+    # more arguments than Julia splats or maps over without falling back to dynamic calls
+    params = [Symbol(:x, i) for i in 1:40]
+    @eval function many_args_kernel(out, $(params...))
+        out[1] = $(foldl((a, b) -> :($a + $b), params))
+        return
+    end
+    @eval many_args_launch(out) = @roc many_args_kernel(out, $(1:40...))
+    @eval many_args_call(kernel, out) = kernel(out, $(1:40...); groupsize=1)
+
+    few_args_kernel(out, x) = (out[1] = x; return)
+    few_args_launch(out) = @roc few_args_kernel(out, 1)
+    few_args_call(kernel, out) = kernel(out, 1; groupsize=1)
+
+    out = ROCArray([0])
+    kernel = Base.invokelatest(many_args_launch, out)
+    @test Array(out)[1] == sum(1:40)
+    @test Base.invokelatest(many_args_call, kernel, out) === nothing
+    @test Array(out)[1] == sum(1:40)
+
+    # launching should not be much more expensive than with few arguments
+    # (Julia 1.11 and older allocate a little per argument)
+    Base.invokelatest() do
+        @inferred many_args_launch(out)
+        few_kernel = few_args_launch(out)
+        few_args_call(few_kernel, out)
+        @test @allocated(many_args_launch(out)) <= @allocated(few_args_launch(out)) + 40*32
+        @test @allocated(many_args_call(kernel, out)) <=
+              @allocated(few_args_call(few_kernel, out)) + 40*32
+    end
+end
+
 if length(AMDGPU.devices()) > 1
     @testset "Multi-GPU" begin
         dev = AMDGPU.device()

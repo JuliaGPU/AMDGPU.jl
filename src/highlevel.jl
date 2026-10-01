@@ -151,8 +151,8 @@ macro roc(ex...)
         quote
             GC.@preserve $(vars...) begin
                 local $kernel_f = $rocconvert($f)
-                local $kernel_args = map($rocconvert, ($(var_exprs...),))
-                local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
+                local $kernel_args = $(Runtime._tmap)($rocconvert, ($(var_exprs...),))
+                local $kernel_tt = $(Runtime.argument_types)($kernel_args)
                 local $kernel = $hipfunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
 
                 if $launch

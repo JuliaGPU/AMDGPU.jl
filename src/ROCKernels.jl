@@ -83,11 +83,10 @@ function KA.launch_config(kernel::KA.Kernel{ROCBackend}, ndrange, workgroupsize)
         ndrange = nothing
     end
 
-    iterspace, dynamic = if KA.workgroupsize(kernel) <: KA.DynamicSize && workgroupsize === nothing
-        workgroupsize = ntuple(
-            i -> i == 1 ? min(prod(ndrange), AMDGPU.Device._max_group_size) : 1,
-            length(ndrange))
-        KA.partition(kernel, ndrange, workgroupsize)
+    iterspace, dynamic = if KA.workgroupsize(kernel) <: KA.DynamicSize &&
+        workgroupsize === nothing
+        # use ndrange as preliminary workgroupsize for autotuning
+        KA.partition(kernel, ndrange, ndrange)
     else
         KA.partition(kernel, ndrange, workgroupsize)
     end
@@ -95,16 +94,22 @@ function KA.launch_config(kernel::KA.Kernel{ROCBackend}, ndrange, workgroupsize)
     return ndrange, workgroupsize, iterspace, dynamic
 end
 
-function threads_to_workgroupsize(threads, ndrange)
-    total = 1
-    return map(ndrange) do n
-        x = min(div(threads, total), n)
-        total *= x
-        return x
-    end
+threads_to_workgroupsize(threads, ndrange::Tuple) = _threads_to_workgroupsize(threads, 1, ndrange)
+_threads_to_workgroupsize(threads, total, ::Tuple{}) = ()
+function _threads_to_workgroupsize(threads, total, ndrange::Tuple)
+    x = min(div(threads, total), first(ndrange))
+    return (x, _threads_to_workgroupsize(threads, total * x, Base.tail(ndrange))...)
 end
 
-function (obj::KA.Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=nothing)
+# forwards the arguments as a tuple, see `AMDGPU.Runtime.launch_tuple(::HIPFunction, ...)`
+(obj::KA.Kernel{ROCBackend})(args::Vararg{Any, N}) where N = launch_tuple(obj, args)
+Core.kwcall(kwargs::NamedTuple, obj::KA.Kernel{ROCBackend}, args::Vararg{Any, N}) where N =
+    launch_tuple(obj, args; kwargs...)
+
+# `(x, t...)`, without splatting
+@inline @generated prepend(x, t::Tuple) = :((x, $((:(t[$i]) for i in 1:fieldcount(t))...)))
+
+function launch_tuple(obj::KA.Kernel{ROCBackend}, args::Tuple; ndrange=nothing, workgroupsize=nothing)
     ndrange, new_workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
     ctx = KA.mkcontext(obj, ndrange, iterspace)
     if KA.workgroupsize(obj) <: KA.StaticSize
@@ -112,7 +117,8 @@ function (obj::KA.Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=no
     else
         maxthreads = nothing
     end
-    kernel = AMDGPU.@roc launch=false maxthreads=maxthreads obj.f(ctx, args...)
+    # `@roc` rebuilds a single splatted tuple as `(t...,)`, which Julia compiles to `t` itself
+    kernel = AMDGPU.@roc launch=false maxthreads=maxthreads obj.f(prepend(ctx, args)...)
 
     # If dynamic, figure out the optimal groupsize automatically.
     is_dynamic =
@@ -129,7 +135,8 @@ function (obj::KA.Kernel{ROCBackend})(args...; ndrange=nothing, workgroupsize=no
     nthreads = length(KA.workitems(iterspace))
     nblocks == 0 && return
 
-    kernel(ctx, args...; groupsize=nthreads, gridsize=nblocks)
+    # what `kernel(ctx, args...; ...)` calls, without splatting
+    AMDGPU.Runtime.launch_tuple(kernel, prepend(ctx, args); groupsize=nthreads, gridsize=nblocks)
     return
 end
 
