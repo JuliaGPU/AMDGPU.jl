@@ -43,6 +43,29 @@ Get GCN architecture for the device.
 """
 gcn_arch(d::HIPDevice)::String = d.gcn_arch
 
+# Warn when using a GPU that needs system-scope fences while HIP doesn't use them.
+function check_system_scope_fences(dev::HIPDevice)
+    discovery = AMDGPU.ROCmDiscovery
+    discovery.system_scope_fences && return
+    affected = discovery.system_scope_fence_devices
+    isempty(affected) && return
+    props = properties(dev)
+    (props.pciDomainID, props.pciBusID, props.pciDeviceID) in affected || return
+
+    reason, fix = if discovery.system_scope_fences_source == :environment
+        "the `AMD_OPT_FLUSH` environment variable is set to $(repr(discovery.amd_opt_flush))",
+        "unset it or set it to 0"
+    elseif discovery.system_scope_fences_source == :preference
+        return  # explicitly disabled
+    else
+        "other AMD GPUs in this system don't need them, and would be slowed down",
+        "call `AMDGPU.system_scope_fences!(true)`"
+    end
+    @warn("""Your $(name(dev)) GPU ($(gcn_arch(dev))) can silently lose kernel results unless HIP uses system-scope fences, which are not enabled because $reason.
+             To enable them, $fix and restart Julia. See the FAQ in the AMDGPU.jl documentation for details.""",
+          maxlog=1, _id=(:amdgpu_system_scope_fences, device_id(dev)))
+end
+
 function stack_size()
     value = Ref{Csize_t}()
     hipDeviceGetLimit(value, hipLimitStackSize)
