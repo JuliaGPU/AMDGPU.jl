@@ -187,7 +187,7 @@ end
 """
     priority!(f::Base.Callable, priority::Symbol)
 
-Chnage the priority of default stream, execute `f` and
+Change the priority of default stream, execute `f` and
 revert to the original priority.
 Accepted values are `:normal` (the default), `:low` and `:high`.
 
