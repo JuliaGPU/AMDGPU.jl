@@ -63,56 +63,64 @@ end
         progress_during(() -> AMDGPU.synchronize(s; blocking=true))
     end
 
-    # find a kernel that takes at least 200 ms
+    # find a kernel that takes at least 200 ms. time it on the GPU, as this process getting
+    # descheduled (as happens on loaded CI nodes) would make it seem to take longer.
     n = 1000
-    while true
-        s = HIPStream()
-        t = @elapsed (busy(n; stream=s); AMDGPU.synchronize(s; blocking=true))
-        t >= 0.2 && break
+    while AMDGPU.@elapsed(busy(n; stream=AMDGPU.stream())) < 0.2
         n *= 2
     end
 
+    # measure the progress made while `sync()` waits for a kernel on `s`. that only shows
+    # whether the thread was blocked if the kernel kept running for a while after the wait
+    # started, which isn't the case when this process gets descheduled for longer than the
+    # kernel takes. `isdone` can't tell, as HIP may report a completed stream as busy for a
+    # while, so check how long the wait took instead, and if it was too short, try again
+    # with a longer kernel.
+    function progress_while_busy(sync, s)
+        m = n
+        for _ in 1:5
+            busy(m; stream=s)
+            t = Ref(0.0)
+            progress = progress_during(() -> t[] = @elapsed sync())
+            t[] >= 0.05 && return progress
+            m *= 2
+        end
+        error("the kernel kept completing before the wait started")
+    end
+
     let s = HIPStream()
-        busy(n; stream=s)
-        @test !HIP.isdone(s)
-        @test progress_during(() -> AMDGPU.synchronize(s)) > 1000
+        @test progress_while_busy(() -> AMDGPU.synchronize(s), s) > 1000
         @test HIP.isdone(s)
     end
 
     let s = HIPStream()
-        busy(n; stream=s)
-        @test !HIP.isdone(s)
-        @test progress_during(() -> HIP.synchronize(s; spin=false)) > 1000
+        @test progress_while_busy(() -> HIP.synchronize(s; spin=false), s) > 1000
+    end
+
+    let s = HIPStream(), e = Ref{HIP.HIPEvent}()
+        # record the event after the kernel
+        sync = () -> begin
+            e[] = HIP.HIPEvent(s)
+            HIP.synchronize(e[])
+        end
+        @test progress_while_busy(sync, s) > 1000
+        @test HIP.isdone(e[])
     end
 
     let s = HIPStream()
-        busy(n; stream=s)
-        e = HIP.HIPEvent(s)
-        @test !HIP.isdone(e)
-        @test progress_during(() -> HIP.synchronize(e)) > 1000
-        @test HIP.isdone(e)
-    end
-
-    let s = HIPStream()
-        busy(n; stream=s)
-        @test !HIP.isdone(s)
-        @test progress_during(HIP.device_synchronize) > 1000
+        @test progress_while_busy(HIP.device_synchronize, s) > 1000
         @test HIP.isdone(s)
     end
 
     # the null stream belongs to the current device, which the worker has to select
     let s = HIP.default_stream()
-        busy(n; stream=s)
-        @test !HIP.isdone(s)
-        @test progress_during(() -> AMDGPU.synchronize(s)) > 1000
+        @test progress_while_busy(() -> AMDGPU.synchronize(s), s) > 1000
         @test HIP.isdone(s)
     end
 
     # opting out
     let s = HIPStream()
-        busy(n; stream=s)
-        @test !HIP.isdone(s)
-        @test progress_during(() -> AMDGPU.synchronize(s; blocking=true)) < 1000
+        @test progress_while_busy(() -> AMDGPU.synchronize(s; blocking=true), s) < 1000
     end
 
     if length(AMDGPU.devices()) > 1
