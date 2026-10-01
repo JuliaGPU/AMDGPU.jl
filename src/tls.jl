@@ -71,7 +71,7 @@ device!(f::Function, dev::HIPDevice) = context!(f, HIPContext(dev))
 function stream(state::TaskLocalState)::HIPStream
     i = device_id(state.device)
     if state.streams[i] ≡ nothing
-        state.streams[i] = HIPStream(:normal)
+        state.streams[i] = HIP.task_stream(:normal)
     else
         state.streams[i]
     end
@@ -82,6 +82,11 @@ end
 
 Get the HIP stream that should be used as the default one
 for the currently executing task.
+
+Each task gets its own stream, which may be handed to another task once the task has
+finished and all work on the stream has completed. If you need a stream that outlives the
+task, or that is never shared, create one with `HIPStream()` and activate it using
+[`AMDGPU.stream!`](@ref).
 """
 stream()::HIPStream = stream(task_local_state!())
 
@@ -155,7 +160,7 @@ function priority!(p::Symbol)
     state = task_local_state!()
     state.stream.priority == p && return p
 
-    state.streams[device_id(state.device)] = HIPStream(p)
+    state.streams[device_id(state.device)] = HIP.task_stream(p)
     return p
 end
 
@@ -176,7 +181,7 @@ function priority!(f::Function, p::Symbol)
 
     old_s = state.stream
     swap = p != old_s.priority
-    swap && (state.streams[idx] = HIPStream(p);)
+    swap && (state.streams[idx] = HIP.task_stream(p);)
 
     return try
         f()
