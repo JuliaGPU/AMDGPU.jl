@@ -34,6 +34,8 @@ Because launches are asynchronous, synchronize before reading results back or ti
 AMDGPU.@sync @roc groupsize=256 gridsize=n kernel(args...)
 ```
 
+HIP streams are expensive: each one pins several MiB of host memory. To keep applications that spawn many short-lived tasks from accumulating streams, the stream of a task is recycled once the task has finished and all work on it has completed. Tasks that are running at the same time never share a stream, but a newly started task may get the stream of an earlier one. If you need a stream that outlives the task that uses it, e.g., to pass it on to other tasks, create one explicitly with `AMDGPU.HIPStream()` and activate it with `AMDGPU.stream!`.
+
 Streams also carry a priority (`:normal`, `:low`, `:high`) to bias scheduling. See [Streams](@ref) for stream priorities, synchronization details, and the blocking-vs-nonblocking preference.
 
 ## Using multiple GPUs
