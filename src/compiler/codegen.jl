@@ -375,15 +375,25 @@ function find_global_hostcalls(mod::LLVM.Module)
 end
 
 function hipcompile(@nospecialize(job::CompilerJob))
-    obj, meta = JuliaContext() do ctx
-        GPUCompiler.compile(:obj, job)
+    # the IR in `meta` is ours: inspect it in here, and dispose of it so that it does not leak
+    obj, entry, late_hostcalls, extinit_globals, relocations = JuliaContext() do ctx
+        obj, meta = GPUCompiler.compile(:obj, job)
+        @dispose ir=meta.ir begin
+            # Filter out extinit global from `relocations` that :patch strategy emits.
+            relocated = Set(rec.name for rec in meta.relocations.records)
+            extinit_globals = [gv.name for gv in ir.globals
+                               if gv.externally_initialized && gv.name ∉ relocated]
+
+            obj, meta.entry.name, find_global_hostcalls(ir), extinit_globals,
+                meta.relocations
+        end
     end
 
     # Collect early-detected hostcalls written by link_libraries! on this task.
     # Falls back gracefully to empty if link_libraries! was not called.
     global_hostcalls = pop!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     # Late global hostcalls detection.
-    append!(global_hostcalls, find_global_hostcalls(meta.ir))
+    append!(global_hostcalls, late_hostcalls)
 
     if !isempty(global_hostcalls)
         @info """Global hostcalls detected!
@@ -395,13 +405,6 @@ function hipcompile(@nospecialize(job::CompilerJob))
         """
     end
 
-    entry = meta.entry.name
-
-    # Filter out extinit global from `relocations` that :patch strategy emits.
-    relocations = meta.relocations
-    relocated = Set(rec.name for rec in relocations.records)
-    extinit_globals = [gv.name for gv in meta.ir.globals
-                       if gv.externally_initialized && gv.name ∉ relocated]
     if !isempty(extinit_globals)
         @warn """
         HIP backend does not support setting extinit globals.
