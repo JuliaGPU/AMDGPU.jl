@@ -16,6 +16,8 @@ x = AMDGPU.ones(Float32, 16)          # allocated on the second device
 
 Arrays and kernels use the current task's device, so allocate and launch after switching. See [Devices](@ref) for the full reference and device-property queries.
 
+`AMDGPU.device!(dev)` also makes `dev` the default device, which a task starts on the first time it uses AMDGPU. That way, a script can pick its GPU once, for example per MPI rank, and the tasks it spawns later follow. To switch only for a block of code, pass a function: `AMDGPU.device!(f, dev)` switches back afterwards and leaves the default alone. To change only the default, use `AMDGPU.default_device!(dev)`.
+
 ## Streams and asynchrony
 
 Kernel launches and most operations are asynchronous with respect to the host: they are enqueued on a HIP stream and return immediately. Work on the same stream runs in order; work on different streams may overlap. Each task has a default stream, and you pick a stream per launch or per task:
@@ -36,13 +38,12 @@ Streams also carry a priority (`:normal`, `:low`, `:high`) to bias scheduling. S
 
 ## Using multiple GPUs
 
-Because device selection is task-local, drive several GPUs by spawning one task per device. Each task switches to its device, then allocates and launches there:
+Because device selection is task-local, drive several GPUs by spawning one task per device. Each task switches to its device, then allocates and launches there. The scoped form of `device!` keeps the tasks from changing the default device:
 
 ```julia
 devs = AMDGPU.devices()
 @sync for (i, dev) in enumerate(devs)
-    Threads.@spawn begin
-        AMDGPU.device!(dev)
+    Threads.@spawn AMDGPU.device!(dev) do
         a = AMDGPU.ones(Float32, 1024)
         b = a .+ i
         AMDGPU.synchronize()

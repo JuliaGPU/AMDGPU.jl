@@ -5,7 +5,7 @@ mutable struct TaskLocalState
 end
 
 function TaskLocalState(
-    dev::HIPDevice = something(HIP.DEFAULT_DEVICE[], HIPDevice(1)),
+    dev::HIPDevice = default_device(),
     ctx::HIPContext = HIPContext(dev),
 )
     streams = Union{Nothing, HIPStream}[nothing for _ in 1:HIP.ndevices()]
@@ -46,13 +46,17 @@ device() = task_local_state!().device
 
 """
     device!(device::HIPDevice)
+    device!(f::Function, device::HIPDevice)
 
-Switch current device being used.
-This switches only for a task inside which it is called.
+Switch the calling task to `device`, and make it the [`default_device`](@ref),
+so that tasks which have not used AMDGPU yet start on it too. Use
+[`default_device!`](@ref) to change only the default.
+
+With `f`, switch the calling task to `device` only while `f` runs.
+This leaves the default device unchanged.
 """
 function device!(dev::HIPDevice)
-    # Set the new default device.
-    HIP.DEFAULT_DEVICE[] = dev
+    default_device!(dev)
 
     ctx = HIPContext(dev)
     state = task_local_state()
@@ -67,6 +71,27 @@ function device!(dev::HIPDevice)
 end
 
 device!(f::Function, dev::HIPDevice) = context!(f, HIPContext(dev))
+
+"""
+    default_device()::HIPDevice
+
+Device that a task starts on, the first time it uses AMDGPU.
+This is the first device, until changed with [`default_device!`](@ref)
+or [`device!`](@ref).
+"""
+default_device() = something(HIP.DEFAULT_DEVICE[], HIPDevice(1))
+
+"""
+    default_device!(device::HIPDevice)
+
+Make `device` the one that tasks start on, the first time they use AMDGPU.
+Unlike [`device!`](@ref), this does not switch the calling task, nor any
+other task that already uses AMDGPU.
+"""
+function default_device!(dev::HIPDevice)
+    HIP.DEFAULT_DEVICE[] = dev
+    return dev
+end
 
 function stream(state::TaskLocalState)::HIPStream
     i = device_id(state.device)
