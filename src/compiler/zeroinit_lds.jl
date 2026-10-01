@@ -15,7 +15,7 @@ llvmsize(ty::LLVM.VectorType) = ty.length
 llvmsize(ty) = error("Unknown size for type: $ty, typeof: $(typeof(ty))")
 
 function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
-    if entry.callconv != LLVM.API.LLVMAMDGPUKERNELCallConv
+    if entry.callconv != LLVM.CallConv.AMDGPUKERNEL
         return entry
     end
 
@@ -44,9 +44,8 @@ function zeroinit_lds!(mod::LLVM.Module, entry::LLVM.Function)
         end
 
         # Synchronize the workgroup to prevent races.
-        sync_ft = LLVM.FunctionType(LLVM.VoidType())
-        sync_f = LLVM.Function(mod, LLVM.Intrinsic("llvm.amdgcn.s.barrier"))
-        call!(builder, sync_ft, sync_f)
+        sync_f = LLVM.Function(mod, Intrinsic("llvm.amdgcn.s.barrier"))
+        call!(builder, sync_f.function_type, sync_f)
     end
     return entry
 end

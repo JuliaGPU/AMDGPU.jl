@@ -8,8 +8,7 @@ using Core: LLVMPtr
     T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
     typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
     res = atomic_cmpxchg!(builder, typed_ptr, cmp, val,
-                          LLVM.API.LLVMAtomicOrderingAcquireRelease,
-                          LLVM.API.LLVMAtomicOrderingAcquire)
+                          LLVM.AtomicOrdering.AcquireRelease, LLVM.AtomicOrdering.Acquire)
     extract_value!(builder, res, 0)
 end
 

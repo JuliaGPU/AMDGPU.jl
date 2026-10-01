@@ -9,12 +9,9 @@ function _range_metadata(::Type{T}, range) where T
 end
 
 @device_function @llvmgenerated builder function _index(::Val{fname}, ::Val{name}, ::Val{range})::UInt32 where {fname, name, range}
-    T_int32 = LLVM.Int32Type()
-
     # call the indexing intrinsic
-    intr_typ = LLVM.FunctionType(T_int32)
-    intr = LLVM.Function(current_module(builder), "llvm.amdgcn.$fname.id.$name", intr_typ)
-    idx = call!(builder, intr_typ, intr)
+    intr = LLVM.Function(current_module(builder), Intrinsic("llvm.amdgcn.$fname.id.$name"))
+    idx = call!(builder, intr.function_type, intr)
 
     # attach range metadata
     md = _range_metadata(UInt32, range)
@@ -33,16 +30,12 @@ const _hidden_group_size_offset  = 12   # u16 × 3
     T_int8 = LLVM.Int8Type()
     T_int32 = LLVM.Int32Type()
 
-    _as = convert(Int, AS.Constant)
-    T_ptr_i8 = LLVM.PointerType(T_int8, _as)
-
     T_T = convert(LLVMType, T)
-    T_ptr_T = LLVM.PointerType(T_T, _as)
+    T_ptr_T = LLVM.PointerType(T_T, convert(Int, AS.Constant))
 
     # get the implicit (hidden) kernel argument pointer
-    intr_typ = LLVM.FunctionType(T_ptr_i8)
-    intr = LLVM.Function(current_module(builder), "llvm.amdgcn.implicitarg.ptr", intr_typ)
-    ptr = call!(builder, intr_typ, intr)
+    intr = LLVM.Function(current_module(builder), Intrinsic("llvm.amdgcn.implicitarg.ptr"))
+    ptr = call!(builder, intr.function_type, intr)
 
     # load the field
     idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])

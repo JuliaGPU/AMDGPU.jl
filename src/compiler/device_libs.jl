@@ -140,9 +140,6 @@ function load_and_link!(
         end
     end
 
-    inline_attr = EnumAttribute("alwaysinline")
-    noinline_attr = EnumAttribute("noinline")
-
     for f in lib.functions
         fn_name = f.name
 
@@ -151,14 +148,7 @@ function load_and_link!(
         startswith(fn_name, "__ockl_hsa_signal") && continue
 
         attrs = f.function_attributes
-        inline = true
-        for attr in collect(attrs)
-            if attr.kind == noinline_attr.kind
-                inline = false
-                break
-            end
-        end
-        inline && push!(attrs, inline_attr)
+        haskey(attrs, :noinline) || push!(attrs, EnumAttribute(:alwaysinline))
     end
 
     # override triple and datalayout to avoid warnings

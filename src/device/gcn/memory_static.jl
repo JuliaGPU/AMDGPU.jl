@@ -20,10 +20,10 @@
     gv = GlobalVariable(current_module(builder), gv_typ, name, as)
     if len > 0
         if as == AS.Local
-            gv.linkage = LLVM.API.LLVMExternalLinkage
+            gv.linkage = LLVM.Linkage.External
             # NOTE: Backend doesn't support initializer for local AS
         elseif as == AS.Private
-            gv.linkage = LLVM.API.LLVMInternalLinkage
+            gv.linkage = LLVM.Linkage.Internal
             gv.initializer = null(gv_typ)
         end
     end

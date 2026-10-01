@@ -98,7 +98,7 @@ function GPUCompiler.finish_module!(
     fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
 
     # Set kernel target cpu and features.
-    if entry.callconv == LLVM.API.LLVMAMDGPUKERNELCallConv
+    if entry.callconv == LLVM.CallConv.AMDGPUKERNEL
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
         target_features_attr = StringAttribute("target-features", job.config.target.features)
         atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
@@ -125,19 +125,17 @@ function GPUCompiler.finish_module!(
     # And GPUCompiler fails to inline all functions without forcing
     # always-inline attributes on them. Add them here.
     target_fns = ("signal_exception", "report_exception", "malloc", "__throw_")
-    inline_attr = EnumAttribute("alwaysinline")
-    noinline_attr = EnumAttribute("noinline")
 
     for fn in mod.functions
         do_inline = any(occursin.(target_fns, fn.name))
         if job.config.params.unsafe_fp_atomics || do_inline
             attrs = fn.function_attributes
 
-            if do_inline && inline_attr ∉ collect(attrs)
+            if do_inline && !haskey(attrs, :alwaysinline)
                 # the two are mutually exclusive, and some matched functions are
                 # `@noinline` in Base (e.g. `_throw_boundserror_indices` on Julia 1.14)
-                delete!(attrs, noinline_attr)
-                push!(attrs, inline_attr)
+                delete!(attrs, :noinline)
+                push!(attrs, EnumAttribute(:alwaysinline))
             end
         end
     end
@@ -146,8 +144,8 @@ function GPUCompiler.finish_module!(
     # native hardware atomics (e.g. global_atomic_add_f32) instead of a CAS loop.
     # Mirrors Clang's setTargetAtomicMetadata; unsafe_fp_atomics is the opt-in.
     if job.config.params.unsafe_fp_atomics
-        fp_binops = (LLVM.API.LLVMAtomicRMWBinOpFAdd, LLVM.API.LLVMAtomicRMWBinOpFSub,
-                     LLVM.API.LLVMAtomicRMWBinOpFMax, LLVM.API.LLVMAtomicRMWBinOpFMin)
+        fp_binops = (LLVM.AtomicRMWBinOp.FAdd, LLVM.AtomicRMWBinOp.FSub,
+                     LLVM.AtomicRMWBinOp.FMax, LLVM.AtomicRMWBinOp.FMin)
         empty_md = MDNode(Metadata[])
         for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
             inst isa LLVM.AtomicRMWInst || continue
@@ -155,7 +153,7 @@ function GPUCompiler.finish_module!(
             op ∈ fp_binops || continue
             md = inst.metadata
             md["amdgpu.no.fine.grained.memory"] = empty_md
-            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && inst.value_type isa LLVM.FloatType
+            if op == LLVM.AtomicRMWBinOp.FAdd && inst.value_type isa LLVM.FloatType
                 md["amdgpu.ignore.denormal.mode"] = empty_md
             end
         end
@@ -167,12 +165,11 @@ end
 # LLVM only folds `llvm.amdgcn.wavefrontsize` during instruction selection, which then
 # fails on branches for the other wavefront size (e.g. in `ballot`), so fold it here.
 function fold_wavefrontsize!(mod::LLVM.Module, wavefrontsize64::Bool)
-    haskey(mod.functions, "llvm.amdgcn.wavefrontsize") || return
-    f = mod.functions["llvm.amdgcn.wavefrontsize"]
+    f = get(mod.functions, "llvm.amdgcn.wavefrontsize", nothing)
+    f === nothing && return
     ws = ConstantInt(f.function_type.return_type, wavefrontsize64 ? 64 : 32)
-    for use in collect(f.uses)
-        call = use.user::LLVM.CallInst
-        LLVM.replace_uses!(call, ws)
+    for call in collect(f.users)
+        LLVM.replace_uses!(call::LLVM.CallInst, ws)
         LLVM.erase!(call)
     end
     return
