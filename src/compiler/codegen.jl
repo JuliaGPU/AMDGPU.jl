@@ -98,7 +98,7 @@ function GPUCompiler.finish_module!(
     fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
 
     # Set kernel target cpu and features.
-    if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
+    if entry.callconv == LLVM.API.LLVMAMDGPUKERNELCallConv
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
         target_features_attr = StringAttribute("target-features", job.config.target.features)
         atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
@@ -109,7 +109,7 @@ function GPUCompiler.finish_module!(
         # grid dimensions are read from it (see device/gcn/indexing.jl),
         implicitarg_attr = StringAttribute("amdgpu-implicitarg-num-bytes", "256")
 
-        attrs = LLVM.function_attributes(entry)
+        attrs = entry.function_attributes
         push!(attrs, target_cpu_attr)
         push!(attrs, target_features_attr)
         push!(attrs, atomic_attr)
@@ -128,10 +128,10 @@ function GPUCompiler.finish_module!(
     inline_attr = EnumAttribute("alwaysinline")
     noinline_attr = EnumAttribute("noinline")
 
-    for fn in LLVM.functions(mod)
-        do_inline = any(occursin.(target_fns, LLVM.name(fn)))
+    for fn in mod.functions
+        do_inline = any(occursin.(target_fns, fn.name))
         if job.config.params.unsafe_fp_atomics || do_inline
-            attrs = LLVM.function_attributes(fn)
+            attrs = fn.function_attributes
 
             if do_inline && inline_attr ∉ collect(attrs)
                 # the two are mutually exclusive, and some matched functions are
@@ -149,13 +149,13 @@ function GPUCompiler.finish_module!(
         fp_binops = (LLVM.API.LLVMAtomicRMWBinOpFAdd, LLVM.API.LLVMAtomicRMWBinOpFSub,
                      LLVM.API.LLVMAtomicRMWBinOpFMax, LLVM.API.LLVMAtomicRMWBinOpFMin)
         empty_md = MDNode(Metadata[])
-        for fn in LLVM.functions(mod), bb in LLVM.blocks(fn), inst in LLVM.instructions(bb)
+        for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
             inst isa LLVM.AtomicRMWInst || continue
-            op = LLVM.binop(inst)
+            op = inst.binop
             op ∈ fp_binops || continue
-            md = LLVM.metadata(inst)
+            md = inst.metadata
             md["amdgpu.no.fine.grained.memory"] = empty_md
-            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && LLVM.value_type(inst) == LLVM.FloatType()
+            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && inst.value_type isa LLVM.FloatType
                 md["amdgpu.ignore.denormal.mode"] = empty_md
             end
         end
@@ -167,11 +167,11 @@ end
 # LLVM only folds `llvm.amdgcn.wavefrontsize` during instruction selection, which then
 # fails on branches for the other wavefront size (e.g. in `ballot`), so fold it here.
 function fold_wavefrontsize!(mod::LLVM.Module, wavefrontsize64::Bool)
-    haskey(LLVM.functions(mod), "llvm.amdgcn.wavefrontsize") || return
-    f = LLVM.functions(mod)["llvm.amdgcn.wavefrontsize"]
-    ws = ConstantInt(LLVM.return_type(LLVM.function_type(f)), wavefrontsize64 ? 64 : 32)
-    for use in collect(LLVM.uses(f))
-        call = LLVM.user(use)::LLVM.CallInst
+    haskey(mod.functions, "llvm.amdgcn.wavefrontsize") || return
+    f = mod.functions["llvm.amdgcn.wavefrontsize"]
+    ws = ConstantInt(f.function_type.return_type, wavefrontsize64 ? 64 : 32)
+    for use in collect(f.uses)
+        call = use.user::LLVM.CallInst
         LLVM.replace_uses!(call, ws)
         LLVM.erase!(call)
     end
@@ -370,8 +370,8 @@ function find_global_hostcalls(mod::LLVM.Module)
         :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
 
     global_hostcalls = Symbol[]
-    for gbl in LLVM.globals(mod), gbl_name in global_hostcall_names
-        occursin("__$gbl_name", LLVM.name(gbl)) || continue
+    for gbl in mod.globals, gbl_name in global_hostcall_names
+        occursin("__$gbl_name", gbl.name) || continue
         push!(global_hostcalls, gbl_name)
     end
     return global_hostcalls
@@ -398,14 +398,13 @@ function hipcompile(@nospecialize(job::CompilerJob))
         """
     end
 
-    entry = LLVM.name(meta.entry)
+    entry = meta.entry.name
 
     # Filter out extinit global from `relocations` that :patch strategy emits.
     relocations = meta.relocations
     relocated = Set(rec.name for rec in relocations.records)
-    extinit_globals = filter(collect(LLVM.globals(meta.ir))) do gv
-        isextinit(gv) && LLVM.name(gv) ∉ relocated
-    end .|> LLVM.name
+    extinit_globals = [gv.name for gv in meta.ir.globals
+                       if gv.externally_initialized && gv.name ∉ relocated]
     if !isempty(extinit_globals)
         @warn """
         HIP backend does not support setting extinit globals.
@@ -471,15 +470,15 @@ function GPUCompiler.finish_ir!(
         job, mod, entry)
     job.config.kernel || return entry
 
-    name = LLVM.name(entry)
+    name = entry.name
     tm = GPUCompiler.llvm_machine(job.config.target)
     # The textual pass name is only registered since LLVM 18; it's a pure
     # optimization, so skip it on older LLVM (e.g. Julia 1.10's LLVM 15).
     if LLVM.version() >= v"18"
-        @dispose pb=NewPMPassBuilder() begin
+        @dispose pb=PassBuilder() begin
             add!(pb, "amdgpu-attributor")
             run!(pb, mod, tm)
         end
     end
-    return functions(mod)[name]
+    return mod.functions[name]
 end
