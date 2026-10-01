@@ -9,7 +9,7 @@ export sv2!, sv2, mv!
         beta::BlasFloat, Y::ROCVector, index::SparseChar)
 
 Performs `Y = alpha * op(A) * X + beta * Y`, where `op` can be nothing
-(`transa = N`), tranpose (`transa = T`) or conjugate transpose (`transa = C`).
+(`transa = N`), transpose (`transa = T`) or conjugate transpose (`transa = C`).
 `X` is a sparse vector, and `Y` is dense.
 """
 mv!(
@@ -52,7 +52,7 @@ end
         transa::SparseChar, uplo::SparseChar, diag::SparseChar,
         alpha::BlasFloat, A::ROCSparseMatrix, X::ROCVector, index::SparseChar)
 
-Performs `X = alpha * op(A) \\ X`, where `op` can be nothing (`transa = N`), tranpose
+Performs `X = alpha * op(A) \\ X`, where `op` can be nothing (`transa = N`), transpose
 (`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense vector, and `uplo`
 tells `sv2!` which triangle of the block sparse matrix `A` to reference.
 If the triangle has unit diagonal, set `diag` to 'U'.

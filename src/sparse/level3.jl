@@ -10,7 +10,7 @@ export mm!, mm2!, sm2!, sm2
         C::ROCMatrix, index::SparseChar)
 
 Performs `C = alpha * op(A) * op(B) + beta * C`, where `op` can be nothing
-(`transa = N`), tranpose (`transa = T`) or conjugate transpose (`transa = C`).
+(`transa = N`), transpose (`transa = T`) or conjugate transpose (`transa = C`).
 `A` is a sparse matrix defined in BSR storage format. `B` and `C` are dense matrices.
 """
 mm!(
@@ -134,7 +134,7 @@ end
         X::ROCMatrix, index::SparseChar)
 
 Performs `X = alpha * op(A) \\ op(X)`, where `op` can be nothing (`transa = N`),
-tranpose (`transa = T`) or conjugate transpose (`transa = C`).
+transpose (`transa = T`) or conjugate transpose (`transa = C`).
 `X` is a dense matrix, and `uplo` tells `sm2!` which triangle of the
 block sparse matrix `A` to reference.
 If the triangle has unit diagonal, set `diag` to 'U'.
