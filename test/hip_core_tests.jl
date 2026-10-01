@@ -23,112 +23,123 @@ Random.seed!(1)
 end
 
 @testset "cooperative synchronization" begin
-    # keep the GPU busy for a while
-    function sleep_kernel(n)
-        for _ in 1:n
+    # keep the GPU busy until the host opens a gate. this keeps the tests below independent
+    # of timing: a synchronization can only return after the task that opens the gate has
+    # run. if that does not happen (e.g., because the thread it runs on is blocked), the
+    # kernel gives up after `limit` sleeps, and records that it timed out, instead of hanging.
+    function gate_kernel(gate::Ptr{UInt32}, limit)
+        for _ in 1:limit
+            unsafe_load(gate, :acquire) != 0 && return
             AMDGPU.Device.device_sleep(Int32(127))
         end
+        unsafe_store!(gate, UInt32(1), 2)
         return
     end
-    function busy(n; stream)
-        @roc stream=stream sleep_kernel(n)
-        return
+    gate_buf = Mem.HostBuffer(2 * sizeof(UInt32), HIP.hipHostMallocCoherent)
+    gate = unsafe_wrap(Array, Ptr{UInt32}(gate_buf.ptr), 2)     # (is open, timed out)
+    gate_ptr = Ptr{UInt32}(gate_buf.dev_ptr)
+    # a sleep takes 127 * 64 cycles, so this takes at least 20 s at current clock rates
+    timeout = 7_500_000
+    open_gate() = unsafe_store!(pointer(gate), UInt32(1), :release)
+    gate_is_open() = unsafe_load(pointer(gate), :acquire) != 0
+
+    # run `f` while a kernel on `stream` keeps the GPU busy until the gate is opened,
+    # returning what `f` returned and whether the kernel timed out.
+    function gated(f, stream; limit = timeout)
+        # while the gate is closed, nothing on the host may wait for the GPU to become idle,
+        # as e.g. freeing memory does. so avoid running finalizers, by collecting beforehand
+        # and not collecting while the gate is closed.
+        GC.gc(true)
+        gc_enabled = GC.enable(false)
+        ret = try
+            gate .= 0
+            @roc stream=stream gate_kernel(gate_ptr, limit)
+            f()
+        finally
+            open_gate()
+            GC.enable(gc_enabled)
+            # also when `f` failed, as the gate is reused
+            AMDGPU.synchronize(stream)
+        end
+        return ret, gate[2] != 0
     end
 
-    # run `f` while counting how often another task on the same thread gets to run. polling
-    # before waiting yields a couple of hundred times, so only much larger counts show that
-    # the thread was not blocked while waiting.
-    function progress_during(f)
-        progress = Ref(0)
-        done = Ref(false)
-        t = @async while !done[]
-            progress[] += 1
-            yield()
+    # run `f` while another task on the same thread opens the gate, but only after it got
+    # to run many more times than the polling at the start of a synchronization yields.
+    # returns whether `f` only returned after the gate had been opened.
+    function open_gate_during(f)
+        t = @async begin
+            for _ in 1:10_000
+                yield()
+            end
+            open_gate()
         end
         try
             f()
+            gate_is_open()
         finally
-            done[] = true
             wait(t)
         end
-        return progress[]
     end
 
-    # warm up everything that is measured below
-    let s = HIPStream()
-        busy(1; stream=s)
-        progress_during(() -> AMDGPU.synchronize(s))
-        progress_during(() -> HIP.synchronize(HIP.HIPEvent(s)))
-        progress_during(HIP.device_synchronize)
-        progress_during(() -> AMDGPU.synchronize(s; blocking=true))
+    # set up everything beforehand: compiling and loading the kernel, or creating the
+    # queue backing a stream (which HIP does when first using it), may wait for the GPU.
+    streams = [HIPStream() for _ in 1:5]
+    event = HIP.HIPEvent(streams[3]; do_record=false)
+    open_gate()
+    for s in (streams..., HIP.default_stream(), AMDGPU.stream())
+        @roc stream=s gate_kernel(gate_ptr, 1)
+        AMDGPU.synchronize(s)
     end
 
-    # find a kernel that takes at least 200 ms. time it on the GPU, as this process getting
-    # descheduled (as happens on loaded CI nodes) would make it seem to take longer.
-    n = 1000
-    while AMDGPU.@elapsed(busy(n; stream=AMDGPU.stream())) < 0.2
-        n *= 2
+    let s = streams[1]
+        @test gated(s) do
+            open_gate_during(() -> AMDGPU.synchronize(s)) && HIP.isdone(s)
+        end == (true, false)
     end
 
-    # measure the progress made while `sync()` waits for a kernel on `s`. that only shows
-    # whether the thread was blocked if the kernel kept running for a while after the wait
-    # started, which isn't the case when this process gets descheduled for longer than the
-    # kernel takes. `isdone` can't tell, as HIP may report a completed stream as busy for a
-    # while, so check how long the wait took instead, and if it was too short, try again
-    # with a longer kernel.
-    function progress_while_busy(sync, s)
-        m = n
-        for _ in 1:5
-            busy(m; stream=s)
-            t = Ref(0.0)
-            progress = progress_during(() -> t[] = @elapsed sync())
-            t[] >= 0.05 && return progress
-            m *= 2
-        end
-        error("the kernel kept completing before the wait started")
+    let s = streams[2]
+        @test gated(s) do
+            open_gate_during(() -> HIP.synchronize(s; spin=false)) && HIP.isdone(s)
+        end == (true, false)
     end
 
-    let s = HIPStream()
-        @test progress_while_busy(() -> AMDGPU.synchronize(s), s) > 1000
-        @test HIP.isdone(s)
+    let s = streams[3]
+        @test gated(s) do
+            HIP.record(event)
+            open_gate_during(() -> HIP.synchronize(event)) && HIP.isdone(event)
+        end == (true, false)
     end
 
-    let s = HIPStream()
-        @test progress_while_busy(() -> HIP.synchronize(s; spin=false), s) > 1000
-    end
-
-    let s = HIPStream(), e = Ref{HIP.HIPEvent}()
-        # record the event after the kernel
-        sync = () -> begin
-            e[] = HIP.HIPEvent(s)
-            HIP.synchronize(e[])
-        end
-        @test progress_while_busy(sync, s) > 1000
-        @test HIP.isdone(e[])
-    end
-
-    let s = HIPStream()
-        @test progress_while_busy(HIP.device_synchronize, s) > 1000
-        @test HIP.isdone(s)
+    let s = streams[4]
+        @test gated(s) do
+            open_gate_during(HIP.device_synchronize) && HIP.isdone(s)
+        end == (true, false)
     end
 
     # the null stream belongs to the current device, which the worker has to select
     let s = HIP.default_stream()
-        @test progress_while_busy(() -> AMDGPU.synchronize(s), s) > 1000
-        @test HIP.isdone(s)
+        @test gated(s) do
+            open_gate_during(() -> AMDGPU.synchronize(s)) && HIP.isdone(s)
+        end == (true, false)
     end
 
-    # opting out
-    let s = HIPStream()
-        @test progress_while_busy(() -> AMDGPU.synchronize(s; blocking=true), s) < 1000
+    # opting out blocks the thread, so the gate can only open once the kernel gave up
+    let s = streams[5]
+        @test gated(s; limit = 10_000) do
+            open_gate_during(() -> AMDGPU.synchronize(s; blocking=true))
+        end == (false, true)
     end
 
+    Mem.free(gate_buf)
+
+    noop_kernel() = return
     if length(AMDGPU.devices()) > 1
         # waiting for another device doesn't change the one this task uses
         dev = AMDGPU.device()
         other = first(d for d in AMDGPU.devices() if d != dev)
         s = AMDGPU.device!(() -> HIPStream(), other)
-        AMDGPU.device!(() -> busy(1; stream=s), other)
+        AMDGPU.device!(() -> (@roc stream=s noop_kernel()), other)
         HIP.synchronize(s; spin=false)
         @test HIP.isdone(s)
         AMDGPU.device!(HIP.device_synchronize, other)
