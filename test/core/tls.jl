@@ -10,6 +10,8 @@ using AMDGPU: ROCArray, HIPDevice, HIPStream
 
     d2 = AMDGPU.device()
     @test d1 ≡ d2
+    @test AMDGPU.default_device() == d1
+    @test fetch(@async AMDGPU.device()) == AMDGPU.default_device()
 
     x = AMDGPU.device!(() -> ROCArray{Int}(undef, 16), d1)
     @test AMDGPU.device(x) ≡ d1

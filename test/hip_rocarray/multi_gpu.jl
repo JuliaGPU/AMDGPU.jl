@@ -39,6 +39,28 @@ else
         @test after == default
     end
 
+    @testset "Default device" begin
+        d1 = AMDGPU.device()
+        d2 = first(d for d in AMDGPU.devices() if d != d1)
+
+        # `default_device!` changes where new tasks start, not the calling task.
+        AMDGPU.default_device!(d2)
+        @test AMDGPU.default_device() == d2
+        @test AMDGPU.device() == d1
+        @test fetch(@async AMDGPU.device()) == d2
+
+        # `device!` switches the calling task and sets the default too.
+        AMDGPU.default_device!(d1)
+        AMDGPU.device!(d2)
+        @test AMDGPU.default_device() == d2
+        AMDGPU.device!(d1)
+        @test AMDGPU.default_device() == d1
+
+        # The scoped form leaves the default alone.
+        AMDGPU.device!(() -> nothing, d2)
+        @test AMDGPU.default_device() == d1
+    end
+
     @testset "Arrays" begin
         d1 = AMDGPU.device()
 
@@ -127,6 +149,11 @@ else
         @test AMDGPU.stream().device == AMDGPU.HIP.device()
         @test AMDGPU.device() == AMDGPU.device(1)
         @test AMDGPU.HIP.device() == AMDGPU.device(1)
+
+        # The spawned task's `device_id!(2)` also made device 2 the default for
+        # new tasks; restore it for the rest of this file and later test files.
+        @test AMDGPU.default_device() == AMDGPU.device(2)
+        AMDGPU.default_device!(AMDGPU.device(1))
     end
 
     if AMDGPU.functional(:rocfft)

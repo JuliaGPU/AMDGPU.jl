@@ -10,8 +10,8 @@ device_id(device::HIPDevice)::Int = device.device_id
 """
     device_id!(idx::Integer)
 
-Sets the current device to `AMDGPU.devices()[idx]`. See
-[`device_id`](@ref) for details on the numbering semantics.
+Same as [`device!`](@ref)`(AMDGPU.devices()[idx])`, so it also sets the default
+device. See [`device_id`](@ref) for details on the numbering semantics.
 """
 device_id!(idx::Integer) = device!(devices()[idx])
 
@@ -88,7 +88,7 @@ converted to a GPU-friendly format. By default, the function does nothing and re
 input object `x` as-is.
 
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
-register methods for the the `AMDGPU.Adaptor` type.
+register methods for the `AMDGPU.Adaptor` type.
 """
 rocconvert(arg) = adapt(Runtime.Adaptor(nothing), arg)
 rocconvert(arg, stream::HIPStream) = adapt(Runtime.Adaptor(stream), arg)

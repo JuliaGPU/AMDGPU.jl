@@ -184,7 +184,7 @@ end
 
 Base.unsafe_convert(::Type{rocsparse_spmat_descr}, desc::ROCSparseMatrixDescriptor) = desc.handle
 
-## Stucture for IC(0) and ILU(0) preconditioners
+## Structure for IC(0) and ILU(0) preconditioners
 
 mutable struct MatInfo
     info::rocsparse_mat_info

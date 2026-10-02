@@ -347,7 +347,7 @@ function ROCSparseMatrixCOO(csr::ROCSparseMatrixCSR{Tv}, ind::SparseChar='O') wh
     ROCSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, nonzeros(csr), size(csr), nnz(csr))
 end
 
-### CSC/BSR to COO and viceversa
+### CSC/BSR to COO and vice versa
 
 ROCSparseMatrixCSC(coo::ROCSparseMatrixCOO) = ROCSparseMatrixCSC(ROCSparseMatrixCSR(coo)) # no direct conversion
 ROCSparseMatrixCSC{Tv,Ti}(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv,Ti} = ROCSparseMatrixCSC(coo)
