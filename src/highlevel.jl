@@ -88,7 +88,7 @@ converted to a GPU-friendly format. By default, the function does nothing and re
 input object `x` as-is.
 
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
-register methods for the the `AMDGPU.Adaptor` type.
+register methods for the `AMDGPU.Adaptor` type.
 """
 rocconvert(arg) = adapt(Runtime.Adaptor(nothing), arg)
 rocconvert(arg, stream::HIPStream) = adapt(Runtime.Adaptor(stream), arg)

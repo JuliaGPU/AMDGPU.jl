@@ -97,9 +97,9 @@ The grid will be split into multiple workgroups by hardware automatically,
 and the kernel does not complete until all workgroups complete.
 
 AMDGPU has the concept of "workitems", "workgroups", and the "grid".
-A workitem is a single thread of execution, capable of performing arithmentic operations.
+A workitem is a single thread of execution, capable of performing arithmetic operations.
 Workitems are grouped into "wavefronts" ("warps" in CUDA) which
-share the same compute unit, and execute the same instructions simulatenously.
+share the same compute unit, and execute the same instructions simultaneously.
 
 The workgroup is a logical unit of compute supported by hardware
 which comprises multiple wavefronts, which shares resources
