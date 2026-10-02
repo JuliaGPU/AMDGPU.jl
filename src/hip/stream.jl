@@ -112,17 +112,20 @@ function claim_stream!(pool::Vector{PooledStream}, task::Task)
     return candidate.stream
 end
 
-function query(s::HIPStream)
-    # querying a stream is prohibited while another one is being captured in global
-    # mode, even though it doesn't interfere with the capture, so temporarily relax that
+# some API calls, like querying a stream, are prohibited while another stream is being
+# captured in global mode, even when they don't interfere with the capture. `f` must not
+# yield, because the capture mode is a property of the thread.
+function relaxed_capture_mode(f)
     mode = Ref(hipStreamCaptureModeRelaxed)
     hipThreadExchangeStreamCaptureMode(mode)
     try
-        return unchecked_hipStreamQuery(s)
+        return f()
     finally
         hipThreadExchangeStreamCaptureMode(mode)
     end
 end
+
+query(s::HIPStream) = relaxed_capture_mode(() -> unchecked_hipStreamQuery(s))
 
 # only bumped while holding `STREAM_POOL_LOCK`, but read without it
 generation(s::HIPStream) = Base.@atomic :acquire s.generation
