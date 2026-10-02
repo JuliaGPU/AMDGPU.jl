@@ -188,6 +188,7 @@ end
 
         # ... and lets go of it once the device is done using it
         function wrap_tracked(collected)
+            local a, xd
             a = fill(1f0, 1024)
             finalizer(_ -> collected[] = true, a)
             xd = unsafe_wrap(ROCArray, a)
@@ -208,6 +209,75 @@ end
         b = unsafe_wrap(ROCArray, a)
         @test pointer(unsafe_wrap(Array, b)) == pointer(a)
         @test_throws ArgumentError unsafe_wrap(Array, AMDGPU.zeros(Float32, 3))
+    end
+
+    @testset "Re-wrapping after freeing" begin
+        # an explicit free waits for the release, so that the memory can be wrapped again
+        x = zeros(Float32, 1 << 20)
+        xd = unsafe_wrap(ROCArray, pointer(x), 16)
+        xd .+= 1f0
+        AMDGPU.unsafe_free!(xd)
+        @test !AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(x)))
+        xd = unsafe_wrap(ROCArray, pointer(x), length(x))
+        xd .+= 1f0
+        AMDGPU.synchronize()
+        @test sum(x) == 16 + length(x)
+
+        # a registration can't be extended while it's still in use
+        @test_throws ErrorException unsafe_wrap(ROCArray, pointer(x), 2 * length(x))
+        AMDGPU.unsafe_free!(xd)
+    end
+
+    @testset "Freeing while capturing" begin
+        # last used on the stream of another task, which is still alive
+        a = zeros(Float32, 1024)
+        wrapped = Channel(1)
+        finish = Channel(1)
+        t = @async begin
+            xd = unsafe_wrap(ROCArray, a)
+            xd .+= 1f0
+            put!(wrapped, xd)
+            take!(finish)
+        end
+        xd = take!(wrapped)
+        y = AMDGPU.zeros(Float32, 16)
+        graph = AMDGPU.capture() do
+            AMDGPU.unsafe_free!(xd)
+            y .+= 1f0
+        end
+        @test graph !== nothing
+        @test !AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(a)))
+        put!(finish, nothing)
+        wait(t)
+        @test all(==(1f0), a)
+        AMDGPU.HIP.launch(AMDGPU.HIP.instantiate(graph))
+        @test all(==(1f0), Array(y))
+
+        # last used on a stream that has since been handed to another task, which is
+        # capturing it. that work has finished, so the memory is released right away.
+        # (simulated by bumping the stream's generation, as recycling isn't deterministic)
+        a = zeros(Float32, 1024)
+        s = HIPStream()
+        old_stream = AMDGPU.stream()
+        AMDGPU.stream!(s)
+        try
+            xd = unsafe_wrap(ROCArray, a)
+            xd .+= 1f0
+            AMDGPU.synchronize()
+            Base.@atomic s.generation += 1
+            z = AMDGPU.zeros(Float32, 16)
+            released = false
+            graph = AMDGPU.capture() do
+                AMDGPU.unsafe_free!(xd)
+                released = !AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(a)))
+                z .+= 1f0
+            end
+            @test graph !== nothing
+            @test released
+        finally
+            AMDGPU.stream!(old_stream)
+        end
+        @test all(==(1f0), a)
     end
 
     @testset "Broadcasting different buffer types" begin

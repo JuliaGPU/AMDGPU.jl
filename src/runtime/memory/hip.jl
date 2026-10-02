@@ -219,6 +219,10 @@ function register(ptr::Ptr{Cvoid}, sz::Integer)
     Base.@lock __pin_lock begin
         count = get(__pin_count, ptr, 0)
         if count > 0
+            # the existing registration can't be extended
+            sz > __pinned_memory[ptr] && error("""
+                Cannot register $(Base.format_bytes(sz)) at $ptr, which is still registered with a smaller size of $(Base.format_bytes(__pinned_memory[ptr])).
+                Make sure that previous wrappers of this memory have been freed, and that their release has finished (it is postponed while the stream that last used them is being captured).""")
             __pin_count[ptr] = count + 1
             return
         end
@@ -237,6 +241,9 @@ function register(ptr::Ptr{Cvoid}, sz::Integer)
     return
 end
 
+# querying host memory that is concurrently being unregistered can crash HIP
+memory_type(ptr::Ptr{Cvoid}) = Base.@lock __pin_lock attributes(ptr).type
+
 """
     unregister(ptr::Ptr{Cvoid})
 
@@ -246,22 +253,19 @@ Decrement the refcount for `ptr`. When it reaches zero the underlying
 function unregister(ptr::Ptr{Cvoid})
     ptr == C_NULL && error("Cannot unregister `NULL` pointer.")
 
-    do_unregister = false
     Base.@lock __pin_lock begin
         count = get(__pin_count, ptr, 0)
         count == 0 && error("Cannot unregister untracked pointer $ptr.")
 
         if count == 1
+            # unregister while holding the lock, or a concurrent `register` could see the
+            # memory as registered externally, and not track it
             delete!(__pinned_memory, ptr)
             delete!(__pin_count, ptr)
-            do_unregister = true
+            HIP.relaxed_capture_mode(() -> HIP.hipHostUnregister(ptr))
         else
             __pin_count[ptr] = count - 1
         end
-    end
-
-    if do_unregister
-        HIP.hipHostUnregister(ptr)
     end
     return
 end
