@@ -91,7 +91,7 @@ macro rocprintln(str...)
     end
 end
 
-# @rocprintf impementation.
+# @rocprintf implementation.
 
 struct ROCPrintfBuffer end
 
@@ -298,7 +298,7 @@ macro rocprintf(args...)
         + $(length(args))*sizeof(UInt64) + # Space for type tags
         + sizeof(UInt64))) # Space for terminator
 
-    # Calulate offset into buffer
+    # Calculate offset into buffer
     # FIXME: Use y and z dims
     offset = if mode == :grid
         :(0)
