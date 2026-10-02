@@ -299,7 +299,7 @@ function wrap_memory(ptr::Ptr{T}, dims::NTuple{N, <:Integer}, own::Bool,
                      owner = nothing) where {T,N}
     check_eltype("unsafe_wrap(ROCArray, ...)", T)
 
-    memtype = Mem.attributes(ptr).type
+    memtype = Mem.memory_type(Ptr{Cvoid}(ptr))
     B = if memtype == HIP.hipMemoryTypeUnregistered
         Mem.HostBuffer
     elseif memtype == HIP.hipMemoryTypeHost
@@ -347,15 +347,20 @@ end
 function release_after_use(release, owner)
     released = Threads.Atomic{Bool}(false)
     release_once() = Threads.atomic_xchg!(released, true) || release()
+    done = Threads.Atomic{Bool}(false)
     cond = Base.AsyncCondition() do cond
         close(cond)
         GC.@preserve owner release_once()
+        done[] = true
     end
-    return managed -> release_when_done(managed, release_once, cond)
+    return managed -> release_when_done(managed, release_once, cond, done)
 end
 
-function release_when_done(managed::Managed, release, cond::Base.AsyncCondition)
-    if !managed.dirty
+function release_when_done(managed::Managed, release, cond::Base.AsyncCondition,
+                           done::Threads.Atomic{Bool})
+    # if the stream has been handed to another task since it last used the memory, that
+    # work has finished, and the stream may now be used (or captured) by the other task
+    if !managed.dirty || recycled(managed)
         GC.in_finalizer() || release()
         ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
         return
@@ -375,20 +380,37 @@ function release_when_done(managed::Managed, release, cond::Base.AsyncCondition)
                     while AMDGPU.context!(() -> HIP.is_capturing(stream), stream.ctx)
                         sleep(0.01)
                     end
-                    release_when_done(managed, release, cond)
+                    release_when_done(managed, release, cond, done)
                 end
-            elseif !GC.in_finalizer() && HIP.isdone(stream)
+            elseif !GC.in_finalizer() && HIP.query(stream) == HIP.hipSuccess
                 # freed explicitly after the device is done with the memory: release it now
                 release()
                 ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
             else
-                HIP.hipLaunchHostFunc(stream, cglobal(:uv_async_send), cond)
+                # another stream may be capturing, which launching on this one doesn't affect
+                HIP.relaxed_capture_mode() do
+                    HIP.hipLaunchHostFunc(stream, cglobal(:uv_async_send), cond)
+                end
+                # when freed explicitly, wait for the release, so that the memory can be
+                # wrapped again right away
+                GC.in_finalizer() || wait_for_release(done, stream)
             end
         end
     catch ex
         Base.showerror_nostdio(ex, "WARNING: Error while releasing wrapped memory; leaking it")
         Base.show_backtrace(Core.stdout, catch_backtrace())
         Core.println()
+    end
+    return
+end
+
+function wait_for_release(done::Threads.Atomic{Bool}, stream::HIPStream)
+    while !done[]
+        # if the device fails, the host function never runs
+        HIP.isvalid(stream) || return
+        status = HIP.query(stream)
+        (status == HIP.hipSuccess || status == HIP.hipErrorNotReady) || return
+        sleep(0.001)
     end
     return
 end
