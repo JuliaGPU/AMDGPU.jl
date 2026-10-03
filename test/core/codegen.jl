@@ -1,6 +1,7 @@
 using Test
 using AMDGPU
 import GPUCompiler
+import LLVM
 using AMDGPU: Device, ROCArray, @roc
 using AMDGPU.Device: sync_workgroup, workitemIdx, workgroupIdx, workgroupDim
 using KernelAbstractions: @atomic
@@ -118,8 +119,11 @@ end
         kernel=true, name=nothing, always_inline=true)
     tt = Tuple{AMDGPU.Device.ROCDeviceVector{Float32, AMDGPU.Device.AS.Global}}
     job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(oob_kern!), tt), config)
-    asm, _ = GPUCompiler.JuliaContext() do _
-        GPUCompiler.compile(:asm, job)
+    asm = GPUCompiler.JuliaContext() do _
+        asm, meta = GPUCompiler.compile(:asm, job)
+        # the IR belongs to us: dispose of it, or it leaks along with the context
+        LLVM.dispose(meta.ir)
+        asm
     end
     # the exception path signals through an atomic compare-and-swap
     @test occursin("cmpswap", asm)

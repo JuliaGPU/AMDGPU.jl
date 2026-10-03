@@ -61,22 +61,22 @@ Names of all symbols `mod` references but does not define.
 """
 function undefined_symbols(mod::LLVM.Module)
     undefined = Set{String}()
-    for f in LLVM.functions(mod)
-        LLVM.isdeclaration(f) && push!(undefined, LLVM.name(f))
+    for f in mod.functions
+        LLVM.isdeclaration(f) && push!(undefined, f.name)
     end
-    for g in LLVM.globals(mod)
-        LLVM.isdeclaration(g) && push!(undefined, LLVM.name(g))
+    for g in mod.globals
+        LLVM.isdeclaration(g) && push!(undefined, g.name)
     end
     return undefined
 end
 
 function defined_symbols(mod::LLVM.Module)
     defined = Set{String}()
-    for f in LLVM.functions(mod)
-        LLVM.isdeclaration(f) || push!(defined, LLVM.name(f))
+    for f in mod.functions
+        LLVM.isdeclaration(f) || push!(defined, f.name)
     end
-    for g in LLVM.globals(mod)
-        LLVM.isdeclaration(g) || push!(defined, LLVM.name(g))
+    for g in mod.globals
+        LLVM.isdeclaration(g) || push!(defined, g.name)
     end
     return defined
 end
@@ -140,30 +140,20 @@ function load_and_link!(
         end
     end
 
-    inline_attr = EnumAttribute("alwaysinline")
-    noinline_attr = EnumAttribute("noinline")
-
-    for f in LLVM.functions(lib)
-        fn_name = LLVM.name(f)
+    for f in lib.functions
+        fn_name = f.name
 
         # FIXME: We should be able to inline this, that we can't means
         #        we are inserting calls to it late.
         startswith(fn_name, "__ockl_hsa_signal") && continue
 
-        attrs = function_attributes(f)
-        inline = true
-        for attr in collect(attrs)
-            if kind(attr) == kind(noinline_attr)
-                inline = false
-                break
-            end
-        end
-        inline && push!(attrs, inline_attr)
+        attrs = f.function_attributes
+        haskey(attrs, :noinline) || push!(attrs, EnumAttribute(:alwaysinline))
     end
 
     # override triple and datalayout to avoid warnings
-    triple!(lib, triple(mod))
-    datalayout!(lib, datalayout(mod))
+    lib.triple = mod.triple
+    lib.datalayout = mod.datalayout
     LLVM.link!(mod, lib)
     return true
 end

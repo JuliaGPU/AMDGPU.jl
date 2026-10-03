@@ -2,7 +2,7 @@ module Device
 
 using ..BFloat16s
 using ..GPUCompiler
-using ..LLVM
+using ..LLVM, ..LLVM.IR, ..LLVM.Build
 using ..LLVM.Interop
 
 import ..Adapt
@@ -19,7 +19,6 @@ import .AMDGPU: aligned_sizeof
 import ..UnsafeAtomics
 
 include("addrspaces.jl")
-include("globals.jl")
 include("strings.jl")
 include("exceptions.jl")
 include("gcn.jl")
