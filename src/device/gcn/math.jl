@@ -60,12 +60,6 @@ for jltype in (Float64, Float32, Float16)
     @eval @device_override Base.fma(x::$jltype, y::$jltype, z::$jltype) = ccall(
         $("extern __ocml_fma_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype, $jltype), x, y, z)
 
-    @eval @device_override Base.min(x::$jltype, y::$jltype) = ccall(
-        $("extern __ocml_min_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
-
-    @eval @device_override Base.max(x::$jltype, y::$jltype) = ccall(
-        $("extern __ocml_max_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
-
     @eval @device_override Base.copysign(x::$jltype, y::$jltype) = ccall(
         $("extern __ocml_copysign_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
 
