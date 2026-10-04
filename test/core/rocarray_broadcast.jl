@@ -45,28 +45,28 @@ end
 end
 
 # https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
-# note: miscompile only occurs with `julia --check-bounds=yes`
-@testset "Int128 miscompilation" begin
-    function test_kernel(a::T, b) where T
-        c = a
-        for i=1:5
-            c += T(b)
-            c = a * T(2)
+if Base.datatype_alignment(Int128) == 16
+    # note: miscompile only occurs with `julia --check-bounds=yes`
+    @testset "Int128 miscompilation" begin
+        function test_kernel(a::T, b) where T
+            c = a
+            for i=1:5
+                c += T(b)
+                c = a * T(2)
+            end
+            return c
         end
-        return c
+        M = rand(Int128, 10, 10)
+        @test Array(test_kernel.(ROCArray(M), Int128(10))) == test_kernel.(M, Int128(10))
+        AMDGPU.synchronize()
     end
-    M = rand(Int128, 10, 10)
-    # flaky on LLVM 18: the kernel intermittently throws instead of miscomputing
-    @test Array(test_kernel.(ROCArray(M), Int128(10))) == test_kernel.(M, Int128(10)) skip=(Base.libllvm_version.major == 18)
-    AMDGPU.synchronize()
-end
 
-# https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
-@testset "Int128 axpby! miscompilation" begin
-    a, b = rand(Int128), rand(Int128)
-    x, y = rand(Int128, 5), rand(Int128, 5)
-    gx, gy = ROCArray(x), ROCArray(y)
-    gy .= gx .* a .+ gy .* b
-    @test Array(gy) == x .* a .+ y .* b broken=(Base.libllvm_version >= v"18")
-    AMDGPU.synchronize()
+    @testset "Int128 axpby! miscompilation" begin
+        a, b = rand(Int128), rand(Int128)
+        x, y = rand(Int128, 5), rand(Int128, 5)
+        gx, gy = ROCArray(x), ROCArray(y)
+        gy .= gx .* a .+ gy .* b
+        @test Array(gy) == x .* a .+ y .* b
+        AMDGPU.synchronize()
+    end
 end
