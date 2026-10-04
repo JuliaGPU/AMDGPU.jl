@@ -80,7 +80,9 @@ init_code = quote
     include($gpuarrays_testsuite)
     testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
 
-    const eltypes = [Int16, Int32, Int64, # TODO: add Int128 once #1002 is addressed
+    # Int128 kernel arguments need the host to align Int128 to 16 bytes like the device (Julia 1.12+), see #1002
+    const eltypes = [Int16, Int32, Int64,
+                     (Base.datatype_alignment(Int128) == 16 ? (Int128,) : ())...,
                      Float16, Float32, Float64,
                      ComplexF16, ComplexF32, ComplexF64,
                      Complex{Int16}, Complex{Int32}, Complex{Int64}]
