@@ -255,7 +255,7 @@ end
 # read `val` from the work-item in the 0-based hardware lane `lane`. `ds_bpermute` only uses
 # the low bits of the address, so lanes out of range read some other lane instead of
 # trapping. unlike `Device.shfl` etc., the lanes are the hardware lanes (see
-# `hardware_lane`), not `activelane`, and the offsets aren't clamped to the wavefront.
+# `hardware_lane`), not `activelane`.
 @inline function bpermute_lane(val, lane::Cint)
     return Device._shfl(x -> Device.bpermute(lane << 0x2, x), val)
 end
@@ -265,14 +265,26 @@ end
 @device_override @inline KI.shfl(val::T, lane::Integer) where {T <: ShuffleTypes} =
     bpermute_lane(val, (lane % Cint) - Cint(1))
 
-@device_override @inline KI.shfl_down(val::T, offset::Integer) where {T <: ShuffleTypes} =
-    bpermute_lane(val, lane_id() + (offset % Cint))
+# where the source lane is past the wavefront, `shfl_down` and `shfl_up` read from the
+# work-item itself, like CUDA's shuffles (rather than from the lane `ds_bpermute` wraps around
+# to). `wavefrontsize` is folded to a constant, see `fold_wavefrontsize!`.
+@device_override @inline function KI.shfl_down(val::T, offset::Integer) where {T <: ShuffleTypes}
+    lane = lane_id()
+    ws = Device.wavefrontsize() % Cint
+    return bpermute_lane(val, ifelse(offset < ws - lane, lane + (offset % Cint), lane))
+end
 
-@device_override @inline KI.shfl_up(val::T, offset::Integer) where {T <: ShuffleTypes} =
-    bpermute_lane(val, lane_id() - (offset % Cint))
+@device_override @inline function KI.shfl_up(val::T, offset::Integer) where {T <: ShuffleTypes}
+    lane = lane_id()
+    return bpermute_lane(val, ifelse(offset <= lane, lane - (offset % Cint), lane))
+end
 
+# `mask` is below the wavefront size, so the source lane is in the wavefront
 @device_override @inline KI.shfl_xor(val::T, mask::Integer) where {T <: ShuffleTypes} =
     bpermute_lane(val, lane_id() ⊻ (mask % Cint))
+
+# the shuffles with a `width` use KernelInterface's fallbacks, a `ds_bpermute` from a lane
+# computed with a few integer operations, like `Device.shfl` etc. (which use `activelane`).
 
 # `ballot` only sets the bits of active lanes, i.e. of the work-items of the sub-group, and
 # its result is uniform. `wavefrontsize`, which selects the 32- or 64-bit ballot, is folded
