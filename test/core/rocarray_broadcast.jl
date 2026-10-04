@@ -45,9 +45,6 @@ end
 end
 
 # https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
-# Since AMDGPU_LLVM_Backend_jll v23.1.1+3 the device aligns Int128 to 16 bytes, as Julia 1.12+
-# does on the host. Older Julia aligns it to 8, so kernel arguments holding an Int128 get a
-# different layout on host and device, and these kernels fault.
 if Base.datatype_alignment(Int128) == 16
     # note: miscompile only occurs with `julia --check-bounds=yes`
     @testset "Int128 miscompilation" begin
