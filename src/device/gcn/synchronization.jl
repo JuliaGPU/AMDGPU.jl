@@ -1,18 +1,4 @@
 
-@llvmgenerated builder function _fence(::Val{ordering}, ::Val{scope})::Nothing where {ordering, scope}
-    fence!(builder, parse(LLVM.AtomicOrdering.T, String(ordering)); scope=String(scope))
-    nothing
-end
-
-for ord in UnsafeAtomics.Internal.orderings
-    for sync in (AMDGPU.syncscope_agent, AMDGPU.syncscope_workgroup)
-        ordering = Val(UnsafeAtomics.Internal.llvm_ordering(ord))
-        scope = Val(UnsafeAtomics.Internal.llvm_syncscope(sync))
-        @eval @device_function UnsafeAtomics.fence(::$(typeof(ord)), ::$(typeof(sync))) =
-            _fence($ordering, $scope)
-    end
-end
-
 """
     sync_workgroup()
 
