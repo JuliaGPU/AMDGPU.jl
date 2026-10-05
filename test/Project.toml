@@ -28,5 +28,5 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 AMDGPU = {path = ".."}
-KernelAbstractions = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main"}
+KernelAbstractions = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "tb/private-array"}
 KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main", subdir = "lib/KernelInterface"}
