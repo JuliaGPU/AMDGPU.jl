@@ -8,7 +8,6 @@ import Adapt
 import KernelAbstractions as KA
 import LLVM
 
-using StaticArraysCore: MArray
 
 Adapt.adapt_storage(::KA.CPU, a::Union{AMDGPU.ROCArray, GPUArrays.AbstractGPUSparseArray}) =
     Adapt.adapt(Array, a)
@@ -28,7 +27,7 @@ end
 ## scratch memory
 
 @device_override @inline function KA.Scratchpad(ctx, ::Type{T}, ::Val{Dims}) where {T, Dims}
-    MArray{Tuple{Dims...}, T}(undef)
+    KA.PrivateArray{T}(undef, Val(Dims), Val(AMDGPU.AS.Private))
 end
 
 ## other
