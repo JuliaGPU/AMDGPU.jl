@@ -8,32 +8,15 @@ function _range_metadata(::Type{T}, range) where T
     return MDNode([ConstantInt(lo), ConstantInt(hi)])
 end
 
-@device_function @generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
-    @dispose ctx=Context() begin
-        T_int32 = LLVM.Int32Type()
+@device_function @llvmgenerated builder function _index(::Val{fname}, ::Val{name}, ::Val{range})::UInt32 where {fname, name, range}
+    # call the indexing intrinsic
+    intr = LLVM.Function(current_module(builder), Intrinsic("llvm.amdgcn.$fname.id.$name"))
+    idx = call!(builder, intr.function_type, intr)
 
-        # create function
-        llvm_f, _ = create_function(T_int32)
-        mod = LLVM.parent(llvm_f)
-
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            # call the indexing intrinsic
-            intr_typ = LLVM.FunctionType(T_int32)
-            intr = LLVM.Function(mod, "llvm.amdgcn.$fname.id.$name", intr_typ)
-            idx = call!(builder, intr_typ, intr)
-
-            # attach range metadata
-            md = _range_metadata(UInt32, range)
-            md === nothing || (metadata(idx)[LLVM.MD_range] = md)
-            ret!(builder, idx)
-        end
-
-        call_function(llvm_f, UInt32)
-    end
+    # attach range metadata
+    md = _range_metadata(UInt32, range)
+    md === nothing || (idx.metadata[MD_range] = md)
+    idx
 end
 
 # Workgroup/grid dimensions come from the *hidden kernel arguments* (code object
@@ -43,50 +26,31 @@ end
 const _hidden_block_count_offset = 0    # u32 × 3
 const _hidden_group_size_offset  = 12   # u16 × 3
 
-@device_function @generated function _dim(::Val{offset}, ::Type{T}, ::Val{range}) where {offset, T, range}
-    @dispose ctx=Context() begin
-        T_int8 = LLVM.Int8Type()
-        T_int32 = LLVM.Int32Type()
+@device_function @llvmgenerated builder function _dim(::Val{offset}, ::Type{T}, ::Val{range})::UInt32 where {offset, T, range}
+    T_int8 = LLVM.Int8Type()
+    T_int32 = LLVM.Int32Type()
 
-        _as = convert(Int, AS.Constant)
-        T_ptr_i8 = LLVM.PointerType(T_int8, _as)
+    T_T = convert(LLVMType, T)
+    T_ptr_T = LLVM.PointerType(T_T, convert(Int, AS.Constant))
 
-        T_T = convert(LLVMType, T)
-        T_ptr_T = LLVM.PointerType(T_T, _as)
+    # get the implicit (hidden) kernel argument pointer
+    intr = LLVM.Function(current_module(builder), Intrinsic("llvm.amdgcn.implicitarg.ptr"))
+    ptr = call!(builder, intr.function_type, intr)
 
-        # create function
-        llvm_f, _ = create_function(T_int32)
-        mod = LLVM.parent(llvm_f)
+    # load the field
+    idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
+    idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
+    # the hidden block is at least 4-byte aligned; tell LLVM so the
+    # backend keeps merged accesses SMEM-selectable
+    idx_T = load!(builder, T_T, idx_ptr_T; align=gcd(4, offset))
+    idx = zext!(builder, idx_T, T_int32)
 
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            # get the implicit (hidden) kernel argument pointer
-            intr_typ = LLVM.FunctionType(T_ptr_i8)
-            intr = LLVM.Function(mod, "llvm.amdgcn.implicitarg.ptr", intr_typ)
-            ptr = call!(builder, intr_typ, intr)
-
-            # load the field
-            idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
-            idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
-            idx_T = load!(builder, T_T, idx_ptr_T)
-            # the hidden block is at least 4-byte aligned; tell LLVM so the
-            # backend keeps merged accesses SMEM-selectable
-            alignment!(idx_T, gcd(4, offset))
-            idx = zext!(builder, idx_T, T_int32)
-
-            # attach range metadata; the hidden arguments never change during
-            # a dispatch
-            md = _range_metadata(T, range)
-            md === nothing || (metadata(idx_T)[LLVM.MD_range] = md)
-            metadata(idx_T)[LLVM.MD_invariant_load] = MDNode(LLVM.Metadata[])
-            ret!(builder, idx)
-        end
-
-        call_function(llvm_f, UInt32)
-    end
+    # attach range metadata; the hidden arguments never change during
+    # a dispatch
+    md = _range_metadata(T, range)
+    md === nothing || (idx_T.metadata[MD_range] = md)
+    idx_T.metadata[MD_invariant_load] = MDNode(Metadata[])
+    idx
 end
 
 # TODO: look these up for the current device/queue

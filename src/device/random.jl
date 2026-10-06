@@ -9,37 +9,19 @@ import RandomNumbers
 
 # global state
 
-@inline @generated function emit_global_random_values(::Val{name}) where name
-    @dispose ctx=Context() begin
-        T_val = convert(LLVMType, UInt32)
-        T_ptr = convert(LLVMType, LLVMPtr{UInt32,AS.Local})
+# NOTE: the generated function is `alwaysinline`, which ensures we don't access LDS in a
+#       non-kernel function
+@llvmgenerated builder function emit_global_random_values(::Val{name})::LLVMPtr{UInt32,AS.Local} where name
+    T_val = convert(LLVMType, UInt32)
+    T_ptr = convert(LLVMType, LLVMPtr{UInt32,AS.Local})
 
-        # define function and get LLVM module
-        llvm_f, _ = create_function(T_ptr)
-        mod = LLVM.parent(llvm_f)
+    # create a global memory global variable
+    T_global = LLVM.ArrayType(T_val, 32)
+    gv = GlobalVariable(current_module(builder), T_global, "__zeroinit_global_random_$(name)", AS.Local)
+    gv.linkage = LLVM.Linkage.External
 
-        # create a global memory global variable
-        T_global = LLVM.ArrayType(T_val, 32)
-        gv = GlobalVariable(mod, T_global, "__zeroinit_global_random_$(name)", AS.Local)
-        linkage!(gv, LLVM.API.LLVMExternalLinkage)
-
-        # TODO: we need alwaysinline to ensure we don't access LDS in a non-kernel function
-        push!(function_attributes(llvm_f), EnumAttribute("alwaysinline"))
-
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
-
-            untyped_ptr = bitcast!(builder, ptr, T_ptr)
-
-            ret!(builder, untyped_ptr)
-        end
-
-        call_function(llvm_f, LLVMPtr{UInt32,AS.Local})
-    end
+    ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
+    bitcast!(builder, ptr, T_ptr)
 end
 
 # shared memory with the actual seed, per warp, loaded lazily or overridden by calling `seed!`
@@ -188,48 +170,30 @@ end
 # copied from Base because we don't support its global tables
 
 # a hacky method of exposing constant tables as constant GPU memory
-function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
-    @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T)
-        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant})
+@llvmgenerated builder function emit_constant_array(::Val{name}, ::Type{T})::LLVMPtr{T,AS.Constant} where {name, T}
+    data = getfield(Random, name)::AbstractArray{T}
+    T_val = convert(LLVMType, T)
+    T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant})
 
-        # define function and get LLVM module
-        llvm_f, _ = create_function(T_ptr)
-        mod = LLVM.parent(llvm_f)
+    # create a global memory global variable
+    # TODO: global_var alignment?
+    T_global = LLVM.ArrayType(T_val, length(data))
+    # XXX: why can't we use a single name like emit_shmem
+    gv = GlobalVariable(current_module(builder), T_global, "gpu_$(name)_data", AS.Constant)
+    gv.alignment = 16
+    gv.linkage = LLVM.Linkage.Internal
+    gv.initializer = ConstantArray(data)
 
-        # create a global memory global variable
-        # TODO: global_var alignment?
-        T_global = LLVM.ArrayType(T_val, length(data))
-        # XXX: why can't we use a single name like emit_shmem
-        gv = GlobalVariable(mod, T_global, "gpu_$(name)_data", AS.Constant)
-        alignment!(gv, 16)
-        linkage!(gv, LLVM.API.LLVMInternalLinkage)
-        initializer!(gv, ConstantArray(data))
-
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
-
-            untyped_ptr = bitcast!(builder, ptr, T_ptr)
-
-            ret!(builder, untyped_ptr)
-        end
-
-        call_function(llvm_f, LLVMPtr{T,AS.Constant})
-    end
+    ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
+    bitcast!(builder, ptr, T_ptr)
 end
 
 for var in [:ki, :wi, :fi, :ke, :we, :fe]
     val = getfield(Random, var)
     gpu_var = Symbol("gpu_$var")
     arr_typ = :(ROCDeviceArray{$(eltype(val)),$(ndims(val)),AS.Constant})
-    @eval @inline @generated function $gpu_var()
-        ptr = emit_constant_array($(QuoteNode(var)), $val)
-        Expr(:call, $arr_typ, $(size(val)), ptr)
-    end
+    @eval @inline $gpu_var() =
+        $arr_typ($(size(val)), emit_constant_array($(Val(var)), $(eltype(val))))
 end
 
 ## randn

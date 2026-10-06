@@ -41,10 +41,7 @@ end
 
     # filter out ghost arguments that shouldn't be passed.
     predicate = dt -> GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)
-    # Note: Define a single LLVM context, otherwise it is created per every param.
-    to_pass = LLVM.Context() do _
-        map(!predicate, sig.parameters)
-    end
+    to_pass = map(!predicate, sig.parameters)
     call_t = Type[x[1] for x in zip(sig.parameters, to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
 
