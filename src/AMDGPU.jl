@@ -59,6 +59,7 @@ LockedObject(payload) = LockedObject(ReentrantLock(), payload)
 include("discovery/discovery.jl")
 using .ROCmDiscovery
 using .ROCmDiscovery: AMDGPU_LLVM_Backend_jll, LLVMDowngrader_jll
+import .ROCmDiscovery: system_scope_fences!
 
 include("utils.jl")
 
