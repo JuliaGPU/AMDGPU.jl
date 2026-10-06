@@ -1,14 +1,11 @@
 module AMDGPUKernelAbstractionsExt
 
 import AMDGPU
-import AMDGPU.Device: @device_override
 using AMDGPU: GPUArrays, ROCBackend
 
 import Adapt
 import KernelAbstractions as KA
 import LLVM
-
-using StaticArraysCore: MArray
 
 Adapt.adapt_storage(::KA.CPU, a::Union{AMDGPU.ROCArray, GPUArrays.AbstractGPUSparseArray}) =
     Adapt.adapt(Array, a)
@@ -23,12 +20,6 @@ function KA.compiler_options(obj::KA.Kernel{ROCBackend})
     else
         return (;)
     end
-end
-
-## scratch memory
-
-@device_override @inline function KA.Scratchpad(ctx, ::Type{T}, ::Val{Dims}) where {T, Dims}
-    MArray{Tuple{Dims...}, T}(undef)
 end
 
 ## other
