@@ -157,7 +157,9 @@ const NARROW_SYNCSCOPES = (
 # assumptions, which keeps the system scope usable for fine-grained or remote memory.
 # Since LLVM 22, integer RMWs other than add/xchg are CAS loops without them on several
 # targets, and FP RMWs have needed them since LLVM 20.
-function annotate_atomics!(mod::LLVM.Module, params::HIPCompilerParams)
+function annotate_atomics!(mod::LLVM.Module, job::HIPCompilerJob)
+    params = job.config.params
+    denormal_md = denormal_metadata_name(job.config.target)
     empty_md = MDNode(Metadata[])
     for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
         inst isa LLVM.AtomicRMWInst || continue
@@ -169,9 +171,17 @@ function annotate_atomics!(mod::LLVM.Module, params::HIPCompilerParams)
         end
         if params.unsafe_fp_atomics && inst.binop == LLVM.AtomicRMWBinOp.FAdd &&
            inst.value_type isa LLVM.FloatType
-            md["amdgpu.ignore.denormal.mode"] = empty_md
+            md[denormal_md] = empty_md
         end
     end
+end
+
+# LLVM 24 renamed the metadata (llvm/llvm-project#217585) and only upgrades the old name
+# when reading IR, which the in-process back-end doesn't do.
+function denormal_metadata_name(target::GCNCompilerTarget)
+    llvm = target.backend === :external ? pkgversion(AMDGPU_LLVM_Backend_jll) :
+                                          Base.libllvm_version
+    llvm >= v"24" ? "atomic.ignore.denormal.mode" : "amdgpu.ignore.denormal.mode"
 end
 
 # LLVM 22+ fails with "Cannot select: AtomicLoadUSubSat" when it may use the native
@@ -495,7 +505,7 @@ function GPUCompiler.finish_ir!(
         job, mod, entry)
 
     # after optimization, so that sync scopes have their AMDGPU names
-    annotate_atomics!(mod, job.config.params)
+    annotate_atomics!(mod, job)
 
     job.config.kernel || return entry
 

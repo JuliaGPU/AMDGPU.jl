@@ -269,9 +269,11 @@ end
     end
 
     @testset "denormal mode" begin
-        ignores_denormals(T, op; kwargs...) = has_md(only(atomic_lines(
+        # (renamed to !atomic.ignore.denormal.mode in LLVM 24)
+        ignores_denormals(T, op; kwargs...) = occursin(
+            r"!(amdgpu|atomic)\.ignore\.denormal\.mode ", only(atomic_lines(
             compile_offline(rmw_kernel, rmw_tt(T, op, UnsafeAtomics.device), :llvm; kwargs...),
-            "atomicrmw")), "ignore.denormal.mode")
+            "atomicrmw")))
         @test ignores_denormals(Float32, +)
         @test ignores_denormals(Float32, +; atomic_memory_assumptions=false)
         @test !ignores_denormals(Float32, +; unsafe_fp_atomics=false)
