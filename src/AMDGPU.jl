@@ -11,6 +11,7 @@ using LLVM
 using Preferences
 using Printf
 
+import KernelInterface
 import UnsafeAtomics
 import Atomix
 import Atomix: @atomic, @atomicswap, @atomicreplace
@@ -132,6 +133,7 @@ include("dnn/MIOpen.jl")
 
 include("random.jl")
 
+# KernelInterface
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
