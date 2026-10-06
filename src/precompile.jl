@@ -29,7 +29,7 @@ if :AMDGPU in LLVM.backends()
             # `--check-bounds=yes`/`--code-coverage`, where `@inbounds` is ignored).
             target = GPUCompiler.GCNCompilerTarget(;
                 dev_isa="gfx1030", features="+wavefrontsize32,-wavefrontsize64")
-            params = Compiler.HIPCompilerParams(false, true)
+            params = Compiler.HIPCompilerParams(false, true, true)
             config = GPUCompiler.CompilerConfig(target, params;
                 kernel=true, name=nothing, always_inline=true)
 
