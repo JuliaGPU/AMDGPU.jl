@@ -101,7 +101,6 @@ function GPUCompiler.finish_module!(
     if entry.callconv == LLVM.CallConv.AMDGPUKERNEL
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
         target_features_attr = StringAttribute("target-features", job.config.target.features)
-        atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
 
         # TODO add convergent, mustprogress, willreturn attributes?
 
@@ -112,7 +111,9 @@ function GPUCompiler.finish_module!(
         attrs = entry.function_attributes
         push!(attrs, target_cpu_attr)
         push!(attrs, target_features_attr)
-        push!(attrs, atomic_attr)
+        if job.config.params.unsafe_fp_atomics
+            push!(attrs, StringAttribute("amdgpu-unsafe-fp-atomics", "true"))
+        end
         push!(attrs, implicitarg_attr)
     end
 

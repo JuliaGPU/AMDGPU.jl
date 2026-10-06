@@ -87,6 +87,18 @@ end
     end
 end
 
+@testset "Unsafe FP atomics attribute" begin
+    kern() = nothing
+    function kernel_ir(; kwargs...)
+        config = AMDGPU.Compiler.compiler_config(AMDGPU.device(); kernel=true, kwargs...)
+        job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(kern), Tuple{}), config)
+        sprint(io -> GPUCompiler.code_llvm(io, job; dump_module=true))
+    end
+    # like the denormal metadata, but for all FP atomics in the kernel
+    @test occursin("\"amdgpu-unsafe-fp-atomics\"=\"true\"", kernel_ir())
+    @test !occursin("amdgpu-unsafe-fp-atomics", kernel_ir(; unsafe_fp_atomics=false))
+end
+
 @testset "Launch bounds" begin
     bound_kern() = nothing
     k = @roc launch=false maxthreads=256 bound_kern()
