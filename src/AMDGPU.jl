@@ -79,9 +79,9 @@ include("memory.jl")
 
 Base.Experimental.@MethodTable(method_table)
 
-#needs to be before Device since sync uses this
-const syncscope_agent = UnsafeAtomics.Internal.LLVMSyncScope{:agent}()
-const syncscope_workgroup = UnsafeAtomics.Internal.LLVMSyncScope{:workgroup}()
+# Needs to be before Device since sync uses this. GPUCompiler emits `device` as LLVM's `agent`.
+const syncscope_agent = UnsafeAtomics.device
+const syncscope_workgroup = UnsafeAtomics.workgroup
 
 # Referenced by the generated `kernel_state()`, and generators run in the world they are
 # defined in, so this has to precede the device code.

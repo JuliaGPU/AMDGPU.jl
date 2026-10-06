@@ -15,6 +15,29 @@ using KernelAbstractions: @atomic
     iob = IOBuffer()
     AMDGPU.code_gcn(iob, synckern, Tuple{}; kernel=true)
     @test occursin("s_barrier", String(take!(iob)))
+
+    AMDGPU.code_llvm(iob, synckern, Tuple{}; kernel=true)
+    @test count("fence syncscope(\"workgroup\") seq_cst", String(take!(iob))) == 2
+end
+
+@testset "Synchronization scopes" begin
+    # UnsafeAtomics' `device` scope has to reach LLVM as AMDGPU's `agent`
+    function atomic_add_ker!(x)
+        @inbounds @atomic x[1] += 1f0
+        return
+    end
+    function agent_fence_ker()
+        AMDGPU.UnsafeAtomics.fence(AMDGPU.UnsafeAtomics.seq_cst, AMDGPU.syncscope_agent)
+        return
+    end
+
+    iob = IOBuffer()
+    tt = Tuple{AMDGPU.Device.ROCDeviceVector{Float32, AMDGPU.Device.AS.Global}}
+    AMDGPU.code_llvm(iob, atomic_add_ker!, tt; kernel=true)
+    @test occursin(r"atomicrmw fadd .* syncscope\(\"agent\"\) seq_cst", String(take!(iob)))
+
+    AMDGPU.code_llvm(iob, agent_fence_ker, Tuple{}; kernel=true)
+    @test occursin("fence syncscope(\"agent\") seq_cst", String(take!(iob)))
 end
 
 @testset "Trapping" begin
