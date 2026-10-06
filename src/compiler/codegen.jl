@@ -318,13 +318,14 @@ end
 # Storage is managed by `GPUCompiler.cached_results`: Julia's integrated code cache on
 # 1.11+ (which also persists artifacts through precompilation), or a session-local store
 # on 1.10. `obj === nothing` identifies a freshly-created `HIPResults` that hasn't been
-# compiled yet; the `compile_hook` check additionally forces the compile path so that
-# reflection consumers (`@device_code_*`) observe the compilation even on a cache hit.
+# compiled yet. Every lookup is reported to the `@device_code_*` hook, so reflection
+# observes cached kernels without recompiling them.
 # Specialize on the target/parameter types so callers can avoid boxing CompilerJob.
 # Keep the body out of callers that specialize per kernel.
 @noinline function compile_or_lookup(job::CompilerJob)::HIPResults
+    GPUCompiler.run_compile_hook(job)
     res = GPUCompiler.cached_results(HIPResults, job)
-    if res === nothing || res.obj === nothing || GPUCompiler.compile_hook[] !== nothing
+    if res === nothing || res.obj === nothing
         compiled = hipcompile(job)
         res = @something res GPUCompiler.cached_results(HIPResults, job)
         res.obj = compiled.obj
