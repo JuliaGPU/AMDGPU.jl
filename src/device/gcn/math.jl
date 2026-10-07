@@ -60,12 +60,6 @@ for jltype in (Float64, Float32, Float16)
     @eval @device_override Base.fma(x::$jltype, y::$jltype, z::$jltype) = ccall(
         $("extern __ocml_fma_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype, $jltype), x, y, z)
 
-    @eval @device_override Base.min(x::$jltype, y::$jltype) = ccall(
-        $("extern __ocml_min_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
-
-    @eval @device_override Base.max(x::$jltype, y::$jltype) = ccall(
-        $("extern __ocml_max_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
-
     @eval @device_override Base.copysign(x::$jltype, y::$jltype) = ccall(
         $("extern __ocml_copysign_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, $jltype), x, y)
 
@@ -93,6 +87,21 @@ for jltype in (Float64, Float32, Float16)
         @eval @device_override FastMath.max_fast(x::$jltype, y::$jltype) = Base.max(x, y)
         @eval @device_override FastMath.min_fast(x::$jltype, y::$jltype) = Base.min(x, y)
     end
+end
+
+# Julia's min/max propagate NaNs and order -0 before +0, like llvm.minimum/maximum (and unlike
+# ocml's min/max). LLVM only expands those intrinsics for every AMDGPU target since version 19,
+# so older versions of Julia's LLVM get an explicit implementation.
+@static if LLVM.version() >= v"19"
+    @device_override Base.min(x::T, y::T) where {T<:Union{Float16, Float32, Float64}} =
+        Core.Intrinsics.min_float(x, y)
+    @device_override Base.max(x::T, y::T) where {T<:Union{Float16, Float32, Float64}} =
+        Core.Intrinsics.max_float(x, y)
+else
+    @device_override Base.min(x::T, y::T) where {T<:Union{Float16, Float32, Float64}} =
+        ifelse((x < y) | isnan(x) | ((x == y) & signbit(x)), x, y)
+    @device_override Base.max(x::T, y::T) where {T<:Union{Float16, Float32, Float64}} =
+        ifelse((x > y) | isnan(x) | ((x == y) & signbit(y)), x, y)
 end
 
 @device_override @inline function Base.:(^)(x::Float32, y::Int64)

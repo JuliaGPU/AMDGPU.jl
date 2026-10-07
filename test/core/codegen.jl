@@ -310,3 +310,36 @@ end
         end
     end
 end
+
+@testset "Float min/max" begin
+    function minmax_kernel(p, x, y)
+        unsafe_store!(p, min(x, y), 1)
+        unsafe_store!(p, max(x, y), 2)
+        return
+    end
+
+    # never ocml's NaN-ignoring llvm.minnum/maxnum, and llvm.minimum/maximum only
+    # where Julia's LLVM expands them for every target (LLVM 19+)
+    configs = Tuple{Symbol, String}[]
+    if AMDGPU.Compiler.AMDGPU_LLVM_Backend_jll.is_available()
+        append!(configs, (:external, isa) for isa in ("gfx90a", "gfx942", "gfx1200"))
+    end
+    if :AMDGPU in LLVM.backends()
+        push!(configs, (:inprocess, "gfx90a"))
+        LLVM.version() >= v"17" && push!(configs, (:inprocess, "gfx942"))
+        LLVM.version() >= v"18" && push!(configs, (:inprocess, "gfx1200"))
+    end
+    for T in (Float16, Float32, Float64), (backend, dev_isa) in configs
+        tt = Tuple{Core.LLVMPtr{T, AMDGPU.Device.AS.Global}, T, T}
+        ir = compile_offline(minmax_kernel, tt, :llvm; dev_isa, backend)
+        @test !occursin("llvm.minnum", ir) && !occursin("llvm.maxnum", ir)
+        has_intrinsics = occursin("llvm.minimum", ir) && occursin("llvm.maximum", ir)
+        @test has_intrinsics == (LLVM.version() >= v"19")
+
+        asm = compile_offline(minmax_kernel, tt, :asm; dev_isa, backend)
+        if T == Float32 && dev_isa == "gfx1200" && has_intrinsics
+            # natively supported (on the SALU here, since the arguments are uniform)
+            @test occursin(r"[sv]_minimum_f32", asm) && occursin(r"[sv]_maximum_f32", asm)
+        end
+    end
+end
