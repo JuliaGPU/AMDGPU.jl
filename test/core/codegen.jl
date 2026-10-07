@@ -181,13 +181,15 @@ end
 
     # compile for a GPU other than the local one, e.g. one whose atomics depend on the metadata
     function compile_offline(f, tt, format; dev_isa="gfx90a", backend=:external,
-                             unsafe_fp_atomics=true, atomic_memory_assumptions=true)
+                             unsafe_fp_atomics=true, atomic_memory_assumptions=true,
+                             validate=true)
         wf64 = !startswith(dev_isa, "gfx1")
         features = wf64 ? "-wavefrontsize32,+wavefrontsize64" : "+wavefrontsize32,-wavefrontsize64"
         target = GPUCompiler.GCNCompilerTarget(; dev_isa, features, backend)
         params = AMDGPU.Compiler.HIPCompilerParams(wf64, unsafe_fp_atomics,
                                                    atomic_memory_assumptions)
-        config = GPUCompiler.CompilerConfig(target, params; kernel=true, always_inline=true)
+        config = GPUCompiler.CompilerConfig(target, params; kernel=true, always_inline=true,
+                                            validate)
         job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(f), tt), config)
         GPUCompiler.JuliaContext() do _
             if format === :llvm
@@ -233,7 +235,9 @@ end
                                 ("cluster-one-as", true), ("one-as", false),
                                 ("unknown-scope", false))
             scope = UnsafeAtomics.SyncScope(Symbol(name))
-            ir = compile_offline(rmw_kernel, rmw_tt(Int32, max, scope), :llvm)
+            # (GPUCompiler rejects unknown scopes when validating the IR)
+            ir = compile_offline(rmw_kernel, rmw_tt(Int32, max, scope), :llvm;
+                                 validate=name != "unknown-scope")
             rmw = only(atomic_lines(ir, "atomicrmw"))
             @test occursin("syncscope(\"$name\")", rmw)
             @test assumed ? memory_md(rmw) : no_memory_md(rmw)
