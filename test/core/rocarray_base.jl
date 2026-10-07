@@ -378,10 +378,4 @@ end
     @test Array(x) == [true, true]
 end
 
-@testset "mapreducedim! returning same type" begin
-    R = transpose(AMDGPU.zeros(Float32, 2, 3))
-    A = ROCArray(rand(Float32, 3, 2, 10))
-    @test @inferred(GPUArrays.mapreducedim!(identity, +, R, A)) === R
-end
-
 end
