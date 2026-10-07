@@ -164,8 +164,7 @@ function annotate_atomics!(mod::LLVM.Module, job::HIPCompilerJob)
     for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
         inst isa LLVM.AtomicRMWInst || continue
         md = inst.metadata
-        if params.atomic_memory_assumptions && inst.syncscope.name in NARROW_SYNCSCOPES &&
-           !usub_sat_unselectable(inst)
+        if params.atomic_memory_assumptions && inst.syncscope.name in NARROW_SYNCSCOPES
             md["amdgpu.no.fine.grained.memory"] = empty_md
             md["amdgpu.no.remote.memory"] = empty_md
         end
@@ -183,14 +182,6 @@ function denormal_metadata_name(target::GCNCompilerTarget)
                                           Base.libllvm_version
     llvm >= v"24" ? "atomic.ignore.denormal.mode" : "amdgpu.ignore.denormal.mode"
 end
-
-# LLVM 22+ fails with "Cannot select: AtomicLoadUSubSat" when it may use the native
-# instruction for an i32 flat `usub_sat` on gfx10.3/gfx11, which either memory assumption
-# allows (llvm/llvm-project#229442). Global pointers select fine. Interim workaround
-# until GPUCompiler expands the unselectable cases to CAS loops.
-usub_sat_unselectable(inst::LLVM.AtomicRMWInst) =
-    inst.binop == LLVM.AtomicRMWBinOp.USubSat &&
-    LLVM.addrspace(LLVM.value_type(LLVM.operands(inst)[1])) != AS.Global
 
 # LLVM only folds `llvm.amdgcn.wavefrontsize` during instruction selection, which then
 # fails on branches for the other wavefront size (e.g. in `ballot`), so fold it here.
