@@ -6,6 +6,32 @@ using AMDGPU: Device, ROCArray, @roc, UnsafeAtomics
 using AMDGPU.Device: sync_workgroup, workitemIdx, workgroupIdx, workgroupDim
 using KernelAbstractions: @atomic
 
+# compile for a GPU other than the local one
+function compile_offline(f, tt, format; dev_isa="gfx90a", backend=:external,
+                         unsafe_fp_atomics=true, atomic_memory_assumptions=true,
+                         validate=true)
+    wf64 = !startswith(dev_isa, "gfx1")
+    features = wf64 ? "-wavefrontsize32,+wavefrontsize64" : "+wavefrontsize32,-wavefrontsize64"
+    target = GPUCompiler.GCNCompilerTarget(; dev_isa, features, backend)
+    params = AMDGPU.Compiler.HIPCompilerParams(wf64, unsafe_fp_atomics,
+                                               atomic_memory_assumptions)
+    config = GPUCompiler.CompilerConfig(target, params; kernel=true, always_inline=true,
+                                        validate)
+    job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(f), tt), config)
+    GPUCompiler.JuliaContext() do _
+        if format === :llvm
+            mod, _ = GPUCompiler.compile(:llvm, job)
+            ir = string(mod)
+            LLVM.dispose(mod)
+            ir
+        else
+            asm, meta = GPUCompiler.compile(:asm, job)
+            LLVM.dispose(meta.ir)
+            asm
+        end
+    end
+end
+
 @testset "Synchronization" begin
     function synckern()
         sync_workgroup()
@@ -179,31 +205,6 @@ end
         return
     end
 
-    # compile for a GPU other than the local one, e.g. one whose atomics depend on the metadata
-    function compile_offline(f, tt, format; dev_isa="gfx90a", backend=:external,
-                             unsafe_fp_atomics=true, atomic_memory_assumptions=true,
-                             validate=true)
-        wf64 = !startswith(dev_isa, "gfx1")
-        features = wf64 ? "-wavefrontsize32,+wavefrontsize64" : "+wavefrontsize32,-wavefrontsize64"
-        target = GPUCompiler.GCNCompilerTarget(; dev_isa, features, backend)
-        params = AMDGPU.Compiler.HIPCompilerParams(wf64, unsafe_fp_atomics,
-                                                   atomic_memory_assumptions)
-        config = GPUCompiler.CompilerConfig(target, params; kernel=true, always_inline=true,
-                                            validate)
-        job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(f), tt), config)
-        GPUCompiler.JuliaContext() do _
-            if format === :llvm
-                mod, _ = GPUCompiler.compile(:llvm, job)
-                ir = string(mod)
-                LLVM.dispose(mod)
-                ir
-            else
-                asm, meta = GPUCompiler.compile(:asm, job)
-                LLVM.dispose(meta.ir)
-                asm
-            end
-        end
-    end
     rmw_tt(T, op, scope; as=AMDGPU.Device.AS.Global) =
         Tuple{Core.LLVMPtr{T,as}, T, typeof(op), typeof(scope)}
 
