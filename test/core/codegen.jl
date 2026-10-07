@@ -288,12 +288,13 @@ end
 
     # UnsafeAtomics only emits `atomicrmw usub_sat` with LLVM 20+
     Base.libllvm_version >= v"20" && @testset "flat usub_sat" begin
-        # LLVM 22+ can't select a native flat usub_sat on gfx10.3/gfx11, which the
-        # memory assumptions would permit
+        # LLVM 22 couldn't select a native flat usub_sat on gfx10.3/gfx11 with the memory
+        # assumptions (llvm/llvm-project#229442), which GPUCompiler works around, so they
+        # are attached like for other operations
         flat_tt = Tuple{Core.LLVMPtr{Core.LLVMPtr{UInt32,0},1}, UInt32,
                         typeof(UnsafeAtomics.sub_sat), typeof(UnsafeAtomics.device)}
         ir = compile_offline(flat_rmw_kernel, flat_tt, :llvm; dev_isa="gfx1030")
-        @test no_memory_md(only(atomic_lines(ir, "atomicrmw")))
+        @test memory_md(only(atomic_lines(ir, "atomicrmw")))
         if external
             asm = compile_offline(flat_rmw_kernel, flat_tt, :asm; dev_isa="gfx1030")
             @test occursin("flat_atomic_cmpswap", asm)
