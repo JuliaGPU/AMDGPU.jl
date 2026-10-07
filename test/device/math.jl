@@ -20,6 +20,38 @@ using Base.FastMath
     end
 end
 
+@testset "min/max" begin
+    # NaNs propagate and -0 < +0, as on the host
+    for T in (Float16, Float32, Float64)
+        vals = T[NaN, -Inf, Inf, -floatmax(T), -1, -0.0, 0.0, 1, floatmax(T),
+                 nextfloat(zero(T)), -nextfloat(zero(T)), floatmin(T) / 2, floatmin(T)]
+        xs = repeat(vals; outer=length(vals))
+        ys = repeat(vals; inner=length(vals))
+        dxs, dys = ROCArray(xs), ROCArray(ys)
+        @test isequal(Array(min.(dxs, dys)), min.(xs, ys))
+        @test isequal(Array(max.(dxs, dys)), max.(xs, ys))
+    end
+
+    # Atomix implements these with a CAS loop around `min`/`max`, or with
+    # `atomicrmw fminimum`/`fmaximum` on recent Julia versions
+    function atomic_minmax!(a, xs)
+        x = @inbounds xs[AMDGPU.workitemIdx().x]
+        @inbounds AMDGPU.@atomic max(a[1], x)
+        @inbounds AMDGPU.@atomic min(a[2], x)
+        return
+    end
+    for T in (Float16, Float32, Float64)
+        for (xs, expected) in ((T[1, NaN, 2], (T(NaN), T(NaN))),
+                               (T[NaN, 2, 1], (T(NaN), T(NaN))),
+                               (T[-0.0, 0.0], (T(0.0), T(-0.0))),
+                               (T[0.0, -0.0], (T(0.0), T(-0.0))))
+            a = ROCArray(T[xs[1], xs[1]])
+            @roc groupsize=length(xs) atomic_minmax!(a, ROCArray(xs))
+            @test isequal(Tuple(Array(a)), expected)
+        end
+    end
+end
+
 @testset "Fast min/max" begin
     function ker!(x)
         x[1] = @fastmath max(x[1], zero(eltype(x)))

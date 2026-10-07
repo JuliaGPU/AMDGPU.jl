@@ -6,6 +6,32 @@ using AMDGPU: Device, ROCArray, @roc, UnsafeAtomics
 using AMDGPU.Device: sync_workgroup, workitemIdx, workgroupIdx, workgroupDim
 using KernelAbstractions: @atomic
 
+# compile for a GPU other than the local one
+function compile_offline(f, tt, format; dev_isa="gfx90a", backend=:external,
+                         unsafe_fp_atomics=true, atomic_memory_assumptions=true,
+                         validate=true)
+    wf64 = !startswith(dev_isa, "gfx1")
+    features = wf64 ? "-wavefrontsize32,+wavefrontsize64" : "+wavefrontsize32,-wavefrontsize64"
+    target = GPUCompiler.GCNCompilerTarget(; dev_isa, features, backend)
+    params = AMDGPU.Compiler.HIPCompilerParams(wf64, unsafe_fp_atomics,
+                                               atomic_memory_assumptions)
+    config = GPUCompiler.CompilerConfig(target, params; kernel=true, always_inline=true,
+                                        validate)
+    job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(f), tt), config)
+    GPUCompiler.JuliaContext() do _
+        if format === :llvm
+            mod, _ = GPUCompiler.compile(:llvm, job)
+            ir = string(mod)
+            LLVM.dispose(mod)
+            ir
+        else
+            asm, meta = GPUCompiler.compile(:asm, job)
+            LLVM.dispose(meta.ir)
+            asm
+        end
+    end
+end
+
 @testset "Synchronization" begin
     function synckern()
         sync_workgroup()
@@ -179,31 +205,6 @@ end
         return
     end
 
-    # compile for a GPU other than the local one, e.g. one whose atomics depend on the metadata
-    function compile_offline(f, tt, format; dev_isa="gfx90a", backend=:external,
-                             unsafe_fp_atomics=true, atomic_memory_assumptions=true,
-                             validate=true)
-        wf64 = !startswith(dev_isa, "gfx1")
-        features = wf64 ? "-wavefrontsize32,+wavefrontsize64" : "+wavefrontsize32,-wavefrontsize64"
-        target = GPUCompiler.GCNCompilerTarget(; dev_isa, features, backend)
-        params = AMDGPU.Compiler.HIPCompilerParams(wf64, unsafe_fp_atomics,
-                                                   atomic_memory_assumptions)
-        config = GPUCompiler.CompilerConfig(target, params; kernel=true, always_inline=true,
-                                            validate)
-        job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(f), tt), config)
-        GPUCompiler.JuliaContext() do _
-            if format === :llvm
-                mod, _ = GPUCompiler.compile(:llvm, job)
-                ir = string(mod)
-                LLVM.dispose(mod)
-                ir
-            else
-                asm, meta = GPUCompiler.compile(:asm, job)
-                LLVM.dispose(meta.ir)
-                asm
-            end
-        end
-    end
     rmw_tt(T, op, scope; as=AMDGPU.Device.AS.Global) =
         Tuple{Core.LLVMPtr{T,as}, T, typeof(op), typeof(scope)}
 
@@ -306,6 +307,39 @@ end
         if external
             asm = compile_offline(rmw_kernel, global_tt, :asm; dev_isa="gfx1030")
             @test occursin("global_atomic_csub", asm)
+        end
+    end
+end
+
+@testset "Float min/max" begin
+    function minmax_kernel(p, x, y)
+        unsafe_store!(p, min(x, y), 1)
+        unsafe_store!(p, max(x, y), 2)
+        return
+    end
+
+    # never ocml's NaN-ignoring llvm.minnum/maxnum, and llvm.minimum/maximum only
+    # where Julia's LLVM expands them for every target (LLVM 19+)
+    configs = Tuple{Symbol, String}[]
+    if AMDGPU.Compiler.AMDGPU_LLVM_Backend_jll.is_available()
+        append!(configs, (:external, isa) for isa in ("gfx90a", "gfx942", "gfx1200"))
+    end
+    if :AMDGPU in LLVM.backends()
+        push!(configs, (:inprocess, "gfx90a"))
+        LLVM.version() >= v"17" && push!(configs, (:inprocess, "gfx942"))
+        LLVM.version() >= v"18" && push!(configs, (:inprocess, "gfx1200"))
+    end
+    for T in (Float16, Float32, Float64), (backend, dev_isa) in configs
+        tt = Tuple{Core.LLVMPtr{T, AMDGPU.Device.AS.Global}, T, T}
+        ir = compile_offline(minmax_kernel, tt, :llvm; dev_isa, backend)
+        @test !occursin("llvm.minnum", ir) && !occursin("llvm.maxnum", ir)
+        has_intrinsics = occursin("llvm.minimum", ir) && occursin("llvm.maximum", ir)
+        @test has_intrinsics == (LLVM.version() >= v"19")
+
+        asm = compile_offline(minmax_kernel, tt, :asm; dev_isa, backend)
+        if T == Float32 && dev_isa == "gfx1200" && has_intrinsics
+            # natively supported (on the SALU here, since the arguments are uniform)
+            @test occursin(r"[sv]_minimum_f32", asm) && occursin(r"[sv]_maximum_f32", asm)
         end
     end
 end
