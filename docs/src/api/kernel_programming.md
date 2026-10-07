@@ -68,6 +68,21 @@ target = ROCArray(zeros(UInt32, bins))
 @roc groupsize=256 gridsize=4 ker_atomic_max!(target, source, indices)
 ```
 
+By default, AMDGPU.jl assumes that atomic read-modify-write operations with a scope
+narrower than the system scope (such as the device scope that `AMDGPU.@atomic` uses)
+access memory that is neither fine-grained nor remote (on another GPU). This lets the
+compiler use hardware atomic instructions instead of compare-and-swap loops. Host memory
+(`HostBuffer`, e.g. from `unsafe_wrap`) and memory of other devices do not satisfy this
+assumption: on some systems, hardware atomics on them silently have no effect. For
+atomics on such memory, pass `atomic_memory_assumptions=false` to `@roc` or
+`hipfunction`, or use the system scope (`UnsafeAtomics.system`). Doing so only removes
+the compiler's assumption; it does not make atomics work over an interconnect that lacks
+support for them. Synchronizing with the host or another GPU also requires the system
+scope.
+
+`unsafe_fp_atomics` (default `true`) independently allows floating-point atomic additions to
+ignore the floating-point denormal mode, which some GPUs need to use hardware instructions.
+
 ## Wave Matrix Multiply Accumulate (WMMA)
 
 Perform following computation `D = A ⋅ B + C`.

@@ -1,12 +1,13 @@
 struct HIPCompilerParams <: AbstractCompilerParams
     # Whether to compile kernel for the wavefront of size 64.
     wavefrontsize64::Bool
-    # AMD GPU devices support fast atomic read-modify-write (RMW)
-    # operations on floating-point values.
-    # On single- or double-precision floating-point values this may generate
-    # a hardware RMW instruction that is faster than emulating
-    # the atomic operation using an atomic compare-and-swap (CAS) loop.
+    # Whether floating-point atomic RMW operations may ignore the denormal mode,
+    # which lets some targets use hardware instructions instead of CAS loops.
     unsafe_fp_atomics::Bool
+    # Whether atomic RMW operations with a scope narrower than system scope may assume
+    # that they access neither fine-grained nor remote memory, which lets the back-end
+    # use native instructions instead of CAS loops.
+    atomic_memory_assumptions::Bool
 end
 
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
@@ -101,7 +102,6 @@ function GPUCompiler.finish_module!(
     if entry.callconv == LLVM.CallConv.AMDGPUKERNEL
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
         target_features_attr = StringAttribute("target-features", job.config.target.features)
-        atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
 
         # TODO add convergent, mustprogress, willreturn attributes?
 
@@ -112,7 +112,9 @@ function GPUCompiler.finish_module!(
         attrs = entry.function_attributes
         push!(attrs, target_cpu_attr)
         push!(attrs, target_features_attr)
-        push!(attrs, atomic_attr)
+        if job.config.params.unsafe_fp_atomics
+            push!(attrs, StringAttribute("amdgpu-unsafe-fp-atomics", "true"))
+        end
         push!(attrs, implicitarg_attr)
     end
 
@@ -140,27 +142,55 @@ function GPUCompiler.finish_module!(
         end
     end
 
-    # LLVM 20+ requires !amdgpu.no.fine.grained.memory on FP atomicrmw to emit
-    # native hardware atomics (e.g. global_atomic_add_f32) instead of a CAS loop.
-    # Mirrors Clang's setTargetAtomicMetadata; unsafe_fp_atomics is the opt-in.
-    if job.config.params.unsafe_fp_atomics
-        fp_binops = (LLVM.AtomicRMWBinOp.FAdd, LLVM.AtomicRMWBinOp.FSub,
-                     LLVM.AtomicRMWBinOp.FMax, LLVM.AtomicRMWBinOp.FMin)
-        empty_md = MDNode(Metadata[])
-        for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
-            inst isa LLVM.AtomicRMWInst || continue
-            op = inst.binop
-            op ∈ fp_binops || continue
-            md = inst.metadata
-            md["amdgpu.no.fine.grained.memory"] = empty_md
-            if op == LLVM.AtomicRMWBinOp.FAdd && inst.value_type isa LLVM.FloatType
-                md["amdgpu.ignore.denormal.mode"] = empty_md
-            end
-        end
-    end
-
     return entry
 end
+
+# AMDGPU sync scopes narrower than the system scope. The system scope ("" and "one-as")
+# and scopes we don't know never get memory assumptions.
+const NARROW_SYNCSCOPES = (
+    "agent", "cluster", "workgroup", "wavefront", "singlethread",
+    "agent-one-as", "cluster-one-as", "workgroup-one-as", "wavefront-one-as",
+    "singlethread-one-as")
+
+# Attach the metadata that lets the AMDGPU back-end use native atomic instructions, like
+# Clang's `setTargetAtomicMetadata`. Unlike Clang, system-scope RMWs never get the memory
+# assumptions, which keeps the system scope usable for fine-grained or remote memory.
+# Since LLVM 22, integer RMWs other than add/xchg are CAS loops without them on several
+# targets, and FP RMWs have needed them since LLVM 20.
+function annotate_atomics!(mod::LLVM.Module, job::HIPCompilerJob)
+    params = job.config.params
+    denormal_md = denormal_metadata_name(job.config.target)
+    empty_md = MDNode(Metadata[])
+    for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
+        inst isa LLVM.AtomicRMWInst || continue
+        md = inst.metadata
+        if params.atomic_memory_assumptions && inst.syncscope.name in NARROW_SYNCSCOPES &&
+           !usub_sat_unselectable(inst)
+            md["amdgpu.no.fine.grained.memory"] = empty_md
+            md["amdgpu.no.remote.memory"] = empty_md
+        end
+        if params.unsafe_fp_atomics && inst.binop == LLVM.AtomicRMWBinOp.FAdd &&
+           inst.value_type isa LLVM.FloatType
+            md[denormal_md] = empty_md
+        end
+    end
+end
+
+# LLVM 24 renamed the metadata (llvm/llvm-project#217585) and only upgrades the old name
+# when reading IR, which the in-process back-end doesn't do.
+function denormal_metadata_name(target::GCNCompilerTarget)
+    llvm = target.backend === :external ? pkgversion(AMDGPU_LLVM_Backend_jll) :
+                                          Base.libllvm_version
+    llvm >= v"24" ? "atomic.ignore.denormal.mode" : "amdgpu.ignore.denormal.mode"
+end
+
+# LLVM 22+ fails with "Cannot select: AtomicLoadUSubSat" when it may use the native
+# instruction for an i32 flat `usub_sat` on gfx10.3/gfx11, which either memory assumption
+# allows (llvm/llvm-project#229442). Global pointers select fine. Interim workaround
+# until GPUCompiler expands the unselectable cases to CAS loops.
+usub_sat_unselectable(inst::LLVM.AtomicRMWInst) =
+    inst.binop == LLVM.AtomicRMWBinOp.USubSat &&
+    LLVM.addrspace(LLVM.value_type(LLVM.operands(inst)[1])) != AS.Global
 
 # LLVM only folds `llvm.amdgcn.wavefrontsize` during instruction selection, which then
 # fails on branches for the other wavefront size (e.g. in `ballot`), so fold it here.
@@ -200,7 +230,8 @@ end
 
 function _compiler_config(dev::HIP.HIPDevice;
     name::Union{String, Nothing} = nothing, kernel::Bool = true,
-    unsafe_fp_atomics::Bool = true, wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
+    unsafe_fp_atomics::Bool = true, atomic_memory_assumptions::Bool = true,
+    wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
     minthreads::Union{Nothing, Int, Dims} = nothing,
     maxthreads::Union{Nothing, Int, Dims} = nothing,
 )
@@ -216,7 +247,7 @@ function _compiler_config(dev::HIP.HIPDevice;
     end
 
     target = GCNCompilerTarget(; dev_isa, features, minthreads, maxthreads)
-    params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics)
+    params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics, atomic_memory_assumptions)
     CompilerConfig(target, params; kernel, name, always_inline=true)
 end
 
@@ -233,18 +264,22 @@ The following kwargs are supported:
 - `name::Union{String, Nothing} = nothing`:
     A unique name to give a compiled kernel.
 - `unsafe_fp_atomics::Bool = true`:
-    Whether to use 'unsafe' floating-point atomics.
+    Whether floating-point atomic read-modify-write operations may ignore the
+    floating-point denormal mode, so that targets whose hardware atomics flush
+    denormals can use them instead of a compare-and-swap (CAS) loop.
+- `atomic_memory_assumptions::Bool = true`:
+    Whether atomic read-modify-write operations with a scope narrower than the
+    system scope may assume that they access memory that is neither fine-grained
+    nor remote (on another device). This lets them use hardware instructions
+    instead of CAS loops. Disable it for kernels that use such atomics on
+    fine-grained memory, e.g. host or unified memory; see the
+    "Atomics" section of the kernel programming documentation.
 - `maxthreads::Union{Nothing, Int, Dims} = nothing`:
     An upper bound on the workgroup size the kernel will be launched with
     (`__launch_bounds__` equivalent); lets the backend size its register
     budget for the actual occupancy target instead of 1024-item workgroups.
 - `minthreads::Union{Nothing, Int, Dims} = nothing`:
     The workgroup size the kernel is guaranteed to be launched with.
-    AMD GPU devices support fast atomic read-modify-write (RMW)
-    operations on floating-point values.
-    On single- or double-precision floating-point values this may generate
-    a hardware RMW instruction that is faster than emulating
-    the atomic operation using an atomic compare-and-swap (CAS) loop.
 """
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
     Base.@lock hipfunction_lock begin
@@ -468,6 +503,10 @@ function GPUCompiler.finish_ir!(
     entry = invoke(GPUCompiler.finish_ir!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
+
+    # after optimization, so that sync scopes have their AMDGPU names
+    annotate_atomics!(mod, job)
+
     job.config.kernel || return entry
 
     name = entry.name
