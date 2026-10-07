@@ -4,15 +4,13 @@ using Random
 
 const GPUARRAY_RNG_KEY = :AMDGPU_GPUARRAY_RNG
 
-function GPUArrays.default_rng(::Type{<:ROCArray})
+function gpuarrays_rng()
     rngs = get!(() -> Dict{HIPDevice,GPUArrays.RNG}(), task_local_storage(),
                 GPUARRAY_RNG_KEY)
     return get!(rngs, device()) do
         GPUArrays.RNG{ROCArray}()
     end
 end
-
-gpuarrays_rng() = GPUArrays.default_rng(ROCArray)
 rocrand_rng() = rocRAND.handle()
 
 # the interface is split in two levels:
