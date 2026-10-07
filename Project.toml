@@ -51,7 +51,7 @@ AMDGPUSpecialFunctionsExt = "SpecialFunctions"
 [compat]
 AMDGPU_LLVM_Backend_jll = "23"
 AbstractFFTs = "1.0"
-AcceleratedKernels = "0.3.1, 0.4"
+AcceleratedKernels = "0.3.1, 0.4, 0.5"
 Adapt = "4"
 Atomix = "1.5"
 BFloat16s = "0.6.0"
