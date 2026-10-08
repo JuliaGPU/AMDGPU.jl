@@ -45,28 +45,27 @@ end
 end
 
 # https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
-if Base.datatype_alignment(Int128) == 16
-    # note: miscompile only occurs with `julia --check-bounds=yes`
-    @testset "Int128 miscompilation" begin
-        function test_kernel(a::T, b) where T
-            c = a
-            for i=1:5
-                c += T(b)
-                c = a * T(2)
-            end
-            return c
+# note: miscompile only occurs with `julia --check-bounds=yes`
+@testset "Int128 miscompilation" begin
+    function test_kernel(a::T, b) where T
+        c = a
+        for i=1:5
+            c += T(b)
+            c = a * T(2)
         end
-        M = rand(Int128, 10, 10)
-        @test Array(test_kernel.(ROCArray(M), Int128(10))) == test_kernel.(M, Int128(10))
-        AMDGPU.synchronize()
+        return c
     end
+    M = rand(Int128, 10, 10)
+    @test Array(test_kernel.(ROCArray(M), Int128(10))) == test_kernel.(M, Int128(10))
+    AMDGPU.synchronize()
+end
 
-    @testset "Int128 axpby! miscompilation" begin
-        a, b = rand(Int128), rand(Int128)
-        x, y = rand(Int128, 5), rand(Int128, 5)
-        gx, gy = ROCArray(x), ROCArray(y)
-        gy .= gx .* a .+ gy .* b
-        @test Array(gy) == x .* a .+ y .* b
-        AMDGPU.synchronize()
-    end
+# https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
+@testset "Int128 axpby! miscompilation" begin
+    a, b = rand(Int128), rand(Int128)
+    x, y = rand(Int128, 5), rand(Int128, 5)
+    gx, gy = ROCArray(x), ROCArray(y)
+    gy .= gx .* a .+ gy .* b
+    @test Array(gy) == x .* a .+ y .* b
+    AMDGPU.synchronize()
 end
