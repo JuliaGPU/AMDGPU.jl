@@ -56,14 +56,19 @@ AMDGPU.HIPStream
 
 ## Synchronization
 
-AMDGPU.jl by default uses non-blocking stream synchronization with
-[`AMDGPU.synchronize`](@ref) to work correctly with TLS and [Hostcall](@ref).
+By default, [`AMDGPU.synchronize`](@ref) does not block the calling thread:
+it briefly polls the stream, and then waits for it on a separate worker
+thread, so that other tasks can run on the calling thread in the meantime.
+This is required for [Hostcall](@ref), whose host side runs as a task.
+Synchronizing events and `HIP.device_synchronize()` works the same way.
+Inside finalizers, which cannot switch tasks, synchronization blocks.
 
 Users, however, can switch to a blocking synchronization globally
 with `nonblocking_synchronization`
 [preference](https://github.com/JuliaPackaging/Preferences.jl)
 or with fine-grained `AMDGPU.synchronize(; blocking=true)`.
-Blocking synchronization might offer slightly lower latency.
+Blocking synchronization might offer slightly lower latency,
+but must not be used while hostcalls are running.
 
 You can also perform synchronization of the expression with
 [`AMDGPU.@sync`](@ref) macro, which will execute given expression and

@@ -11,7 +11,7 @@ import ..AMDGPU
 import ..AMDGPU.libhip
 import .AMDGPU: @check, check
 
-import GPUToolbox: @gcsafe_ccall, @checked
+import GPUToolbox: @gcsafe_ccall, @checked, cooperative_wait
 
 include("libhip.jl")
 include("error.jl")
@@ -94,12 +94,24 @@ include("pool.jl")
 include("module.jl")
 include("graph.jl")
 
+# callable from any thread; there is no way to poll an entire device
+function worker_device_synchronize(dev::HIPDevice)
+    res = unchecked_hipSetDevice(device_id(dev))
+    res == hipSuccess || return res
+    @gcsafe_ccall(libhip.hipDeviceSynchronize()::hipError_t)
+end
+
 """
 Blocks until all kernels on all streams have completed.
 Uses currently active device.
 """
-function device_synchronize()
-    hipDeviceSynchronize()
+function device_synchronize(; blocking::Bool = false)
+    if use_nonblocking_synchronize && !blocking && !GC.in_finalizer()
+        res = cooperative_wait(worker_device_synchronize, AMDGPU.device())
+        check(something(res))
+    else
+        hipDeviceSynchronize()
+    end
     AMDGPU.synchronize() # To trigger any Julia-kernel exception.
     AMDGPU.maybe_collect(; blocking=true)
     return
