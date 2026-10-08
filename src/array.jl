@@ -189,7 +189,17 @@ Base.similar(::ROCArray{<:Any, <:Any, B}, ::Type{T}, dims::Base.Dims{N}) where {
 Base.elsize(::Type{<:ROCArray{T}}) where {T} = aligned_sizeof(T)
 Base.size(x::ROCArray) = x.dims
 Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
-Base.dataids(A::ROCArray) = (UInt(pointer(A)),)
+
+## alias detection
+
+# GPUArrays implements `Base.dataids` and `Base.mightalias` from where an array lives. Not
+# using `pointer(x)`, which takes ownership of the memory for the current stream.
+function GPUArrays.memory_location(x::ROCArray)
+    mem = x.buf[].mem
+    return (UInt(mem isa Mem.HostBuffer ? mem.dev_ptr : mem.ptr), x.offset)
+end
+
+Base.unaliascopy(x::ROCArray) = copy(x)
 
 ## interop with Julia arrays
 
