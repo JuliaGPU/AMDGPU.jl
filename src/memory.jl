@@ -409,19 +409,31 @@ end
 mutable struct Managed{M}
     const mem::M
     const lock::ReentrantLock
+    # which stream is currently using the memory, and the generation of that stream
     stream::HIPStream
+    generation::Int
     dirty::Bool
     captured::Bool
 
     function Managed(mem; stream=AMDGPU.stream(), dirty=true, captured=false)
-        new{typeof(mem)}(mem, ReentrantLock(), stream, dirty, captured)
+        new{typeof(mem)}(mem, ReentrantLock(), stream, HIP.generation(stream),
+                         dirty, captured)
     end
 end
+
+# if the stream has been handed to another task since it last used the memory, that work
+# has finished, and waiting for the stream would only wait for the new task's work.
+recycled(m::Managed) = m.generation != HIP.generation(m.stream)
 
 function synchronize(m::Managed)
     Base.@lock m.lock begin
         m.dirty || return
-        synchronize(m.stream)
+        if recycled(m)
+            # the work has finished, but may have raised an exception
+            throw_if_exception(m.stream.device)
+        else
+            synchronize(m.stream)
+        end
         m.dirty = false
         return
     end
@@ -441,6 +453,7 @@ function take_ownership!(managed::Managed; stream::HIPStream=AMDGPU.stream())
         synchronize(managed)
         managed.stream = stream
     end
+    managed.generation = HIP.generation(managed.stream)
 
     managed.dirty = true
     return managed
@@ -448,7 +461,8 @@ end
 
 # Fast-path ownership transfer for the kernel-launch path
 @inline function take_ownership_fast!(managed::Managed, stream::HIPStream)
-    (managed.stream === stream && managed.dirty) && return
+    (managed.stream === stream && managed.dirty &&
+     managed.generation == HIP.generation(stream)) && return
     Base.@lock managed.lock take_ownership!(managed; stream)
     return
 end
@@ -522,7 +536,7 @@ function pool_free(managed::Managed{M}) where M
 
     try
         time = Base.@elapsed Base.@lock managed.lock begin
-            _pool_free(managed.mem, managed.stream)
+            _pool_free(managed)
         end
         Base.@atomic alloc_stats.free_count += 1
         Base.@atomic alloc_stats.free_bytes += sz
@@ -536,9 +550,19 @@ function pool_free(managed::Managed{M}) where M
     return
 end
 
-function _pool_free(buf, stream::HIPStream)
-    if !HIP.isvalid(stream)
-        stream = AMDGPU.default_stream()
+function _pool_free(managed::Managed)
+    buf = managed.mem
+    AMDGPU.context!(() -> Mem.free(buf; stream=free_stream(managed)), buf.ctx)
+end
+
+function free_stream(managed::Managed)
+    if !HIP.isvalid(managed.stream)
+        return AMDGPU.default_stream()
+    elseif recycled(managed) && !GC.in_finalizer()
+        # the stream now belongs to another task, which may be capturing it.
+        # finalizers can keep using it, because capturing disables the GC.
+        return AMDGPU.stream()
+    else
+        return managed.stream
     end
-    AMDGPU.context!(() -> Mem.free(buf; stream), buf.ctx)
 end

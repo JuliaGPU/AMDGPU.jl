@@ -60,6 +60,25 @@ end
     AMDGPU.synchronize()
 end
 
+# https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
+@testset "Int128 layout matches the host" begin
+    # a kernel argument with fields after an Int128
+    function kernel(out, s)
+        out[1] = s[1]
+        out[2] = s[2]
+        out[3] = s[3]
+        return
+    end
+    s = (Int32(-7), typemax(Int128) - 3, Int64(42))
+    out = ROCArray{Int128}(undef, 3)
+    @roc kernel(out, s)
+    @test Array(out) == [-7, typemax(Int128) - 3, 42]
+
+    # device memory holding such values, as laid out by the host
+    xs = [(Int32(i), Int128(i) << 70, Int64(-i)) for i in 1:4]
+    @test Array(map(x -> x[1] + x[2] + x[3], ROCArray(xs))) == map(x -> x[1] + x[2] + x[3], xs)
+end
+
 @testset "Function/Argument Conversion" begin
     @testset "Closure as Argument" begin
         function kernel(closure)

@@ -8,6 +8,10 @@ mutable struct HIPStream
     ctx::HIPContext
 
     Base.@atomic valid::Bool
+
+    # bumped when the stream is handed to another task (see `task_stream`), which only
+    # happens when it is idle, so work submitted during earlier generations has finished.
+    Base.@atomic generation::Int
 end
 
 """
@@ -26,7 +30,7 @@ function HIPStream(priority::Symbol = :normal)
     stream_ref = Ref{hipStream_t}()
     hipStreamCreateWithPriority(stream_ref, 0, priority_int)
     d = device()
-    stream = HIPStream(stream_ref[], priority, d, HIPContext(d), true)
+    stream = HIPStream(stream_ref[], priority, d, HIPContext(d), true, 0)
     return finalizer(stream) do s
         Base.@atomic s.valid = false
         AMDGPU.context!(s.ctx) do
@@ -35,9 +39,100 @@ function HIPStream(priority::Symbol = :normal)
     end
 end
 
+# Every task gets its own default stream, but HIP streams are expensive: creating one
+# takes milliseconds and pins ~8 MiB of host memory. Since the GC is in no hurry to
+# collect finished tasks (and with them, their streams), code that spawns many
+# short-lived tasks would pile up thousands of streams. Instead, recycle the streams of
+# tasks that have finished, keeping up to `STREAM_POOL_IDLE` unused ones per device and
+# priority.
+const STREAM_POOL_IDLE = 32
+struct PooledStream
+    stream::HIPStream
+    owner::WeakRef
+end
+const STREAM_POOLS = Dict{Tuple{Int,Symbol}, Vector{PooledStream}}()
+const STREAM_POOL_LOCK = ReentrantLock()
+
+function task_stream(priority::Symbol = :normal)
+    # finalizers can't wait for the pool's lock, so give them a stream of their own
+    GC.in_finalizer() && return HIPStream(priority)
+
+    key = (device_id(device()), priority)
+    task = current_task()
+    stream = Base.@lock STREAM_POOL_LOCK begin
+        claim_stream!(get!(Vector{PooledStream}, STREAM_POOLS, key), task)
+    end
+    stream === nothing || return stream
+
+    # creating a stream can be slow, so don't make other tasks wait for it
+    stream = HIPStream(priority)
+    Base.@lock STREAM_POOL_LOCK begin
+        push!(STREAM_POOLS[key], PooledStream(stream, WeakRef(task)))
+    end
+    return stream
+end
+
+function claim_stream!(pool::Vector{PooledStream}, task::Task)
+    candidate = nothing
+    idle = 0
+    i = 1
+    while i <= length(pool)
+        entry = pool[i]
+        owner = entry.owner.value
+        keep = if owner === task
+            # a task that switches back and forth between priorities keeps its streams
+            isvalid(entry.stream) && return entry.stream
+            false
+        elseif owner !== nothing && !istaskdone(owner::Task)
+            true
+        elseif !isvalid(entry.stream)
+            false
+        else
+            status = query(entry.stream)
+            if status == hipErrorNotReady
+                # don't make a new task wait for work that the previous owner left behind
+                true
+            elseif status != hipSuccess
+                # the stream is in an error state
+                false
+            elseif candidate === nothing
+                candidate = entry
+                true
+            else
+                (idle += 1) <= STREAM_POOL_IDLE
+            end
+        end
+        keep ? (i += 1) : deleteat!(pool, i)
+    end
+    candidate === nothing && return nothing
+
+    candidate.owner.value = task
+    generation = Base.@atomic :monotonic candidate.stream.generation
+    Base.@atomic :release candidate.stream.generation = generation + 1
+    return candidate.stream
+end
+
+# some API calls, like querying a stream, are prohibited while another stream is being
+# captured in global mode, even when they don't interfere with the capture. `f` must not
+# yield, because the capture mode is a property of the thread.
+function relaxed_capture_mode(f)
+    mode = Ref(hipStreamCaptureModeRelaxed)
+    hipThreadExchangeStreamCaptureMode(mode)
+    try
+        return f()
+    finally
+        hipThreadExchangeStreamCaptureMode(mode)
+    end
+end
+
+query(s::HIPStream) = relaxed_capture_mode(() -> unchecked_hipStreamQuery(s))
+
+# only bumped while holding `STREAM_POOL_LOCK`, but read without it
+generation(s::HIPStream) = Base.@atomic :acquire s.generation
+
 isvalid(s::HIPStream) = s.valid
 
-default_stream() = HIPStream(C_NULL, :normal, device(), HIPContext(), true)
+default_stream() = HIPStream(C_NULL, :normal, device(), HIPContext(), true, 0)
 
 """
     HIPStream(stream::hipStream_t)
@@ -46,8 +141,18 @@ Create HIPStream from `hipStream_t` handle.
 Device is the default device that's currently in use.
 """
 function HIPStream(stream::hipStream_t)
+    # the streams of tasks get recycled, which only the pool's objects keep track of
+    if !GC.in_finalizer()
+        Base.@lock STREAM_POOL_LOCK begin
+            for pool in values(STREAM_POOLS), entry in pool
+                s = entry.stream
+                s.stream == stream && isvalid(s) && return s
+            end
+        end
+    end
+
     d = device()
-    HIPStream(stream, priority(stream), d, HIPContext(d), true)
+    HIPStream(stream, priority(stream), d, HIPContext(d), true, 0)
 end
 
 function isdone(stream::HIPStream)
@@ -62,83 +167,37 @@ function isdone(stream::HIPStream)
     end
 end
 
-function _low_latency_synchronize(stream::HIPStream)
-    isdone(stream) && return true
-
-    # spin (initially without yielding to minimize latency)
-    spins = 0
-    while spins < 256
-        if spins < 32
-            ccall(:jl_cpu_pause, Cvoid, ())
-            # Temporary solution before we have gc transition support in codegen.
-            ccall(:jl_gc_safepoint, Cvoid, ())
-        else
-            yield()
-        end
-        isdone(stream) && return true
-        spins += 1
-    end
-    return false
-end
-
-function launch(f::Base.Callable; stream::HIPStream)
-    # Condition object is embedded in a task, Julia scheduler keeps it alive.
-    cond = Base.AsyncCondition() do async_cond
-        f()
-        close(async_cond)
-    end
-    callback = cglobal(:uv_async_send)
-    hipLaunchHostFunc(stream, callback, cond)
-end
-
-function nonblocking_synchronize(stream::HIPStream)
-    # Wait for an event signalled by HIP.
-    event = Base.Event()
-    launch(() -> notify(event); stream)
-
-    # If an error occurs, the callback may never fire.
-    # Create a timer to detect such cases.
-    dev = device()
-    timer = Timer(0; interval=1)
-
-    Base.@sync begin
-        # Launch timer.
-        Threads.@spawn try
-            device!(dev)
-            while true
-                try
-                    Base.wait(timer)
-                catch err
-                    err isa EOFError && break
-                    rethrow()
-                end
-                (!isvalid(stream) || hipStreamQuery(stream) != hipErrorNotReady) && break
-            end
-        finally
-            notify(event)
-        end
-        # Wait for `event`.
-        Threads.@spawn begin
-            Base.wait(event)
-            close(timer)
-        end
-    end
-    return
-end
-
 wait(stream::HIPStream) = hipStreamSynchronize(stream)
 
-function synchronize(stream::HIPStream; blocking::Bool = false)
-    if use_nonblocking_synchronize && !blocking
-        if !_low_latency_synchronize(stream)
-            nonblocking_synchronize(stream)
+# same, but callable from any thread. this bypasses the task-local state, so select the
+# caller's device ourselves: the null stream refers to the current device's.
+function worker_synchronize(stream::HIPStream, dev::HIPDevice)
+    isvalid(stream) || return hipSuccess
+    res = unchecked_hipSetDevice(device_id(dev))
+    res == hipSuccess || return res
+    @gcsafe_ccall(libhip.hipStreamSynchronize(stream::hipStream_t)::hipError_t)
+end
+
+function synchronize(stream::HIPStream; blocking::Bool = false, spin::Bool = true)
+    if GC.in_finalizer()
+        # we can't switch tasks here, and the finalizer selected the context to use
+        wait(stream)
+    elseif use_nonblocking_synchronize && !blocking
+        # wait on a worker thread, so that other tasks (e.g. hostcalls) can run on this one
+        dev = AMDGPU.device()
+        res = cooperative_wait(s -> worker_synchronize(s, dev), stream; isdone, spin)
+        if res === nothing
+            # polling found the stream done. synchronize anyway, which reports errors and
+            # lets HIP release resources.
+            wait(stream)
+        else
+            check(something(res))
             AMDGPU.maybe_collect(; blocking=true)
         end
     else
         AMDGPU.maybe_collect(; blocking=true)
+        wait(stream)
     end
-    # Perform an actual API call even after non-blocking synchronization.
-    wait(stream)
     return
 end
 

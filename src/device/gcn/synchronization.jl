@@ -1,20 +1,4 @@
 
-for ord in UnsafeAtomics.Internal.orderings
-    for sync in (AMDGPU.syncscope_agent, AMDGPU.syncscope_workgroup)
-        @eval @device_function function UnsafeAtomics.fence(::$(typeof(ord)), ::$(typeof(sync)))
-            Base.llvmcall(
-                    $("""
-                    define void @fence() #0 {
-                    entry:
-                        fence $sync $ord
-                        ret void
-                    }
-                    attributes #0 = { alwaysinline }
-                    """, "fence"), Nothing, Tuple{})
-        end
-    end
-end
-
 """
     sync_workgroup()
 

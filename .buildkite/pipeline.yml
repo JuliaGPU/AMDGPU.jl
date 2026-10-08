@@ -1,6 +1,8 @@
 # Commit message tags `[only X]` and `[skip X]` select steps, where X is a comma-separated
-# list of: `tests`, `julia`, `nightly`, `enzyme`, `special`, `docs`, `benchmarks`. Drafts
-# only run the newest release and nightly, and marking ready does not start a new build.
+# list of: `tests`, `julia`, `nightly`, `enzyme`, `special`, `docs`, `benchmarks`. Pull
+# requests only test the oldest and newest Julia release, the others (including nightly)
+# are tested on branch builds. Drafts only run the newest release, and marking ready does
+# not start a new build.
 # See "Continuous integration" in docs/src/testing.md.
 steps:
   - label: "Documentation"
@@ -68,12 +70,24 @@ steps:
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
-  # older releases
+  # the oldest supported release
   - <<: *julia
     matrix:
       setup:
         version:
           - "1.10"
+        test_args:
+          - "--verbose"
+    if: |
+      build.message !~ /\[skip [^\]]*(tests|julia)/ &&
+      (build.message =~ /\[only [^\]]*(tests|julia)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
+
+  # intermediate releases, not tested on pull requests
+  - <<: *julia
+    matrix:
+      setup:
+        version:
           - "1.11"
           - "1.12"
         test_args:
@@ -81,7 +95,7 @@ steps:
     if: |
       build.message !~ /\[skip [^\]]*(tests|julia)/ &&
       (build.message =~ /\[only [^\]]*(tests|julia)/ ||
-       build.message !~ /\[only / && !build.pull_request.draft)
+       build.message !~ /\[only / && build.pull_request.id == null)
 
   - <<: *julia
     matrix:
@@ -90,37 +104,43 @@ steps:
           - "nightly"
         test_args:
           - "--verbose --quickfail"
+    # not tested on pull requests
     if: |
       build.message !~ /\[skip [^\]]*(tests|nightly)/ &&
-      (build.message =~ /\[only [^\]]*(tests|nightly)/ || build.message !~ /\[only /)
+      (build.message =~ /\[only [^\]]*(tests|nightly)/ ||
+       build.message !~ /\[only / && build.pull_request.id == null)
     soft_fail: true
 
-  - label: "Julia {{matrix.version}} Enzyme"
-    matrix:
-      setup:
-        version:
-          - "1.10"
-          - "1.11"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: "{{matrix.version}}"
-      - JuliaCI/julia-test#v1:
-          test_args: "enzyme"
-    agents:
-      queue: "rocm"
-      rocmgpu: "*"
-    if: |
-      build.message !~ /\[skip [^\]]*(tests|enzyme)/ &&
-      (build.message =~ /\[only [^\]]*(tests|enzyme)/ ||
-       build.message !~ /\[only / && !build.pull_request.draft)
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
-    timeout_in_minutes: 45
-    soft_fail: true
-    env:
-      JULIA_NUM_THREADS: 4
-      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
-      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
-      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
+  # Disabled: has failed on every build since at least 2026-09-16, because Enzyme does not
+  # support LLVM.jl 10 yet, which AMDGPU requires ("Unsatisfiable requirements detected for
+  # package Enzyme"). Re-enable once Enzyme is compatible.
+  #
+  # - label: "Julia {{matrix.version}} Enzyme"
+  #   matrix:
+  #     setup:
+  #       version:
+  #         - "1.10"
+  #         - "1.11"
+  #   plugins:
+  #     - JuliaCI/julia#v1:
+  #         version: "{{matrix.version}}"
+  #     - JuliaCI/julia-test#v1:
+  #         test_args: "enzyme"
+  #   agents:
+  #     queue: "rocm"
+  #     rocmgpu: "*"
+  #   if: |
+  #     build.message !~ /\[skip [^\]]*(tests|enzyme)/ &&
+  #     (build.message =~ /\[only [^\]]*(tests|enzyme)/ ||
+  #      build.message !~ /\[only / && !build.pull_request.draft)
+  #   command: "julia --project -e 'using Pkg; Pkg.update()'"
+  #   timeout_in_minutes: 45
+  #   soft_fail: true
+  #   env:
+  #     JULIA_NUM_THREADS: 4
+  #     JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+  #     JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
   - label: "GPU-less environment"
     plugins:
@@ -140,6 +160,7 @@ steps:
        build.message !~ /\[only / && !build.pull_request.draft)
     timeout_in_minutes: 10
 
+  # the label determines the commit status context .github/workflows/Benchmark.yml reacts to
   - label: ":racehorse: Benchmarks"
     plugins:
       - JuliaCI/julia#v1:

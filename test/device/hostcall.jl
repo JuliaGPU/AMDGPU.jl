@@ -28,6 +28,39 @@ using AMDGPU.Device: HostCallHolder, hostcall!
     AMDGPU.Device.free!(hc)
 end
 
+@testset "Call: while waiting for the device" begin
+    # the host side of a hostcall is a task. with a single thread, it can only run while
+    # the thread that waits for the device is not blocked.
+    code = """
+    using AMDGPU
+    using AMDGPU.Device: HostCallHolder, hostcall!
+
+    function kernel(a,b,sig)
+        hostcall!(sig)
+        b[1] = a[1]
+        nothing
+    end
+
+    RA = ROCArray(ones(Float32, 1))
+    RB = ROCArray(zeros(Float32, 1))
+    hc = HostCallHolder(Nothing, Tuple{}) do
+        nothing
+    end
+
+    @roc kernel(RA, RB, hc)
+    AMDGPU.HIP.device_synchronize()
+    Array(RB)[1] == 1f0 || exit(1)
+    """
+    cmd = `$(Base.julia_cmd()) --threads=1 --project=$(Base.active_project()) -e $code`
+    proc = run(pipeline(cmd; stdout, stderr); wait=false)
+    timer = Timer(600) do _
+        kill(proc)
+    end
+    wait(proc)
+    close(timer)
+    @test success(proc)
+end
+
 @testset "Call: Error" begin
     function kernel(a,b,sig)
         hostcall!(sig)

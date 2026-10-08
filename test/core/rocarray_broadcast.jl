@@ -56,8 +56,7 @@ end
         return c
     end
     M = rand(Int128, 10, 10)
-    # flaky on LLVM 18: the kernel intermittently throws instead of miscomputing
-    @test Array(test_kernel.(ROCArray(M), Int128(10))) == test_kernel.(M, Int128(10)) skip=(Base.libllvm_version.major == 18)
+    @test Array(test_kernel.(ROCArray(M), Int128(10))) == test_kernel.(M, Int128(10))
     AMDGPU.synchronize()
 end
 
@@ -67,6 +66,6 @@ end
     x, y = rand(Int128, 5), rand(Int128, 5)
     gx, gy = ROCArray(x), ROCArray(y)
     gy .= gx .* a .+ gy .* b
-    @test Array(gy) == x .* a .+ y .* b broken=(Base.libllvm_version >= v"18")
+    @test Array(gy) == x .* a .+ y .* b
     AMDGPU.synchronize()
 end

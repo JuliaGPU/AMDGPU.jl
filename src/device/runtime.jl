@@ -4,31 +4,12 @@ using Core: LLVMPtr
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
 
-@generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
-    @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T)
-        T_ptr = convert(LLVMType, ptr)
-
-        T_typed_ptr = LLVM.PointerType(T_val, A)
-        llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
-
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
-            res = atomic_cmpxchg!(
-                builder, typed_ptr, parameters(llvm_f)[2],
-                parameters(llvm_f)[3],
-                LLVM.API.LLVMAtomicOrderingAcquireRelease,
-                LLVM.API.LLVMAtomicOrderingAcquire,
-                #=single threaded=# false)
-
-            rv = extract_value!(builder, res, 0)
-            ret!(builder, rv)
-        end
-        call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T, T}, :ptr, :cmp, :val)
-    end
+@llvmgenerated builder function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T)::T where {T, A}
+    T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
+    typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
+    res = atomic_cmpxchg!(builder, typed_ptr, cmp, val,
+                          LLVM.AtomicOrdering.AcquireRelease, LLVM.AtomicOrdering.Acquire)
+    extract_value!(builder, res, 0)
 end
 
 function output_context()
