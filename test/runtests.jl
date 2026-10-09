@@ -114,8 +114,6 @@ if any(name -> startswith(name, "core"), keys(testsuite))
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")
-        if Sys.islinux()
-            include("device/output.jl")
-        end
+        include("device/output.jl")
     end
 end

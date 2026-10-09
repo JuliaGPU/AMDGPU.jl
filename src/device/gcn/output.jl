@@ -110,19 +110,14 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
     blocks = unsafe_load(ptr)
     ptr += sizeof(UInt64)
 
-    # Read pointer to format string.
-    fmt_ptr = Ptr{UInt64}(unsafe_load(ptr))
-    ptr += sizeof(UInt64)
     # Read format string length.
     fmt_len = unsafe_load(ptr)
     ptr += sizeof(UInt64)
 
-    # Read format string into host buffer.
-    fmt_buf = Vector{UInt8}(undef, fmt_len)
-    hostcall_memcpy(
-        convert(Ptr{Cvoid}, pointer(fmt_buf)),
-        convert(Ptr{Cvoid}, fmt_ptr), fmt_len)
-    fmt = String(fmt_buf)
+    # Read format string directly from hostcall buffer.
+    fmt = unsafe_string(reinterpret(Ptr{UInt8}, ptr), fmt_len)
+    padded_len = (fmt_len + 7) & ~7
+    ptr = reinterpret(Ptr{UInt64}, reinterpret(Ptr{UInt8}, ptr) + padded_len)
 
     # Read arguments
     block = 1
@@ -149,11 +144,12 @@ function Base.unsafe_load(ptr::LLVMPtr{ROCPrintfBuffer, AS.Global})
 end
 
 function _rocprintf_fmt(ptr::LLVMPtr{UInt64, AS.Global}, fmt_ptr, fmt_len::Int64)
-    unsafe_store!(ptr, reinterpret(UInt64, fmt_ptr))
-    ptr += sizeof(UInt64)
     unsafe_store!(ptr, UInt64(fmt_len))
     ptr += sizeof(UInt64)
-    return ptr
+    dest = reinterpret(LLVMPtr{UInt8, AS.Global}, ptr)
+    memcpy!(dest, fmt_ptr, fmt_len)
+    padded_len = (fmt_len + 7) & ~7
+    return reinterpret(LLVMPtr{UInt64, AS.Global}, dest + padded_len)
 end
 
 for (id, T) in enumerate((
