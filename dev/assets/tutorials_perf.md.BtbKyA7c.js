@@ -54,28 +54,28 @@ import{_ as i,o as a,c as n,a6 as e}from"./chunks/framework.Buv1X4M9.js";const g
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">define amdgpu_kernel void @_Z10vadd_simd_14ROCDeviceArrayI5Int64Li1ELi1EES1_S1_3ValILi4EE([5 x ptr] %state, ptr addrspace(4) nocapture noundef nonnull readonly byref({ [1 x i64], ptr addrspace(1), i64 }) align 8 dereferenceable(24) %&quot;c::ROCDeviceArray&quot;, ptr addrspace(4) nocapture noundef nonnull readonly byref({ [1 x i64], ptr addrspace(1), i64 }) align 8 dereferenceable(24) %&quot;a::ROCDeviceArray&quot;, ptr addrspace(4) nocapture noundef nonnull readonly byref({ [1 x i64], ptr addrspace(1), i64 }) align 8 dereferenceable(24) %&quot;b::ROCDeviceArray&quot;) local_unnamed_addr #1 {</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">conversion:</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">;  @ perf.md:74 within \`vadd_simd!\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:106 within \`workitemIdx\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:70 within \`workitemIdx_x\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:11 within \`_index\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │││┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:11 within \`macro expansion\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:106 within \`workitemIdx\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:70 within \`workitemIdx_x\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:11 within \`_index\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │││┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:11 within \`macro expansion\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">      %0 = call i32 @llvm.amdgcn.workitem.id.x()</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││└└</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ int.jl:1015 within \`+\` @ int.jl:87</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">     %1 = add nuw nsw i32 %0, 1</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; └└└</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:114 within \`workgroupIdx\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:76 within \`workgroupIdx_x\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:11 within \`_index\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │││┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:11 within \`macro expansion\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:114 within \`workgroupIdx\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:76 within \`workgroupIdx_x\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:11 within \`_index\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │││┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:11 within \`macro expansion\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">      %2 = call i32 @llvm.amdgcn.workgroup.id.x()</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; └└└└</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ int.jl:1015 within \`-\` @ int.jl:86</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">   %3 = zext nneg i32 %2 to i64</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; └</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:122 within \`workgroupDim\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:84 within \`workgroupDim_x\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:29 within \`_dim\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │││┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:29 within \`macro expansion\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:122 within \`workgroupDim\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:84 within \`workgroupDim_x\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:29 within \`_dim\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │││┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/indexing.jl:29 within \`macro expansion\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">      %4 = call ptr addrspace(4) @llvm.amdgcn.implicitarg.ptr()</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">      %5 = getelementptr inbounds i8, ptr addrspace(4) %4, i64 12</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">      %6 = load i16, ptr addrspace(4) %5, align 4</span></span>
@@ -105,8 +105,8 @@ import{_ as i,o as a,c as n,a6 as e}from"./chunks/framework.Buv1X4M9.js";const g
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">   %11 = shl nuw nsw i64 %10, 5</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; └</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">;  @ perf.md:77 within \`vadd_simd!\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:61 within \`pointer\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:64 within \`unsafe_convert\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:61 within \`pointer\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:64 within \`unsafe_convert\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ Base_compiler.jl:54 within \`getproperty\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">     %&quot;a::ROCDeviceArray.ptr_ptr&quot; = getelementptr inbounds i8, ptr addrspace(4) %&quot;a::ROCDeviceArray&quot;, i64 8</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │└└</span></span>
@@ -121,8 +121,8 @@ import{_ as i,o as a,c as n,a6 as e}from"./chunks/framework.Buv1X4M9.js";const g
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">      %13 = getelementptr i8, ptr addrspace(1) %&quot;a::ROCDeviceArray.ptr_ptr.unbox&quot;, i64 %12</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; └└└└</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">;  @ perf.md:78 within \`vadd_simd!\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:61 within \`pointer\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:64 within \`unsafe_convert\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:61 within \`pointer\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:64 within \`unsafe_convert\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ Base_compiler.jl:54 within \`getproperty\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">     %&quot;b::ROCDeviceArray.ptr_ptr&quot; = getelementptr inbounds i8, ptr addrspace(4) %&quot;b::ROCDeviceArray&quot;, i64 8</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │└└</span></span>
@@ -133,8 +133,8 @@ import{_ as i,o as a,c as n,a6 as e}from"./chunks/framework.Buv1X4M9.js";const g
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">      %14 = getelementptr i8, ptr addrspace(1) %&quot;b::ROCDeviceArray.ptr_ptr.unbox&quot;, i64 %12</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; └└└└</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">;  @ perf.md:79 within \`vadd_simd!\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:61 within \`pointer\`</span></span>
-<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu2-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:64 within \`unsafe_convert\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:61 within \`pointer\`</span></span>
+<span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │┌ @ /var/lib/buildkite-agent/builds/amdgpu1-luraess-com/julialang/amdgpu-dot-jl/src/device/gcn/array.jl:64 within \`unsafe_convert\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; ││┌ @ Base_compiler.jl:54 within \`getproperty\`</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">     %&quot;c::ROCDeviceArray.ptr_ptr&quot; = getelementptr inbounds i8, ptr addrspace(4) %&quot;c::ROCDeviceArray&quot;, i64 8</span></span>
 <span class="line"><span style="--shiki-light:#24292e;--shiki-dark:#e1e4e8;">; │└└</span></span>
