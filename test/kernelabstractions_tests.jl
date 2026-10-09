@@ -26,13 +26,6 @@ end
 # TODO fix Printing
 # sparse is tested by rocSPARSE; the others run kernels on KA's POCL-based CPU back-end
 skip_tests = ["Printing", "sparse", "CPU synchronization", "fallback test: callable types"]
-if Sys.iswindows()
-    # TODO
-    # We do not support hostcalls on Windows yet.
-    push!(skip_tests, "Convert")
-    # Also launches malloc hostcall for some reason...
-    push!(skip_tests, "Private")
-end
 
 Testsuite.testsuite(
     ROCBackend, "ROCM", AMDGPU, ROCArray, AMDGPU.ROCDeviceArray;
@@ -66,10 +59,8 @@ Testsuite.testsuite(
     end
 end
 
-if Sys.islinux()
-    # Disable global malloc hostcall started by conversion tests.
-    AMDGPU.synchronize(; stop_hostcalls=true)
-end
+# Disable global malloc hostcall started by conversion tests.
+AMDGPU.synchronize(; stop_hostcalls=true)
 
 @testset "launch configuration" begin
     backend = ROCBackend()
