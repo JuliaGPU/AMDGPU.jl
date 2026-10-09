@@ -2,8 +2,11 @@
 
 Hostcalls provide a means for GPU-CPU communications within running kernels.
 
-AMDGPU.jl provides its own implementation of hostcalls, relying on HSA signals.
+AMDGPU.jl provides its own implementation of hostcalls, relying on HSA signals on Linux, or emulated signals allocated via HIP memory manager without HSA runtime support (such as Windows).
 Currently, hostcalls are used for device-side allocations, printing and exception reporting.
+
+!!! note "Emulated signals"
+    On systems where the HSA runtime is available, AMDGPU.jl uses native HSA signals by default. You can force the emulated signal path by setting the environment variable `JULIA_AMDGPU_FORCE_EMULATED_SIGNALS=1` before launching Julia.
 
 Some of the hostcalls (global hostcalls), are launched automatically, if their
 usage is detected during compilation (e.g. device-side allocations, exception reporting).
