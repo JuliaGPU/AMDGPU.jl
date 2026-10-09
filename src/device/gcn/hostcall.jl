@@ -180,7 +180,6 @@ function HostCallHolder(
                     prev == DEVICE_ERR_SENTINEL
                 not_used && break
             end
-            destroy_hostcall_signal!(signal)
         end
         return
     end
@@ -192,6 +191,7 @@ function free!(holder::HostCallHolder)
         buf_ptr = reinterpret(Ptr{Cvoid}, holder.hc.buf_ptr)
         HIP.hipHostFree(buf_ptr)
         Mem.free.(holder.ret_bufs)
+        destroy_hostcall_signal!(HSA.Signal(holder.hc.signal_handle))
     end
 end
 
