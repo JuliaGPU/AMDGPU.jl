@@ -1,5 +1,5 @@
 @inline function hostcall_memcpy(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Integer)
-    @static if Sys.iswindows()
+    if FORCE_EMULATED_SIGNALS
         unsafe_copyto!(reinterpret(Ptr{UInt8}, dst), reinterpret(Ptr{UInt8}, src), sz)
     else
         HSA.memory_copy(dst, src, sz) |> Runtime.check
