@@ -44,9 +44,8 @@ function downgrade_bitcode(input::Vector{UInt8}, version::VersionNumber)
 end
 
 # bitcode versions `llvm-downgrade` can target.
-# The 15 target emits opaque pointers, but GPUCompiler uses typed pointers on LLVM 15 and 16
-# (Julia 1.10 and 1.11), so both use the 14 target instead.
-const DOWNGRADE_TARGETS = (v"14", #=v"15",=# v"18")
+# GPUCompiler uses typed pointers on LLVM 15 and 16 (Julia 1.10 and 1.11), so both use the 14 target
+const DOWNGRADE_TARGETS = (v"14", v"18", v"20")
 
 # downgrade the device libs to the latest LLVM version Julia supports
 function downgrade_device_libs(src_dir::String)::String
