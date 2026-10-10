@@ -20,6 +20,17 @@ using Base.FastMath
     end
 end
 
+@testset "min/max" begin
+    # Julia's semantics: NaN propagates, and -0.0 < 0.0
+    a = [NaN, 1, -0.0, 0.0, 2, NaN, Inf, -Inf]
+    b = [1, NaN, 0.0, -0.0, 3, NaN, NaN, 1]
+    for T in (Float16, Float32, Float64)
+        x, y = T.(a), T.(b)
+        @test isequal(Array(max.(ROCArray(x), ROCArray(y))), max.(x, y))
+        @test isequal(Array(min.(ROCArray(x), ROCArray(y))), min.(x, y))
+    end
+end
+
 @testset "Fast min/max" begin
     function ker!(x)
         x[1] = @fastmath max(x[1], zero(eltype(x)))
