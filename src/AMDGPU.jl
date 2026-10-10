@@ -11,7 +11,6 @@ using LLVM
 using Preferences
 using Printf
 
-import AcceleratedKernels as AK
 import UnsafeAtomics
 import Atomix
 import Atomix: @atomic, @atomicswap, @atomicreplace
@@ -122,12 +121,6 @@ include("array.jl")
 include("conversions.jl")
 include("broadcast.jl")
 include("exception_handler.jl")
-
-include("kernels/mapreduce.jl")
-include("kernels/indexing.jl")
-include("kernels/accumulate.jl")
-include("kernels/sorting.jl")
-include("kernels/reverse.jl")
 
 include("blas/rocBLAS.jl")
 include("solver/rocSOLVER.jl")
