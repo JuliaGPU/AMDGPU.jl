@@ -1,5 +1,5 @@
 @inline function hostcall_memcpy(dst::Ptr{Cvoid}, src::Ptr{Cvoid}, sz::Integer)
-    if FORCE_EMULATED_SIGNALS
+    if use_emulated_signals()
         unsafe_copyto!(reinterpret(Ptr{UInt8}, dst), reinterpret(Ptr{UInt8}, src), sz)
     else
         HSA.memory_copy(dst, src, sz) |> Runtime.check

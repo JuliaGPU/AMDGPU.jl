@@ -82,7 +82,7 @@ end
 end
 
 function create_hostcall_signal(init_val::Int64 = 1)
-    if FORCE_EMULATED_SIGNALS
+    if use_emulated_signals()
         ptr_ref = Ref{Ptr{Cvoid}}()
         HIP.hipHostMalloc(ptr_ref, 64, HIP.hipHostMallocCoherent)
         # update_mbox follows event_mailbox_ptr if it isn't null
@@ -99,7 +99,7 @@ function create_hostcall_signal(init_val::Int64 = 1)
 end
 
 function destroy_hostcall_signal!(signal::HSA.Signal)
-    if FORCE_EMULATED_SIGNALS
+    if use_emulated_signals()
         ptr = reinterpret(Ptr{Cvoid}, signal.handle)
         HIP.hipHostFree(ptr)
     else
@@ -113,7 +113,7 @@ end
     if O ∉ (:release, :relaxed)
         throw(ArgumentError("Unsupported `order`: `$order`. Supported values are: `Val{:release}` and `Val{:relaxed}`."))
     end
-    if FORCE_EMULATED_SIGNALS
+    if use_emulated_signals()
         ptr = reinterpret(Ptr{Int64}, signal.handle + AMD_SIGNAL_VALUE_OFFSET)
         if O == :release
             unsafe_store!(ptr, Int64(value), :release)
@@ -135,7 +135,7 @@ end
     if O ∉ (:acquire, :relaxed)
         throw(ArgumentError("Unsupported `order`: `$order`. Supported values are: `Val{:acquire}` and `Val{:relaxed}`."))
     end
-    if FORCE_EMULATED_SIGNALS
+    if use_emulated_signals()
         ptr = reinterpret(Ptr{Int64}, signal.handle + AMD_SIGNAL_VALUE_OFFSET)
         if O == :acquire
             return unsafe_load(ptr, :acquire)
@@ -152,7 +152,7 @@ end
 end
 
 @inline function host_signal_cmpxchg!(signal::HSA.Signal, expected, value)
-    if FORCE_EMULATED_SIGNALS
+    if use_emulated_signals()
         ptr = reinterpret(Ptr{Int64}, signal.handle + AMD_SIGNAL_VALUE_OFFSET)
         return unsafe_replace!(
             ptr, Int64(expected), Int64(value), :acquire_release, :acquire).old

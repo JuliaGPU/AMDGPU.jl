@@ -19,10 +19,12 @@ import .AMDGPU: aligned_sizeof
 import .AMDGPU: libhsaruntime
 import ..UnsafeAtomics
 
-const FORCE_EMULATED_SIGNALS = (
-    haskey(ENV, "JULIA_AMDGPU_FORCE_EMULATED_SIGNALS") &&
-    parse(Bool, ENV["JULIA_AMDGPU_FORCE_EMULATED_SIGNALS"])
-) || isempty(libhsaruntime)
+@inline function use_emulated_signals()
+    if haskey(ENV, "JULIA_AMDGPU_FORCE_EMULATED_SIGNALS")
+        return parse(Bool, ENV["JULIA_AMDGPU_FORCE_EMULATED_SIGNALS"])
+    end
+    return isempty(libhsaruntime)
+end
 
 include("addrspaces.jl")
 include("strings.jl")
