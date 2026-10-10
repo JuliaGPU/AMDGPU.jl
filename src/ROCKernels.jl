@@ -51,9 +51,13 @@ end
 KI.supports_float64(::ROCBackend) = true
 KI.supports_atomics(::ROCBackend) = true
 KI.supports_subgroups(::ROCBackend) = true
-# `shfl_down` decomposes other types into 32-bit shuffles
-KI.supports_shuffle(::ROCBackend, ::Type{T}) where {T} =
-    T <: Union{Bool, Base.BitInteger, Base.IEEEFloat, Complex{<:Union{Base.BitInteger, Base.IEEEFloat}}}
+# wavefronts are formed from consecutive linear work-item indices, and execute independently
+KI.supports_linear_subgroups(::ROCBackend) = true
+KI.supports_independent_subgroups(::ROCBackend) = true
+# the types the shuffles below support, by decomposing them into 32-bit `ds_bpermute`s;
+# KernelInterface shuffles other `isbits` types (e.g. `Complex`) field by field
+const ShuffleTypes = Union{Bool, Base.BitInteger, Base.IEEEFloat}
+KI.supports_shuffle(::ROCBackend, ::Type{T}) where {T <: ShuffleTypes} = true
 
 function KI.priority!(::ROCBackend, priority::Symbol)
     priority ∉ (:high, :normal, :low) && error(
@@ -219,6 +223,8 @@ end
     return min(ws, workgroup_items() - (linear_workitem_id() ÷ ws) * ws) % T
 end
 
+# a constant: `wavefrontsize` is folded to the wavefront size the kernel is compiled for, see
+# `fold_wavefrontsize!`
 @device_override KI.get_max_sub_group_size(::Type{T}) where {T} = Device.wavefrontsize() % T
 
 @device_override KI.get_num_sub_groups(::Type{T}) where {T} = cld(workgroup_items(), Device.wavefrontsize()) % T
@@ -245,9 +251,51 @@ end
     Device.sync_wavefront()
 end
 
-@device_override function KI.shfl_down(val::T, offset::Integer) where T
-    @inline Device.shfl_down(val, offset % Cint)
+## communication
+
+# read `val` from the work-item in the 0-based hardware lane `lane`. `ds_bpermute` only uses
+# the low bits of the address, so lanes out of range read some other lane instead of
+# trapping. unlike `Device.shfl` etc., the lanes are the hardware lanes (see
+# `hardware_lane`), not `activelane`.
+@inline function bpermute_lane(val, lane::Cint)
+    return Device._shfl(x -> Device.bpermute(lane << 0x2, x), val)
 end
+
+@inline lane_id() = hardware_lane() % Cint
+
+@device_override @inline KI.shfl(val::T, lane::Integer) where {T <: ShuffleTypes} =
+    bpermute_lane(val, (lane % Cint) - Cint(1))
+
+# where the source lane is past the wavefront, `shfl_down` and `shfl_up` read from the
+# work-item itself, like CUDA's shuffles (rather than from the lane `ds_bpermute` wraps around
+# to). The offset is compared before it is narrowed, so that large offsets do too.
+# `wavefrontsize` is folded to a constant, see `fold_wavefrontsize!`.
+@device_override @inline function KI.shfl_down(val::T, offset::Integer) where {T <: ShuffleTypes}
+    lane = lane_id()
+    ws = Device.wavefrontsize() % Cint
+    return bpermute_lane(val, ifelse(offset < ws - lane, lane + (offset % Cint), lane))
+end
+
+@device_override @inline function KI.shfl_up(val::T, offset::Integer) where {T <: ShuffleTypes}
+    lane = lane_id()
+    return bpermute_lane(val, ifelse(offset <= lane, lane - (offset % Cint), lane))
+end
+
+# `mask` is below the wavefront size, so the source lane is in the wavefront
+@device_override @inline KI.shfl_xor(val::T, mask::Integer) where {T <: ShuffleTypes} =
+    bpermute_lane(val, lane_id() ⊻ (mask % Cint))
+
+# the shuffles with a `width` use KernelInterface's fallbacks, a `ds_bpermute` from a lane
+# computed with a few integer operations, like `Device.shfl` etc. (which use `activelane`).
+
+# `ballot` only sets the bits of active lanes, i.e. of the work-items of the sub-group, and
+# its result is uniform. `wavefrontsize`, which selects the 32- or 64-bit ballot, is folded
+# to the wavefront size the kernel is compiled for (see `fold_wavefrontsize!`).
+@device_override @inline KI.sub_group_ballot(pred::Bool) = Device.ballot(pred)
+
+@device_override @inline KI.sub_group_any(pred::Bool) = Device.ballot(pred) != 0
+
+@device_override @inline KI.sub_group_all(pred::Bool) = Device.ballot(!pred) == 0
 
 # not supported, see the `ROCBackend` docstring
 @device_override @inline KI._print(args...) = nothing
