@@ -49,8 +49,8 @@ AMDGPUSparseMatricesCSRExt = "SparseMatricesCSR"
 AMDGPUSpecialFunctionsExt = "SpecialFunctions"
 
 [sources]
-KernelAbstractions = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main"}
-KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main", subdir = "lib/KernelInterface"}
+KernelAbstractions = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "vc/ki-subgroup-ops"}
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "vc/ki-subgroup-ops", subdir = "lib/KernelInterface"}
 
 [compat]
 AMDGPU_LLVM_Backend_jll = "23"
