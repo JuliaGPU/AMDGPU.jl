@@ -11,6 +11,7 @@ using LLVM
 using Preferences
 using Printf
 
+import KernelInterface
 import UnsafeAtomics
 import Atomix
 import Atomix: @atomic, @atomicswap, @atomicreplace
@@ -79,9 +80,11 @@ include("memory.jl")
 
 Base.Experimental.@MethodTable(method_table)
 
-# Needs to be before Device since sync uses this. GPUCompiler emits `device` as LLVM's `agent`.
+# Needs to be before Device since sync uses this. GPUCompiler emits `device` as LLVM's
+# `agent`, and `subgroup` as `wavefront`.
 const syncscope_agent = UnsafeAtomics.device
 const syncscope_workgroup = UnsafeAtomics.workgroup
+const syncscope_wavefront = UnsafeAtomics.subgroup
 
 # Referenced by the generated `kernel_state()`, and generators run in the world they are
 # defined in, so this has to precede the device code.
@@ -102,7 +105,7 @@ import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 import .Device: threadIdx, blockIdx, blockDim
-import .Device: sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
+import .Device: sync_workgroup, sync_wavefront, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
 import .Device: @rocprint, @rocprintln, @rocprintf
 
 export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
@@ -132,6 +135,7 @@ include("dnn/MIOpen.jl")
 
 include("random.jl")
 
+# KernelInterface
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend

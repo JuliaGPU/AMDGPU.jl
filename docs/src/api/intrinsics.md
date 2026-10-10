@@ -23,6 +23,7 @@ AMDGPU.Device.blockDim
 
 ```@docs
 AMDGPU.sync_workgroup
+AMDGPU.sync_wavefront
 AMDGPU.sync_workgroup_count
 AMDGPU.sync_workgroup_and
 AMDGPU.sync_workgroup_or

@@ -70,25 +70,63 @@ steps:
       JULIA_AMDGPU_HIP_MUST_LOAD: "1"
       JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
+  # XXX: KernelAbstractions 0.10 and KernelInterface 0.4 aren't registered yet. Without
+  #      workspaces (Julia 1.11), only the test project, which depends on KernelAbstractions,
+  #      can take it from [sources], and Julia 1.10 doesn't support [sources] at all. So run
+  #      the tests in the test project, developing the packages from git on Julia 1.10, in
+  #      one Pkg operation because AMDGPU's compat excludes the registered versions.
+  #
   # the oldest supported release
-  - <<: *julia
+  - &julia_test_project
+    label: "Julia {{matrix.version}}"
     matrix:
       setup:
         version:
           - "1.10"
-        test_args:
-          - "--verbose"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "{{matrix.version}}"
+      - JuliaCI/julia-coverage#v1:
+          codecov: true
+    agents:
+      queue: "rocm"
+      rocmgpu: "*"
     if: |
       build.message !~ /\[skip [^\]]*(tests|julia)/ &&
       (build.message =~ /\[only [^\]]*(tests|julia)/ ||
        build.message !~ /\[only / && !build.pull_request.draft)
+    commands: |
+      git clone --depth 1 --branch main https://github.com/JuliaGPU/KernelAbstractions.jl ka
+      julia --project=test -e '
+        using Pkg
+        if VERSION < v"1.11"
+          Pkg.develop([PackageSpec(; path) for path in (".", "ka", "ka/lib/KernelInterface")])
+        else
+          Pkg.instantiate()
+        end'
+      julia --project=test --check-bounds=yes --code-coverage=@. test/runtests.jl --verbose
+    timeout_in_minutes: 90
+    env:
+      JULIA_NUM_THREADS: 4
+      JULIA_AMDGPU_CORE_MUST_LOAD: "1"
+      JULIA_AMDGPU_HIP_MUST_LOAD: "1"
+      JULIA_AMDGPU_DISABLE_ARTIFACTS: "1"
 
   # intermediate releases, not tested on pull requests
-  - <<: *julia
+  - <<: *julia_test_project
     matrix:
       setup:
         version:
           - "1.11"
+    if: |
+      build.message !~ /\[skip [^\]]*(tests|julia)/ &&
+      (build.message =~ /\[only [^\]]*(tests|julia)/ ||
+       build.message !~ /\[only / && build.pull_request.id == null)
+
+  - <<: *julia
+    matrix:
+      setup:
+        version:
           - "1.12"
         test_args:
           - "--verbose"
@@ -145,7 +183,8 @@ steps:
   - label: "GPU-less environment"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.10"
+          # XXX: needs Julia 1.12+ to pick up KernelAbstractions 0.10 from [sources]
+          version: "1.12"
       - JuliaCI/julia-test#v1:
           run_tests: false
     command: |

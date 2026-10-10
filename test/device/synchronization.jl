@@ -189,4 +189,22 @@ end
     AMDGPU.unsafe_free!(all_workitems_minus_one)
 end
 
+function test_sync_wavefront!(out)
+    i = workitemIdx().x
+    ws = Device.wavefrontsize()
+    shmem = @ROCStaticLocalArray(Int32, 64, false)
+    shmem[i] = i
+    AMDGPU.sync_wavefront()
+    # the value written by the next lane of the wavefront
+    out[i] = shmem[mod1(i + 1, ws)]
+    return
+end
+
+@testset "sync_wavefront" begin
+    ws = Int(AMDGPU.HIP.wavefrontsize(AMDGPU.device()))
+    out = ROCArray{Int32}(undef, ws)
+    @roc groupsize=ws test_sync_wavefront!(out)
+    @test Array(out) == [mod1(i + 1, ws) for i in 1:ws]
+end
+
 end
