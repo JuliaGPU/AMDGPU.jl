@@ -76,17 +76,17 @@ function load_and_link!(devlib::DevLib, mod::LLVM.Module)
     inline_attr = EnumAttribute("alwaysinline")
     noinline_attr = EnumAttribute("noinline")
 
-    for f in LLVM.functions(lib)
-        fn_name = LLVM.name(f)
+    for f in lib.functions
+        fn_name = f.name
 
         # FIXME: We should be able to inline this, that we can't means
         #        we are inserting calls to it late.
         startswith(fn_name, "__ockl_hsa_signal") && continue
 
-        attrs = function_attributes(f)
+        attrs = f.function_attributes
         inline = true
         for attr in collect(attrs)
-            if kind(attr) == kind(noinline_attr)
+            if attr.kind == noinline_attr.kind
                 inline = false
                 break
             end
@@ -95,8 +95,8 @@ function load_and_link!(devlib::DevLib, mod::LLVM.Module)
     end
 
     # override triple and datalayout to avoid warnings
-    triple!(lib, triple(mod))
-    datalayout!(lib, datalayout(mod))
+    lib.triple = mod.triple
+    lib.datalayout = mod.datalayout
     LLVM.link!(mod, lib)
     return
 end

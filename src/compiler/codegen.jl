@@ -57,14 +57,14 @@ function GPUCompiler.finish_module!(
         wavefrontsize64=job.config.params.wavefrontsize64)
 
     # Set kernel target cpu and features.
-    if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
+    if entry.callconv == LLVM.API.LLVMAMDGPUKERNELCallConv
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
         target_features_attr = StringAttribute("target-features", job.config.target.features)
         atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
 
         # TODO add convergent, mustprogress, willreturn attributes?
 
-        attrs = LLVM.function_attributes(entry)
+        attrs = entry.function_attributes
         push!(attrs, target_cpu_attr)
         push!(attrs, target_features_attr)
         push!(attrs, atomic_attr)
@@ -82,10 +82,10 @@ function GPUCompiler.finish_module!(
         "signal_exception", "report_exception", "malloc", "__throw_")
     inline_attr = EnumAttribute("alwaysinline")
 
-    for fn in LLVM.functions(mod)
-        do_inline = any(occursin.(target_fns, LLVM.name(fn)))
+    for fn in mod.functions
+        do_inline = any(occursin.(target_fns, fn.name))
         if job.config.params.unsafe_fp_atomics || do_inline
-            attrs = LLVM.function_attributes(fn)
+            attrs = fn.function_attributes
 
             do_inline && inline_attr ∉ collect(attrs) &&
                 push!(attrs, inline_attr)
@@ -99,13 +99,13 @@ function GPUCompiler.finish_module!(
         fp_binops = (LLVM.API.LLVMAtomicRMWBinOpFAdd, LLVM.API.LLVMAtomicRMWBinOpFSub,
                      LLVM.API.LLVMAtomicRMWBinOpFMax, LLVM.API.LLVMAtomicRMWBinOpFMin)
         empty_md = MDNode(Metadata[])
-        for fn in LLVM.functions(mod), bb in LLVM.blocks(fn), inst in LLVM.instructions(bb)
+        for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
             inst isa LLVM.AtomicRMWInst || continue
-            op = LLVM.binop(inst)
+            op = inst.binop
             op ∈ fp_binops || continue
-            md = LLVM.metadata(inst)
+            md = inst.metadata
             md["amdgpu.no.fine.grained.memory"] = empty_md
-            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && LLVM.value_type(inst) == LLVM.FloatType()
+            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && inst.value_type isa LLVM.FloatType
                 md["amdgpu.ignore.denormal.mode"] = empty_md
             end
         end
@@ -208,8 +208,8 @@ function find_global_hostcalls(mod::LLVM.Module)
         :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
 
     global_hostcalls = Symbol[]
-    for gbl in LLVM.globals(mod), gbl_name in global_hostcall_names
-        occursin("__$gbl_name", LLVM.name(gbl)) || continue
+    for gbl in mod.globals, gbl_name in global_hostcall_names
+        occursin("__$gbl_name", gbl.name) || continue
         push!(global_hostcalls, gbl_name)
     end
     return global_hostcalls
@@ -236,8 +236,8 @@ function hipcompile(@nospecialize(job::CompilerJob))
         """
     end
 
-    entry = LLVM.name(meta.entry)
-    extinit_globals = filter(isextinit, collect(LLVM.globals(meta.ir))) .|> LLVM.name
+    entry = meta.entry.name
+    extinit_globals = [gv.name for gv in meta.ir.globals if gv.externally_initialized]
     if !isempty(extinit_globals)
         @warn """
         HIP backend does not support setting extinit globals.

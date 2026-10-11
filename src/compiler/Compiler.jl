@@ -4,7 +4,7 @@ import Core: LLVMPtr
 import LLD_jll
 
 using ..GPUCompiler
-using ..LLVM
+using ..LLVM, ..LLVM.IR, ..LLVM.Build, ..LLVM.Passes
 using Printf
 
 import ..AMDGPU
