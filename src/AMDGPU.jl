@@ -7,7 +7,7 @@ using GPUCompiler
 using GPUArrays
 using GPUArrays: allowscalar
 using Libdl
-using LLVM, LLVM.Interop
+using LLVM
 using Preferences
 using Printf
 

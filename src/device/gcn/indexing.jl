@@ -1,76 +1,47 @@
 # Indexing and dimensions
 
-@generated function _index(::Val{fname}, ::Val{name}, ::Val{range}) where {fname, name, range}
-    @dispose ctx=Context() begin
-        T_int32 = LLVM.Int32Type()
+@llvmgenerated builder function _index(::Val{fname}, ::Val{name}, ::Val{range})::UInt32 where {fname, name, range}
+    T_int32 = LLVM.Int32Type()
 
-        # create function
-        llvm_f, _ = create_function(T_int32)
-        mod = LLVM.parent(llvm_f)
+    # call the indexing intrinsic
+    intr_typ = LLVM.FunctionType(T_int32)
+    intr = LLVM.Function(current_module(builder), "llvm.amdgcn.$fname.id.$name", intr_typ)
+    idx = call!(builder, intr_typ, intr)
 
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            # call the indexing intrinsic
-            intr_typ = LLVM.FunctionType(T_int32)
-            intr = LLVM.Function(mod, "llvm.amdgcn.$fname.id.$name", intr_typ)
-            idx = call!(builder, intr_typ, intr)
-
-            # attach range metadata
-            metadata(idx)[LLVM.MD_range] = MDNode([
-                ConstantInt(UInt32(range.start)),
-                ConstantInt(UInt32(range.stop))])
-            ret!(builder, idx)
-        end
-
-        call_function(llvm_f, UInt32)
-    end
+    # attach range metadata
+    idx.metadata[MD_range] = MDNode([
+        ConstantInt(UInt32(range.start)),
+        ConstantInt(UInt32(range.stop))])
+    idx
 end
 
-@generated function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T}) where {base, off, range, T}
-    @dispose ctx=Context() begin
-        T_int8 = LLVM.Int8Type()
-        T_int32 = LLVM.Int32Type()
+@llvmgenerated builder function _dim(::Val{base}, ::Val{off}, ::Val{range}, ::Type{T})::UInt32 where {base, off, range, T}
+    T_int8 = LLVM.Int8Type()
+    T_int32 = LLVM.Int32Type()
 
-        _as = convert(Int, AS.Constant)
-        T_ptr_i8 = LLVM.PointerType(T_int8, _as)
-        T_ptr_i32 = LLVM.PointerType(T_int32, _as)
+    _as = convert(Int, AS.Constant)
+    T_ptr_i8 = LLVM.PointerType(T_int8, _as)
 
-        T_T = convert(LLVMType, T)
-        T_ptr_T = LLVM.PointerType(T_T, _as)
+    T_T = convert(LLVMType, T)
+    T_ptr_T = LLVM.PointerType(T_T, _as)
 
-        # create function
-        llvm_f, _ = create_function(T_int32)
-        mod = LLVM.parent(llvm_f)
+    # get the kernel dispatch pointer
+    intr_typ = LLVM.FunctionType(T_ptr_i8)
+    intr = LLVM.Function(current_module(builder), "llvm.amdgcn.dispatch.ptr", intr_typ)
+    ptr = call!(builder, intr_typ, intr)
 
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
+    # load the index
+    offset = base + ((off - 1) * aligned_sizeof(T))
+    idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
+    idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
+    idx_T = load!(builder, T_T, idx_ptr_T)
+    idx = zext!(builder, idx_T, T_int32)
 
-            # get the kernel dispatch pointer
-            intr_typ = LLVM.FunctionType(T_ptr_i8)
-            intr = LLVM.Function(mod, "llvm.amdgcn.dispatch.ptr", intr_typ)
-            ptr = call!(builder, intr_typ, intr)
-
-            # load the index
-            offset = base + ((off - 1) * aligned_sizeof(T))
-            idx_ptr_i8 = inbounds_gep!(builder, T_int8, ptr, [ConstantInt(offset)])
-            idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
-            idx_T = load!(builder, T_T, idx_ptr_T)
-            idx = zext!(builder, idx_T, T_int32)
-
-            # attach range metadata
-            metadata(idx_T)[LLVM.MD_range] = MDNode([
-                ConstantInt(T(range.start)),
-                ConstantInt(T(range.stop))])
-            ret!(builder, idx)
-        end
-
-        call_function(llvm_f, UInt32)
-    end
+    # attach range metadata
+    idx_T.metadata[MD_range] = MDNode([
+        ConstantInt(T(range.start)),
+        ConstantInt(T(range.stop))])
+    idx
 end
 
 # TODO: look these up for the current device/queue
