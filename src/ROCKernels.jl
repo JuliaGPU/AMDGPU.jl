@@ -54,8 +54,13 @@ KI.supports_subgroups(::ROCBackend) = true
 # wavefronts are formed from consecutive linear work-item indices, and execute independently
 KI.supports_linear_subgroups(::ROCBackend) = true
 KI.supports_independent_subgroups(::ROCBackend) = true
+# the functions with a `width` only need the lanes of the caller's segment: a `ds_bpermute`
+# only involves the lanes it reads from, `llvm.amdgcn.ballot` only reports the lanes that
+# execute it, and `sub_group_barrier` is wavefront-scope fences around
+# `llvm.amdgcn.wave.barrier`, which (like HIP's tile `sync`) part of a wavefront can execute
+KI.supports_partitionable_subgroups(::ROCBackend) = true
 # the types the shuffles below support, by decomposing them into 32-bit `ds_bpermute`s;
-# KernelInterface shuffles other `isbits` types (e.g. `Complex`) field by field
+# KernelInterface shuffles other `isbits` types (e.g. `Complex`) as `UInt32` words
 const ShuffleTypes = Union{Bool, Base.BitInteger, Base.IEEEFloat}
 KI.supports_shuffle(::ROCBackend, ::Type{T}) where {T <: ShuffleTypes} = true
 
@@ -287,6 +292,8 @@ end
 
 # the shuffles with a `width` use KernelInterface's fallbacks, a `ds_bpermute` from a lane
 # computed with a few integer operations, like `Device.shfl` etc. (which use `activelane`).
+# so do the votes, collectives and barrier with a `width`, which use the functions below
+# and the ones without a `width`.
 
 # `ballot` only sets the bits of active lanes, i.e. of the work-items of the sub-group, and
 # its result is uniform. `wavefrontsize`, which selects the 32- or 64-bit ballot, is folded
