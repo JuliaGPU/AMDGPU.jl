@@ -170,8 +170,6 @@ function HostCallHolder(
                 rethrow(err)
             end
         finally
-            # We need to destroy the hostcall signal, but first we need to ensure
-            # that the device is no longer using it.
             while !Runtime.RT_EXITING[]
                 prev = host_signal_load(signal)
                 not_used =
@@ -188,6 +186,10 @@ end
 
 function free!(holder::HostCallHolder)
     if !Runtime.RT_EXITING[]
+        # We need to destroy the hostcall signal, but first we need to ensure
+        # that the device is no longer using it.
+        finish!(holder)
+        try wait(holder.task) catch end
         buf_ptr = reinterpret(Ptr{Cvoid}, holder.hc.buf_ptr)
         HIP.hipHostFree(buf_ptr)
         Mem.free.(holder.ret_bufs)
