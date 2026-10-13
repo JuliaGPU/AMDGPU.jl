@@ -3,6 +3,7 @@ struct HIPDevice
     device_id::Cint
     gcn_arch::String
     wavefrontsize::Cint
+    max_workgroup_dims::NTuple{3, Int}
 end
 
 const DEFAULT_DEVICE = Ref{Union{Nothing, HIPDevice}}(nothing)
@@ -18,7 +19,8 @@ function HIPDevice(device_id::Integer)
     gcn_arch = unsafe_string(pointer([props.gcnArchName...]))
 
     wavefrontsize = props.warpSize
-    HIPDevice(device_ref[], device_id, gcn_arch, wavefrontsize)
+    max_workgroup_dims = Int.(props.maxThreadsDim)
+    HIPDevice(device_ref[], device_id, gcn_arch, wavefrontsize, max_workgroup_dims)
 end
 
 """
@@ -35,6 +37,13 @@ device_id(d::HIPDevice) = d.device_id - 1
 Get size of the wavefront. AMD GPUs support either 32 or 64.
 """
 wavefrontsize(d::HIPDevice)::Cint = d.wavefrontsize
+
+"""
+    max_workgroup_dims(d::HIPDevice)::NTuple{3, Int}
+
+Get the maximum number of work-items along each dimension of a workgroup.
+"""
+max_workgroup_dims(d::HIPDevice)::NTuple{3, Int} = d.max_workgroup_dims
 
 """
     gcn_arch(d::HIPDevice)::String

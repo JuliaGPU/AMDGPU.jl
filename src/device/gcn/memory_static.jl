@@ -20,8 +20,10 @@
     gv = GlobalVariable(current_module(builder), gv_typ, name, as)
     if len > 0
         if as == AS.Local
-            gv.linkage = LLVM.Linkage.External
-            # NOTE: Backend doesn't support initializer for local AS
+            # every call site gets its own allocation. local memory can't be
+            # initialized, so use an `undef` initializer, which the backend accepts.
+            gv.linkage = LLVM.Linkage.Internal
+            gv.initializer = UndefValue(gv_typ)
         elseif as == AS.Private
             gv.linkage = LLVM.Linkage.Internal
             gv.initializer = null(gv_typ)
