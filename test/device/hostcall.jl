@@ -264,6 +264,7 @@ end
     code = """
     using AMDGPU
     using AMDGPU.Device: HostCallHolder, hostcall!, @rocprintf
+    AMDGPU.Device.use_emulated_signals() || exit(2)
 
     function kernel(a,b,sig)
         hostcall!(sig)
@@ -288,13 +289,15 @@ end
     """
     cmd = `$(Base.julia_cmd()) --threads=1 --project=$(Base.active_project()) -e $code`
     cmd = addenv(cmd, "JULIA_AMDGPU_FORCE_EMULATED_SIGNALS" => "1")
-    proc = run(pipeline(cmd; stdout, stderr); wait=false)
+    out = tempname()
+    proc = run(pipeline(cmd; stdout=out, stderr); wait=false)
     timer = Timer(600) do _
         kill(proc)
     end
     wait(proc)
     close(timer)
     @test success(proc)
+    @test occursin("Hello World!", read(out, String))
 end
 
 end

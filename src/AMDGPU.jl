@@ -147,7 +147,7 @@ function __init__()
     global _ROCSPARSE_VERSION = ""
 
     force_emulated = parse(Bool, get(ENV, "JULIA_AMDGPU_FORCE_EMULATED_SIGNALS", "0"))
-    Device.FORCE_EMULATED_SIGNALS[] = force_emulated || isempty(libhsaruntime)
+    Device.EMULATED_SIGNALS[] = force_emulated || isempty(libhsaruntime)
 
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)
