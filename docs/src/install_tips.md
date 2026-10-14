@@ -90,18 +90,3 @@ hard_memory_limit = "none"
 # Notice a space between the value and percentage sign.
 # hard_memory_limit = "80 %"
 ```
-
-## Windows OS missing functionality
-
-Windows **does not** yet support [Hostcall](@ref), which means that
-some of the functionality does not work, like:
-
-- device printing;
-- dynamic memory allocation (from kernels).
-
-These hostcalls are sometimes launched when AMDGPU detects that a
-kernel might throw an exception, specifically during conversions, like:
-`Int32(1f0)`.
-
-To avoid this, use 'unsafe' conversion option:
-`unsafe_trunc(Int32, 1f0)`.
