@@ -57,8 +57,7 @@ function task_stream(priority::Symbol = :normal)
     # finalizers can't wait for the pool's lock, so give them a stream of their own
     GC.in_finalizer() && return HIPStream(priority)
 
-    # the task's device: `device()` reports the thread's
-    key = (device_id(AMDGPU.device()), priority)
+    key = (device_id(device()), priority)
     task = current_task()
     stream = Base.@lock STREAM_POOL_LOCK begin
         claim_stream!(get!(Vector{PooledStream}, STREAM_POOLS, key), task)

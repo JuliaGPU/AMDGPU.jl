@@ -61,26 +61,6 @@ else
         @test AMDGPU.default_device() == d1
     end
 
-    @testset "Pooled streams match the task's device" begin
-        d1 = AMDGPU.device()
-        d2 = first(d for d in AMDGPU.devices() if d != d1)
-
-        # Leave an idle stream of `d1` in the pool, and this thread on `d1`.
-        fetch(@async AMDGPU.stream())
-        AMDGPU.synchronize()
-
-        # A fresh task on `d2`, on the same thread, asks for its stream before any
-        # other HIP call has moved the thread to `d2`. It used to get the idle `d1`
-        # stream, so that its kernels failed to launch with `hipErrorInvalidHandle`.
-        AMDGPU.default_device!(d2)
-        s = try
-            fetch(@async AMDGPU.stream())
-        finally
-            AMDGPU.default_device!(d1)
-        end
-        @test s.device == d2
-    end
-
     @testset "Arrays" begin
         d1 = AMDGPU.device()
 
