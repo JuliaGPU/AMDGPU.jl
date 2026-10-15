@@ -71,6 +71,14 @@ end
     AMDGPU.stream!(() -> AMDGPU.ones(Float32, 16), s1)
     @test AMDGPU.stream() ≡ s1
 
+    # the do-block form runs `f` on the given stream (#1122)
+    s3 = HIPStream()
+    inside = AMDGPU.stream!(AMDGPU.stream, s3)
+    @test inside ≡ s3
+    @test AMDGPU.stream() ≡ s1
+    @test_throws ErrorException AMDGPU.stream!(() -> error(), s3)
+    @test AMDGPU.stream() ≡ s1
+
     @testset "Priority" begin
         @test AMDGPU.priority() == :normal
 
