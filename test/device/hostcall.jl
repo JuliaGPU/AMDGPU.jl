@@ -260,4 +260,44 @@ end
     AMDGPU.Device.free!(hc)
 end
 
+@testset "Call: Forced emulated signals" begin
+    code = """
+    using AMDGPU
+    using AMDGPU.Device: HostCallHolder, hostcall!, @rocprintf
+    AMDGPU.Device.use_emulated_signals() || exit(2)
+
+    function kernel(a,b,sig)
+        hostcall!(sig)
+        b[1] = a[1]
+        nothing
+    end
+
+    RA = ROCArray(ones(Float32, 1))
+    RB = ROCArray(zeros(Float32, 1))
+    hc = HostCallHolder(Nothing, Tuple{}) do
+        nothing
+    end
+
+    @roc kernel(RA, RB, hc)
+    AMDGPU.synchronize(; stop_hostcalls=true)
+    Array(RB)[1] == 1f0 || exit(1)
+    AMDGPU.Device.free!(hc)
+
+    print_kernel() = (@rocprintf "Hello World!\\n"; nothing)
+    @roc print_kernel()
+    AMDGPU.synchronize(; stop_hostcalls=true)
+    """
+    cmd = `$(Base.julia_cmd()) --threads=1 --project=$(Base.active_project()) -e $code`
+    cmd = addenv(cmd, "JULIA_AMDGPU_FORCE_EMULATED_SIGNALS" => "1")
+    out = tempname()
+    proc = run(pipeline(cmd; stdout=out, stderr); wait=false)
+    timer = Timer(600) do _
+        kill(proc)
+    end
+    wait(proc)
+    close(timer)
+    @test success(proc)
+    @test occursin("Hello World!", read(out, String))
+end
+
 end

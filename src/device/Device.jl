@@ -18,6 +18,9 @@ import .AMDGPU: method_table
 import .AMDGPU: aligned_sizeof
 import ..UnsafeAtomics
 
+const EMULATED_SIGNALS = Ref{Bool}(false)
+
+@inline use_emulated_signals() = EMULATED_SIGNALS[]
 include("addrspaces.jl")
 include("strings.jl")
 include("exceptions.jl")

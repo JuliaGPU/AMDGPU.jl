@@ -110,7 +110,7 @@ end
 runtests(AMDGPU, args; testsuite, init_code)
 
 # Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
-if any(name -> startswith(name, "core"), keys(testsuite)) && Sys.islinux()
+if any(name -> startswith(name, "core"), keys(testsuite))
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")
