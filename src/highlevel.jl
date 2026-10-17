@@ -95,7 +95,7 @@ rocconvert(arg, stream::HIPStream) = adapt(Runtime.Adaptor(stream), arg)
 
 const MACRO_KWARGS = [:launch]
 const COMPILER_KWARGS = [:name, :unsafe_fp_atomics, :atomic_memory_assumptions,
-                         :wavefrontsize64, :minthreads, :maxthreads]
+                         :wavefrontsize64, :minthreads, :maxthreads, :waves_per_eu]
 const LAUNCH_KWARGS = [:gridsize, :groupsize, :shmem, :stream, :cooperative]
 
 """
