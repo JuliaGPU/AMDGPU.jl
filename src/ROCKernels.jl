@@ -146,17 +146,24 @@ function KI.launch(obj::KI.Kernel{ROCBackend}, groups::Dims{3}, items::Dims{3},
     return
 end
 
-function KI.max_work_group_size(kernel::KI.Kernel{ROCBackend})::Int
+# these queries are compiled for every kernel, so they forward to functions of the
+# `HIPFunction` that are compiled only once
+KI.max_work_group_size(kernel::KI.Kernel{ROCBackend})::Int =
+    max_threads_per_block(kernel.kern.kernel.fun)
+KI.launch_configuration(kernel::KI.Kernel{ROCBackend}; nitems::Union{Integer,Nothing}=nothing,
+                        max_work_group_size::Integer=typemax(Int)) =
+    (; workgroupsize=launch_threads(kernel.kern.kernel.fun, nitems, max_work_group_size))
+
+@noinline function max_threads_per_block(fun::HIP.HIPFunction)
     max_items = Ref{Cint}()
-    HIP.hipFuncGetAttribute(max_items, HIP.HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, kernel.kern.kernel.fun)
+    HIP.hipFuncGetAttribute(max_items, HIP.HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, fun)
     return Int(max_items[])
 end
-function KI.launch_configuration(kernel::KI.Kernel{ROCBackend}; nitems::Union{Integer,Nothing}=nothing,
-                                 max_work_group_size::Integer=typemax(Int))
+@noinline function launch_threads(fun::HIP.HIPFunction, nitems, max_work_group_size)
     max_items = min(max_work_group_size, something(nitems, typemax(Int)),
-                    KI.max_work_group_size(kernel))
-    (; groupsize) = AMDGPU.launch_configuration(kernel.kern.kernel; max_block_size=max_items)
-    return (; workgroupsize=Int(min(groupsize, max_items)))
+                    max_threads_per_block(fun))
+    (; groupsize) = HIP.launch_configuration(fun; max_block_size=max_items)
+    return Int(min(groupsize, max_items))
 end
 function KI.max_work_group_size(::ROCBackend)::Int
     Int(HIP.attribute(AMDGPU.device(), HIP.hipDeviceAttributeMaxThreadsPerBlock))
