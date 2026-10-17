@@ -137,11 +137,15 @@ execute `f` and revert to the original stream.
 Return value of the function `f`.
 """
 function stream!(f::Function, s::HIPStream)
-    old_s = stream()
+    state = task_local_state!()
+    idx = device_id(state.device)
+
+    old_s = state.stream
+    state.streams[idx] = s
     return try
         f()
     finally
-        stream!(old_s)
+        state.streams[idx] = old_s
     end
 end
 
