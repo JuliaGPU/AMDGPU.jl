@@ -237,6 +237,7 @@ function _compiler_config(dev::HIP.HIPDevice;
     maxthreads::Union{Nothing, Int, Dims} = nothing,
     waves_per_eu::Int = 0,
 )
+    waves_per_eu >= 0 || throw(ArgumentError("`waves_per_eu` must be non-negative, got $waves_per_eu"))
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
     if !isempty(features)
         features = "$features,"
@@ -287,7 +288,12 @@ The following kwargs are supported:
     `amdgpu-waves-per-eu` function attribute. The register allocator limits the
     registers per thread to what this occupancy allows, so a large value trades
     registers (spills) for occupancy, and a small one the reverse. `0` leaves it
-    to the compiler. Combine with `maxthreads`.
+    to the compiler. Combine with `maxthreads`: without it, values up to 4 have no
+    effect on wave64 devices, since the default 1024-item workgroup bound already
+    implies 4 waves per EU. Values above what the hardware supports (e.g. above 8
+    on gfx90a) make LLVM warn ("failed to meet occupancy target") and fall back to
+    no limit, so pick the value per architecture. Negative values throw an
+    `ArgumentError`.
 """
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
     Base.@lock hipfunction_lock begin
