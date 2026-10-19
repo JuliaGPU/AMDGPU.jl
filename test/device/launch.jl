@@ -94,6 +94,17 @@ end
         outer(a_dev, 2.0)
         @test Array(a_dev) == [2.0]
     end
+
+    @testset "CPU array argument" begin
+        kernel(a) = return
+        a = ROCArray([1f0])
+        b = [1f0]
+        for f in (() -> @roc(kernel(b)), () -> a .+ b)
+            err = try f(); nothing catch err; err end
+            @test err isa ArgumentError
+            @test occursin("ROCArray", sprint(showerror, err))
+        end
+    end
 end
 
 @testset "Many arguments" begin
