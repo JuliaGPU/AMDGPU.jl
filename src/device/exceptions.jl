@@ -56,11 +56,13 @@ function alloc_exception_info()
     return ei_ptr
 end
 
+# nothing reachable from the throw overlays may throw, not even a checked conversion like
+# `UInt64(0)`: the resulting inference cycle taints Base on Julia 1.12+ (#808)
 @inline function signal_exception!(ei::Ptr{UInt64}, code::UInt8)
     packed = pack_exception(code)
     # First writer wins via atomic CAS; losers are no-ops.
     ei_llvm = reinterpret(LLVMPtr{UInt64, AS.Generic}, ei)
-    llvm_atomic_cas(ei_llvm, UInt64(0), packed)
+    llvm_atomic_cas(ei_llvm, 0 % UInt64, packed)
     endpgm()
     return
 end

@@ -25,9 +25,7 @@ end
 
 # boot.jl
 @device_override Core.throw_inexacterror(f::Symbol, ::Type{T}, val) where {T} =
-    throw(nothing)
-    # @gputhrow "InexactError" "Inexact conversion"
-    # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/808
+    @gputhrow "InexactError" "Inexact conversion"
 
 # abstractarray.jl
 @device_override Base.throw_boundserror(A, I) =
