@@ -311,6 +311,23 @@ end
     end
 end
 
+@testset "waves_per_eu" begin
+    wpe_kern() = nothing
+    function wpe_ir(; kwargs...)
+        config = AMDGPU.Compiler.compiler_config(AMDGPU.device(); kernel=true, kwargs...)
+        job = GPUCompiler.CompilerJob(GPUCompiler.methodinstance(typeof(wpe_kern), Tuple{}), config)
+        sprint(io -> GPUCompiler.code_llvm(io, job; dump_module=true))
+    end
+    @test occursin("\"amdgpu-waves-per-eu\"=\"4\"", wpe_ir(; waves_per_eu=4))
+    @test !occursin("amdgpu-waves-per-eu", wpe_ir())
+
+    @test_throws ArgumentError wpe_ir(; waves_per_eu=-1)
+
+    k = @roc launch=false maxthreads=256 waves_per_eu=2 wpe_kern()
+    k(; groupsize=256)
+    AMDGPU.synchronize()
+end
+
 @testset "Float min/max" begin
     function minmax_kernel(p, x, y)
         unsafe_store!(p, min(x, y), 1)

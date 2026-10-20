@@ -8,7 +8,13 @@ struct HIPCompilerParams <: AbstractCompilerParams
     # that they access neither fine-grained nor remote memory, which lets the back-end
     # use native instructions instead of CAS loops.
     atomic_memory_assumptions::Bool
+    # Minimum number of waves per execution unit (SIMD) the kernel should allow
+    # (`amdgpu-waves-per-eu`); `0` leaves it unset.
+    waves_per_eu::Int
 end
+
+HIPCompilerParams(wavefrontsize64::Bool, unsafe_fp_atomics::Bool, atomic_memory_assumptions::Bool) =
+    HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics, atomic_memory_assumptions, 0)
 
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
 const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
@@ -116,6 +122,9 @@ function GPUCompiler.finish_module!(
             push!(attrs, StringAttribute("amdgpu-unsafe-fp-atomics", "true"))
         end
         push!(attrs, implicitarg_attr)
+        if job.config.params.waves_per_eu > 0
+            push!(attrs, StringAttribute("amdgpu-waves-per-eu", string(job.config.params.waves_per_eu)))
+        end
     end
 
     # Workaround for the lack of zeroinitializer support for LDS.
@@ -226,7 +235,9 @@ function _compiler_config(dev::HIP.HIPDevice;
     wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
     minthreads::Union{Nothing, Int, Dims} = nothing,
     maxthreads::Union{Nothing, Int, Dims} = nothing,
+    waves_per_eu::Int = 0,
 )
+    waves_per_eu >= 0 || throw(ArgumentError("`waves_per_eu` must be non-negative, got $waves_per_eu"))
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
     if !isempty(features)
         features = "$features,"
@@ -239,7 +250,7 @@ function _compiler_config(dev::HIP.HIPDevice;
     end
 
     target = GCNCompilerTarget(; dev_isa, features, minthreads, maxthreads)
-    params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics, atomic_memory_assumptions)
+    params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics, atomic_memory_assumptions, waves_per_eu)
     CompilerConfig(target, params; kernel, name, always_inline=true)
 end
 
@@ -272,6 +283,17 @@ The following kwargs are supported:
     budget for the actual occupancy target instead of 1024-item workgroups.
 - `minthreads::Union{Nothing, Int, Dims} = nothing`:
     The workgroup size the kernel is guaranteed to be launched with.
+- `waves_per_eu::Int = 0`:
+    Minimum number of waves to keep resident per execution unit (SIMD), set as the
+    `amdgpu-waves-per-eu` function attribute. The register allocator limits the
+    registers per thread to what this occupancy allows, so a large value trades
+    registers (spills) for occupancy, and a small one the reverse. `0` leaves it
+    to the compiler. Combine with `maxthreads`: without it, values up to 4 on wave64
+    devices (8 on wave32 ones) have no effect, since the default 1024-item workgroup
+    bound already implies that many waves per EU. Values above what the hardware
+    supports (e.g. above 8 on gfx90a) make LLVM warn ("failed to meet occupancy
+    target") and fall back to no limit, so pick the value per architecture. Negative
+    values throw an `ArgumentError`.
 """
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
     Base.@lock hipfunction_lock begin
