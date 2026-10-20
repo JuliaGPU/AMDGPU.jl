@@ -586,3 +586,9 @@ function Adapt.adapt_storage(to::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N}
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + x.offset)
     return ROCDeviceArray{T, N, AS.Global}(x.dims, llvm_ptr)
 end
+
+# CPU arrays would otherwise only be rejected by the compiler, with an error that dumps the
+# full argument type
+Adapt.adapt_storage(::Runtime.Adaptor, xs::Array) =
+    throw(ArgumentError("""cannot use a CPU array ($(typeof(xs))) in an AMDGPU kernel.
+                           Convert it to a GPU array first, e.g. using `ROCArray(x)`."""))
