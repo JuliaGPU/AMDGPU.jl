@@ -118,6 +118,19 @@ end
     @test Array(lane) == [isodd(i) ? mod1(i, ws) : 0 for i in 1:2ws]
 end
 
+# unlike `AMDGPU.device!`, `KI.device!` leaves the default device alone
+@testset "task-local device!" begin
+    # on a task that hasn't used AMDGPU yet
+    @test fetch(Threads.@spawn (KI.device!(backend, 1); KI.device(backend))) == 1
+
+    if KI.ndevices(backend) > 1
+        fresh = fetch(Threads.@spawn KI.device(backend))
+        switched = mod1(fresh + 1, KI.ndevices(backend))
+        @test fetch(Threads.@spawn (KI.device!(backend, switched); KI.device(backend))) == switched
+        @test fetch(Threads.@spawn KI.device(backend)) == fresh
+    end
+end
+
 @testset "versioninfo" begin
     @test occursin("AMDGPU.jl", sprint(KI.versioninfo, backend))
 end
