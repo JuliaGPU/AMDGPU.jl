@@ -475,12 +475,22 @@ Base.unsafe_wrap(::Type{Array}, a::ROCArray) =
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
 
-Adapt.adapt_storage(::Type{ROCArray}, xs::AT) where {AT<:AbstractArray} =
-    isbitstype(AT) ? xs : convert(ROCArray, xs)
+# Type parameters that are specified are preserved, the others are taken from the source
+# array (or the default buffer type). Any subset can be given, e.g. `ROCArray{<:Any,<:Any,B}`.
+adapt_eltype(::Type{<:ROCArray{T}}, xs) where {T} = T
+adapt_eltype(::Type{<:ROCArray}, xs) = eltype(xs)
+adapt_ndims(::Type{<:ROCArray{<:Any,N}}, xs) where {N} = N
+adapt_ndims(::Type{<:ROCArray}, xs) = ndims(xs)
+adapt_buftype(::Type{<:ROCArray{<:Any,<:Any,B}}, xs) where {B} = B
+adapt_buftype(::Type{<:ROCArray}, xs) = xs isa ROCArray ? buftype(xs) : Mem.HIPBuffer
 
-# if an element type is specified, convert to it
-Adapt.adapt_storage(::Type{<:ROCArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
-    isbitstype(AT) ? xs : convert(ROCArray{T}, xs)
+function Adapt.adapt_storage(::Type{A}, xs::AT) where {A<:ROCArray,AT<:AbstractArray}
+    isbitstype(AT) && return xs
+    B = ROCArray{adapt_eltype(A, xs),adapt_ndims(A, xs),adapt_buftype(A, xs)}
+    # parameters taken from the source may violate bounds in `A`, e.g. `ROCArray{<:Real}`
+    B <: A || throw(ArgumentError("cannot adapt a $AT to $A"))
+    return convert(B, xs)
+end
 
 Adapt.adapt_storage(::Type{Array}, xs::ROCArray) = convert(Array, xs)
 

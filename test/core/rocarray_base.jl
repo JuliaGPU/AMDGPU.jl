@@ -1,4 +1,5 @@
 using Test
+using Adapt
 using AMDGPU
 using AMDGPU: ROCArray, ROCVector, ROCMatrix, @allowscalar
 
@@ -21,6 +22,32 @@ end
     @test y !== x
     # But is still equal.
     @test y == x
+end
+
+@testset "Adapt" begin
+    HIPBuffer = AMDGPU.Mem.HIPBuffer
+    HostBuffer = AMDGPU.Mem.HostBuffer
+    @test adapt(ROCArray, [1, 2]) isa ROCArray{Int, 1, HIPBuffer}
+    @test adapt(ROCArray{Float32}, [1 2; 3 4]) isa ROCArray{Float32, 2, HIPBuffer}
+
+    # unspecified type parameters are taken from the source array (JuliaGPU/Metal.jl#363)
+    @test adapt(ROCMatrix, [1 2; 3 4]) isa ROCArray{Int, 2, HIPBuffer}
+    @test adapt(ROCArray{<:Any, <:Any, HostBuffer}, [1 2; 3 4]) isa ROCArray{Int, 2, HostBuffer}
+    @test adapt(ROCVector{<:Any, HostBuffer}, [1, 2]) isa ROCArray{Int, 1, HostBuffer}
+    @test adapt(ROCArray{Float32, <:Any, HostBuffer}, [1 2; 3 4]) isa ROCArray{Float32, 2, HostBuffer}
+    let xs = adapt(ROCArray{<:Any, <:Any, HostBuffer}, (Float32[1], Int32[1 2]))
+        @test xs[1] isa ROCArray{Float32, 1, HostBuffer}
+        @test xs[2] isa ROCArray{Int32, 2, HostBuffer}
+    end
+    @test_throws MethodError adapt(ROCVector{Float32}, [1 2; 3 4])
+    @test_throws ArgumentError adapt(ROCArray{<:Real}, ComplexF32[1])
+    let xs = ROCArray{Float32, 1, HostBuffer}([1])
+        @test adapt(ROCArray, xs) === xs
+        @test adapt(ROCArray{Float32}, xs) === xs
+        @test adapt(ROCArray{Int32}, xs) isa ROCArray{Int32, 1, HostBuffer}
+        @test adapt(typeof(xs), xs) === xs
+        @test adapt(ROCArray{<:Any, <:Any, HIPBuffer}, xs) isa ROCArray{Float32, 1, HIPBuffer}
+    end
 end
 
 @testset "ones/zeros" begin
