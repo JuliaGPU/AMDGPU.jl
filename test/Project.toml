@@ -28,3 +28,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 AMDGPU = {path = ".."}
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "4f70a3886f78ad731fe29319c1c5501e4aae814b"}

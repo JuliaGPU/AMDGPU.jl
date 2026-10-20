@@ -41,6 +41,33 @@ julia> Pkg.test("AMDGPU"; test_args=`gpuarrays`)
 !!! warning "Large memory tests"
     Some tests such as HIP and GPUArrays tests may use > 20GB of host RAM. It is recommended to use fewer workers (<= 4) on machines that have < 32Gb of host RAM in case running tests would result in out of memory errors.
 
+## Device-library integration
+
+The compiler selects ROCm bitcode through GPUCompiler's `device_libraries` interface.
+Each needed library is linked once, after Julia optimization and GC lowering, in
+dependency order: language libraries, OCML, OCKL, optional IR helpers, then the
+target's `oclc` control constants. Library selection includes the ISA and wavefront
+size; it must not reuse one device's control files for another device.
+
+ROCm bitcode files (from the artifact or the LLVM-downgrade directory) are snapshotted
+into byte-backed descriptors once per path and session. Kernel-cache lookups compare
+their content fingerprints without filesystem calls. As with the previous device-library cache, replacing ROCm
+files in a running process requires restarting Julia. The compiler and metadata
+inspection use the same immutable snapshots.
+
+Before optimization, declarations inherit memory-effect and convergence attributes
+from the actual bitcode. This keeps math calls optimizable and prevents wavefront
+operations from being moved across divergent control flow, without importing bodies.
+After linking, `finish_imports!` folds wavefront queries, applies vendor inlining
+policy, and detects hostcalls introduced by runtime imports. Early hostcall detection
+is limited to top-level modules, not standalone runtime-library compilation.
+
+`core/device_libraries` tests selection, transitive imports, control folding,
+declaration attributes, and runtime hostcall isolation. Run it alongside
+`core/codegen`, `device/math`, `device/wavefront`, and `device/exceptions` when
+changing this integration. Selecting `core` tests also runs hostcall and output
+tests on the main thread.
+
 ## Building the documentation
 
 The documentation is built with [Documenter.jl](https://documenter.juliadocs.org) and [DocumenterVitepress.jl](https://github.com/LuxDL/DocumenterVitepress.jl). To build it locally:
