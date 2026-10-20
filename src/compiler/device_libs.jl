@@ -1,49 +1,28 @@
 import AMDGPU: libdevice_libs
 
+const rocm_library_lock = ReentrantLock()
+const rocm_libraries = Dict{String,GPUCompiler.DeviceLibrary}()
+
 function locate_lib(file)
     isempty(libdevice_libs) && return nothing
-    file_path = joinpath(libdevice_libs, file * ".bc")
-    if !ispath(file_path)
-        file_path = joinpath(libdevice_libs, file * ".amdgcn.bc")
-        if !ispath(file_path)
-            # failed to find matching bitcode file
-            return nothing
-        end
+    for extension in (".bc", ".amdgcn.bc")
+        path = joinpath(libdevice_libs, file * extension)
+        isfile(path) && return path
     end
-    return file_path
+    return nothing
 end
 
-mutable struct DevLib
-    name::String
-    path::String
-    data::Vector{UInt8}
-    # Symbols this library defines.
-    # `nothing` until the library has been parsed once.
-    # Afterwards, we can skip parsing entirely if the module does not need them.
-    defines::Union{Nothing, Set{String}}
+"""
+    rocm_device_libraries(target, wavefrontsize64)
 
-    DevLib(name::String, path::String) = new(name, path, read(path), nothing)
-    DevLib(name::String, ::Nothing) = new(name, "", UInt8[], nothing)
-end
-
-const DEVICE_LIBS::Dict{String, DevLib} = Dict{String, DevLib}()
-
-devlib!(name::String, locate=() -> locate_lib(name)) =
-    get!(() -> DevLib(name, locate()), DEVICE_LIBS, name)
-
-# Libraries that provide functions/globals on demand.
-ondemand_libs() = (
-    devlib!("hc"), devlib!("hip"), devlib!("irif"),
-    devlib!("ockl"), devlib!("opencl"), devlib!("ocml"))
-
-# Core libraries are always linked, both the device libraries and
-# the AMDGPU backend expect them to be present.
-function control_libs(target::GCNCompilerTarget, wavefrontsize64::Bool)
+Select ROCm bitcode in dependency order: language libraries, OCML, OCKL, then
+the target-specific control constants. Missing optional libraries are omitted;
+GPUCompiler diagnoses any unresolved calls that actually require them.
+"""
+function rocm_device_libraries(target::GCNCompilerTarget, wavefrontsize64::Bool)
     isa_short = replace(target.dev_isa, "gfx" => "")
-    libs = DevLib[
-        devlib!("oclc", () -> locate_lib("oclc_isa_version_$isa_short")),
-        devlib!("oclc_abi", () -> locate_lib("oclc_abi_version_500")),
-    ]
+    names = ["hc", "hip", "opencl", "ocml", "ockl", "irif",
+             "oclc_isa_version_$isa_short", "oclc_abi_version_500"]
     for (option, value) in (
         (:finite_only, false),
         (:unsafe_math, false),
@@ -51,109 +30,63 @@ function control_libs(target::GCNCompilerTarget, wavefrontsize64::Bool)
         (:daz_opt, false),
         (:wavefrontsize64, wavefrontsize64),
     )
-        push!(libs, devlib!("oclc_$(option)_$(value ? "on" : "off")"))
+        push!(names, "oclc_$(option)_$(value ? "on" : "off")")
     end
-    return libs
-end
-
-"""
-Names of all symbols `mod` references but does not define.
-"""
-function undefined_symbols(mod::LLVM.Module)
-    undefined = Set{String}()
-    for f in mod.functions
-        LLVM.isdeclaration(f) && push!(undefined, f.name)
-    end
-    for g in mod.globals
-        LLVM.isdeclaration(g) && push!(undefined, g.name)
-    end
-    return undefined
-end
-
-function defined_symbols(mod::LLVM.Module)
-    defined = Set{String}()
-    for f in mod.functions
-        LLVM.isdeclaration(f) || push!(defined, f.name)
-    end
-    for g in mod.globals
-        LLVM.isdeclaration(g) || push!(defined, g.name)
-    end
-    return defined
-end
-
-function link_device_libs!(
-    target::GCNCompilerTarget, mod::LLVM.Module;
-    wavefrontsize64::Bool,
-)
-    isnothing(libdevice_libs) && return
-
-    ondemand = ondemand_libs()
-    undefined = undefined_symbols(mod)
-
-    # Linking one library can introduce references satisfied by another
-    # (e.g. `ocml` -> `__ockl_*`), so iterate until nothing more links.
-    while true
-        linked = false
-        for devlib in ondemand
-            isempty(undefined) && break
-            if load_and_link!(devlib, mod; undefined)
-                linked = true
-                undefined = undefined_symbols(mod)
+    libraries = GPUCompiler.DeviceLibrary[]
+    for name in names
+        path = locate_lib(name)
+        path === nothing && continue
+        library = Base.@lock rocm_library_lock begin
+            get!(rocm_libraries, path) do
+                GPUCompiler.DeviceLibrary(Symbol(name); bitcode=read(path))
             end
         end
-        linked || break
+        push!(libraries, library)
     end
-
-    for devlib in control_libs(target, wavefrontsize64)
-        load_and_link!(devlib, mod)
-    end
-    return
+    return Tuple(libraries)
 end
 
+const library_attributes_lock = ReentrantLock()
+const library_attributes = Dict{NTuple{32,UInt8},
+    Dict{String,Vector{Pair{Symbol,UInt64}}}}()
+
 """
-Link `devlib` into `mod`, returning whether anything was linked.
-
-When `undefined` is given, the library is skipped unless it defines at least one
-of those symbols. The first time a library is seen we must parse it anyway to
-learn what it defines; from then on the check is a set intersection.
+Read context-independent optimization attributes from the bitcode itself.
+This preserves memory effects and convergence constraints while implementations
+remain opaque, without guessing pointer-output behavior or linking bodies early.
 """
-function load_and_link!(
-    devlib::DevLib, mod::LLVM.Module; undefined::Union{Nothing, Set{String}} = nothing,
-)
-    isempty(devlib.path) && return false
-
-    if undefined !== nothing && devlib.defines !== nothing &&
-       isdisjoint(devlib.defines, undefined)
-        return false
-    end
-
-    # Lazy parsing only reads the module header,
-    # function bodies are materialized by the linker as it needs them.
-    # `devlib.data` is stored in `DEVICE_LIBS` and outlives `lib`, so it is safe to lazy-load.
-    lib = parse(LLVM.Module, devlib.data; lazy=true)
-
-    if devlib.defines === nothing
-        devlib.defines = defined_symbols(lib)
-        if undefined !== nothing && isdisjoint(devlib.defines, undefined)
-            dispose(lib)
-            return false
+function rocm_library_attributes(library::GPUCompiler.DeviceLibrary)
+    snapshot = GPUCompiler.device_library_bitcode(library)
+    Base.@lock library_attributes_lock begin
+        get!(library_attributes, snapshot.digest) do
+            @dispose mod=parse(LLVM.Module, MemoryBuffer(snapshot.bytes); lazy=true) begin
+                properties = Dict{String,Vector{Pair{Symbol,UInt64}}}()
+                for fun in mod.functions
+                    isdeclaration(fun) && continue
+                    properties[fun.name] = [
+                        LLVM.kind(attr) => LLVM.value(attr)
+                        for attr in fun.function_attributes
+                        if attr isa EnumAttribute && LLVM.kind(attr) in
+                           (:convergent, :memory, :readnone, :readonly, :writeonly, :nounwind,
+                            :willreturn, :nofree, :nosync, :speculatable)]
+                end
+                properties
+            end
         end
     end
+end
 
-    for f in lib.functions
-        fn_name = f.name
-
-        # FIXME: We should be able to inline this, that we can't means
-        #        we are inserting calls to it late.
-        startswith(fn_name, "__ockl_hsa_signal") && continue
-
-        attrs = f.function_attributes
-        haskey(attrs, :noinline) || push!(attrs, EnumAttribute(:alwaysinline))
+function annotate_rocm_declarations!(job, mod::LLVM.Module)
+    declarations = [fun for fun in mod.functions
+                    if isdeclaration(fun) && fun.intrinsic === nothing]
+    isempty(declarations) && return
+    for library in rocm_device_libraries(job.config.target, job.config.params.wavefrontsize64)
+        properties = rocm_library_attributes(library)
+        for fun in declarations
+            for (kind, value) in get(properties, fun.name, Pair{Symbol,UInt64}[])
+                push!(fun.function_attributes, EnumAttribute(kind, value))
+            end
+        end
     end
-
-    # override triple and datalayout to avoid warnings
-    lib.triple = mod.triple
-    lib.datalayout = mod.datalayout
-    LLVM.link!(mod, lib)
-    return true
+    return
 end

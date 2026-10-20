@@ -48,14 +48,6 @@ if :AMDGPU in LLVM.backends() && AMDGPU_LLVM_Backend_jll.is_available()
                     # Exercise the same compile-or-lookup path used by kernel launches, and
                     # attach its artifact to the package-image CI.
                     Compiler.compile_or_lookup(job)
-
-                    # The compile above populates the `DEVICE_LIBS` cache. At
-                    # precompile time `__init__` has NOT run, so `libdevice_libs`
-                    # is empty and the cache is filled with empty entries, which
-                    # would poison it for the runtime session (and baking real
-                    # entries in would hardcode absolute paths and duplicate the
-                    # bitcode blobs). Reset it and let it repopulate at runtime.
-                    empty!(Compiler.DEVICE_LIBS)
                 end
             end
         end
