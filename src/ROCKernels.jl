@@ -26,7 +26,8 @@ KI.ndevices(::ROCBackend) = AMDGPU.HIP.ndevices()
 KI.device(::ROCBackend) = AMDGPU.device_id()
 function KI.device!(kab::ROCBackend, id::Int)
     (0 < id <= KI.ndevices(kab)) || throw(ArgumentError("Device id $id out of bounds."))
-    AMDGPU.device_id!(id)
+    # only switch the calling task: `device!` would also change the default device
+    AMDGPU.context!(HIP.HIPContext(AMDGPU.devices()[id]))
     return
 end
 KI.device(::ROCBackend, A::AMDGPU.ROCArray) = AMDGPU.device_id(AMDGPU.device(A))
