@@ -43,30 +43,26 @@ julia> Pkg.test("AMDGPU"; test_args=`gpuarrays`)
 
 ## Device-library integration
 
-The compiler selects ROCm bitcode through GPUCompiler's `device_libraries` interface.
-Each needed library is linked once, after Julia optimization and GC lowering, in
-dependency order: language libraries, OCML, OCKL, optional IR helpers, then the
-target's `oclc` control constants. Library selection includes the ISA and wavefront
-size; it must not reuse one device's control files for another device.
+The compiler describes the ROCm bitcode libraries to GPUCompiler through its
+`device_libraries` interface: the language libraries (OCML, OCKL, ...), whose definitions
+are force-inlined, and the target's `oclc` control constants. Library selection includes
+the ISA and wavefront size; it must not reuse one device's control files for another
+device. GPUCompiler imports the definitions a kernel needs, and their dependencies, before
+optimization, so that library code is optimized along with the kernel. References
+introduced after optimization (e.g. by the GPU runtime after GC lowering) are imported
+afterwards.
 
-ROCm bitcode files (from the artifact or the LLVM-downgrade directory) are snapshotted
-into byte-backed descriptors once per path and session. Kernel-cache lookups compare
-their content fingerprints without filesystem calls. As with the previous device-library cache, replacing ROCm
-files in a running process requires restarting Julia. The compiler and metadata
-inspection use the same immutable snapshots.
+ROCm bitcode files (from the artifact or the LLVM-downgrade directory) are read once per
+session, so replacing them in a running process requires restarting Julia.
 
-Before optimization, declarations inherit memory-effect and convergence attributes
-from the actual bitcode. This keeps math calls optimizable and prevents wavefront
-operations from being moved across divergent control flow, without importing bodies.
-After linking, `finish_imports!` folds wavefront queries, applies vendor inlining
-policy, and detects hostcalls introduced by runtime imports. Early hostcall detection
-is limited to top-level modules, not standalone runtime-library compilation.
+After importing definitions, `finish_linked_module!` (before optimization) and
+`finish_imports!` (after optimization) fold wavefront-size queries, keep the HSA signal
+operations out of line, and detect hostcalls introduced by imported code.
 
-`core/device_libraries` tests selection, transitive imports, control folding,
-declaration attributes, and runtime hostcall isolation. Run it alongside
-`core/codegen`, `device/math`, `device/wavefront`, and `device/exceptions` when
-changing this integration. Selecting `core` tests also runs hostcall and output
-tests on the main thread.
+`core/device_libraries` tests selection, transitive imports, control folding, import
+policy and runtime hostcall isolation. Run it alongside `core/codegen`, `device/math`,
+`device/wavefront`, and `device/exceptions` when changing this integration. Selecting
+`core` tests also runs hostcall and output tests on the main thread.
 
 ## Building the documentation
 

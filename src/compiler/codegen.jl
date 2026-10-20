@@ -77,23 +77,32 @@ function GPUCompiler.device_libraries(@nospecialize(job::HIPCompilerJob))
      rocm_device_libraries(job.config.target, job.config.params.wavefrontsize64)...)
 end
 
+# Device-library definitions are imported before optimization (seen here) and, for
+# references introduced by lowering after optimization, afterwards (see `finish_imports!`).
+function GPUCompiler.finish_linked_module!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
+    finish_rocm_imports!(job, mod)
+    return
+end
+
 function GPUCompiler.finish_imports!(
     @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, imported,
 )
+    finish_rocm_imports!(job, mod)
+    inline_exception_functions!(mod)
+    return
+end
+
+function finish_rocm_imports!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
+    # Detect global hostcalls here, before later optimizations & cleanup could remove them.
+    # Accumulate into task-local storage so hipcompile can retrieve them
+    # on the same task, without any global dict or hash-collision race.
     tls_hostcalls = get!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     append!(tls_hostcalls, find_global_hostcalls(mod))
+
+    # the device libraries query the wavefront size
     fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
-    bitcode_functions = Set{String}()
-    for library in rocm_device_libraries(job.config.target, job.config.params.wavefrontsize64)
-        union!(bitcode_functions, keys(rocm_library_attributes(library)))
-    end
-    for name in imported
-        name in bitcode_functions || continue
-        startswith(name, "__ockl_hsa_signal") && continue
-        attrs = mod.functions[name].function_attributes
-        haskey(attrs, :noinline) || push!(attrs, EnumAttribute(:alwaysinline))
-    end
-    inline_exception_functions!(mod)
+
+    uninline_signal_functions!(mod)
     return
 end
 
@@ -103,12 +112,6 @@ function GPUCompiler.finish_module!(
     entry = invoke(GPUCompiler.finish_module!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
-
-    if job.config.toplevel
-        tls_hostcalls = get!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
-        append!(tls_hostcalls, find_global_hostcalls(mod))
-    end
-    annotate_rocm_declarations!(job, mod)
 
     fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
 

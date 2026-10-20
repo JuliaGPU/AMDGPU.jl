@@ -11,7 +11,6 @@ import LLVM
         source = GPUCompiler.methodinstance(typeof(identity), Tuple{Float32})
         job = GPUCompiler.CompilerJob(source, config)
         libraries = GPUCompiler.device_libraries(job)
-        @test !GPUCompiler.uses_legacy_linker(job)
         @test first(libraries).name == :AMDGPU
         names = [library.name for library in libraries]
         @test allunique(names)
@@ -19,8 +18,9 @@ import LLVM
               findfirst(==(:ockl), names)
         isa_name = Symbol("oclc_isa_version_", replace(dev_isa, "gfx" => ""))
         isa_library = only(filter(library -> library.name == isa_name, libraries))
-        @test isa_library.bitcode isa Vector{UInt8}
-        @test isa_library.bitcode == read(AMDGPU.Compiler.locate_lib(String(isa_name)))
+        @test isa_library.bitcode == AMDGPU.Compiler.locate_lib(String(isa_name))
+        @test !isa_library.always_inline
+        @test only(filter(library -> library.name == :ocml, libraries)).always_inline
         @test GPUCompiler.device_libraries(job)[2:end] === libraries[2:end]
         wave_name = Symbol("oclc_wavefrontsize64_", wave64 ? "on" : "off")
         @test wave_name in names
@@ -87,7 +87,7 @@ end
     previous = pop!(storage, :amdgpu_early_hostcalls, nothing)
     try
         GPUCompiler.JuliaContext() do _
-            mod, _ = GPUCompiler.load_device_library(GPUCompiler.runtime_library(AMDGPU), job)
+            mod, _ = GPUCompiler.load_runtime(job)
             LLVM.dispose(mod)
         end
         @test isempty(get(storage, :amdgpu_early_hostcalls, Symbol[]))
@@ -97,72 +97,67 @@ end
     end
 end
 
-@testset "Late import policy" begin
+@testset "Import policy" begin
     target = GPUCompiler.GCNCompilerTarget(; dev_isa="gfx1030")
     params = AMDGPU.Compiler.HIPCompilerParams(false, true, true)
     config = GPUCompiler.CompilerConfig(target, params; kernel=false)
     source = GPUCompiler.methodinstance(typeof(identity), Tuple{Float32})
     job = GPUCompiler.CompilerJob(source, config)
-    GPUCompiler.JuliaContext() do _
-        mod = parse(LLVM.Module, """
-            declare i32 @llvm.amdgcn.wavefrontsize()
-            define i32 @__ocml_fabs_f32() {
-                %size = call i32 @llvm.amdgcn.wavefrontsize()
-                ret i32 %size
-            }
-            define void @__ockl_hsa_signal_test() { ret void }
-            define void @explicit_noinline() noinline { ret void }
-            define void @julia_helper() { ret void }
-            define void @report_exception_test() noinline { ret void }
-            """)
-        try
-            GPUCompiler.finish_imports!(job, mod,
-                ["__ocml_fabs_f32", "__ockl_hsa_signal_test",
-                 "explicit_noinline", "julia_helper", "report_exception_test"])
-            @test occursin("ret i32 32", string(mod.functions["__ocml_fabs_f32"]))
-            @test haskey(mod.functions["__ocml_fabs_f32"].function_attributes, :alwaysinline)
-            @test !haskey(mod.functions["julia_helper"].function_attributes, :alwaysinline)
-            @test !haskey(mod.functions["__ockl_hsa_signal_test"].function_attributes,
-                          :alwaysinline)
-            @test haskey(mod.functions["explicit_noinline"].function_attributes, :noinline)
-            @test haskey(mod.functions["report_exception_test"].function_attributes,
-                         :alwaysinline)
-            @test !haskey(mod.functions["report_exception_test"].function_attributes,
-                          :noinline)
-            @test LLVM.verify(mod) === nothing
-        finally
-            LLVM.dispose(mod)
+    storage = task_local_storage()
+    previous = pop!(storage, :amdgpu_early_hostcalls, nothing)
+    # imported before (`finish_linked_module!`) and after optimization (`finish_imports!`)
+    for late in (false, true)
+        GPUCompiler.JuliaContext() do _
+            mod = parse(LLVM.Module, """
+                @__malloc_hostcall = internal global i64 0
+                declare i32 @llvm.amdgcn.wavefrontsize()
+                define i32 @__ocml_fabs_f32() alwaysinline {
+                    %size = call i32 @llvm.amdgcn.wavefrontsize()
+                    ret i32 %size
+                }
+                define void @__ockl_hsa_signal_test() alwaysinline { ret void }
+                define void @report_exception_test() noinline { ret void }
+                """)
+            try
+                if late
+                    GPUCompiler.finish_imports!(job, mod,
+                        ["__ocml_fabs_f32", "__ockl_hsa_signal_test", "report_exception_test"])
+                else
+                    GPUCompiler.finish_linked_module!(job, mod)
+                end
+                @test occursin("ret i32 32", string(mod.functions["__ocml_fabs_f32"]))
+                @test haskey(mod.functions["__ocml_fabs_f32"].function_attributes, :alwaysinline)
+                @test !haskey(mod.functions["__ockl_hsa_signal_test"].function_attributes,
+                              :alwaysinline)
+                @test haskey(mod.functions["report_exception_test"].function_attributes,
+                             late ? :alwaysinline : :noinline)
+                @test LLVM.verify(mod) === nothing
+                @test pop!(storage, :amdgpu_early_hostcalls, Symbol[]) == [:malloc_hostcall]
+            finally
+                LLVM.dispose(mod)
+            end
         end
     end
+    pop!(storage, :amdgpu_early_hostcalls, nothing)
+    previous === nothing || (storage[:amdgpu_early_hostcalls] = previous)
 end
 
-@testset "ROCm declaration attributes" begin
-    target = GPUCompiler.GCNCompilerTarget(; dev_isa="gfx1030")
-    params = AMDGPU.Compiler.HIPCompilerParams(false, true, true)
-    config = GPUCompiler.CompilerConfig(target, params; kernel=false)
-    source = GPUCompiler.methodinstance(typeof(identity), Tuple{Float32})
-    job = GPUCompiler.CompilerJob(source, config)
-    GPUCompiler.JuliaContext() do _
-        mod = parse(LLVM.Module, """
-            declare float @__ocml_sin_f32(float)
-            declare float @__ocml_sincos_f32(float, float*)
-            declare i32 @__ockl_wfred_add_i32(i32)
-            """)
-        try
-            AMDGPU.Compiler.annotate_rocm_declarations!(job, mod)
-            @test haskey(mod.functions["__ockl_wfred_add_i32"].function_attributes,
-                         :convergent)
-            library = only(filter(library -> library.name == :ocml,
-                                  GPUCompiler.device_libraries(job)))
-            properties = AMDGPU.Compiler.rocm_library_attributes(library)
-            for name in ("__ocml_sin_f32", "__ocml_sincos_f32")
-                @test !isempty(properties[name])
-                for (kind, value) in properties[name]
-                    @test LLVM.value(mod.functions[name].function_attributes[kind]) == value
-                end
-            end
-        finally
-            LLVM.dispose(mod)
+@testset "Libraries are optimized with the kernel" begin
+    # loop-invariant library calls are hoisted, which requires their definitions
+    function licm_kernel(output, x)
+        index = AMDGPU.Device.workitemIdx().x
+        acc = 0f0
+        for i in 1:index
+            acc += sin(x)
         end
+        @inbounds output[index] = acc
+        return
     end
+    types = Tuple{AMDGPU.Device.ROCDeviceVector{Float32, AMDGPU.Device.AS.Global}, Float32}
+    ir = sprint(io -> AMDGPU.code_llvm(io, licm_kernel, types; kernel=true, dump_module=true))
+    @test !occursin("__ocml_sin_f32", ir)
+
+    output = AMDGPU.zeros(Float32, 4)
+    @roc groupsize=4 gridsize=1 licm_kernel(output, 0.5f0)
+    @test Array(output) ≈ Float32[1, 2, 3, 4] .* sin(0.5f0)
 end
