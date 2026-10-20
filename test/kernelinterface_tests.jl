@@ -45,7 +45,15 @@ end
 @testset "kernelinterface" begin
 
 backend = ROCBackend()
-Testsuite.testsuite(backend, ROCArray)
+# `KI.device!` goes through `AMDGPU.device!`, which also sets the default device, and the
+# testsuite switches devices in spawned tasks without switching back. Restore the default,
+# or the test files that run next on this worker start on another device.
+default = AMDGPU.default_device()
+try
+    Testsuite.testsuite(backend, ROCArray)
+finally
+    AMDGPU.default_device!(default)
+end
 
 @testset "copyto!" begin
     # host to host
