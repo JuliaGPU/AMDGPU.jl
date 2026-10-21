@@ -1,6 +1,6 @@
 name = "AMDGPU"
 uuid = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-version = "2.9.1"
+version = "3.0.0"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.churavy@gmail.com>", "Anton Smirnov <tonysmn97@gmail.com>"]
 
 [workspace]
@@ -58,7 +58,7 @@ CEnum = "0.5, 1"
 ChainRulesCore = "1"
 EnzymeCore = "0.8"
 ExprTools = "0.1"
-GPUArrays = "12.1"
+GPUArrays = "13"
 GPUCompiler = "2.13"
 GPUToolbox = "3.3.1"
 KernelAbstractions = "0.10"
