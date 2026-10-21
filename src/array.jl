@@ -275,8 +275,9 @@ function Base.fill!(A::ROCArray{T}, x) where T <: MemsetTypes
     return A
 end
 
-function Base.copy(X::ROCArray{T}) where T
-    Xnew = ROCArray{T}(undef, size(X))
+function Base.copy(X::ROCArray)
+    # `similar` keeps the buffer type, so a copy of a host-memory array stays in host memory
+    Xnew = similar(X)
     copyto!(Xnew, 1, X, 1, length(X))
     return Xnew
 end
@@ -549,27 +550,23 @@ Resize `a` to contain `n` elements. If `n` is smaller than the current
 collection length, the first `n` elements will be retained. If `n` is larger,
 the new elements are not guaranteed to be initialized.
 
-Note that this operation is only supported on managed buffers, i.e., not on
-arrays that are created by `unsafe_wrap`.
+The new storage has the same buffer type as `a`, so an array in host memory
+(`Mem.HostBuffer`) stays in host memory. Resizing always allocates new memory,
+which detaches `a` from memory it was wrapped around with `unsafe_wrap`.
 """
-function Base.resize!(A::ROCVector{T}, n::Integer) where T
-    # TODO
-    #   1. Specialize ROCArray on storage type.
-    #   2. Check that it is not HostBuffer.
-    # if A.buf.host_ptr != C_NULL
-    #     throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
-    # end
+function Base.resize!(A::ROCVector{T, B}, n::Integer) where {T, B}
     n == length(A) && return A
 
     maxsize = n * aligned_sizeof(T)
     bufsize = Base.isbitsunion(T) ? (maxsize + n) : maxsize
-    new_buf = Mem.HIPBuffer(bufsize; stream=stream())
+    managed = pool_alloc(B, bufsize)
 
     copy_size = min(length(A), n) * aligned_sizeof(T)
-    copy_size > 0 && Mem.memcpy!(new_buf, pointer(A), copy_size; stream=stream())
+    # `convert(Ptr, managed)` gives the device-visible pointer for host memory
+    copy_size > 0 && Mem.memcpy!(convert(Ptr{T}, managed), pointer(A), copy_size; stream=stream())
     unsafe_free!(A)
 
-    A.buf = DataRef(pool_free, Managed(new_buf))
+    A.buf = DataRef(pool_free, managed)
     A.dims = (n,)
     A.offset = 0
     return A

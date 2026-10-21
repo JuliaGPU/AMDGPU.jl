@@ -166,6 +166,46 @@ end
     end
 end
 
+# JuliaGPU/AMDGPU.jl#1179: arrays in host memory used to come back as device
+# memory from `copy`, and `resize!` failed on them.
+@testset "HostBuffer copy & resize!" begin
+    HostBuffer = AMDGPU.Mem.HostBuffer
+    x = ROCArray{Float32, 1, HostBuffer}(undef, 4)
+    fill!(x, 1f0)
+
+    y = copy(x)
+    @test y isa ROCArray{Float32, 1, HostBuffer}
+    @test y !== x
+    @test !Base.mightalias(x, y)
+    @test Array(y) == Array(x)
+    @test deepcopy(x) isa ROCArray{Float32, 1, HostBuffer}
+    # `deepcopy` of a container asserts that the copied field keeps its type
+    @test deepcopy(Ref(x))[] isa ROCArray{Float32, 1, HostBuffer}
+
+    resize!(x, 8)
+    @test x isa ROCArray{Float32, 1, HostBuffer}
+    @test length(x) == 8
+    x[5:8] .= 2f0
+    @test Array(x) == [fill(1f0, 4); fill(2f0, 4)]
+    resize!(x, 2)
+    @test x isa ROCArray{Float32, 1, HostBuffer}
+    @test Array(x) == fill(1f0, 2)
+    resize!(x, 0)
+    @test isempty(x)
+    resize!(x, 3)
+    @test length(x) == 3
+
+    # resizing a wrapper around a host array detaches it from that array
+    a = Float32[1, 2, 3]
+    w = unsafe_wrap(ROCArray, a)
+    resize!(w, 5)
+    @test w isa ROCArray{Float32, 1, HostBuffer}
+    @test Array(w)[1:3] == a
+    w .= 0f0
+    AMDGPU.synchronize()
+    @test a == Float32[1, 2, 3]
+end
+
 @testset "unsafe_wrap" begin
     @testset "Wrap host array" begin
         A = rand(4, 4)
