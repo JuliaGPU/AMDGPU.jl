@@ -280,7 +280,9 @@ using Adapt
         @test SparseMatrixCSC(ROCSparseMatrixCSC(dAt * α)) ≈ Sw * α
 
         if wrap !== identity
-            @test SparseMatrixCSC(ROCSparseMatrixCSC(α * dAt * dA)) ≈ α * Sw * S
+            # Preserve scalar promotion before accumulation on both sides; Base may
+            # reassociate the CPU three-argument product through narrow accumulation.
+            @test SparseMatrixCSC(ROCSparseMatrixCSC(α * dAt * dA)) ≈ (α * Sw) * S
         end
     end
 
@@ -299,7 +301,7 @@ using Adapt
         @test SparseMatrixCSC(ROCSparseMatrixCSC(dA * dA)) ≈ S * S
         @test SparseMatrixCSC(ROCSparseMatrixCSC(transpose(dA) * dA)) ≈ transpose(S) * S
         @test SparseMatrixCSC(ROCSparseMatrixCSC(adjoint(dA) * dA)) ≈ adjoint(S) * S
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(α * adjoint(dA) * dA)) ≈ α * adjoint(S) * S
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(α * adjoint(dA) * dA)) ≈ (α * adjoint(S)) * S
     end
 
     @testset "Diagonal with $typ(10, 10)" for typ in (
@@ -384,7 +386,7 @@ end
         d_vals = ROCArray(vals)
         v = sparsevec(i, vals, n)
         d_v = sparsevec(d_i, d_vals, n)
-        @test Array(d_v.iPtr) == v.nzind
+        @test Array(d_v.nzInd) == v.nzind
         @test Array(d_v.nzVal) == v.nzval
         @test d_v.len == v.n
     end

@@ -15,6 +15,7 @@ for (fname,elty) in ((:rocsparse_saxpyi, :Float32),
                      (:rocsparse_zaxpyi, :ComplexF64))
     @eval begin
         function axpyi!(alpha::Number, X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            require_cint_storage(X,index)
             $fname(handle(), nnz(X), alpha, nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
@@ -39,6 +40,7 @@ for (fname,elty) in ((:rocsparse_sgthr, :Float32),
                      (:rocsparse_zgthr, :ComplexF64))
     @eval begin
         function gthr!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            require_cint_storage(X,index)
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X
         end
@@ -60,6 +62,7 @@ for (fname,elty) in ((:rocsparse_sgthrz, :Float32),
                      (:rocsparse_zgthrz, :ComplexF64))
     @eval begin
         function gthrz!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            require_cint_storage(X,index)
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X,Y
         end
@@ -79,6 +82,7 @@ for (fname,elty) in ((:rocsparse_sroti, :Float32),
                      (:rocsparse_droti, :Float64))
     @eval begin
         function roti!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, c::Number, s::Number, index::SparseChar)
+            require_cint_storage(X,index)
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, c, s, index)
             X,Y
         end
@@ -100,6 +104,7 @@ for (fname,elty) in ((:rocsparse_ssctr, :Float32),
                      (:rocsparse_zsctr, :ComplexF64))
     @eval begin
         function sctr!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            require_cint_storage(X,index)
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end

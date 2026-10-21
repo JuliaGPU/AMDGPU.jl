@@ -42,3 +42,14 @@ function with_workspace(
     AMDGPU.unsafe_free!(workspace)
     return res
 end
+# Legacy rocSPARSE APIs accept one Cint type for both index buffers.
+function require_cint_storage(A::ROCSparseVecOrMat,index::Char='O')
+    check_sparse_binding(A,index)
+    buffers=A isa ROCSparseMatrixBSR ? (A.rowPtr,A.colVal) :
+        Base.front(GPUArrays.sparse_buffers(A))
+    all(b -> eltype(b)===Cint,buffers) ||
+        throw(ArgumentError("legacy rocSPARSE operation requires Int32 pointer and coordinate storage"))
+    GPUArrays.check_sparse_dims(Cint,size(A))
+    GPUArrays.check_sparse_nnz(Cint,nnz(A))
+    nothing
+end

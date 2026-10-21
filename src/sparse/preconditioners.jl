@@ -18,6 +18,7 @@ for (bname,aname,sname,elty) in (
 )
     @eval begin
         function ic0!(A::ROCSparseMatrixCSR{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -57,6 +58,7 @@ for (bname,aname,sname,elty) in (
 )
     @eval begin
         function ic0!(A::ROCSparseMatrixCSC{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -106,6 +108,7 @@ for (bname,aname,sname,elty) in (
 )
     @eval begin
         function ilu0!(A::ROCSparseMatrixCSR{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -149,6 +152,7 @@ for (bname,aname,sname,elty) in (
 )
     @eval begin
         function ilu0!(A::ROCSparseMatrixCSC{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -191,6 +195,7 @@ for (bname,aname,sname,elty) in (
 )
     @eval begin
         function ic0!(A::ROCSparseMatrixBSR{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
             desc = ROCMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n
@@ -236,6 +241,7 @@ for (bname,aname,sname,elty) in (
 )
     @eval begin
         function ilu0!(A::ROCSparseMatrixBSR{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
             desc = ROCMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n

@@ -57,24 +57,32 @@ function densetosparse(A::ROCMatrix{T}, fmt::Symbol, index::SparseChar,
             rowInd = ROCVector{Cint}(undef, nnzB[])
             colInd = ROCVector{Cint}(undef, nnzB[])
             nzVal = ROCVector{T}(undef, nnzB[])
-            B = ROCSparseMatrixCOO{T, Cint}(rowInd, colInd, nzVal, (m,n))
+            B = (;rowInd,colInd,nzVal)
             rocsparse_coo_set_pointers(desc_sparse, B.rowInd, B.colInd, B.nzVal)
         elseif fmt == :csr
             colVal = ROCVector{Cint}(undef, nnzB[])
             nzVal = ROCVector{T}(undef, nnzB[])
-            B = ROCSparseMatrixCSR{T, Cint}(rowPtr, colVal, nzVal, (m,n))
+            B = (;rowPtr,colVal,nzVal)
             rocsparse_csr_set_pointers(desc_sparse, B.rowPtr, B.colVal, B.nzVal)
         elseif fmt == :csc
             rowVal = ROCVector{Cint}(undef, nnzB[])
             nzVal = ROCVector{T}(undef, nnzB[])
-            B = ROCSparseMatrixCSC{T, Cint}(colPtr, rowVal, nzVal, (m,n))
+            B = (;colPtr,rowVal,nzVal)
             rocsparse_csc_set_pointers(desc_sparse, B.colPtr, B.rowVal, B.nzVal)
         else
             error("Format :$fmt not available, use :csc, :csr or :coo.")
         end
+        desc_sparse.storage=B
         rocsparse_dense_to_sparse(handle(), desc_dense, desc_sparse, algo, buffer_size, buffer)
     end
-    return B
+    if fmt===:coo
+        return GPUArrays.assemble_matrix(B.rowInd,B.colInd,B.nzVal,m,n,GPUArrays.default_combine(T),fmt;pointer_type=Cint)
+    elseif fmt===:csr
+        return canonical_csr(B.rowPtr,B.colVal,B.nzVal,(m,n))
+    else
+        cols=GPUArrays.expand_ptr(B.colPtr,length(B.nzVal),Cint)
+        return GPUArrays.assemble_matrix(B.rowVal,cols,B.nzVal,m,n,GPUArrays.default_combine(T),fmt;pointer_type=Cint)
+    end
 end
 
 function gather!(X::ROCSparseVector, Y::ROCVector, index::SparseChar)
@@ -242,13 +250,14 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseROCM
              B::Union{ROCSparseMatrixCSC{T},ROCSparseMatrixCSR{T},ROCSparseMatrixCOO{T}},
              beta::Number, C::DenseROCMatrix{T}, index::SparseChar, algo::rocsparse_spmm_alg=rocsparse_spmm_alg_default) where T
 
+    GPUArrays.check_sparse_product(C,transa,transb,A,B)
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
     if isa(B, ROCSparseMatrixCSR) && transb == 'C' && T <: Complex
         throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSR matrix" *
-                            " is not supported by the current CUDA version. Use a CSC or COO matrix instead."))
+                            " is not supported by the current ROCm version. Use a CSC or COO matrix instead."))
     end
 
     if isa(B, ROCSparseMatrixCSR)
@@ -257,19 +266,6 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseROCM
     else
         descB = ROCSparseMatrixDescriptor(B, index, transposed=true)
     end
-    m,k = size(A)
-    n = size(C)[2]
-
-    if transa == 'N' && transb == 'N'
-        chkmmdims(B,C,k,n,m,n)
-    elseif transa == 'N' && transb != 'N'
-        chkmmdims(B,C,n,k,m,n)
-    elseif transa != 'N' && transb == 'N'
-        chkmmdims(B,C,m,n,k,n)
-    elseif transa != 'N' && transb != 'N'
-        chkmmdims(B,C,n,m,k,n)
-    end
-
     descA = ROCDenseMatrixDescriptor(A, transposed=true)
     descC = ROCDenseMatrixDescriptor(C, transposed=true)
 
@@ -293,46 +289,10 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseROCM
     return C
 end
 
-function gemm!(
-    transa::SparseChar, transb::SparseChar, α::Number, A::ROCSparseMatrixCSR{T},
-    B::ROCSparseMatrixCSR{T}, β::Number, C::ROCSparseMatrixCSR{T},
-    index::SparseChar,
-) where T
-    m, k = size(A)
-    n = size(C)[2]
-    alpha = convert(T, α)
-    beta = convert(T, β)
-
-    if transa == 'N' && transb == 'N'
-        chkmmdims(B,C,k,n,m,n)
-    else
-        throw(ArgumentError("Sparse mm! only supports transa ($transa) = 'N' and transb ($transb) = 'N'"))
-    end
-
-    descA = ROCSparseMatrixDescriptor(A, index)
-    descB = ROCSparseMatrixDescriptor(B, index)
-    descC = ROCSparseMatrixDescriptor(C, index)
-
-    function bufferSize()
-        out = Ref{Csize_t}(0)
-        rocsparse_spgemm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default,
-            rocsparse_spgemm_stage_buffer_size, out, C_NULL)
-        return out[]
-    end
-    with_workspace(bufferSize) do buffer
-        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
-        rocsparse_spgemm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default,
-            rocsparse_spgemm_stage_nnz, buffer_len_ref, buffer)
-        rocsparse_spgemm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default,
-            rocsparse_spgemm_stage_compute, buffer_len_ref, buffer)
-    end
-    return C
+function gemm!(transa::SparseChar,transb::SparseChar,alpha::Number,A::ROCSparseMatrixCSR,
+               B::ROCSparseMatrixCSR,beta::Number,C::ROCSparseMatrixCSR,index::SparseChar)
+    index == 'O' || throw(ArgumentError("canonical sparse arrays require one-based indices"))
+    GPUArrays.spgemm!(C,transa,transb,A,B,alpha,beta)
 end
 
 function gemm(
@@ -353,6 +313,7 @@ function gemm(
 
     descA = ROCSparseMatrixDescriptor(A, index)
     descB = ROCSparseMatrixDescriptor(B, index)
+    eltype(A.rowPtr)===Ti && eltype(B.rowPtr)===Ti || throw(ArgumentError("rocSPARSE SpGEMM requires uniform index widths"))
     rowPtrC = ROCVector{Ti}(undef, m + 1)
     descC = ROCSparseMatrixDescriptor(ROCSparseMatrixCSR, rowPtrC, T, Ti, m, n, index)
 
@@ -377,15 +338,16 @@ function gemm(
         rocsparse_spmat_get_size(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
         colValC = ROCVector{Ti}(undef, nnzC[])
         nzValC = ROCVector{T}(undef, nnzC[])
-        C = ROCSparseMatrixCSR{T,Ti}(rowPtrC, colValC, nzValC, (m, n))
+        C = (;rowPtr=rowPtrC,colVal=colValC,nzVal=nzValC)
         rocsparse_csr_set_pointers(descC, C.rowPtr, C.colVal, C.nzVal)
+        descC.storage=C
 
         rocsparse_spgemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, descC, T, rocsparse_spgemm_alg_default,
             rocsparse_spgemm_stage_compute, buffer_len_ref, buffer)
     end
-    return C
+    return canonical_csr(C.rowPtr,C.colVal,C.nzVal,(m,n),Ti,eltype(A.rowPtr))
 end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,

@@ -140,15 +140,12 @@ let RM   = (T) -> ROCArray{T, 2, Mem.HIPBuffer},
         precompile(Tuple{typeof(rocSPARSE.geam), T, RCSC(T), T, RCSC(T), Char})
     end
 
-    # PR #937 – transpose/adjoint materialisation, triu/tril, kron.
-    # _sptranspose / _spadjoint are the hot path behind `transpose(A) * x` and
-    # `adjoint(A) * x` for sparse matrices: the SpMV/SpMM wrappers call them to
-    # materialise the transposed/adjoint matrix before the rocSPARSE kernel.
+    # Canonical transpose/adjoint materialization is owned by GPUArrays.
     for T in (Float32, Float64, ComplexF32, ComplexF64)
-        precompile(Tuple{typeof(GPUArrays._sptranspose), RCSR(T)})
-        precompile(Tuple{typeof(GPUArrays._spadjoint), RCSR(T)})
-        precompile(Tuple{typeof(GPUArrays._sptranspose), RCSC(T)})
-        precompile(Tuple{typeof(GPUArrays._spadjoint), RCSC(T)})
+        precompile(Tuple{typeof(copy), LinearAlgebra.Transpose{T,RCSR(T)}})
+        precompile(Tuple{typeof(copy), LinearAlgebra.Adjoint{T,RCSR(T)}})
+        precompile(Tuple{typeof(copy), LinearAlgebra.Transpose{T,RCSC(T)}})
+        precompile(Tuple{typeof(copy), LinearAlgebra.Adjoint{T,RCSC(T)}})
     end
     for T in (Float32, Float64)
         # triu/tril for COO (linalg.jl)

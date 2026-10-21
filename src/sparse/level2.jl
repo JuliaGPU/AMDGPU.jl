@@ -24,6 +24,7 @@ for (fname,elty) in ((:rocsparse_sbsrmv, :Float32),
         function mv!(
             transa::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
             X::ROCVector{$elty}, beta::Number, Y::ROCVector{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -40,7 +41,7 @@ for (fname,elty) in ((:rocsparse_sbsrmv, :Float32),
             end
             $fname(
                 handle(), A.dir, transa, mb, nb,
-                nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
+                A.nnzb, Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                 A.colVal, A.blockDim, X, beta, Y)
             Y
         end
@@ -72,6 +73,7 @@ for (bname,aname,sname,elty) in (
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
             A::ROCSparseMatrixBSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -132,6 +134,7 @@ for (bname,aname,sname,elty) in (
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
             A::ROCSparseMatrixCSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -190,6 +193,7 @@ for (bname,aname,sname,elty) in (
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
             A::ROCSparseMatrixCSC{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -256,18 +260,21 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
             A::ROCSparseMatrix{$elty}, X::ROCVector{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             sv2!(transa,uplo,diag,alpha,A,copy(X),index)
         end
         function sv2(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar,
             A::ROCSparseMatrix{$elty}, X::ROCVector{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             sv2!(transa,uplo,diag,one($elty),A,copy(X),index)
         end
         function sv2(
             transa::SparseChar, uplo::SparseChar, A::ROCSparseMatrix{$elty},
             X::ROCVector{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             sv2!(transa,uplo,'N',one($elty),A,copy(X),index)
         end
     end

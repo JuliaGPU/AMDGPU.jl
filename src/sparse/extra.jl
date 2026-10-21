@@ -30,8 +30,9 @@ for (fname, elty) in (
             alpha::Number, A::ROCSparseMatrixCSR{$elty}, beta::Number,
             B::ROCSparseMatrixCSR{$elty}, index::SparseChar)
 
+            require_cint_storage(A,index); require_cint_storage(B,index)
             m, n = size(A)
-            (m, n) == size(B) && DimensionMismatch("dimensions must match: a has dims $(axes(A)), b has dims $(axes(B))")
+            (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: a has dims $(axes(A)), b has dims $(axes(B))"))
             descrA = ROCMatrixDescriptor('G', 'L', 'N', index)
             descrB = ROCMatrixDescriptor('G', 'L', 'N', index)
             descrC = ROCMatrixDescriptor('G', 'L', 'N', index)
@@ -51,7 +52,7 @@ for (fname, elty) in (
                 Ref(alpha), descrA, nnz(A), nonzeros(A), A.rowPtr, A.colVal,
                 Ref(beta), descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
                 descrC, pointer(nnz_C), rowPtrC, colValC)
-            return ROCSparseMatrixCSR(rowPtrC, colValC, nnz_C, (m, n))
+            return canonical_csr(rowPtrC,colValC,nnz_C,(m,n))
         end
 
         function geam(alpha::Number, A::ROCSparseMatrixCSC{$elty}, beta::Number, B::ROCSparseMatrixCSC{$elty}, index::SparseChar)
@@ -72,11 +73,11 @@ for (fname, elty) in (
 
              # we model x as a ROCSparseMatrixCSR with one row.
             rowPtrA = ROCVector{Int32}([1; nnz(x)+1])
-            A = ROCSparseMatrixCSR(rowPtrA, x.iPtr, nonzeros(x), (1,n))
+            A = ROCSparseMatrixCSR(rowPtrA, x.nzInd, nonzeros(x), (1,n))
 
             # we model y as a ROCSparseMatrixCSR with one row.
             rowPtrB = ROCVector{Int32}([1; nnz(y)+1])
-            B = ROCSparseMatrixCSR(rowPtrB, y.iPtr, nonzeros(y), (1,n))
+            B = ROCSparseMatrixCSR(rowPtrB, y.nzInd, nonzeros(y), (1,n))
 
             C = geam(alpha, A, beta, B, index)
             z = ROCSparseVector(C.colVal, C.nzVal, n)

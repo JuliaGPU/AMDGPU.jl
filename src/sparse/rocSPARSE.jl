@@ -12,7 +12,6 @@ using ..AMDGPU
 using ..AMDGPU: @allowscalar
 using ..AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
 
-import GPUArrays: _sptranspose, _spadjoint
 import SparseArrays: SparseVector, SparseMatrixCSC
 import AMDGPU: librocsparse, HandleCache, HIP, library_state, ROCVector
 import AMDGPU.Device: ROCDeviceVector
@@ -70,8 +69,6 @@ include("preconditioners.jl")
 include("conversions.jl")
 include("generic.jl")
 
-# high-level integrations
-include("interfaces.jl")
-include("linalg.jl")
+# High-level operation selection and integration live in GPUArrays' ROCSPARSEExt.
 
 end

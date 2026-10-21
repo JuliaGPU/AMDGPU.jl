@@ -29,6 +29,7 @@ for (fname,elty) in ((:rocsparse_sbsrmm, :Float32),
             A::ROCSparseMatrixBSR{$elty}, B::StridedROCMatrix{$elty},
             beta::Number, C::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,k = size(A)
             mb = cld(m, A.blockDim)
@@ -65,6 +66,7 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
             A::ROCSparseMatrixCSR{$elty}, B::StridedROCMatrix{$elty},
             beta::Number, C::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             if transb == 'C'
                 throw(ArgumentError("B^H is not supported"))
             elseif transb == 'T' && transa != 'N'
@@ -95,6 +97,7 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
             A::ROCSparseMatrixCSC{$elty}, B::StridedROCMatrix{$elty},
             beta::Number, C::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             if transb == 'C'
                 throw(ArgumentError("B^H is not supported"))
             elseif transb == 'T' && transa != 'N'
@@ -155,6 +158,7 @@ for (bname,aname,sname,elty) in (
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
 
             # Support transa = 'C' and transxy = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -224,6 +228,7 @@ for (bname,aname,sname,elty) in (
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
 
             # Support transa = 'C' and transxy = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -292,6 +297,7 @@ for (bname,aname,sname,elty) in (
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             diag::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar)
+            require_cint_storage(A,index)
 
             # Support transa = 'C' and transxy = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -366,6 +372,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
             diag::SparseChar, alpha::Number, A::ROCSparseMatrix{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             sm2!(transa,transxy,uplo,diag,alpha,A,copy(X),index)
         end
         function sm2(
@@ -373,12 +380,14 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
             diag::SparseChar, A::ROCSparseMatrix{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             sm2!(transa,transxy,uplo,diag,one($elty),A,copy(X),index)
         end
         function sm2(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
             A::ROCSparseMatrix{$elty}, X::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            require_cint_storage(A,index)
             sm2!(transa,transxy,uplo,'N',one($elty),A,copy(X),index)
         end
     end
