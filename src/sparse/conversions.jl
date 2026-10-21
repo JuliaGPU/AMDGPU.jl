@@ -14,6 +14,10 @@ for (fname,elty) in ((:rocsparse_scsr2bsr, :Float32),
             inda == indc == 'O' || throw(ArgumentError("canonical arrays require one-based indices"))
             blockDim > 0 || throw(ArgumentError("block dimension must be positive"))
             m,n = size(csr)
+            if iszero(nnz(csr))
+                return ROCSparseMatrixBSR{$elty}(AMDGPU.ones(Cint,cld(m,blockDim)+1),
+                    ROCVector{Cint}(undef,0),ROCVector{$elty}(undef,0),size(csr),blockDim,dir,0)
+            end
             nnz_ref = Ref{Cint}()
             mb = cld(m, blockDim)
             nb = cld(n, blockDim)
@@ -52,6 +56,10 @@ for (fname,elty) in ((:rocsparse_sbsr2csr, :Float32),
             require_cint_storage(bsr)
             inda == indc == 'O' || throw(ArgumentError("canonical arrays require one-based indices"))
             m,n = size(bsr)
+            if iszero(bsr.nnzb)
+                return ROCSparseMatrixCSR(AMDGPU.ones(Cint,m+1),
+                    ROCVector{Cint}(undef,0),ROCVector{$elty}(undef,0),size(bsr))
+            end
             mb = cld(m, bsr.blockDim)
             nb = cld(n, bsr.blockDim)
             rocdesca = ROCMatrixDescriptor('G', 'L', 'N', inda)

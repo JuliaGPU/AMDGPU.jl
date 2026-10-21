@@ -3,6 +3,12 @@ using AMDGPU: rocSPARSE
 using AMDGPU.rocSPARSE
 
 @testset "canonical vendor boundary preflight" begin
+    for dims in ((0,0),(0,3),(3,0),(3,5)), T in (Float32,Float64,ComplexF32,ComplexF64)
+        empty=ROCSparseMatrixCSR(spzeros(T,dims...))
+        blocked=ROCSparseMatrixBSR(empty,2)
+        @test iszero(nnz(blocked))
+        @test Array(ROCSparseMatrixCSR(blocked))==zeros(T,dims)
+    end
     A=ROCSparseMatrixCSR(sparse(Float32[2 0;1 3]))
     wide=ROCSparseMatrixCSR(ROCVector{Int64}(A.rowPtr),copy(A.colVal),copy(nonzeros(A)),size(A))
     x=ROCArray(Float32[1,2]); original=Array(x)
