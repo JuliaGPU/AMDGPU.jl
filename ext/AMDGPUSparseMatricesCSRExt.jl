@@ -29,6 +29,10 @@ AMDGPU.rocSPARSE.ROCSparseMatrixCSR(Mat::SparseMatrixCSR{1, T}) where {T} =
 
 AMDGPU.rocSPARSE.ROCSparseMatrixCSC{T}(Mat::SparseMatrixCSR{1}) where {T} = ROCSparseMatrixCSC(ROCSparseMatrixCSR{T}(Mat))
 AMDGPU.rocSPARSE.ROCSparseMatrixCOO{T}(Mat::SparseMatrixCSR{1}) where {T} = ROCSparseMatrixCOO(ROCSparseMatrixCSR{T}(Mat))
+for format in (:ROCSparseMatrixCSC,:ROCSparseMatrixCOO)
+    @eval AMDGPU.rocSPARSE.$format{T,Ti}(Mat::SparseMatrixCSR{1}) where {T,Ti} =
+        $format{T,Ti}(ROCSparseMatrixCSR{T,Ti}(Mat))
+end
 AMDGPU.rocSPARSE.ROCSparseMatrixBSR{T}(Mat::SparseMatrixCSR{1}, blockdim) where {T} = ROCSparseMatrixBSR(ROCSparseMatrixCSR{T}(Mat), blockdim)
 AMDGPU.rocSPARSE.ROCSparseMatrixBSR(Mat::SparseMatrixCSR,blockdim) =
     ROCSparseMatrixBSR(ROCSparseMatrixCSR(Mat),blockdim)

@@ -1,4 +1,5 @@
 using SparseMatricesCSR
+using GPUArrays
 using SparseArrays
 using AMDGPU
 using AMDGPU.rocSPARSE
@@ -6,6 +7,23 @@ using Adapt
 using Test
 
 @assert AMDGPU.functional(:rocsparse)
+
+@testset "explicit SparseMatricesCSR integer widths" begin
+    host=SparseMatrixCSR(sparse(Float32[1 0 2;0 3 0]))
+    for S in (ROCSparseMatrixCSR,ROCSparseMatrixCSC,ROCSparseMatrixCOO)
+        A=S{Float32,Int64}(host)
+        @test SparseArrays.indtype(A)===Int64
+        S===ROCSparseMatrixCOO || @test eltype(GPUArrays.compressed_ptr(A))===Int64
+        @test Array(A)==Matrix(host)
+    end
+    wide=Int(typemax(Int32))+1
+    host=SparseMatrixCSR{1}(1,wide,Int64[1,2],Int64[wide],Float32[3])
+    A=ROCSparseMatrixCOO{Float32,Int64}(host)
+    @test size(A)==(1,wide)
+    @test Array(A.colInd)==Int64[wide]
+    @test Array(nonzeros(A))==Float32[3]
+    @test_throws ArgumentError ROCSparseMatrixCOO{Float32,Int32}(host)
+end
 
 @testset "SparseMatricesCSRExt" begin
 
