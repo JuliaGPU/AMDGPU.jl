@@ -541,6 +541,8 @@ zeros(dims...) = zeros(Float32, dims...)
 zeros(T::Type, dims...) = fill!(ROCArray{T}(undef, dims...), zero(T))
 fill(v, dims...) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
 fill(v, dims::Dims) = fill!(ROCArray{typeof(v)}(undef, dims...), v)
+GPUArrays.supports_resize(A::ROCVector) = A.buf[].mem isa Mem.HIPBuffer
+
 
 """
     resize!(a::ROCVector, n::Integer)
