@@ -17,16 +17,8 @@ steps:
       npm i
       cd ..
 
-      julia --project -e '
-        println("--- :julia: Instantiating project")
-        using Pkg
-        Pkg.instantiate()
-        Pkg.build()
-
-        Pkg.activate("docs")
-        Pkg.develop(PackageSpec(path="."))
-        Pkg.instantiate()
-
+      julia --project .buildkite/sparse-v13-stack.jl --setup-project=docs
+      julia --project=docs -e '
         push!(LOAD_PATH, @__DIR__)
 
         println("+++ :julia: Building documentation")
@@ -52,8 +44,6 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: "{{matrix.version}}"
-      - JuliaCI/julia-test#v1:
-          test_args: "{{matrix.test_args}}"
       - JuliaCI/julia-coverage#v1:
           codecov: true
     agents:
@@ -62,7 +52,7 @@ steps:
     if: |
       build.message !~ /\[skip [^\]]*(tests|julia)/ &&
       (build.message =~ /\[only [^\]]*(tests|julia)/ || build.message !~ /\[only /)
-    command: "julia --project -e 'using Pkg; Pkg.update()'"
+    command: "julia --project .buildkite/sparse-v13-stack.jl {{matrix.test_args}}"
     timeout_in_minutes: 90
     env:
       JULIA_NUM_THREADS: 4
@@ -109,7 +99,6 @@ steps:
       build.message !~ /\[skip [^\]]*(tests|nightly)/ &&
       (build.message =~ /\[only [^\]]*(tests|nightly)/ ||
        build.message !~ /\[only / && build.pull_request.id == null)
-    soft_fail: true
 
   # Disabled: has failed on every build since at least 2026-09-16, because Enzyme does not
   # support LLVM.jl 10 yet, which AMDGPU requires ("Unsatisfiable requirements detected for
@@ -146,10 +135,9 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: "1.10"
-      - JuliaCI/julia-test#v1:
-          run_tests: false
     command: |
-      julia --project -e '
+      julia --project .buildkite/sparse-v13-stack.jl --setup-project=.buildkite/stack-env
+      julia --project=.buildkite/stack-env -e '
         using AMDGPU
         @assert !AMDGPU.functional()'
     agents:
@@ -166,12 +154,8 @@ steps:
       - JuliaCI/julia#v1:
           version: "1.13"
     command: |
+      julia --project .buildkite/sparse-v13-stack.jl --setup-project=perf
       julia --project=perf -e '
-        println("--- :julia: Instantiating benchmark project")
-        using Pkg
-        Pkg.develop(PackageSpec(path="."))
-        Pkg.instantiate()
-
         println("+++ :julia: Running benchmarks")
         include("perf/runbenchmarks.jl")'
     artifact_paths:
