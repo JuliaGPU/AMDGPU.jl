@@ -132,6 +132,3 @@ end
 function ROCSparseMatrixBSR(A::ROCMatrix;ind::SparseChar='O')
     ROCSparseMatrixBSR(ROCSparseMatrixCSR(A),max(gcd(size(A)...),1);inda=ind)
 end
-function SparseArrays.sparse(A::DenseROCMatrix;fmt::Symbol=:csc)
-    fmt===:bsr ? ROCSparseMatrixBSR(A) : GPUArrays.sparse_format(fmt){eltype(A),Cint}(A)
-end

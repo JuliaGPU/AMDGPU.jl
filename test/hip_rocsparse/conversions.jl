@@ -8,6 +8,22 @@ using Adapt
 
 @assert AMDGPU.functional(:rocsparse)
 
+@testset "dense sparse entrypoint policy" begin
+    host=Float32[1 0 2;0 3 0]
+    A=ROCArray(host)
+    @test GPUArrays.default_sparse_indtype(A)===Cint
+    for fmt in (:csc,:csr,:coo)
+        B=sparse(A;fmt)
+        @test SparseArrays.indtype(B)===Cint
+        fmt===:coo || @test eltype(GPUArrays.compressed_ptr(B))===Cint
+        @test Array(B)==host
+    end
+    B=sparse(A;fmt=:bsr)
+    @test B isa ROCSparseMatrixBSR{Float32,Cint}
+    @test Array(ROCArray(B))==host
+    @test_throws ArgumentError sparse(A;fmt=:unknown_format)
+end
+
 @testset "sparse" begin
     n, m = 4, 4
     I = [1,2,3] |> roc
