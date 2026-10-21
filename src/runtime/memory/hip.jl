@@ -25,7 +25,7 @@ function pool_create(dev::HIPDevice)
 end
 
 # ccall integration
-Base.unsafe_convert(T, buf::AbstractAMDBuffer) = convert(T, buf)
+Base.unsafe_convert(::Type{Ptr{T}}, buf::AbstractAMDBuffer) where {T} = convert(Ptr{T}, buf)
 
 struct HIPBuffer <: AbstractAMDBuffer
     device::HIPDevice # TODO not used?
