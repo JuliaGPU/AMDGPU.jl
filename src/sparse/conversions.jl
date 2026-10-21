@@ -57,7 +57,7 @@ for (fname,elty) in ((:rocsparse_sbsr2csr, :Float32),
             inda == indc == 'O' || throw(ArgumentError("canonical arrays require one-based indices"))
             m,n = size(bsr)
             if iszero(bsr.nnzb)
-                return ROCSparseMatrixCSR(AMDGPU.ones(Cint,m+1),
+                return ROCSparseMatrixCSR(AMDGPU.ones(Cint,Base.checked_add(m,1)),
                     ROCVector{Cint}(undef,0),ROCVector{$elty}(undef,0),size(bsr))
             end
             mb = cld(m, bsr.blockDim)
