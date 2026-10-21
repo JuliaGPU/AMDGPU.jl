@@ -229,11 +229,13 @@ using Adapt
     ), dims in ((10, 10), (5, 10), (10, 5))
         S = sprand(Float32, dims..., 0.1)
         dA = typ(S)
-
-        @test Array(dA + I) ≈ (S + I)
-        @test Array(I + dA) ≈ (I + S)
-        @test Array(dA - I) ≈ (S - I)
-        @test Array(I - dA) ≈ (I - S)
+        # New SparseArrays restricts +/- UniformScaling to square matrices;
+        # GPUArrays preserves this existing rectangular GPU operation.
+        J = dims[1]==dims[2] ? I : Matrix{Float32}(I,dims...)
+        @test Array(dA + I) ≈ (S + J)
+        @test Array(I + dA) ≈ (J + S)
+        @test Array(dA - I) ≈ (S - J)
+        @test Array(I - dA) ≈ (J - S)
         @test Array(dA * I) ≈ Array(S)
         @test Array(I * dA) ≈ Array(S)
     end
@@ -241,10 +243,11 @@ using Adapt
     @testset "UniformScaling with ROCSparseMatrixCOO($dims)" for dims in ((10, 10), (5, 10), (10, 5))
         S  = sprand(Float32, dims..., 0.1)
         dA = ROCSparseMatrixCOO(S)
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(dA + I)) ≈ S + I
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(I + dA)) ≈ I + S
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(dA - I)) ≈ S - I
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(I - dA)) ≈ I - S
+        J = dims[1]==dims[2] ? I : Matrix{Float32}(I,dims...)
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(dA + I)) ≈ S + J
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(I + dA)) ≈ J + S
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(dA - I)) ≈ S - J
+        @test SparseMatrixCSC(ROCSparseMatrixCSC(I - dA)) ≈ J - S
         @test SparseMatrixCSC(ROCSparseMatrixCSC(dA * I)) ≈ S
         @test SparseMatrixCSC(ROCSparseMatrixCSC(I * dA)) ≈ S
     end
