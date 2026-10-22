@@ -22,6 +22,19 @@ Random.seed!(1)
     @test t >= 0
 end
 
+@testset "buffer conversions" begin
+    stream = AMDGPU.stream()
+    buf = Mem.HIPBuffer(16; stream)
+    @test Base.unsafe_convert(Ptr{Cvoid}, buf) == buf.ptr
+    @test Base.unsafe_convert(Ptr{UInt32}, buf) == Ptr{UInt32}(buf.ptr)
+    Mem.free(buf; stream)
+
+    buf = Mem.HostBuffer(16)
+    @test Base.unsafe_convert(Ptr{Cvoid}, buf) == buf.ptr
+    @test Base.unsafe_convert(Ptr{UInt32}, buf) == Ptr{UInt32}(buf.ptr)
+    Mem.free(buf)
+end
+
 @testset "cooperative synchronization" begin
     # keep the GPU busy until the host opens a gate. this keeps the tests below independent
     # of timing: a synchronization can only return after the task that opens the gate has
