@@ -72,20 +72,38 @@ GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelSt
 # Nothing session-local ends up in `obj`, which is what lets `HIPResults` persist across sessions.
 GPUCompiler.relocation_lowering(@nospecialize(::HIPCompilerJob)) = :patch
 
-function GPUCompiler.link_libraries!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
-    invoke(GPUCompiler.link_libraries!, Tuple{CompilerJob{GCNCompilerTarget},typeof(mod)}, job, mod)
+function GPUCompiler.device_libraries(@nospecialize(job::HIPCompilerJob))
+    (GPUCompiler.runtime_library(AMDGPU),
+     rocm_device_libraries(job.config.target, job.config.params.wavefrontsize64)...)
+end
 
-    # Detect global hostcalls here, before optimizations & cleanup occur.
+# Device-library definitions are imported before optimization (seen here) and, for
+# references introduced by lowering after optimization, afterwards (see `finish_imports!`).
+function GPUCompiler.finish_linked_module!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
+    finish_rocm_imports!(job, mod)
+    return
+end
+
+function GPUCompiler.finish_imports!(
+    @nospecialize(job::HIPCompilerJob), mod::LLVM.Module, imported,
+)
+    finish_rocm_imports!(job, mod)
+    inline_exception_functions!(mod)
+    return
+end
+
+function finish_rocm_imports!(@nospecialize(job::HIPCompilerJob), mod::LLVM.Module)
+    # Detect global hostcalls here, before later optimizations & cleanup could remove them.
     # Accumulate into task-local storage so hipcompile can retrieve them
     # on the same task, without any global dict or hash-collision race.
     tls_hostcalls = get!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     append!(tls_hostcalls, find_global_hostcalls(mod))
 
-    # Only the final kernel module needs the device libraries.
-    job.config.toplevel || return
-    link_device_libs!(
-        job.config.target, mod;
-        wavefrontsize64=job.config.params.wavefrontsize64)
+    # the device libraries query the wavefront size
+    fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
+
+    uninline_signal_functions!(mod)
+    return
 end
 
 function GPUCompiler.finish_module!(
@@ -94,13 +112,6 @@ function GPUCompiler.finish_module!(
     entry = invoke(GPUCompiler.finish_module!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
-
-    # Re-link device libs to resolve references introduced by the GPUCompiler runtime,
-    # e.g. boxing → malloc → hostcall → __ockl_hsa_signal*
-    # which are added after link_libraries! has already run.
-    job.config.toplevel && link_device_libs!(
-        job.config.target, mod;
-        wavefrontsize64=job.config.params.wavefrontsize64)
 
     fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
 
@@ -130,6 +141,11 @@ function GPUCompiler.finish_module!(
     # Workaround for the lack of zeroinitializer support for LDS.
     zeroinit_lds!(mod, entry)
 
+    inline_exception_functions!(mod)
+    return entry
+end
+
+function inline_exception_functions!(mod::LLVM.Module)
     # Force-inline exception-related functions.
     # LLVM gets confused when not all functions are inlined,
     # causing huge scratch memory usage.
@@ -139,10 +155,10 @@ function GPUCompiler.finish_module!(
 
     for fn in mod.functions
         do_inline = any(occursin.(target_fns, fn.name))
-        if job.config.params.unsafe_fp_atomics || do_inline
+        if do_inline
             attrs = fn.function_attributes
 
-            if do_inline && !haskey(attrs, :alwaysinline)
+            if !haskey(attrs, :alwaysinline)
                 # the two are mutually exclusive, and some matched functions are
                 # `@noinline` in Base (e.g. `_throw_boundserror_indices` on Julia 1.14)
                 delete!(attrs, :noinline)
@@ -151,7 +167,7 @@ function GPUCompiler.finish_module!(
         end
     end
 
-    return entry
+    return
 end
 
 # AMDGPU sync scopes narrower than the system scope. The system scope ("" and "one-as")
@@ -439,8 +455,7 @@ function hipcompile(@nospecialize(job::CompilerJob))
         end
     end
 
-    # Collect early-detected hostcalls written by link_libraries! on this task.
-    # Falls back gracefully to empty if link_libraries! was not called.
+    # Collect hostcalls detected before optimization and after importing libraries.
     global_hostcalls = pop!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     # Late global hostcalls detection.
     append!(global_hostcalls, late_hostcalls)

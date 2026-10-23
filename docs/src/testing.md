@@ -41,6 +41,29 @@ julia> Pkg.test("AMDGPU"; test_args=`gpuarrays`)
 !!! warning "Large memory tests"
     Some tests such as HIP and GPUArrays tests may use > 20GB of host RAM. It is recommended to use fewer workers (<= 4) on machines that have < 32Gb of host RAM in case running tests would result in out of memory errors.
 
+## Device-library integration
+
+The compiler describes the ROCm bitcode libraries to GPUCompiler through its
+`device_libraries` interface: the language libraries (OCML, OCKL, ...), whose definitions
+are force-inlined, and the target's `oclc` control constants. Library selection includes
+the ISA and wavefront size; it must not reuse one device's control files for another
+device. GPUCompiler imports the definitions a kernel needs, and their dependencies, before
+optimization, so that library code is optimized along with the kernel. References
+introduced after optimization (e.g. by the GPU runtime after GC lowering) are imported
+afterwards.
+
+ROCm bitcode files (from the artifact or the LLVM-downgrade directory) are read once per
+session, so replacing them in a running process requires restarting Julia.
+
+After importing definitions, `finish_linked_module!` (before optimization) and
+`finish_imports!` (after optimization) fold wavefront-size queries, keep the HSA signal
+operations out of line, and detect hostcalls introduced by imported code.
+
+`core/device_libraries` tests selection, transitive imports, control folding, import
+policy and runtime hostcall isolation. Run it alongside `core/codegen`, `device/math`,
+`device/wavefront`, and `device/exceptions` when changing this integration. Selecting
+`core` tests also runs hostcall and output tests on the main thread.
+
 ## Building the documentation
 
 The documentation is built with [Documenter.jl](https://documenter.juliadocs.org) and [DocumenterVitepress.jl](https://github.com/LuxDL/DocumenterVitepress.jl). To build it locally:

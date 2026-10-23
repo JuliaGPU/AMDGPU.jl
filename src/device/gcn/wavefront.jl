@@ -13,8 +13,8 @@ for (name,op) in ((:add,typeof(+)), (:max,typeof(max)), (:min,typeof(min)))
             $("extern __ockl_wfred_$(name)_$(type_suffix)"), llvmcall,
             $jltype, ($jltype,), x)
 
-        @eval @device_function $(wfscan_name)(x::$jltype, inclusive::Bool) = ccall(
-            $("extern __ockl_wfscan_$(name)_$(type_suffix)"), llvmcall,
+        @eval @device_function $(wfscan_name)(x::$jltype, inclusive::Bool) = @typed_ccall(
+            $("__ockl_wfscan_$(name)_$(type_suffix)"), llvmcall,
             $jltype, ($jltype, Bool), x, inclusive)
     end
     @eval @inline wfred(::$op, x) = $(wfred_name)(x)
@@ -31,8 +31,8 @@ for (name,op) in ((:and,typeof(&)), (:or,typeof(|)), (:xor,typeof(⊻)))
             $("extern __ockl_wfred_$(name)_$(type_suffix)"), llvmcall,
             $jltype, ($jltype,), x)
 
-        @eval @device_function $(wfscan_name)(x::$jltype, inclusive::Bool) = ccall(
-            $("extern __ockl_wfscan_$(name)_$(type_suffix)"), llvmcall,
+        @eval @device_function $(wfscan_name)(x::$jltype, inclusive::Bool) = @typed_ccall(
+            $("__ockl_wfscan_$(name)_$(type_suffix)"), llvmcall,
             $jltype, ($jltype, Bool), x, inclusive)
     end
     @eval @inline wfred(::$op, x) = $(wfred_name)(x)
@@ -47,12 +47,12 @@ for jltype in (Cuint, _Culong)
 end
 
 # TODO rename to any/all/same?
-@eval @device_function wfany(x::Cint) = ccall(
-    $("extern __ockl_wfany_$(fntypes[Cint])"), llvmcall, Bool, (Cint,), x)
-@eval @device_function wfall(x::Cint) = ccall(
-    $("extern __ockl_wfall_$(fntypes[Cint])"), llvmcall, Bool, (Cint,), x)
-@eval @device_function wfsame(x::Cint) = ccall(
-    $("extern __ockl_wfsame_$(fntypes[Cint])"), llvmcall, Bool, (Cint,), x)
+@eval @device_function wfany(x::Cint) = @typed_ccall(
+    $("__ockl_wfany_$(fntypes[Cint])"), llvmcall, Bool, (Cint,), x)
+@eval @device_function wfall(x::Cint) = @typed_ccall(
+    $("__ockl_wfall_$(fntypes[Cint])"), llvmcall, Bool, (Cint,), x)
+@eval @device_function wfsame(x::Cint) = @typed_ccall(
+    $("__ockl_wfsame_$(fntypes[Cint])"), llvmcall, Bool, (Cint,), x)
 
 """
     wfred(op::Function, val::T) where T -> T
