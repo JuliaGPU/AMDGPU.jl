@@ -31,4 +31,6 @@ B = AMDGPU.rand(Float32, 1000, 8)
 Y = dS * B                        # SpMM
 ```
 
+rocSPARSE has no symmetric or Hermitian products, so a product with a `Symmetric` or `Hermitian` wrapper first materializes the full matrix on the device. That copy is made on every product; code that multiplies by the same wrapped matrix repeatedly should build it once with `sparse(Symmetric(dS))` and reuse the result.
+
 Incomplete-factorization preconditioners (`ic0`, `ilu0`) and further sparse routines (conversions between formats, triangular solves, gather/scatter) are available in the `AMDGPU.rocSPARSE` submodule for building iterative solvers on the GPU.

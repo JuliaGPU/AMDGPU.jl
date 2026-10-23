@@ -3,9 +3,13 @@
 """
     sparse(x::DenseROCMatrix; fmt=:csc)
     sparse(I::ROCVector, J::ROCVector, V::ROCVector, [m, n]; fmt=:csc)
+    sparse(A::Union{Symmetric, Hermitian})
 
 Return a sparse rocm matrix, with type determined by `fmt`.
 Possible formats are :csc, :csr, :bsr, and :coo.
+
+For a `Symmetric` or `Hermitian` wrapper of a sparse ROC matrix, return the full matrix
+that the wrapper represents, in the format of its parent.
 """
 function SparseArrays.sparse(x::DenseROCMatrix; fmt=:csc)
     if fmt == :csc
@@ -48,6 +52,32 @@ end
 
 for SparseMatrixType in (:ROCSparseMatrixCSC, :ROCSparseMatrixCSR, :ROCSparseMatrixCOO)
     @eval SparseArrays.sparse(A::$SparseMatrixType) = A
+end
+
+# The SparseArrays fallback for `sparse(::HermOrSym)` only knows `SparseMatrixCSC` parents,
+# so build the full matrix from the referenced triangle on the device. (issue #1168)
+function sparse_symmherm(A::HermOrSym{T}, fmt::Symbol) where T
+    P = ROCSparseMatrixCOO(parent(A))
+    diag = findall(P.rowInd .== P.colInd)
+    strict = findall(A.uplo == 'U' ? P.rowInd .< P.colInd : P.rowInd .> P.colInd)
+    diag_rows = P.rowInd[diag]
+    diag_vals = A isa Hermitian ? T.(real.(P.nzVal[diag])) : P.nzVal[diag]
+    strict_rows = P.rowInd[strict]
+    strict_cols = P.colInd[strict]
+    strict_vals = P.nzVal[strict]
+    mirrored_vals = A isa Hermitian ? conj.(strict_vals) : strict_vals
+    m, n = size(A)
+    sparse(vcat(diag_rows, strict_rows, strict_cols),
+           vcat(diag_rows, strict_cols, strict_rows),
+           vcat(diag_vals, strict_vals, mirrored_vals),
+           m, n; fmt)
+end
+
+for (SparseMatrixType, fmt) in ((:ROCSparseMatrixCSC, :csc),
+                                (:ROCSparseMatrixCSR, :csr),
+                                (:ROCSparseMatrixCOO, :coo))
+    @eval SparseArrays.sparse(A::HermOrSym{T,<:$SparseMatrixType}) where {T} =
+        sparse_symmherm(A, $(QuoteNode(fmt)))
 end
 
 function sort_rows(coo::ROCSparseMatrixCOO{Tv,Ti}) where {Tv <: BlasFloat, Ti}
