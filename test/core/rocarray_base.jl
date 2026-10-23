@@ -3,6 +3,11 @@ using Adapt
 using AMDGPU
 using AMDGPU: ROCArray, ROCVector, ROCMatrix, @allowscalar
 
+struct UnionField
+    a::Int
+    b::Union{Int, Nothing}
+end
+
 @testset "Base" begin
 
 @testset "Specifying buffer type" begin
@@ -22,6 +27,19 @@ end
     @test y !== x
     # But is still equal.
     @test y == x
+end
+
+@testset "isbits-union element types" begin
+    # ROCArray stores no type tags, so such arrays would read back wrong (#1171):
+    # reject them, like Metal.jl and oneAPI.jl do.
+    msg = "does not support isbits-union element types"
+    @test_throws msg ROCArray{Union{Int, Nothing}}(undef, 3)
+    @test_throws msg ROCArray(Union{Missing, Bool}[missing, true])
+    @test_throws msg similar(ROCArray([1, 2]), Union{Int, Nothing})
+    @test_throws msg adapt(ROCArray, Union{Int, Nothing}[1, nothing])
+    # a union field inside a struct keeps its selector inline and stays supported
+    x = ROCArray([UnionField(1, nothing), UnionField(2, 3)])
+    @test Array(x) == [UnionField(1, nothing), UnionField(2, 3)]
 end
 
 @testset "Adapt" begin

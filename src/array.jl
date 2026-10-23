@@ -81,7 +81,9 @@ end
 # 2. structs of unions (`struct Foo; x::Union{Int, Float32}; end`)
 #    these are stored with a selector at the end (handled by Julia).
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
-#    these are stored contiguously and require a selector array (handled by us)
+#    these need a separate array of type tags next to the data, which ROCArray does
+#    not implement (unlike CUDA.jl), so they are rejected instead of silently losing
+#    their tags (JuliaGPU/AMDGPU.jl#1171).
 # As well as "mutable singleton" types like `Symbol` that use pointer-identity
 
 function valid_type(@nospecialize(T))
@@ -98,7 +100,11 @@ end
 
 
 @inline function check_eltype(name, T)
-  if !valid_type(T)
+  if Base.isbitsunion(T)
+    error("""
+      $name does not support isbits-union element types like $T:
+      the type tags of such arrays are not stored (JuliaGPU/AMDGPU.jl#1171).""")
+  elseif !valid_type(T)
     explanation = explain_eltype(T)
     error("""
       $name only supports element types that are allocated inline.
@@ -558,8 +564,7 @@ function Base.resize!(A::ROCVector{T, B}, n::Integer) where {T, B}
     n == length(A) && return A
 
     maxsize = n * aligned_sizeof(T)
-    bufsize = Base.isbitsunion(T) ? (maxsize + n) : maxsize
-    managed = pool_alloc(B, bufsize)
+    managed = pool_alloc(B, maxsize)
 
     copy_size = min(length(A), n) * aligned_sizeof(T)
     # `convert(Ptr, managed)` gives the device-visible pointer for host memory
