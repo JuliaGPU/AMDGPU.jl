@@ -134,6 +134,11 @@ end
     fill!(y, true)
     @test Array(y) == [true, true, true]
 
+    # unions of types that memset could fill must still get their selector bytes
+    w = ROCArray(Union{Int8, UInt8}[Int8(0), Int8(0)])
+    fill!(w, 0xff)
+    @test Array(w) == [0xff, 0xff] && all(v -> v isa UInt8, Array(w))
+
     z = reshape(ROCArray(Union{Int, Nothing}[1, nothing, 3, nothing]), 2, 2)
     @test Array(z) == [1 3; nothing nothing]
     @test isequal(Array(map(v -> v === nothing ? 0 : v, z)), [1 3; 0 0])

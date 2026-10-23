@@ -317,6 +317,8 @@ memset_type(::Type{T}) where T = aligned_sizeof(T) == 1 ? UInt8 :
     (aligned_sizeof(T) == 2 ? UInt16 : UInt32)
 
 function Base.fill!(A::ROCArray{T}, x) where T <: MemsetTypes
+    # memset can't write the selector bytes of unions of these types
+    Base.isbitsunion(T) && return invoke(fill!, Tuple{GPUArrays.AnyGPUArray, Any}, A, x)
     isempty(A) && return A
     U = memset_type(T)
     Mem.memset!(pointer(A), reinterpret(U, convert(T, x)), length(A); stream=stream())
