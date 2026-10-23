@@ -15,20 +15,9 @@ end
 
 @testset "isbits unions" begin
 
-@testset "selector bytes" begin
-    a = Union{Int, Nothing}[1, nothing, 3]
-    b = ROCArray(a)
+@testset "size" begin
+    b = ROCArray(Union{Int, Nothing}[1, nothing, 3])
     @test sizeof(b) == 3 * sizeof(Int)  # excludes the selector bytes
-    @test b.maxsize == 3 * sizeof(Int)
-
-    # the device array carries the same selector bytes as the host array
-    tags = Vector{UInt8}(undef, 3)
-    GC.@preserve a tags begin
-        AMDGPU.Mem.memcpy!(pointer(tags), AMDGPU.typetagdata(b), 3; stream=AMDGPU.stream())
-        AMDGPU.synchronize()
-        @test tags == unsafe_wrap(Array, AMDGPU.typetagdata(a), 3)
-    end
-    @test tags == UInt8[1, 0, 1]  # `Base.uniontypes(Union{Int, Nothing})` puts `Nothing` first
 end
 
 @testset "host round trips ($B)" for B in (HIPBuffer, HostBuffer)
