@@ -20,7 +20,9 @@ mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     buf::DataRef{Managed{B}}
     dims::Dims{N}
     offset::Int  # offset of the data in memory, in bytes
-    maxsize::Int # size of the data in memory, in bytes, excluding any selector bytes
+    # size of the data in memory, in bytes, excluding any selector bytes. for arrays of
+    # isbits unions, this is where the array's selector bytes start (see `typetagdata`)
+    maxsize::Int
 
     function ROCArray{T, N, B}(::UndefInitializer, dims::Dims{N}) where {T, N, B <: Mem.AbstractAMDBuffer}
         check_eltype("ROCArray", T)
@@ -116,8 +118,12 @@ GPUArrays.storage(a::ROCArray) = a.buf
 
 function GPUArrays.derive(::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int) where {N, T}
     ref = copy(x.buf)
+    # the selector bytes are indexed by element, so advance them here: the byte offset
+    # can't tell how many elements of zero size (like unions of singletons) were skipped.
+    # union arrays only derive arrays of the same element type, as `reinterpret` rejects them
+    maxsize = Base.isbitsunion(T) ? x.maxsize + offset : x.maxsize
     offset = x.offset + offset * aligned_sizeof(T)
-    ROCArray{T, N}(ref, dims; x.maxsize, offset)
+    ROCArray{T, N}(ref, dims; maxsize, offset)
 end
 
 """
@@ -242,13 +248,8 @@ else
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
 end
 
-# the selector bytes are indexed by element, so translate the byte offset of the data
-# (zero-size element types, like unions of singletons, have no data and no offset)
-tag_offset(a::ROCArray) = iszero(Base.elsize(a)) ? 0 : a.offset ÷ Base.elsize(a)
-
 # the (device-visible) address of the selector byte of element `i`
-typetagdata(a::ROCArray, i=1) =
-    convert(Ptr{UInt8}, a.buf[]) + a.maxsize + tag_offset(a) + i - 1
+typetagdata(a::ROCArray, i=1) = convert(Ptr{UInt8}, a.buf[]) + a.maxsize + i - 1
 
 ## memory operations
 
@@ -635,10 +636,8 @@ end
 
 # @roc conversion
 
-# the device array indexes the selector bytes from its own first element, so hand it the
-# distance from there to its first selector byte (which is the data size when the array
-# starts at the beginning of its memory)
-device_maxsize(a::ROCArray) = a.maxsize - a.offset + tag_offset(a)
+# the device array addresses its selector bytes relative to its first element
+device_maxsize(a::ROCArray) = a.maxsize - a.offset
 
 function Base.convert(
     ::Type{ROCDeviceArray{T, N, AS.Global}}, a::ROCArray{T, N},

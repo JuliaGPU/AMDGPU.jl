@@ -94,6 +94,19 @@ end
     @roc groupsize=4 check_singletons!(ok, c)
     @test all(Array(ok))
 
+    # their views have no byte offset, but must still read their own selector bytes
+    v = view(c, 2:3)
+    @test isequal(Array(v), [missing, missing])
+    @test isequal(Array(copy(v)), [missing, missing])
+    function check_missing!(ok, x)
+        i = workitemIdx().x
+        ok[i] = x[i] === missing
+        return
+    end
+    ok = ROCArray(falses(2))
+    @roc groupsize=2 check_missing!(ok, v)
+    @test all(Array(ok))
+
     # nested unions are flattened
     function bump_nested!(x)
         i = workitemIdx().x
