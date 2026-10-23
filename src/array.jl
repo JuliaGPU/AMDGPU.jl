@@ -19,21 +19,26 @@ copies to the device while narrowing floating-point types to 32-bit, and the
 mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     buf::DataRef{Managed{B}}
     dims::Dims{N}
-    offset::Int # offset of the data in memory, in bytes
+    offset::Int  # offset of the data in memory, in bytes
+    maxsize::Int # size of the data in memory, in bytes, excluding any selector bytes
 
     function ROCArray{T, N, B}(::UndefInitializer, dims::Dims{N}) where {T, N, B <: Mem.AbstractAMDBuffer}
         check_eltype("ROCArray", T)
-        sz::Int64 = prod(dims) * aligned_sizeof(T)
-        ref = GPUArrays.cached_alloc((ROCArray, AMDGPU.device(), B, sz)) do
-            @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(sz))"
-            DataRef(pool_free, pool_alloc(B, sz))
+        maxsize::Int64 = prod(dims) * aligned_sizeof(T)
+        # arrays of isbits unions keep one selector byte per element past the data
+        bufsize = Base.isbitsunion(T) ? maxsize + prod(dims) : maxsize
+        ref = GPUArrays.cached_alloc((ROCArray, AMDGPU.device(), B, bufsize)) do
+            @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(bufsize))"
+            DataRef(pool_free, pool_alloc(B, bufsize))
         end
-        return finalizer(unsafe_free!, new{T, N, B}(ref, dims, 0))
+        return finalizer(unsafe_free!, new{T, N, B}(ref, dims, 0, maxsize))
     end
 
-    function ROCArray{T, N}(buf::DataRef{Managed{B}}, dims::Dims{N}; offset::Integer = 0) where {T, N, B <: Mem.AbstractAMDBuffer}
+    function ROCArray{T, N}(buf::DataRef{Managed{B}}, dims::Dims{N};
+                            maxsize::Integer = prod(dims) * aligned_sizeof(T),
+                            offset::Integer = 0) where {T, N, B <: Mem.AbstractAMDBuffer}
         check_eltype("ROCArray", T)
-        xs = new{T, N, B}(buf, dims, offset)
+        xs = new{T, N, B}(buf, dims, offset, maxsize)
         return finalizer(unsafe_free!, xs)
     end
 end
@@ -81,7 +86,8 @@ end
 # 2. structs of unions (`struct Foo; x::Union{Int, Float32}; end`)
 #    these are stored with a selector at the end (handled by Julia).
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
-#    these are stored contiguously and require a selector array (handled by us)
+#    these are stored contiguously, with one selector byte per element past the data
+#    (handled by us, see `typetagdata`)
 # As well as "mutable singleton" types like `Symbol` that use pointer-identity
 
 function valid_type(@nospecialize(T))
@@ -111,7 +117,7 @@ GPUArrays.storage(a::ROCArray) = a.buf
 function GPUArrays.derive(::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int) where {N, T}
     ref = copy(x.buf)
     offset = x.offset + offset * aligned_sizeof(T)
-    ROCArray{T, N}(ref, dims; offset)
+    ROCArray{T, N}(ref, dims; x.maxsize, offset)
 end
 
 """
@@ -220,6 +226,30 @@ ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = copy(xs)
 
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
+## type tags of isbits-union arrays
+
+# Arrays of isbits unions (`Union{Int, Nothing}`, ...) store one selector byte per element
+# past the data, `maxsize` bytes into the memory, like `Array` does. The selector is the
+# zero-based index of the element's type in `Base.uniontypes(T)`.
+
+@static if VERSION >= v"1.11.0-DEV.753"
+function typetagdata(a::Array, i=1)
+    # for memory of isbits unions, the reference holds the offset of the data in elements
+    ptr_or_offset = Int(a.ref.ptr_or_offset)
+    @ccall(jl_genericmemory_typetagdata(a.ref.mem::Any)::Ptr{UInt8}) + ptr_or_offset + i - 1
+end
+else
+typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
+end
+
+# the selector bytes are indexed by element, so translate the byte offset of the data
+# (zero-size element types, like unions of singletons, have no data and no offset)
+tag_offset(a::ROCArray) = iszero(Base.elsize(a)) ? 0 : a.offset ÷ Base.elsize(a)
+
+# the (device-visible) address of the selector byte of element `i`
+typetagdata(a::ROCArray, i=1) =
+    convert(Ptr{UInt8}, a.buf[]) + a.maxsize + tag_offset(a) + i - 1
+
 ## memory operations
 
 function Base.copyto!(
@@ -231,7 +261,12 @@ function Base.copyto!(
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
     stm = stream()
-    GC.@preserve dest source Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+    GC.@preserve dest source begin
+        Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+        if Base.isbitsunion(T)
+            Mem.memcpy!(typetagdata(dest, d_offset), typetagdata(source, s_offset), amount; stream=stm)
+        end
+    end
     async || synchronize(stm)
     return dest
 end
@@ -243,7 +278,13 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-    GC.@preserve dest source Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
+    stm = stream()
+    GC.@preserve dest source begin
+        Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+        if Base.isbitsunion(T)
+            Mem.memcpy!(typetagdata(dest, d_offset), typetagdata(source, s_offset), amount; stream=stm)
+        end
+    end
     return dest
 end
 
@@ -254,7 +295,13 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-    GC.@preserve dest source Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
+    stm = stream()
+    GC.@preserve dest source begin
+        Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+        if Base.isbitsunion(T)
+            Mem.memcpy!(typetagdata(dest, d_offset), typetagdata(source, s_offset), amount; stream=stm)
+        end
+    end
     return dest
 end
 
@@ -309,6 +356,9 @@ end
 function wrap_memory(ptr::Ptr{T}, dims::NTuple{N, <:Integer}, own::Bool,
                      owner = nothing) where {T,N}
     check_eltype("unsafe_wrap(ROCArray, ...)", T)
+    # the selector bytes of such arrays live past the data, outside of the wrapped memory
+    Base.isbitsunion(T) && throw(ArgumentError(
+        "unsafe_wrap(ROCArray, ...) does not support isbits-union element types like $T"))
 
     memtype = Mem.memory_type(Ptr{Cvoid}(ptr))
     B = if memtype == HIP.hipMemoryTypeUnregistered
@@ -465,6 +515,9 @@ possible for arrays backed by host memory, i.e., with buffer type `Mem.HostBuffe
     execute asynchronously, so synchronize before accessing the returned array.
 """
 function Base.unsafe_wrap(::Type{Array}, a::ROCArray{T, N, Mem.HostBuffer}) where {T, N}
+    # an `Array` keeps its selector bytes elsewhere than the `ROCArray` does
+    Base.isbitsunion(T) && throw(ArgumentError(
+        "unsafe_wrap(Array, ...) does not support isbits-union element types like $T"))
     ptr = convert(Ptr{T}, a.buf[].mem.ptr) + a.offset
     return unsafe_wrap(Array, ptr, size(a))
 end
@@ -558,21 +611,34 @@ function Base.resize!(A::ROCVector{T, B}, n::Integer) where {T, B}
     n == length(A) && return A
 
     maxsize = n * aligned_sizeof(T)
-    bufsize = Base.isbitsunion(T) ? (maxsize + n) : maxsize
+    # arrays of isbits unions keep one selector byte per element past the data
+    bufsize = Base.isbitsunion(T) ? maxsize + n : maxsize
     managed = pool_alloc(B, bufsize)
 
-    copy_size = min(length(A), n) * aligned_sizeof(T)
+    # copy the existing elements, and their selector bytes.
     # `convert(Ptr, managed)` gives the device-visible pointer for host memory
-    copy_size > 0 && Mem.memcpy!(convert(Ptr{T}, managed), pointer(A), copy_size; stream=stream())
+    m = min(length(A), n)
+    if m > 0
+        Mem.memcpy!(convert(Ptr{T}, managed), pointer(A), m * aligned_sizeof(T); stream=stream())
+        if Base.isbitsunion(T)
+            Mem.memcpy!(convert(Ptr{UInt8}, managed) + maxsize, typetagdata(A), m; stream=stream())
+        end
+    end
     unsafe_free!(A)
 
     A.buf = DataRef(pool_free, managed)
     A.dims = (n,)
     A.offset = 0
+    A.maxsize = maxsize
     return A
 end
 
 # @roc conversion
+
+# the device array indexes the selector bytes from its own first element, so hand it the
+# distance from there to its first selector byte (which is the data size when the array
+# starts at the beginning of its memory)
+device_maxsize(a::ROCArray) = a.maxsize - a.offset + tag_offset(a)
 
 function Base.convert(
     ::Type{ROCDeviceArray{T, N, AS.Global}}, a::ROCArray{T, N},
@@ -582,7 +648,7 @@ function Base.convert(
     ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ?
         buf : buf.dev_ptr)
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset)
-    ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
+    ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr, device_maxsize(a))
 end
 
 function Adapt.adapt_storage(to::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N}
@@ -591,7 +657,7 @@ function Adapt.adapt_storage(to::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N}
     buf = managed.mem
     ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ? buf : buf.dev_ptr)
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + x.offset)
-    return ROCDeviceArray{T, N, AS.Global}(x.dims, llvm_ptr)
+    return ROCDeviceArray{T, N, AS.Global}(x.dims, llvm_ptr, device_maxsize(x))
 end
 
 # CPU arrays would otherwise only be rejected by the compiler, with an error that dumps the
