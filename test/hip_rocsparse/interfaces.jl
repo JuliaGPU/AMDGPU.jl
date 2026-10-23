@@ -164,6 +164,28 @@ using Adapt
         @test B ≈ collect(dB)
     end
 
+    @testset "non-square dense × $SparseMatrixType ($elty)" for SparseMatrixType in (
+        ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO,
+    ), elty in (Float32, ComplexF64)
+        # the row-major view of the dense operand had its dimensions swapped, the CSR
+        # dimension check used the flipped operation, and the transposed COO descriptor
+        # fed rocSPARSE a matrix that isn't sorted by its row index
+        m, k, n = 4, 20, 12
+        alpha = rand(elty)
+        beta = rand(elty)
+        A = rand(elty, m, k)
+        B = sprand(elty, k, n, 0.5)
+        C = rand(elty, m, n)
+        dA, dB = ROCArray(A), SparseMatrixType(B)
+        dC = ROCArray(C)
+        mul!(dC, dA, dB, alpha, beta)
+        @test collect(dC) ≈ alpha * A * B + beta * C
+        At = rand(elty, k, m)
+        dC = ROCArray(C)
+        mul!(dC, transpose(ROCArray(At)), dB, alpha, beta)
+        @test collect(dC) ≈ alpha * transpose(At) * B + beta * C
+    end
+
     @testset "mixed complex/real sparse-dense matmul" begin
         m, k, n = 8, 10, 6
         for SparseMatrixType in (ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO),
