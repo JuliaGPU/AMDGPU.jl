@@ -46,6 +46,15 @@ randn(T::rocRANDNormalType, dim1::Integer, dims::Integer...; kwargs...) =
 
 # GPUArrays in-place
 Random.rand!(A::ROCArray) = Random.rand!(gpuarrays_rng(), A)
+# float and complex float eltypes rocRAND lacks
+function Random.randn!(A::ROCArray{<:Union{AbstractFloat, Complex{<:AbstractFloat}}};
+                       mean=0, stddev=1)
+    Random.randn!(gpuarrays_rng(), A)
+    if mean != 0 || stddev != 1
+        A .= A .* stddev .+ mean
+    end
+    return A
+end
 Random.randn!(A::ROCArray; kwargs...) = error("AMDGPU.jl does not support generating normally-distributed random numbers of type $(eltype(A))")
 
 # GPUArrays out-of-place
