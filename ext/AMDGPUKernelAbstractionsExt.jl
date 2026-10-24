@@ -27,7 +27,7 @@ end
 # `@Const` arrays are read through the constant address space
 function Adapt.adapt_storage(::KA.ConstAdaptor, a::AMDGPU.ROCDeviceArray{T}) where T
     ptr = LLVM.Interop.addrspacecast(Core.LLVMPtr{T,AMDGPU.Device.AS.Constant}, a.ptr)
-    AMDGPU.ROCDeviceArray(a.dims, ptr)
+    AMDGPU.ROCDeviceArray(a.dims, ptr, a.maxsize)
 end
 
 end
