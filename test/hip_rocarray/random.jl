@@ -70,6 +70,30 @@ for (f,T) in ((AMDGPU.rand,Int32),),
     @test eltype(A) == T
 end
 
+# non-Number eltypes (tuples, isbits structs with a custom sampler) also fall
+# back to GPUArrays, which generates them element-wise on the device (#881).
+# Random only supports sampling tuples on Julia 1.11 and later.
+if VERSION >= v"1.11"
+    for T in (NTuple{2, Float32}, Tuple{Float32, Int64}),
+        d in (2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
+        A = ROCArray{T}(undef, d)
+        rand!(A)
+        @test all(t -> 0 <= t[1] <= 1, Array(A))
+        rand!(AMDGPU.gpuarrays_rng(), A)
+        @test all(t -> 0 <= t[1] <= 1, Array(A))
+    end
+    let T = NTuple{2, Float32}
+        for args in ((T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
+            A = AMDGPU.rand(args...)
+            @test A isa ROCArray{T}
+        end
+    end
+    # the MWE from #881
+    A = ROCArray(Vector{NTuple{2, Float32}}(undef, 1))
+    rand!(A)
+    @test all(t -> 0 <= t[1] <= 1 && 0 <= t[2] <= 1, Array(A))
+end
+
 @test_throws ErrorException randn!(ROCArray{Cuint}(undef, 10))
 @test_throws ErrorException rand_logn!(ROCArray{Cuint}(undef, 10))
 @test_throws ErrorException rand_poisson!(ROCArray{Float64}(undef, 10))
