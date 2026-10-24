@@ -313,9 +313,11 @@ end
         end
         collected = Threads.Atomic{Bool}(false)
         wrap_tracked(collected)
-        t = time()
-        while !collected[] && time() - t < 10
+        # a few GC rounds with a device round trip in between; bound by rounds, not time
+        for _ in 1:100
+            collected[] && break
             GC.gc(true)
+            AMDGPU.synchronize()
             sleep(0.01)
         end
         @test collected[]
