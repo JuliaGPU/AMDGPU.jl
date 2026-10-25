@@ -57,18 +57,25 @@ end
 # FIXME: Int64 support
 # GPUArrays rng
 # unsupported types that always fall back to GPUArrays
-for (f,T) in ((rand!,Int32),),
+for (f,T) in ((rand!,Int32), (randn!,ComplexF32), (randn!,ComplexF64)),
     d in (2, (2,2), (2,2,2), 3, (3,3), (3,3,3))
     A = ROCArray{T}(undef, d)
     fill!(A, T(0))
     f(AMDGPU.gpuarrays_rng(), A)
     @test !iszero(collect(A))
+    fill!(A, T(0))
+    f(A)
+    @test !iszero(collect(A))
 end
-for (f,T) in ((AMDGPU.rand,Int32),),
+for (f,T) in ((AMDGPU.rand,Int32), (AMDGPU.randn,ComplexF32), (AMDGPU.randn,ComplexF64)),
     args in ((T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
     A = f(args...)
     @test eltype(A) == T
 end
+# mean and stddev also apply on the GPUArrays path
+A = AMDGPU.randn(ComplexF32, 2^16; mean=3, stddev=2)
+@test !any(isnan, collect(A))
+@test isapprox(sum(A) / length(A), 3; atol=0.1)
 
 # non-Number eltypes (tuples, isbits structs with a custom sampler) also fall
 # back to GPUArrays, which generates them element-wise on the device (#881).
@@ -114,6 +121,11 @@ AMDGPU.seed!(1)
 a = AMDGPU.rand(Int32, 1)
 AMDGPU.seed!(1)
 b = AMDGPU.rand(Int32, 1)
+@test iszero(collect(a) - collect(b))
+AMDGPU.seed!(1)
+a = AMDGPU.randn(ComplexF32, 1)
+AMDGPU.seed!(1)
+b = AMDGPU.randn(ComplexF32, 1)
 @test iszero(collect(a) - collect(b))
 #@test all(a .== b)
 end # testset
