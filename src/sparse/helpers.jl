@@ -88,7 +88,8 @@ mutable struct ROCDenseMatrixDescriptor
     function ROCDenseMatrixDescriptor(x::DenseROCMatrix; transposed::Bool=false)
         desc_ref = Ref{rocsparse_dnmat_descr}()
         if transposed
-            rocsparse_create_dnmat_descr(desc_ref, size(x)..., stride(x,2), x, eltype(x), 'R')
+            # the column-major `x` viewed as the row-major matrix `transpose(x)`
+            rocsparse_create_dnmat_descr(desc_ref, reverse(size(x))..., stride(x,2), x, eltype(x), 'R')
         else
             rocsparse_create_dnmat_descr(desc_ref, size(x)..., stride(x,2), x, eltype(x), 'C')
         end

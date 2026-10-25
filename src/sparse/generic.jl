@@ -251,12 +251,6 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseROCM
                             " is not supported by the current CUDA version. Use a CSC or COO matrix instead."))
     end
 
-    if isa(B, ROCSparseMatrixCSR)
-        descB = ROCSparseMatrixDescriptor(B, index)
-        transb = transb == 'N' ? 'T' : 'N'
-    else
-        descB = ROCSparseMatrixDescriptor(B, index, transposed=true)
-    end
     m,k = size(A)
     n = size(C)[2]
 
@@ -268,6 +262,18 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseROCM
         chkmmdims(B,C,m,n,k,n)
     elseif transa != 'N' && transb != 'N'
         chkmmdims(B,C,n,m,k,n)
+    end
+
+    # C' = op(B)' * op(A)', with the dense operands described through their row-major
+    # views; a CSR B is passed as is with the flipped operation. rocSPARSE requires a COO
+    # matrix to be sorted by the row index of its descriptor, which the transposed COO
+    # descriptor (the index arrays swapped) is not, so a COO B goes through CSC.
+    B isa ROCSparseMatrixCOO && (B = ROCSparseMatrixCSC(B))
+    if isa(B, ROCSparseMatrixCSR)
+        descB = ROCSparseMatrixDescriptor(B, index)
+        transb = transb == 'N' ? 'T' : 'N'
+    else
+        descB = ROCSparseMatrixDescriptor(B, index, transposed=true)
     end
 
     descA = ROCDenseMatrixDescriptor(A, transposed=true)

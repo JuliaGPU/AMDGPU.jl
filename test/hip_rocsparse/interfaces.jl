@@ -164,6 +164,28 @@ using Adapt
         @test B ≈ collect(dB)
     end
 
+    @testset "non-square dense × $SparseMatrixType ($elty)" for SparseMatrixType in (
+        ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO,
+    ), elty in (Float32, ComplexF64)
+        # the row-major view of the dense operand had its dimensions swapped, the CSR
+        # dimension check used the flipped operation, and the transposed COO descriptor
+        # fed rocSPARSE a matrix that isn't sorted by its row index
+        m, k, n = 4, 20, 12
+        alpha = rand(elty)
+        beta = rand(elty)
+        A = rand(elty, m, k)
+        B = sprand(elty, k, n, 0.5)
+        C = rand(elty, m, n)
+        dA, dB = ROCArray(A), SparseMatrixType(B)
+        dC = ROCArray(C)
+        mul!(dC, dA, dB, alpha, beta)
+        @test collect(dC) ≈ alpha * A * B + beta * C
+        At = rand(elty, k, m)
+        dC = ROCArray(C)
+        mul!(dC, transpose(ROCArray(At)), dB, alpha, beta)
+        @test collect(dC) ≈ alpha * transpose(At) * B + beta * C
+    end
+
     @testset "mixed complex/real sparse-dense matmul" begin
         m, k, n = 8, 10, 6
         for SparseMatrixType in (ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO),
@@ -364,6 +386,80 @@ using Adapt
         dB = ROCSparseMatrixCOO(B)
         @test SparseMatrixCSC(ROCSparseMatrixCSC(dA + dB)) ≈ A + B
         @test SparseMatrixCSC(ROCSparseMatrixCSC(dA - dB)) ≈ A - B
+    end
+
+    @testset "products with HermOrSym operands (#1168) $elty" for elty in (
+        Float32, Float64, ComplexF32, ComplexF64,
+    )
+        n, nB = 10, 4
+        alpha = rand(elty)
+        beta = rand(elty)
+        # not symmetric, so that ignoring the wrapper changes the result
+        A = sprand(elty, n, n, 0.3)
+        D = rand(elty, n, n)
+        x = rand(elty, n)
+        X = rand(elty, n, nB)
+        Xr = rand(elty, nB, n)
+        dD, dx, dX, dXr = ROCArray(D), ROCArray(x), ROCArray(X), ROCArray(Xr)
+
+        @testset "$SparseMatrixType" for SparseMatrixType in (
+            ROCSparseMatrixCSC, ROCSparseMatrixCSR, ROCSparseMatrixCOO,
+        )
+            dA = SparseMatrixType(A)
+            for wrap in (Symmetric, Hermitian), uplo in (:U, :L)
+                # dense references, as SparseArrays can't multiply some wrapped sparse matrices
+                Aw = Matrix(wrap(A, uplo))
+                Dw = Matrix(wrap(D, uplo))
+                Ad = Matrix(A)
+
+                dAw = sparse(wrap(dA, uplo))
+                @test dAw isa SparseMatrixType{elty}
+                @test collect(dAw) ≈ Aw
+
+                # wrapped sparse × dense
+                @test collect(wrap(dA, uplo) * dx) ≈ Aw * x
+                @test collect(wrap(dA, uplo) * dX) ≈ Aw * X
+                y = rand(elty, n)
+                dy = ROCArray(y)
+                mul!(dy, wrap(dA, uplo), dx, alpha, beta)
+                @test collect(dy) ≈ alpha * Aw * x + beta * y
+                Y = rand(elty, n, nB)
+                dY = ROCArray(Y)
+                mul!(dY, wrap(dA, uplo), dX, alpha, beta)
+                @test collect(dY) ≈ alpha * Aw * X + beta * Y
+                if elty <: Real
+                    # the materialized operand still needs eltype promotion
+                    Xc = rand(complex(elty), n, nB)
+                    @test collect(wrap(dA, uplo) * ROCArray(Xc)) ≈ Aw * Xc
+                end
+
+                # dense × wrapped sparse
+                Yr = rand(elty, nB, n)
+                dYr = ROCArray(Yr)
+                mul!(dYr, dXr, wrap(dA, uplo), alpha, beta)
+                @test collect(dYr) ≈ alpha * Xr * Aw + beta * Yr
+
+                # wrapped dense operands
+                @test collect(dA * wrap(dD, uplo)) ≈ Ad * Dw
+                E = rand(elty, n, n)
+                dE = ROCArray(E)
+                mul!(dE, wrap(dD, uplo), dA, alpha, beta)
+                @test collect(dE) ≈ alpha * Dw * Ad + beta * E
+
+                # wrapped sparse × sparse
+                @test collect(wrap(dA, uplo) * dA) ≈ Aw * Ad
+                @test collect(dA * wrap(dA, uplo)) ≈ Ad * Aw
+            end
+        end
+
+        @testset "ROCSparseMatrixBSR" begin
+            dA = ROCSparseMatrixBSR(ROCSparseMatrixCSR(A), 2)
+            for wrap in (Symmetric, Hermitian), uplo in (:U, :L)
+                Aw = Matrix(wrap(A, uplo))
+                @test collect(wrap(dA, uplo) * dx) ≈ Aw * x
+                @test collect(wrap(dA, uplo) * dX) ≈ Aw * X
+            end
+        end
     end
 end
 

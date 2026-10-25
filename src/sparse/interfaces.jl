@@ -52,6 +52,26 @@ function mm_wrapper(
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
 end
 
+# LinearAlgebra's storage-level `mul!` passes a `Symmetric` or `Hermitian` operand as its
+# parent plus 'S'/'s'/'H'/'h'. rocSPARSE has no symmetric or Hermitian products, so
+# materialize the full matrix that the wrapper represents. (issue #1168)
+function unwrap_symmherm(t::AbstractChar, A)
+    uppercase(t) in ('S', 'H') || return t, A
+    # `sparse(::HermOrSym)` doesn't support BSR
+    A isa ROCSparseMatrixBSR && (A = ROCSparseMatrixCSR(A))
+    return 'N', materialize_symmherm(LinearAlgebra.wrap(A, t))
+end
+materialize_symmherm(A::HermOrSym{<:Any,<:ROCSparseMatrix}) = sparse(A)
+function materialize_symmherm(A::HermOrSym{<:Any,<:DenseROCMatrix})
+    # `ROCMatrix(A)` would go through the CPU
+    B = LinearAlgebra.copytri!(copy(parent(A)), A.uplo, A isa Hermitian)
+    if A isa Hermitian
+        d = view(B, diagind(B))
+        d .= real.(d)
+    end
+    return B
+end
+
 LinearAlgebra.dot(x::ROCSparseVector{T}, y::DenseROCVector{T}) where {T <: BlasReal} = vv!('N', x, y, 'O')
 LinearAlgebra.dot(x::DenseROCVector{T}, y::ROCSparseVector{T}) where {T <: BlasReal} = dot(y, x)
 
@@ -59,18 +79,18 @@ LinearAlgebra.dot(x::ROCSparseVector{T}, y::DenseROCVector{T}) where {T <: BlasC
 LinearAlgebra.dot(x::DenseROCVector{T}, y::ROCSparseVector{T}) where {T <: BlasComplex} = conj(dot(y,x))
 
 function LinearAlgebra.mul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::DenseROCVector{T}, alpha::Number, beta::Number) where T <: BlasFloat
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tA, A = unwrap_symmherm(tA, A)
     mv_wrapper(tA, alpha, A, B, beta, C)
 end
 
 function LinearAlgebra.mul!(C::ROCVector{T}, tA::AbstractChar, A::ROCSparseMatrix{T}, B::ROCSparseVector{T}, alpha::Number, beta::Number) where T <: BlasFloat
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
+    tA, A = unwrap_symmherm(tA, A)
     mv_wrapper(tA, alpha, A, ROCVector{T}(B), beta, C)
 end
 
 function LinearAlgebra.mul!(C::ROCMatrix{T}, tA, tB, A::ROCSparseMatrix{T}, B::DenseROCMatrix{T}, alpha::Number, beta::Number) where T <: BlasFloat
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    tA, A = unwrap_symmherm(tA, A)
+    tB, B = unwrap_symmherm(tB, B)
     mm_wrapper(tA, tB, alpha, A, B, beta, C)
 end
 
@@ -97,8 +117,8 @@ function LinearAlgebra.mul!(
     alpha::Number, beta::Number,
 ) where {T <: BlasComplex, TA <: BlasComplex, TB <: BlasReal}
     promote_type(TA, TB) === T || throw(ArgumentError("output element type must match promoted input element type"))
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    tA, A = unwrap_symmherm(tA, A)
+    tB, B = unwrap_symmherm(tB, B)
     A = A isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(A) :
         A isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(A) : ROCSparseMatrixCOO{T}(A)
     B = ROCMatrix{T}(B)
@@ -112,8 +132,8 @@ function LinearAlgebra.mul!(
     alpha::Number, beta::Number,
 ) where {T <: BlasComplex, TA <: BlasReal, TB <: BlasComplex}
     promote_type(TA, TB) === T || throw(ArgumentError("output element type must match promoted input element type"))
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    tA, A = unwrap_symmherm(tA, A)
+    tB, B = unwrap_symmherm(tB, B)
     A = A isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(A) :
         A isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(A) : ROCSparseMatrixCOO{T}(A)
     B = TB === T ? B : ROCMatrix{T}(B)
@@ -121,18 +141,18 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSC{T}, alpha::Number, beta::Number) where T <: BlasFloat
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    tA, A = unwrap_symmherm(tA, A)
+    tB, B = unwrap_symmherm(tB, B)
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
 function LinearAlgebra.mul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCSR{T}, alpha::Number, beta::Number) where T <: BlasFloat
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    tA, A = unwrap_symmherm(tA, A)
+    tB, B = unwrap_symmherm(tB, B)
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
 function LinearAlgebra.mul!(C::ROCMatrix{T}, tA, tB, A::DenseROCMatrix{T}, B::ROCSparseMatrixCOO{T}, alpha::Number, beta::Number) where T <: BlasFloat
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    tA, A = unwrap_symmherm(tA, A)
+    tB, B = unwrap_symmherm(tB, B)
     mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
 
@@ -158,8 +178,8 @@ function LinearAlgebra.mul!(
     alpha::Number, beta::Number,
 ) where {T <: BlasComplex, TA <: BlasComplex, TB <: BlasReal}
     promote_type(TA, TB) === T || throw(ArgumentError("output element type must match promoted input element type"))
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    tA, A = unwrap_symmherm(tA, A)
+    tB, B = unwrap_symmherm(tB, B)
     A = TA === T ? A : ROCMatrix{T}(A)
     B = B isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(B) :
         B isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(B) : ROCSparseMatrixCOO{T}(B)
@@ -172,8 +192,8 @@ function LinearAlgebra.mul!(
     alpha::Number, beta::Number,
 ) where {T <: BlasComplex, TA <: BlasReal, TB <: BlasComplex}
     promote_type(TA, TB) === T || throw(ArgumentError("output element type must match promoted input element type"))
-    tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
+    tA, A = unwrap_symmherm(tA, A)
+    tB, B = unwrap_symmherm(tB, B)
     A = ROCMatrix{T}(A)
     B = B isa ROCSparseMatrixCSC ? ROCSparseMatrixCSC{T}(B) :
         B isa ROCSparseMatrixCSR ? ROCSparseMatrixCSR{T}(B) : ROCSparseMatrixCOO{T}(B)
@@ -346,6 +366,16 @@ _coo_scale(A::ROCSparseMatrixCOO{T}, λ) where {T} =
 
 Base.:(*)(A::ROCSparseMatrix{T}, B::ROCSparseMatrix{T}) where {T <: BlasFloat} =
     gemm('N', 'N', one(T), ROCSparseMatrixCSR(A), ROCSparseMatrixCSR(B), 'O')
+
+# Symmetric/Hermitian wrappers: materialize, then defer. (issue #1168)
+Base.:(*)(
+    A::HermOrSym{T, <:Union{ROCSparseMatrixCSC{T}, ROCSparseMatrixCSR{T}, ROCSparseMatrixCOO{T}}},
+    B::ROCSparseMatrix{T},
+) where {T <: BlasFloat} = sparse(A) * B
+Base.:(*)(
+    A::ROCSparseMatrix{T},
+    B::HermOrSym{T, <:Union{ROCSparseMatrixCSC{T}, ROCSparseMatrixCSR{T}, ROCSparseMatrixCOO{T}}},
+) where {T <: BlasFloat} = A * sparse(B)
 
 for (wrapa, unwrapa) in adjtrans_wrappers
     for SparseMatrixType in (:(ROCSparseMatrixCSC{T}), :(ROCSparseMatrixCSR{T}))
