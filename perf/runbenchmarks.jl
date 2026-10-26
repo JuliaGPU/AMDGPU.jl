@@ -1,7 +1,7 @@
 # Benchmark suite execution
 using AMDGPU
 
-using BenchmarkTools
+using BenchmarkTools, Statistics, JSON
 
 using Random, StableRNGs
 rng = StableRNG(123)
@@ -65,9 +65,6 @@ set_evals!(SUITE)
 GC.gc(true)
 AMDGPU.reclaim()
 
-# benchmark groups that aren't part of the suite
-addgroup!(SUITE, "integration")
-
 @info "Running main benchmarks"
 results = run(SUITE, verbose=true)
 
@@ -77,8 +74,21 @@ integration_results = BenchmarkGroup()
 integration_results["volumerhs"] = include("volumerhs.jl")
 integration_results["byval"] = include("byval.jl")
 
-results["latency"] = latency_results
-results["integration"] = integration_results
+# the first part of every name is its category in the benchmark history: everything
+# compiled (performance), fresh processes (latency), or larger codes (applications).
+# see perf/benchmark-config.json
+applications = BenchmarkGroup()
+for (name, result) in results["applications"]
+    applications[name] = result
+end
+applications["gemm"] = results["gemm"]
+applications["stencil"] = results["stencil"]
+for (name, result) in integration_results
+    applications[name] = result
+end
+delete!(results, "applications"); delete!(results, "gemm"); delete!(results, "stencil")
+results = BenchmarkGroup("performance" => results, "latency" => latency_results,
+                         "applications" => applications)
 
 # write out the results
 # we report the minimum rather than the median: at the sub-microsecond scale of many
@@ -87,3 +97,38 @@ results["integration"] = integration_results
 # and is stable to <1% across trials. real regressions still show up in the minimum.
 result_file = length(ARGS) >= 1 ? ARGS[1] : "benchmarkresults.json"
 BenchmarkTools.save(result_file, minimum(results))
+
+# every statistic of every benchmark, and the environment they were measured in, for the
+# benchmark history at https://juliagpu.org/perf/. times are in nanoseconds.
+function export_results(file, results)
+    benchmarks = Dict{String,Any}()
+    for (keys, trial) in BenchmarkTools.leaves(results)
+        times = trial.times
+        benchmarks[join(keys, "/")] = Dict(
+            "min" => minimum(times), "p25" => quantile(times, 0.25),
+            "median" => median(times), "p75" => quantile(times, 0.75),
+            "mean" => mean(times), "max" => maximum(times),
+            "std" => length(times) > 1 ? std(times) : nothing,
+            "gctime" => median(trial.gctimes),
+            "memory" => trial.memory, "allocs" => trial.allocs,
+            "samples" => length(times), "evals" => trial.params.evals)
+    end
+    # the versions of every package loaded, to explain changes the commit itself does not
+    packages = Dict(id.name => string(pkgversion(mod)) for (id, mod) in Base.loaded_modules
+                    if pkgversion(mod) !== nothing)
+    dev = AMDGPU.device()
+    env = Dict(
+        "julia" => string(VERSION),
+        "gpu" => "$(AMDGPU.HIP.name(dev)) ($(AMDGPU.HIP.gcn_arch(dev)))",
+        "runtime" => string(AMDGPU.HIP.runtime_version()),
+        "cpu" => Sys.cpu_info()[1].model,
+        "os" => readchomp(`uname -sr`),
+        "threads" => Threads.nthreads(),
+        "agent" => get(ENV, "BUILDKITE_AGENT_NAME", nothing),
+        "package" => string(pkgversion(AMDGPU)),
+        "packages" => packages)
+    open(file, "w") do io
+        JSON.print(io, Dict("version" => 2, "env" => env, "benchmarks" => benchmarks))
+    end
+end
+export_results(joinpath(dirname(result_file), "benchmarks.json"), results)
