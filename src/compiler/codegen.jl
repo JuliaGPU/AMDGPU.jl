@@ -50,9 +50,6 @@ mutable struct HIPResults
         Tuple{HIP.HIPDevice,HIP.HIPFunction}[])
 end
 
-# (objectid(source), hash(fun), f) => HIPKernel
-const _kernel_instances = Dict{Any, Any}()
-
 GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
 
 GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
@@ -296,19 +293,21 @@ The following kwargs are supported:
     values throw an `ArgumentError`.
 """
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
-    Base.@lock hipfunction_lock begin
-        dev = AMDGPU.device()
-        config = compiler_config(dev; kwargs...)
-        source = methodinstance(F, tt)
-        fun = hipfunction_lookup(source, config, dev)
+    kw = values(kwargs)
+    dev = AMDGPU.device()
+    fun = GPUCompiler.cached_lookup(HIP.HIPFunction, F, tt, (dev, kw)) do
+        hipfunction_link(methodinstance(F, tt), dev, kw)
+    end
+    return Runtime.HIPKernel{F, tt}(f, fun)
+end
 
-        key = (objectid(source), hash(fun), f)
-        kernel = get(_kernel_instances, key, nothing)
-        if kernel === nothing
-            kernel = Runtime.HIPKernel{F, tt}(f, fun)
-            _kernel_instances[key] = kernel
-        end
-        return kernel::Runtime.HIPKernel{F, tt}
+# the part of `hipfunction` that doesn't depend on the kernel's types, kept out of the code
+# compiled for every kernel
+@noinline function hipfunction_link(source::Core.MethodInstance, dev::HIP.HIPDevice,
+                                    kw::NamedTuple)
+    Base.@lock hipfunction_lock begin
+        config = compiler_config(dev; kw...)
+        return hipfunction_lookup(source, config, dev)
     end
 end
 
