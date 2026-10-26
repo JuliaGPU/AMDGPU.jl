@@ -1,6 +1,6 @@
 using Test
 using AMDGPU
-using AMDGPU: ROCArray, @roc
+using AMDGPU: ROCArray, @roc, @ROCStaticLocalArray
 
 # Arrays of isbits unions keep one selector byte per element past the data (see
 # `typetagdata` in src/array.jl), like `Array` does. These follow CUDA.jl's tests.
@@ -118,6 +118,28 @@ end
     e = ROCArray{UnionField}(undef, 2)
     @roc groupsize=2 fill_struct!(e)
     @test Array(e) == [UnionField(1), UnionField(2f0)]
+
+    # local memory keeps the selector bytes too. reversing the elements through it makes
+    # every work-item read a value another one wrote; the tiles' data fill whole
+    # alignment units, so selectors written past an allocation would land in the other tile
+    function reverse_local!(x::AbstractArray{T}, y::AbstractArray{T}) where {T}
+        i = workitemIdx().x
+        n = length(x)
+        tile_x = @ROCStaticLocalArray(T, 32, false)
+        tile_y = @ROCStaticLocalArray(T, 32, false)
+        tile_x[i] = x[i]
+        tile_y[i] = y[i]
+        sync_workgroup()
+        x[i] = tile_x[n + 1 - i]
+        y[i] = tile_y[n + 1 - i]
+        return
+    end
+    a = Union{Missing, Int32}[isodd(i) ? missing : Int32(i) for i in 1:32]
+    b = Union{Missing, Int32}[isodd(i) ? Int32(-i) : missing for i in 1:32]
+    f, g = ROCArray(a), ROCArray(b)
+    @roc groupsize=length(f) reverse_local!(f, g)
+    @test isequal(Array(f), reverse(a))
+    @test isequal(Array(g), reverse(b))
 end
 
 @testset "array operations" begin
