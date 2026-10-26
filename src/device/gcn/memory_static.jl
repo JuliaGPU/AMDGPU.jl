@@ -2,8 +2,6 @@
 @llvmgenerated builder function alloc_special(
     ::Val{id}, ::Type{T}, ::Val{as}, ::Val{len}, ::Val{zeroinit} = Val{false}(),
 )::LLVMPtr{T,as} where {id,T,as,len,zeroinit}
-    eltyp = convert(LLVMType, T)
-
     # old versions of GPUArrays invoke _shmem with an integer id; make sure those are unique
     name = id
     if !isa(id, String) || !isa(id, Symbol)
@@ -15,8 +13,15 @@
 
     T_ptr_i8 = convert(LLVMType, LLVMPtr{T,as})
 
-    # create the global variable
-    gv_typ = LLVM.ArrayType(eltyp, len)
+    # create the global variable. an isbits union has no LLVM type, so allocate bytes:
+    # its elements, then a selector byte per element where `ROCDeviceArray` looks for them.
+    if Base.isbitsunion(T)
+        _, _, align = Base.uniontype_layout(T)
+        gv_typ = LLVM.ArrayType(LLVM.Int8Type(), len * (Base.aligned_sizeof(T) + 1))
+    else
+        align = Base.datatype_alignment(T)
+        gv_typ = LLVM.ArrayType(convert(LLVMType, T), len)
+    end
     gv = GlobalVariable(current_module(builder), gv_typ, name, as)
     if len > 0
         if as == AS.Local
@@ -33,7 +38,7 @@
     # By requesting a larger-than-datatype alignment,
     # we might be able to vectorize.
     # TODO: Make the alignment configurable
-    gv.alignment = Base.max(32, Base.datatype_alignment(T))
+    gv.alignment = Base.max(32, align)
 
     # generate IR
     ptr_with_as = gep!(builder, gv_typ, gv, [ConstantInt(0), ConstantInt(0)])
