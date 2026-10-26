@@ -8,6 +8,11 @@ include(joinpath(pkgdir(KernelAbstractions), "test", "testsuite.jl"))
 
 AMDGPU.allowscalar(false)
 
+KA.@kernel function store_ones!(A)
+    I = KA.@index(Global, Cartesian)
+    @inbounds A[I] = 1
+end
+
 KA.@kernel function store_global_linear!(A)
     I = KA.@index(Global, Linear)
     @inbounds A[I] = I
@@ -92,4 +97,13 @@ end
     @test Array(A) == 1:1024
 end
 
+end
+
+@testset "N-d ndrange past the grid's y/z limits" begin
+    # folded onto the grid's z-dimension if `KI.max_num_groups` allows it, which HIP
+    # limits to 65536 workgroups (AMDGPU.jl#1191: a 4-d `getindex` failed to launch)
+    A = AMDGPU.zeros(Int32, 4, 4, 4, 70000)
+    store_ones!(ROCBackend())(A; ndrange = size(A))
+    KA.synchronize(ROCBackend())
+    @test all(isone, Array(A))
 end

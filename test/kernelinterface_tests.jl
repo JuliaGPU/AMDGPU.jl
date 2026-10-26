@@ -136,3 +136,11 @@ end
 end
 
 end
+
+@testset "grid limits" begin
+    # HIP rejects more than 65536 workgroups along y or z (since ROCm 7.0), and
+    # KernelAbstractions folds N-d ndranges onto z when these limits allow it (#1191)
+    groups = KI.max_num_groups(ROCBackend())
+    @test groups[2] <= typemax(UInt16)
+    @test groups[3] <= typemax(UInt16)
+end

@@ -172,14 +172,16 @@ end
 # queried on every automatically-sized launch, so use the limits cached in the device
 KI.max_work_group_dims(::ROCBackend)::NTuple{3, Int} = HIP.max_workgroup_dims(AMDGPU.device())
 # HIP takes the grid size in workgroups, but the dispatch packet holds it in work-items
-# (as a UInt32 per dimension, which HIP checks), and the device code assumes workgroup
-# indices fit in an Int32 (see `Device._max_groups`). Report the number of workgroups
-# that can be launched with any valid workgroup size. HIP's `maxGridSize` isn't usable:
-# depending on the ROCm version it holds CUDA's block limits or the work-item limits.
+# (as a UInt32 per dimension, which HIP checks), the device code assumes workgroup indices
+# fit in an Int32 (see `Device._max_groups`), and since ROCm 7.0 HIP rejects more than 65536
+# workgroups along y and z, like CUDA. Report the number of workgroups that can be launched
+# with any valid workgroup size. HIP's `maxGridSize` isn't usable: depending on the ROCm
+# version it holds CUDA's block limits or the work-item limits.
+const _max_launch_groups = (typemax(Int32), typemax(UInt16), typemax(UInt16))
 function KI.max_num_groups(backend::ROCBackend)::NTuple{3, Int}
     dims = KI.max_work_group_dims(backend)
     return ntuple(Val(3)) do d
-        Int(min(Device._max_groups[d], Device._max_grid_size[d] ÷ dims[d]))
+        Int(min(_max_launch_groups[d], Device._max_groups[d], Device._max_grid_size[d] ÷ dims[d]))
     end
 end
 # `KI.kernel_function` compiles for the device's wavefront size
