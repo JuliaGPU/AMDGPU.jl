@@ -52,7 +52,10 @@ Testsuite.testsuite(
 
     # launching should not be much more expensive than with few arguments
     # (Julia 1.11 and older allocate a little per argument)
+    # warm up in the world of the measurement, as defining this closure advances the world
+    # on Julia 1.10, and the first launch in a new world looks up the kernel again
     Base.invokelatest() do
+        many_args_launch(kernel, out)
         few_args_launch(few_kernel, out)
         @test @allocated(many_args_launch(kernel, out)) <=
               @allocated(few_args_launch(few_kernel, out)) + 40*32
