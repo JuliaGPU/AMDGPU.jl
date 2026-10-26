@@ -65,9 +65,6 @@ set_evals!(SUITE)
 GC.gc(true)
 AMDGPU.reclaim()
 
-# benchmark groups that aren't part of the suite
-addgroup!(SUITE, "integration")
-
 @info "Running main benchmarks"
 results = run(SUITE, verbose=true)
 
@@ -77,8 +74,21 @@ integration_results = BenchmarkGroup()
 integration_results["volumerhs"] = include("volumerhs.jl")
 integration_results["byval"] = include("byval.jl")
 
-results["latency"] = latency_results
-results["integration"] = integration_results
+# the first part of every name is its category in the benchmark history: everything
+# compiled (performance), fresh processes (latency), or larger codes (applications).
+# see perf/benchmark-config.json
+applications = BenchmarkGroup()
+for (name, result) in results["applications"]
+    applications[name] = result
+end
+applications["gemm"] = results["gemm"]
+applications["stencil"] = results["stencil"]
+for (name, result) in integration_results
+    applications[name] = result
+end
+delete!(results, "applications"); delete!(results, "gemm"); delete!(results, "stencil")
+results = BenchmarkGroup("performance" => results, "latency" => latency_results,
+                         "applications" => applications)
 
 # write out the results
 # we report the minimum rather than the median: at the sub-microsecond scale of many
