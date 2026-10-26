@@ -33,6 +33,32 @@ const getBaseRepository = () => {
   return origin;
 };
 
+// DocumenterVitepress requests `/dev/versions.js`, which only exists on github.io
+// deployments; on our root custom domain the file lives at `/versions.js`, so load
+// it from there when it is missing (LuxDL/DocumenterVitepress.jl#354).
+const loadVersionsScript = () => {
+  if (typeof window === 'undefined' || window.DOC_VERSIONS) return;
+  const script = document.createElement('script');
+  script.src = `${getBaseRepository()}/versions.js`;
+  document.head.appendChild(script);
+};
+
+// Keep the dropdown short: named entries (`dev`, `stable`), every build of the
+// newest major (v2.10, v2.11, ... with `keep = :minor` in make.jl, `v2` until
+// then), one entry per older major, nothing pre-v1. Hidden builds stay deployed.
+const listedVersions = (all: string[]) => {
+  const major = (v: string) => Number(/^v(\d+)/.exec(v)?.[1] ?? NaN);
+  const newest = Math.max(...all.map(major).filter(Number.isFinite));
+  const newestHasMinors = all.some(v => major(v) === newest && v.includes('.'));
+  return all.filter(v => {
+    const m = major(v);
+    if (Number.isNaN(m)) return true;            // dev, stable, previews/...
+    if (m === 0) return false;                   // pre-v1
+    if (v.includes('.')) return m === newest;    // v2.10: only for the newest major
+    return m !== newest || !newestHasMinors;     // v2: until it has minor builds
+  });
+};
+
 const waitForScriptsToLoad = () => {
   return new Promise<boolean>((resolve) => {
     if (isLocalBuild() || typeof window === 'undefined') {
@@ -60,16 +86,21 @@ const loadVersions = async () => {
       versions.value = [{ text: 'dev', link: '/' }];
       currentVersion.value = 'dev';
     } else {
+      loadVersionsScript();
       const scriptsLoaded = await waitForScriptsToLoad();
       const baseRepoPath = getBaseRepository();
 
       if (scriptsLoaded && window.DOC_VERSIONS && window.DOCUMENTER_CURRENT_VERSION) {
-        const allVersions = new Set([...window.DOC_VERSIONS, window.DOCUMENTER_CURRENT_VERSION]);
-        versions.value = Array.from(allVersions).map(v => ({
-          text: v,
-          link: `${baseRepoPath}/${v}/`
-        }));
-        currentVersion.value = window.DOCUMENTER_CURRENT_VERSION;
+        const current = window.DOCUMENTER_CURRENT_VERSION;
+        const allVersions = Array.from(new Set([...window.DOC_VERSIONS, current]));
+        const listed = new Set(listedVersions(allVersions));
+        versions.value = allVersions
+          .filter(v => v === current || listed.has(v))
+          .map(v => ({
+            text: v,
+            link: `${baseRepoPath}/${v}/`
+          }));
+        currentVersion.value = current;
       } else {
         versions.value = [{ text: 'dev', link: `${baseRepoPath}/dev/` }];
         currentVersion.value = 'dev';
