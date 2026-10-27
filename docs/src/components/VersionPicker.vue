@@ -91,16 +91,13 @@ const loadVersions = async () => {
       const baseRepoPath = getBaseRepository();
 
       if (scriptsLoaded && window.DOC_VERSIONS && window.DOCUMENTER_CURRENT_VERSION) {
-        const current = window.DOCUMENTER_CURRENT_VERSION;
-        const allVersions = Array.from(new Set([...window.DOC_VERSIONS, current]));
-        const listed = new Set(listedVersions(allVersions));
-        versions.value = allVersions
-          .filter(v => v === current || listed.has(v))
-          .map(v => ({
-            text: v,
-            link: `${baseRepoPath}/${v}/`
-          }));
-        currentVersion.value = current;
+        // list deployed folders only: a release build's `DOCUMENTER_CURRENT_VERSION` is
+        // its full version (v2.10.0), which has no folder of its own under `keep = :minor`
+        versions.value = listedVersions(window.DOC_VERSIONS).map(v => ({
+          text: v,
+          link: `${baseRepoPath}/${v}/`
+        }));
+        currentVersion.value = window.DOCUMENTER_CURRENT_VERSION;
       } else {
         versions.value = [{ text: 'dev', link: `${baseRepoPath}/dev/` }];
         currentVersion.value = 'dev';
