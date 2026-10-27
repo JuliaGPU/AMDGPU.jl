@@ -68,6 +68,9 @@ end
 # `cufunction`, `link_kernel`, `compile_or_lookup`, and `cached_results`).
 let HIPCompilerJob = Compiler.HIPCompilerJob
     precompile(Tuple{typeof(Compiler.hipfunction), typeof(identity), Type{Tuple{Nothing}}})
+    # as called by `KernelInterface.kernel_function`
+    precompile(Tuple{typeof(Compiler.hipfunction_link), Core.MethodInstance, HIPDevice,
+                     NamedTuple{(:name,), Tuple{Nothing}}})
     precompile(Tuple{typeof(Compiler.hiplink), HIPCompilerJob,
         Vector{UInt8}, String, Vector{Symbol}, GPUCompiler.Relocations})
 
