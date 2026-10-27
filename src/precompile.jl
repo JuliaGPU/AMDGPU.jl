@@ -77,6 +77,9 @@ let HIPCompilerJob = Compiler.HIPCompilerJob
         Type{Compiler.HIPResults}, HIPCompilerJob})
 end
 
+# Freeing an array, which otherwise compiles in the first garbage collection that frees one.
+precompile(Tuple{typeof(pool_free), Managed{Mem.HIPBuffer}})
+
 # Hot entry points of the bundled ROCm libraries, mirroring CUDA.jl's per-library
 # precompile directives. These compile the (GPU-free) Julia wrappers so the first
 # `A * B`, factorization, FFT plan, etc. doesn't pay full first-use compilation.
