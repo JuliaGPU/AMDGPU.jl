@@ -8,7 +8,7 @@ steps:
   - label: "Documentation"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.12"
+          version: "1.13"
       - sv-oss/node-n#v0.1.2:
           node-version: v20
     command: |
