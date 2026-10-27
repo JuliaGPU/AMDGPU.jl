@@ -68,6 +68,9 @@ end
 # `cufunction`, `link_kernel`, `compile_or_lookup`, and `cached_results`).
 let HIPCompilerJob = Compiler.HIPCompilerJob
     precompile(Tuple{typeof(Compiler.hipfunction), typeof(identity), Type{Tuple{Nothing}}})
+    # as called by `KernelInterface.kernel_function`
+    precompile(Tuple{typeof(Compiler.hipfunction_link), Core.MethodInstance, HIPDevice,
+                     NamedTuple{(:name,), Tuple{Nothing}}})
     precompile(Tuple{typeof(Compiler.hiplink), HIPCompilerJob,
         Vector{UInt8}, String, Vector{Symbol}, GPUCompiler.Relocations})
 
@@ -76,6 +79,9 @@ let HIPCompilerJob = Compiler.HIPCompilerJob
     precompile(Tuple{typeof(GPUCompiler.cached_results),
         Type{Compiler.HIPResults}, HIPCompilerJob})
 end
+
+# Freeing an array, which otherwise compiles in the first garbage collection that frees one.
+precompile(Tuple{typeof(pool_free), Managed{Mem.HIPBuffer}})
 
 # Hot entry points of the bundled ROCm libraries, mirroring CUDA.jl's per-library
 # precompile directives. These compile the (GPU-free) Julia wrappers so the first

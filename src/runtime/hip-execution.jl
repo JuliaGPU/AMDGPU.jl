@@ -32,25 +32,27 @@ struct HIPKernel{F, TT} <: AbstractKernel{F, TT}
     fun::HIP.HIPFunction
 end
 
+# the tuple type and the argument expressions of the call that `call` generates, built on
+# vectors so that this compiles once for all argument counts
+function call_arguments(@nospecialize(F), @nospecialize(TT), nargs::Int)
+    params = Any[F, TT.parameters...]   # Base.signature_type with a function type
+    exprs = Any[:(kernel.f); Any[:(args[$i]) for i in 1:nargs]]
+    call_t = Type[AMDGPU.KernelState]
+    call_args = Any[:(AMDGPU.KernelState(stream.device, kernel.fun.global_hostcalls))]
+    for (dt, ex) in zip(params, exprs)
+        # filter out ghost arguments that shouldn't be passed
+        (GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)) && continue
+        push!(call_t, dt)
+        push!(call_args, ex)
+    end
+    return Base.to_tuple_type(call_t), call_args
+end
+
 @inline @generated function call(
     kernel::HIPKernel{F, TT}, args::Tuple;
     stream::HIP.HIPStream, call_kwargs...,
 ) where {F, TT}
-    sig = Tuple{F, TT.parameters...} # Base.signature_type with a function type
-    args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args.parameters))...)
-
-    # filter out ghost arguments that shouldn't be passed.
-    predicate = dt -> GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)
-    to_pass = map(!predicate, sig.parameters)
-    call_t = Type[x[1] for x in zip(sig.parameters, to_pass) if x[2]]
-    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
-
-    # add the kernel state
-    pushfirst!(call_t, AMDGPU.KernelState)
-    pushfirst!(call_args, :(AMDGPU.KernelState(stream.device, kernel.fun.global_hostcalls)))
-
-    # finalize types
-    call_tt = Base.to_tuple_type(call_t)
+    call_tt, call_args = call_arguments(F, TT, fieldcount(args))
     quote
         roccall_tuple(kernel.fun, $call_tt, ($(call_args...),); stream, call_kwargs...)
     end
