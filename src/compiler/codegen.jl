@@ -292,7 +292,7 @@ The following kwargs are supported:
     target") and fall back to no limit, so pick the value per architecture. Negative
     values throw an `ArgumentError`.
 """
-function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
+function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F, TT}
     kw = values(kwargs)
     dev = AMDGPU.device()
     fun = GPUCompiler.cached_lookup(HIP.HIPFunction, F, tt, (dev, kw)) do

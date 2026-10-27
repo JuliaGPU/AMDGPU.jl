@@ -79,7 +79,25 @@ end
     @test Array(map(x -> x[1] + x[2] + x[3], ROCArray(xs))) == map(x -> x[1] + x[2] + x[3], xs)
 end
 
+# a callable object used as a kernel
+struct StoreValue
+    val::Float64
+end
+function (f::StoreValue)(a)
+    a[1] = f.val
+    return
+end
+
 @testset "Function/Argument Conversion" begin
+    @testset "Callable object as kernel" begin
+        a_dev = ROCArray([1.0])
+        @roc StoreValue(2.0)(a_dev)
+        @test Array(a_dev) == [2.0]
+        # reuses the compiled kernel, with the new instance's state
+        @roc StoreValue(3.0)(a_dev)
+        @test Array(a_dev) == [3.0]
+    end
+
     @testset "Closure as Argument" begin
         function kernel(closure)
             closure()
