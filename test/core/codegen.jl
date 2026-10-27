@@ -133,6 +133,7 @@ end
     AMDGPU.HIP.hipFuncGetAttribute(
         maxthreads, AMDGPU.HIP.HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, k.fun.handle)
     @test maxthreads[] == 256
+    @test AMDGPU.HIP.max_threads_per_block(k.fun) == 256
 
     k(; groupsize=256)
     AMDGPU.synchronize()

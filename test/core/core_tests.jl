@@ -69,6 +69,8 @@ end
 
             @test occursin("gfx", HIP.gcn_arch(device))
             @test HIP.wavefrontsize(device) in (32, 64)
+            @test HIP.max_workgroup_size(device) ==
+                  HIP.attribute(device, HIP.hipDeviceAttributeMaxThreadsPerBlock)
         end
     end
 end

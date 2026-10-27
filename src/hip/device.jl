@@ -4,6 +4,7 @@ struct HIPDevice
     gcn_arch::String
     wavefrontsize::Cint
     max_workgroup_dims::NTuple{3, Int}
+    max_workgroup_size::Int
 end
 
 const DEFAULT_DEVICE = Ref{Union{Nothing, HIPDevice}}(nothing)
@@ -20,7 +21,9 @@ function HIPDevice(device_id::Integer)
 
     wavefrontsize = props.warpSize
     max_workgroup_dims = Int.(props.maxThreadsDim)
-    HIPDevice(device_ref[], device_id, gcn_arch, wavefrontsize, max_workgroup_dims)
+    max_workgroup_size = Int(props.maxThreadsPerBlock)
+    HIPDevice(device_ref[], device_id, gcn_arch, wavefrontsize, max_workgroup_dims,
+              max_workgroup_size)
 end
 
 """
@@ -44,6 +47,13 @@ wavefrontsize(d::HIPDevice)::Cint = d.wavefrontsize
 Get the maximum number of work-items along each dimension of a workgroup.
 """
 max_workgroup_dims(d::HIPDevice)::NTuple{3, Int} = d.max_workgroup_dims
+
+"""
+    max_workgroup_size(d::HIPDevice)::Int
+
+Get the maximum number of work-items in a workgroup.
+"""
+max_workgroup_size(d::HIPDevice)::Int = d.max_workgroup_size
 
 """
     gcn_arch(d::HIPDevice)::String
