@@ -430,11 +430,11 @@ function release_when_done(managed::Managed, release, cond::Base.AsyncCondition,
         return
     end
     try
-        stream = managed.stream
-        AMDGPU.context!(stream.ctx) do
+        used = managed.stream
+        AMDGPU.context!(used.ctx) do
             # a destroyed stream may still have work in flight. our streams are blocking,
             # so the default stream waits for that work.
-            HIP.isvalid(stream) || (stream = AMDGPU.default_stream())
+            stream = HIP.isvalid(used) ? used : AMDGPU.default_stream()
             if HIP.is_capturing(stream)
                 # a host function launched on a capturing stream would become part of the
                 # graph, so retry after the capture. finalizers can't switch tasks, but

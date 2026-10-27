@@ -23,7 +23,7 @@ function EnzymeRules.forward(config, ofn::Const{Type{CT}},
         else
             tup = ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
-                shadow = ofn.val(uval.val, primargs...)::CT
+                local shadow = ofn.val(uval.val, primargs...)::CT
                 fill!(shadow, zero(eltype(shadow)))
                 shadow::CT
             end
@@ -37,7 +37,7 @@ function EnzymeRules.forward(config, ofn::Const{Type{CT}},
         else
             tup = ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
-                shadow = ofn.val(uval.val, primargs...)::CT
+                local shadow = ofn.val(uval.val, primargs...)::CT
                 fill!(shadow, zero(eltype(shadow)))
                 shadow::CT
             end
@@ -105,7 +105,7 @@ function EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT},
         else
             ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
-                subshadow = ofn.val(uval.val, primargs...)::CT
+                local subshadow = ofn.val(uval.val, primargs...)::CT
                 fill!(subshadow, zero(eltype(subshadow)))
                 subshadow
             end
