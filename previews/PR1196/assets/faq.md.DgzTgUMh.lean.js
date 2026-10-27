@@ -1,1 +1,0 @@
-import{_ as s,o as e,c as i,a2 as t}from"./chunks/framework.Dxi78Mbl.js";const k=JSON.parse('{"title":"FAQ","description":"","frontmatter":{},"headers":[],"relativePath":"faq.md","filePath":"faq.md","lastUpdated":null}'),n={name:"faq.md"};function l(r,a,o,h,d,p){return e(),i("div",null,[...a[0]||(a[0]=[t("",28)])])}const u=s(n,[["render",l]]);export{k as __pageData,u as default};
