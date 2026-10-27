@@ -185,6 +185,15 @@ end
     # This kernel has no occupancy constraints
     @test occ.groupsize == AMDGPU.Device._max_group_size
 
+    # the configuration without dynamic shared memory is cached, which must not change it
+    for kern in (kern, @roc launch=false maxthreads=256 f(x))
+        for max_block_size in (0, 1, 31, 32, 33, 100, 256, 257, 1000, 1024, 2048)
+            @test AMDGPU.HIP.launch_configuration(kern.fun; max_block_size) ==
+                  NamedTuple{(:gridsize, :groupsize)}(
+                      AMDGPU.HIP.query_launch_configuration(kern.fun, 0, max_block_size))
+        end
+    end
+
     # TODO
     # @testset "Automatic groupsize selection" begin
     #     function groupsize_kernel(A)
