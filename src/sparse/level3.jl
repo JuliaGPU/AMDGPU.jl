@@ -297,16 +297,11 @@ for (bname,aname,sname,elty) in (
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
             transxy = $elty <: Real && transxy == 'C' ? 'T' : transxy
 
-            ctransa = 'N'
-            cuplo = 'U'
-            if transa == 'N'
-                ctransa = 'T'
-            elseif transa == 'C' && $elty <: Complex
+            if transa == 'C' && $elty <: Complex
                 throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR matrix instead."))
             end
-            if uplo == 'U'
-                cuplo = 'L'
-            end
+            ctransa = transa == 'N' ? 'T' : 'N'
+            cuplo = uplo == 'U' ? 'L' : 'U'
             desc = ROCMatrixDescriptor('G', cuplo, diag, index)
             n,m = size(A)
             if m != n
