@@ -8,12 +8,13 @@ export malloc, free
 #     ccall("extern __ockl_dm_free", llvmcall, Nothing, (Csize_t,), ptr)
 # end
 
-function malloc(bytesize::Csize_t)::Ptr{Cvoid}
+# no return type annotations: Julia 1.10's `@overlay` doesn't support them
+@device_function function malloc(bytesize::Csize_t)
     mhc = Base.unsafe_load(malloc_hc())
-    return hostcall!(mhc, bytesize)
+    return hostcall!(mhc, bytesize)::Ptr{Cvoid}
 end
 
-function free(ptr::Ptr{Cvoid})::Nothing
+@device_function function free(ptr::Ptr{Cvoid})
     fhc = Base.unsafe_load(free_hc())
     hostcall!(fhc, ptr)
     return

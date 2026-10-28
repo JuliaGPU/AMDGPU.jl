@@ -2,7 +2,7 @@ using Core: LLVMPtr
 
 ## GPU runtime library
 
-@inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
+@device_function @inline @generated kernel_state() = GPUCompiler.kernel_state_value(AMDGPU.KernelState)
 
 @llvmgenerated builder function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T)::T where {T, A}
     T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
@@ -12,14 +12,14 @@ using Core: LLVMPtr
     extract_value!(builder, res, 0)
 end
 
-function output_context()
+@device_function function output_context()
     ptr = convert(Ptr{OUTPUT_CONTEXT_TYPE}, kernel_state().output_context)
     x = alloc_local(:__print_hostcall, UInt64, 1)
     unsafe_store!(x, reinterpret(UInt64, ptr))
     return ptr
 end
 
-function printf_output_context()
+@device_function function printf_output_context()
     ptr = convert(
         Ptr{PRINTF_OUTPUT_CONTEXT_TYPE},
         kernel_state().printf_output_context)
@@ -29,7 +29,7 @@ function printf_output_context()
     return ptr
 end
 
-function malloc_hc()
+@device_function function malloc_hc()
     ptr = convert(
         Ptr{HostCall{Ptr{Cvoid}, Tuple{Csize_t}}},
         kernel_state().malloc_hc)
@@ -43,7 +43,7 @@ function malloc_hc()
     return ptr
 end
 
-function free_hc()
+@device_function function free_hc()
     ptr = convert(
         Ptr{HostCall{Nothing, Tuple{Ptr{Cvoid}}}},
         kernel_state().free_hc)
@@ -53,7 +53,7 @@ function free_hc()
     return ptr
 end
 
-function signal_exception()
+@device_function function signal_exception()
     ei = kernel_state().exception_info
     signal_exception!(ei, ExceptionCode.UNKNOWN)
     return
