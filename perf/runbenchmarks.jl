@@ -10,16 +10,27 @@ rng = StableRNG(123)
 AMDGPU.versioninfo()
 
 # convenience macro to create a benchmark that requires synchronizing the GPU.
-# The setup=(GC+sync) runs before each sample (outside the timing window) to
-# drain pending hipFreeAsync calls before the next allocation, preventing
-# HIP memory pool exhaustion on discrete GPUs. This is load-bearing, not
-# belt-and-braces: dropping it takes the pool to 25.7 GB on a 24 GiB card and
-# the suite never finishes. See set_evals! below for why evals is not 1.
+# The setup runs before each sample (outside the timing window) to drain pending
+# hipFreeAsync calls before the next allocation, preventing HIP memory pool
+# exhaustion on discrete GPUs. This is load-bearing, not belt-and-braces: dropping
+# it takes the pool to 25.7 GB on a 24 GiB card and the suite never finishes.
+# See set_evals! below for why evals is not 1.
 macro async_benchmarkable(ex...)
     quote
-        @benchmarkable(AMDGPU.@sync($(ex...)),
-                       setup=(GC.gc(false); AMDGPU.synchronize()))
+        @benchmarkable(AMDGPU.@sync($(ex...)), setup=collect_gpu_garbage())
     end
+end
+
+# only collect when the previous sample left garbage on the GPU. a collection idles
+# the GPU long enough for it to power down, and evicts the working set from its
+# caches, making the next evaluation up to twice as slow. benchmarks that do not
+# allocate would otherwise measure a mix of such cold and warm evaluations, which
+# made their results flip between levels from one run to the next.
+const last_live = Ref(0)
+function collect_gpu_garbage()
+    AMDGPU.memory_stats().live > last_live[] && GC.gc(false)
+    last_live[] = AMDGPU.memory_stats().live
+    AMDGPU.synchronize()
 end
 
 # before anything else, run latency benchmarks. these spawn subprocesses, so we don't want
@@ -43,11 +54,11 @@ include("applications.jl")
 # warmup for compilation and fix evals explicitly.
 warmup(SUITE; verbose=false)
 
-# evals=4: the GC in the `setup` above forces a slow post-GC hipMallocAsync into
-# every timed region at evals=1, inflating allocation-heavy benchmarks ~1.9x
-# (accumulate/F32/dims=1L: 133us at evals=1 vs 70.5us at evals=4). At evals=4
-# three of four evals hit the pool fast path, so the number reflects steady
-# state rather than allocator overhead. The pool still stays flat at 96 MiB.
+# evals=4: the first evaluation after a GC in the `setup` above is slow (a post-GC
+# hipMallocAsync, on a GPU that has gone idle), which at evals=1 inflates
+# allocation-heavy benchmarks ~1.9x (accumulate/F32/dims=1L: 133us at evals=1 vs
+# 70.5us at evals=4). At evals=4 three of four evals run in steady state, so the
+# number reflects that rather than the GC's aftermath. The pool still stays flat at 96 MiB.
 # Note evals=2 is the worst of both: a 50/50 slow/fast split puts the sample
 # mean between the two levels, where it is maximally sensitive to the split.
 function set_evals!(group::BenchmarkGroup, evals::Int=4)
