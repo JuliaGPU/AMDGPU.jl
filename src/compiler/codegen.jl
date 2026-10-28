@@ -426,15 +426,14 @@ end
 function hipcompile(@nospecialize(job::CompilerJob))
     # the IR in `meta` is ours: inspect it in here, and dispose of it so that it does not leak
     obj, entry, late_hostcalls, extinit_globals, relocations = JuliaContext() do ctx
-        obj, meta = GPUCompiler.compile(:obj, job)
+        image, meta = GPUCompiler.compile(:obj, job)
         @dispose ir=meta.ir begin
             # Filter out extinit global from `relocations` that :patch strategy emits.
             relocated = Set(rec.name for rec in meta.relocations.records)
-            extinit_globals = [gv.name for gv in ir.globals
-                               if gv.externally_initialized && gv.name ∉ relocated]
+            extinit = [gv.name for gv in ir.globals
+                       if gv.externally_initialized && gv.name ∉ relocated]
 
-            obj, meta.entry.name, find_global_hostcalls(ir), extinit_globals,
-                meta.relocations
+            image, meta.entry.name, find_global_hostcalls(ir), extinit, meta.relocations
         end
     end
 

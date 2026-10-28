@@ -206,7 +206,7 @@ function visible_gpus(gpus, env=ENV)
             token = uppercase(strip(token))
             index = if startswith(token, 'G')
                 # a UUID, or a unique prefix of one
-                matches = findall(uuid -> startswith(uuid, token), uuids)
+                matches = findall(startswith(token), uuids)
                 5 <= length(token) <= 20 && length(matches) == 1 ? only(matches) : 0
             else
                 something(isempty(token) ? 0 : parse_c_int(token), -1) + 1

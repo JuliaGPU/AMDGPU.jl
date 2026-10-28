@@ -5,8 +5,8 @@ function pool_create(dev::HIPDevice)
     mp = MEMORY_POOLS.payload
     did = HIP.device_id(dev)
 
-    pool = get(mp, did, nothing)
-    pool ≡ nothing || return pool
+    existing = get(mp, did, nothing)
+    existing ≡ nothing || return existing
 
     Base.@lock MEMORY_POOLS.lock begin
         get!(mp, HIP.device_id(dev)) do
@@ -45,9 +45,8 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     ptr = alloc_or_retry!(isnothing; stream) do
         try
             HIP.hipMallocFromPoolAsync(ptr_ref, bytesize, pool, stream)
-            ptr = ptr_ref[]
-            ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
-            return ptr
+            ptr_ref[] == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
+            return ptr_ref[]
         catch err
             # Only retry for OOM. Any other error (e.g. hipErrorLaunchFailure
             # from a prior kernel exception surfacing here) must propagate

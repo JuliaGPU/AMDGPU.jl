@@ -49,8 +49,8 @@ const CONTEXTS = AMDGPU.LockedObject(Dict{HIPDevice,HIPContext}())
 function HIPContext(device::HIPDevice)
     contexts = CONTEXTS.payload
 
-    ctx = get(contexts, device, nothing)
-    ctx ≡ nothing || return ctx
+    existing = get(contexts, device, nothing)
+    existing ≡ nothing || return existing
 
     Base.@lock CONTEXTS.lock begin
         get!(contexts, device) do

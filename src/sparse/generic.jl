@@ -26,15 +26,14 @@ end
 function densetosparse(A::ROCMatrix{T}, fmt::Symbol, index::SparseChar,
                        algo::rocsparse_dense_to_sparse_alg=rocsparse_dense_to_sparse_alg_default) where {T}
     m,n = size(A)
-    local rowPtr, colPtr, desc_sparse, B
-    if fmt == :coo
-        desc_sparse = ROCSparseMatrixDescriptor(ROCSparseMatrixCOO, T, Cint, m, n, index)
+    desc_sparse, offsets = if fmt == :coo
+        ROCSparseMatrixDescriptor(ROCSparseMatrixCOO, T, Cint, m, n, index), nothing
     elseif fmt == :csr
         rowPtr = ROCVector{Cint}(undef, m+1)
-        desc_sparse = ROCSparseMatrixDescriptor(ROCSparseMatrixCSR, rowPtr, T, Cint, m, n, index)
+        ROCSparseMatrixDescriptor(ROCSparseMatrixCSR, rowPtr, T, Cint, m, n, index), rowPtr
     elseif fmt == :csc
         colPtr = ROCVector{Cint}(undef, n+1)
-        desc_sparse = ROCSparseMatrixDescriptor(ROCSparseMatrixCSC, colPtr, T, Cint, m, n, index)
+        ROCSparseMatrixDescriptor(ROCSparseMatrixCSC, colPtr, T, Cint, m, n, index), colPtr
     else
         error("Format :$fmt not available, use :csc, :csr or :coo.")
     end
@@ -47,7 +46,7 @@ function densetosparse(A::ROCMatrix{T}, fmt::Symbol, index::SparseChar,
     end
 
     buffer_size = Ref{Csize_t}()
-    with_workspace(bufferSize) do buffer
+    return with_workspace(bufferSize) do buffer
         buffer_size[] = sizeof(buffer)
         # Analysis
         rocsparse_dense_to_sparse(handle(), desc_dense, desc_sparse, algo, C_NULL, buffer)
@@ -62,19 +61,19 @@ function densetosparse(A::ROCMatrix{T}, fmt::Symbol, index::SparseChar,
         elseif fmt == :csr
             colVal = ROCVector{Cint}(undef, nnzB[])
             nzVal = ROCVector{T}(undef, nnzB[])
-            B = ROCSparseMatrixCSR{T, Cint}(rowPtr, colVal, nzVal, (m,n))
+            B = ROCSparseMatrixCSR{T, Cint}(offsets, colVal, nzVal, (m,n))
             rocsparse_csr_set_pointers(desc_sparse, B.rowPtr, B.colVal, B.nzVal)
         elseif fmt == :csc
             rowVal = ROCVector{Cint}(undef, nnzB[])
             nzVal = ROCVector{T}(undef, nnzB[])
-            B = ROCSparseMatrixCSC{T, Cint}(colPtr, rowVal, nzVal, (m,n))
+            B = ROCSparseMatrixCSC{T, Cint}(offsets, rowVal, nzVal, (m,n))
             rocsparse_csc_set_pointers(desc_sparse, B.colPtr, B.rowVal, B.nzVal)
         else
             error("Format :$fmt not available, use :csc, :csr or :coo.")
         end
         rocsparse_dense_to_sparse(handle(), desc_dense, desc_sparse, algo, buffer_size, buffer)
+        B
     end
-    return B
 end
 
 function gather!(X::ROCSparseVector, Y::ROCVector, index::SparseChar)
@@ -180,6 +179,27 @@ function mv!(
     Y
 end
 
+# the stages of a sparse-dense matrix product, in a workspace of the size it asks for
+function spmm!(transa, transb, alpha, descA, descB, beta, descC, ::Type{T}, algo) where T
+    function bufferSize()
+        out = Ref{Csize_t}()
+        rocsparse_spmm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, C_NULL)
+        return out[]
+    end
+
+    with_workspace(bufferSize) do buffer
+        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
+        rocsparse_spmm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, rocsparse_spmm_stage_preprocess, buffer_len_ref, buffer)
+        rocsparse_spmm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
+    end
+end
+
 function mm!(
     transa::SparseChar, transb::SparseChar, alpha::Number, A::Union{ROCSparseMatrixCSR{T}, ROCSparseMatrixCSC{T}, ROCSparseMatrixCOO{T}},
     B::DenseROCMatrix{T}, beta::Number, C::DenseROCMatrix{T}, index::SparseChar,
@@ -218,23 +238,7 @@ function mm!(
     descB = ROCDenseMatrixDescriptor(B)
     descC = ROCDenseMatrixDescriptor(C)
 
-    function bufferSize()
-        out = Ref{Csize_t}()
-        rocsparse_spmm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, C_NULL)
-        return out[]
-    end
-
-    with_workspace(bufferSize) do buffer
-        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
-        rocsparse_spmm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_preprocess, buffer_len_ref, buffer)
-        rocsparse_spmm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
-    end
+    spmm!(transa, transb, alpha, descA, descB, beta, descC, T, algo)
     return C
 end
 
@@ -279,23 +283,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseROCM
     descA = ROCDenseMatrixDescriptor(A, transposed=true)
     descC = ROCDenseMatrixDescriptor(C, transposed=true)
 
-    function bufferSize()
-        out = Ref{Csize_t}()
-        rocsparse_spmm(
-            handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_buffer_size, out, C_NULL)
-        return out[]
-    end
-
-    with_workspace(bufferSize) do buffer
-        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
-        rocsparse_spmm(
-            handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_preprocess, buffer_len_ref, buffer)
-        rocsparse_spmm(
-            handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
-            descC, T, algo, rocsparse_spmm_stage_compute, buffer_len_ref, buffer)
-    end
+    spmm!(transb, transa, alpha, descB, descA, beta, descC, T, algo)
     return C
 end
 
@@ -371,8 +359,7 @@ function gemm(
         return out[]
     end
 
-    local C
-    with_workspace(bufferSize) do buffer
+    return with_workspace(bufferSize) do buffer
         buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
         rocsparse_spgemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
@@ -390,8 +377,29 @@ function gemm(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, descC, T, rocsparse_spgemm_alg_default,
             rocsparse_spgemm_stage_compute, buffer_len_ref, buffer)
+        C
     end
-    return C
+end
+
+# the stages of a sparse triangular solve, in a workspace of the size it asks for
+function spsv!(transa, alpha, descA, descX, descY, ::Type{T}, algo) where T
+    function bufferSize()
+        out = Ref{Csize_t}()
+        rocsparse_spsv(
+            handle(), transa, Ref{T}(alpha), descA, descX, descY, T,
+            algo, rocsparse_spsv_stage_buffer_size, out, C_NULL)
+        return out[]
+    end
+
+    with_workspace(bufferSize) do buffer
+        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
+        rocsparse_spsv(
+            handle(), transa, Ref{T}(alpha), descA, descX, descY, T,
+            algo, rocsparse_spsv_stage_preprocess, buffer_len_ref, buffer)
+        rocsparse_spsv(
+            handle(), transa, Ref{T}(alpha), descA, descX, descY, T,
+            algo, rocsparse_spsv_stage_compute, buffer_len_ref, buffer)
+    end
 end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
@@ -430,24 +438,29 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     descX = ROCDenseVectorDescriptor(X)
     descY = ROCDenseVectorDescriptor(Y)
 
+    spsv!(transa, alpha, descA, descX, descY, T, algo)
+    return Y
+end
+
+# the stages of a sparse triangular solve with multiple right-hand sides
+function spsm!(transa, transb, alpha, descA, descB, descC, ::Type{T}, algo) where T
     function bufferSize()
         out = Ref{Csize_t}()
-        rocsparse_spsv(
-            handle(), transa, Ref{T}(alpha), descA, descX, descY, T,
-            algo, rocsparse_spsv_stage_buffer_size, out, C_NULL)
+        rocsparse_spsm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
+            algo, rocsparse_spsm_stage_buffer_size, out, C_NULL)
         return out[]
     end
 
     with_workspace(bufferSize) do buffer
         buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
-        rocsparse_spsv(
-            handle(), transa, Ref{T}(alpha), descA, descX, descY, T,
-            algo, rocsparse_spsv_stage_preprocess, buffer_len_ref, buffer)
-        rocsparse_spsv(
-            handle(), transa, Ref{T}(alpha), descA, descX, descY, T,
-            algo, rocsparse_spsv_stage_compute, buffer_len_ref, buffer)
+        rocsparse_spsm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
+            algo, rocsparse_spsm_stage_preprocess, buffer_len_ref, buffer)
+        rocsparse_spsm(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
+            algo, rocsparse_spsm_stage_compute, buffer_len_ref, buffer)
     end
-    return Y
 end
 
 function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::SparseChar,
@@ -490,23 +503,7 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     descB = ROCDenseMatrixDescriptor(B)
     descC = ROCDenseMatrixDescriptor(C)
 
-    function bufferSize()
-        out = Ref{Csize_t}()
-        rocsparse_spsm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
-            algo, rocsparse_spsm_stage_buffer_size, out, C_NULL)
-        return out[]
-    end
-
-    with_workspace(bufferSize) do buffer
-        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
-        rocsparse_spsm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
-            algo, rocsparse_spsm_stage_preprocess, buffer_len_ref, buffer)
-        rocsparse_spsm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T,
-            algo, rocsparse_spsm_stage_compute, buffer_len_ref, buffer)
-    end
+    spsm!(transa, transb, alpha, descA, descB, descC, T, algo)
     return C
 end
 
