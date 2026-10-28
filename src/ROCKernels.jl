@@ -7,7 +7,9 @@ import AMDGPU.Device: @device_override
 using AMDGPU: GPUArrays, rocSPARSE, HIP, Device, rocconvert, hipfunction
 
 import Adapt
+import KernelAbstractions as KA
 import KernelInterface as KI
+import LLVM
 
 """
     ROCBackend <: KernelInterface.Backend
@@ -183,6 +185,29 @@ function KI.sub_group_size(::ROCBackend)::Int
 end
 function KI.multiprocessor_count(::ROCBackend)::Int
     Int(HIP.attribute(AMDGPU.device(), HIP.hipDeviceAttributeMultiprocessorCount))
+end
+
+## KernelAbstractions
+
+Adapt.adapt_storage(::KA.CPU, a::Union{AMDGPU.ROCArray, GPUArrays.AbstractGPUSparseArray}) =
+    Adapt.adapt(Array, a)
+
+# tell the compiler about statically sized workgroups. this is defined here rather than in
+# an extension: the GPUArrays kernels that AMDGPU precompiles are launched through
+# `KA.launch_kernel`, which calls it, so adding it when loading an extension would
+# invalidate those launches.
+function KA.compiler_options(obj::KA.Kernel{ROCBackend})
+    if KA.workgroupsize(obj) <: KA.StaticSize
+        return (; maxthreads = prod(KA.get(KA.workgroupsize(obj))))
+    else
+        return (;)
+    end
+end
+
+# `@Const` arrays are read through the constant address space
+function Adapt.adapt_storage(::KA.ConstAdaptor, a::AMDGPU.ROCDeviceArray{T}) where T
+    ptr = LLVM.Interop.addrspacecast(Core.LLVMPtr{T,AMDGPU.Device.AS.Constant}, a.ptr)
+    AMDGPU.ROCDeviceArray(a.dims, ptr, a.maxsize)
 end
 
 ## COV_EXCL_START
