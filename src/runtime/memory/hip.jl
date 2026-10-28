@@ -1,5 +1,28 @@
 # Device ID => HIPMemoryPool
 const MEMORY_POOLS = AMDGPU.LockedObject(Dict{Int64, HIP.HIPMemoryPool}())
+# Device ID => whether the pool was created with an export handle type (IPC-capable). Protected by `MEMORY_POOLS.lock`.
+const MEMORY_POOLS_EXPORTABLE = Dict{Int64, Bool}()
+
+# Create the memory pool of `dev`. With the default handle type preference (`"posix_fd"`, see
+# `AMDGPU.memory_pool_handle_type!`), the pool is created with `hipMemHandleTypePosixFileDescriptor`: on ROCm >= 7.1,
+# memory of a pool without export handle type is backed by a virtual-memory heap that cannot be exported
+# (`hipIpcGetMemHandle`), which breaks GPU-aware MPI with `ROCArray`s. If the exportable pool cannot be created
+# (e.g. unsupported by the platform or driver), a pool without export handle type is created instead.
+function create_pool(dev::HIPDevice, max_size::UInt64)
+    if AMDGPU.memory_pool_handle_type() == "posix_fd"
+        try
+            pool = HIP.HIPMemoryPool(dev; max_size,
+                handle_type=HIP.hipMemHandleTypePosixFileDescriptor)
+            return pool, true
+        catch err
+            err isa HIP.HIPError || rethrow()
+            @warn """Could not create an exportable (IPC-capable) memory pool on $dev; using a pool without export handle type.
+            Device memory from this pool cannot be shared via IPC (e.g. by GPU-aware MPI).
+            Use `AMDGPU.memory_pool_handle_type!("none")` to select this pool type explicitly and silence this warning.""" exception=err maxlog=1
+        end
+    end
+    return HIP.HIPMemoryPool(dev; max_size), false
+end
 
 function pool_create(dev::HIPDevice)
     mp = MEMORY_POOLS.payload
@@ -13,7 +36,8 @@ function pool_create(dev::HIPDevice)
             max_size::UInt64 = AMDGPU.hard_memory_limit()
             max_size = max_size != typemax(UInt64) ? max_size : UInt64(0)
 
-            pool = HIP.HIPMemoryPool(dev; max_size)
+            pool, exportable = create_pool(dev, max_size)
+            MEMORY_POOLS_EXPORTABLE[HIP.device_id(dev)] = exportable
             # Allow pool to use up all device memory.
             soft_limit = AMDGPU.soft_memory_limit()
             HIP.attribute!(pool, HIP.hipMemPoolAttrReleaseThreshold, soft_limit)

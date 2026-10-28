@@ -97,6 +97,41 @@ function soft_memory_limit()
     SOFT_MEMORY_LIMIT[] = soft_limit
 end
 
+"""
+    memory_pool_handle_type!(type::String)
+
+Set the export handle type of the memory pools from which device memory (`ROCArray`s) is allocated:
+
+- `"posix_fd"` (default on Linux): the pools are created with `hipMemHandleTypePosixFileDescriptor` and are
+  IPC-capable, i.e. their memory can be shared with other processes via `hipIpcGetMemHandle`, as GPU-aware MPI
+  implementations do when `ROCArray`s are passed to MPI.
+- `"none"` (default on Windows): the pools are created without export handle type. On ROCm 7.1 and later, their memory
+  is backed by a virtual-memory heap that cannot be exported.
+
+The setting is persisted via Preferences.jl and takes effect in new Julia sessions.
+See also [`AMDGPU.memory_pool_exportable`](@ref).
+"""
+function memory_pool_handle_type!(type::String)
+    type in ("posix_fd", "none") || throw(ArgumentError(
+        "Invalid memory pool handle type `$type`. Valid values are \"posix_fd\" and \"none\"."))
+    @set_preferences!("memory_pool_handle_type" => type)
+end
+
+memory_pool_handle_type()::String = @load_preference(
+    "memory_pool_handle_type", Sys.iswindows() ? "none" : "posix_fd")
+
+"""
+    memory_pool_exportable(dev::HIPDevice = AMDGPU.device())::Bool
+
+Whether device memory (`ROCArray`s) on `dev` is allocated from an exportable (IPC-capable) memory pool, i.e. whether it
+can be passed to GPU-aware MPI. This is the case with the default [`AMDGPU.memory_pool_handle_type!`](@ref) setting,
+unless the exportable pool could not be created on the platform.
+"""
+function memory_pool_exportable(dev::HIPDevice = AMDGPU.device())
+    Mem.pool_create(dev)
+    Base.@lock Mem.MEMORY_POOLS.lock Mem.MEMORY_POOLS_EXPORTABLE[HIP.device_id(dev)]
+end
+
 
 ## allocation statistics
 
