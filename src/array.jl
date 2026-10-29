@@ -133,6 +133,49 @@ Return the device associated with the array `A`.
 """
 device(A::ROCArray) = A.buf[].mem.device
 
+## synchronization
+
+"""
+    synchronize(A::ROCArray)
+
+Wait until the operations on the stream that last used the memory of `A` have completed.
+"""
+synchronize(A::ROCArray) = synchronize(A.buf[])
+
+"""
+    enable_synchronization!(A::ROCArray, enable::Bool=true) -> A
+
+By default, using a `ROCArray` on another stream than the one that used it last (launching
+a kernel, copying, or taking its pointer) first synchronizes that stream from the host, so
+that operations on different streams are ordered. This may be unwanted when, e.g., disjoint
+parts of an array are processed concurrently on different streams. This function disables
+(`enable=false`) or re-enables this implicit synchronization. The memory is still recorded
+as used by the stream that uses it last.
+
+!!! warning
+
+    This affects all `ROCArray`s that refer to the same memory (e.g. views and reshapes).
+    While implicit synchronization is disabled, ordering operations on different streams,
+    and synchronizing before accessing the memory from the host or freeing it, is up to the
+    user: unsafe use results in data races. Re-enabling it does not wait for operations
+    that used the memory on other streams in the meantime.
+
+See also [`AMDGPU.synchronization_enabled`](@ref), [`AMDGPU.synchronize`](@ref).
+"""
+function enable_synchronization!(A::ROCArray, enable::Bool=true)
+    managed = A.buf[]
+    Base.@lock managed.lock managed.synchronizing = enable
+    return A
+end
+
+"""
+    synchronization_enabled(A::ROCArray) -> Bool
+
+Whether the implicit synchronization of the memory of `A` is enabled
+(see [`AMDGPU.enable_synchronization!`](@ref)).
+"""
+synchronization_enabled(A::ROCArray) = A.buf[].synchronizing
+
 buftype(x::ROCArray) = buftype(typeof(x))
 buftype(::Type{<:ROCArray{<:Any, <:Any, B}}) where B = B # TODO check `@isdefined`?
 
