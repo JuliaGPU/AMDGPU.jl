@@ -88,3 +88,30 @@ AMDGPU.synchronize
 AMDGPU.@sync
 AMDGPU.device_synchronize
 ```
+
+## Implicit synchronization of arrays
+
+AMDGPU.jl keeps track of the stream that last used the memory of each `ROCArray`.
+Using the array on another stream (launching a kernel, copying,
+or taking its pointer) first waits, on the host, for the stream that used it before,
+so that operations on different streams are ordered.
+[`AMDGPU.synchronize(A)`](@ref AMDGPU.synchronize) waits for the stream
+that last used `A`.
+
+This implicit synchronization can be disabled per array, e.g. to let kernels
+that work on disjoint parts of an array run concurrently on different streams.
+Ordering the streams is then up to the user:
+
+```julia
+s1, s2 = HIPStream(), HIPStream()
+AMDGPU.enable_synchronization!(A, false)
+@roc stream=s1 kernel_a!(A)  # e.g. computes the interior of `A`
+@roc stream=s2 kernel_b!(A)  # e.g. computes the boundary of `A`, concurrently
+AMDGPU.synchronize(s1); AMDGPU.synchronize(s2)
+AMDGPU.enable_synchronization!(A)
+```
+
+```@docs
+AMDGPU.enable_synchronization!
+AMDGPU.synchronization_enabled
+```

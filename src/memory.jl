@@ -414,10 +414,11 @@ mutable struct Managed{M}
     generation::Int
     dirty::Bool
     captured::Bool
+    synchronizing::Bool
 
     function Managed(mem; stream=AMDGPU.stream(), dirty=true, captured=false)
         new{typeof(mem)}(mem, ReentrantLock(), stream, HIP.generation(stream),
-                         dirty, captured)
+                         dirty, captured, true)
     end
 end
 
@@ -450,7 +451,7 @@ function take_ownership!(managed::Managed; stream::HIPStream=AMDGPU.stream())
     # end
 
     if managed.stream != stream
-        synchronize(managed)
+        managed.synchronizing && synchronize(managed)
         managed.stream = stream
     end
     managed.generation = HIP.generation(managed.stream)
