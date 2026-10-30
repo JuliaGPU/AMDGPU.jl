@@ -98,3 +98,42 @@ end
     @test all(collect(RA)[1:2] .== 0x3)
     @test all(collect(RA)[3:4] .== 0x0)
 end
+
+@testset "Memory: Device malloc/free" begin
+    # The C-ABI names, as emitted by code generated outside AMDGPU.jl (Enzyme's reverse
+    # mode puts its per-work-item tape behind them). They reach codegen as undefined
+    # declarations; `lower_device_malloc!` gives them bodies on top of ROCm's
+    # `__ockl_dm_alloc`/`__ockl_dm_dealloc`.
+    @inline c_malloc(sz::Csize_t) =
+        ccall("extern malloc", llvmcall, Ptr{Cvoid}, (Csize_t,), sz)
+    @inline c_free(p::Ptr{Cvoid}) =
+        ccall("extern free", llvmcall, Cvoid, (Ptr{Cvoid},), p)
+
+    function device_malloc_kernel!(out)
+        i = workitemIdx().x
+        p = c_malloc(Csize_t(64))
+        if p == C_NULL
+            @inbounds out[i] = -1f0
+        else
+            fp = reinterpret(Ptr{Float32}, p)
+            Base.unsafe_store!(fp, Float32(i), 1)
+            @inbounds out[i] = Base.unsafe_load(fp, 1)
+            c_free(p)
+        end
+        nothing
+    end
+
+    # The allocator draws from the heap `hipLimitMallocHeapSize` sizes; the 8 MiB default
+    # is enough for this, but set it so the test does not depend on what ran before it.
+    old_heap = AMDGPU.HIP.heap_size()
+    AMDGPU.HIP.heap_size!(64 * 1024 * 1024)
+    try
+        n = 8
+        out = AMDGPU.zeros(Float32, n)
+        @roc groupsize=n gridsize=1 device_malloc_kernel!(out)
+        AMDGPU.synchronize()
+        @test Array(out) == Float32.(1:n)
+    finally
+        AMDGPU.HIP.heap_size!(old_heap)
+    end
+end
