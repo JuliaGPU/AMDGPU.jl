@@ -215,6 +215,24 @@ To manually release all cached pool memory back to the system:
 AMDGPU.HIP.reclaim()
 ```
 
+### Exportable memory pool (IPC, GPU-aware MPI)
+
+By default (on Linux), the memory pools are created with an export handle type
+(`hipMemHandleTypePosixFileDescriptor`), which makes device memory IPC-capable:
+it can be shared with other processes via `hipIpcGetMemHandle`, as GPU-aware MPI
+implementations do when `ROCArray`s are passed to MPI.
+On ROCm 7.1 and later, memory from a pool without export handle type is backed by a
+virtual-memory heap that cannot be exported.
+
+```julia
+AMDGPU.memory_pool_exportable()          # whether ROCArrays of the current device are IPC-capable
+AMDGPU.memory_pool_handle_type!("none")  # pools without export handle type (takes effect after restart)
+AMDGPU.memory_pool_handle_type!("posix_fd")  # default on Linux
+```
+
+If the exportable pool cannot be created on a platform, AMDGPU.jl warns once and falls
+back to a pool without export handle type.
+
 ### Avoiding GC pressure
 
 To explicitly free a `ROCArray` without waiting for the garbage collector:
