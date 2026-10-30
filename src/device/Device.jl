@@ -17,6 +17,7 @@ import ..AMDGPU
 import .AMDGPU: method_table
 import .AMDGPU: aligned_sizeof
 import ..UnsafeAtomics
+import GPUToolbox
 
 const EMULATED_SIGNALS = Ref{Bool}(false)
 
