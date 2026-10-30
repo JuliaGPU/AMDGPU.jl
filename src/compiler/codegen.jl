@@ -295,11 +295,21 @@ The following kwargs are supported:
 function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F, TT}
     kw = values(kwargs)
     dev = AMDGPU.device()
-    fun = GPUCompiler.cached_lookup(HIP.HIPFunction, F, tt, (dev, kw)) do
-        hipfunction_link(methodinstance(F, tt), dev, kw)
-    end
+    fun = GPUCompiler.cached_lookup(KernelLinker(F, tt, dev, kw), HIP.HIPFunction, F, tt,
+                                    (dev, kw))
     return Runtime.HIPKernel{F, tt}(f, fun)
 end
+
+# what `hipfunction` calls when the kernel isn't cached: a callable struct rather than a
+# closure, whose type would depend on the kernel's, compiling it (and the inlined
+# `methodinstance`) again for every kernel.
+struct KernelLinker{K}
+    ft::Type
+    tt::Type
+    dev::HIP.HIPDevice
+    kw::K
+end
+(l::KernelLinker)() = hipfunction_link(methodinstance(l.ft, l.tt), l.dev, l.kw)
 
 # the part of `hipfunction` that doesn't depend on the kernel's types, kept out of the code
 # compiled for every kernel

@@ -164,3 +164,13 @@ let RM   = (T) -> ROCArray{T, 2, Mem.HIPBuffer},
         precompile(Tuple{typeof(LinearAlgebra.kron), RCOO(T), RCOO(T)})
     end
 end
+
+# Displaying an array, which the device-free workload above can't do, compiles for about
+# 150 ms otherwise. The REPL displays on a `TTYTerminal`, which is part of Base on 1.12+.
+let ios = @static isdefined(Base, :Terminals) ? (IOBuffer, Base.Terminals.TTYTerminal) :
+                                               (IOBuffer,)
+    for io in ios, N in (1, 2)
+        precompile(Tuple{typeof(show), IOContext{io}, MIME"text/plain",
+                         ROCArray{Float32, N, Mem.HIPBuffer}})
+    end
+end
