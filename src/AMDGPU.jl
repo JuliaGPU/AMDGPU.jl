@@ -143,6 +143,7 @@ export ROCBackend
 include("precompile.jl")
 
 function __init__()
+    empty!(Compiler.rocm_libraries)
     # Discovery runs at load time; a precompiled value would be stale.
     global _ROCSPARSE_VERSION = ""
 
