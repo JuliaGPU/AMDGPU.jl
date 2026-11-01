@@ -4,7 +4,7 @@ mutable struct HIPMemoryPool
     function HIPMemoryPool(dev::HIPDevice;
         alloc_type::hipMemAllocationType = hipMemAllocationTypePinned,
         handle_type::hipMemAllocationHandleType = hipMemHandleTypeNone,
-        max_size::Csize_t = 0,
+        max_size::Csize_t = Csize_t(0),
     )
         location = hipMemLocation(hipMemLocationTypeDevice, device_id(dev))
         props = Ref(hipMemPoolProps(
