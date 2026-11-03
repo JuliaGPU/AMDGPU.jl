@@ -52,7 +52,8 @@ const AnyROCDeviceVector{T,A} = AnyROCDeviceArray{T,1,A}
 const AnyROCDeviceMatrix{T,A} = AnyROCDeviceArray{T,2,A}
 
 # outer constructors, non-parameterized
-ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}, maxsize::Int = prod(dims) * aligned_sizeof(T)) where {T,A,N} =
+ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
+ROCDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}, maxsize::Integer) where {T,A,N} =
     ROCDeviceArray{T,N,A}(dims, p, maxsize)
 ROCDeviceArray(len::Integer,              p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
 
@@ -62,9 +63,12 @@ ROCDeviceArray{T}(len::Integer,                p::LLVMPtr{T,A}) where {T,A}   = 
 ROCDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = ROCDeviceArray{T,N,A}(dims, p)
 ROCDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((len,), p)
 
-# outer constructors, fully parameterized
-ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}, maxsize::Int = prod(dims) * aligned_sizeof(T)) where {T,A,N} =
-    ROCDeviceArray{T,N,A}(Int.(dims), p, maxsize)
+# outer constructors, fully parameterized. the default `maxsize` is left to the inner
+# constructor, which computes it from `Int` dims: `prod` of unsigned dims is a `UInt`.
+ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} =
+    ROCDeviceArray{T,N,A}(Int.(dims), p)
+ROCDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}, maxsize::Integer) where {T,A,N} =
+    ROCDeviceArray{T,N,A}(Int.(dims), p, Int(maxsize))
 ROCDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = ROCDeviceVector{T,A}((Int(len),), p)
 
 Base.pointer(a::ROCDeviceArray{T, <: Any, A}) where {T, A} =
