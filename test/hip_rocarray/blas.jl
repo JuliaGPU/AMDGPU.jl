@@ -804,6 +804,204 @@ end
     end
 end
 
+@testset "Givens rotations" begin
+    @testset "rotg $T" for T in (Float32, Float64, ComplexF32, ComplexF64)
+        a, b = rand(T), rand(T)
+        r, z, c, s = rocBLAS.rotg(a, b)
+        @test [c s; -conj(s) c] * [a, b] ≈ [r, 0] atol=sqrt(eps(real(T)))
+
+        # on the device, in place
+        da, db, dc, ds = ROCRef(a), ROCRef(b), ROCRef{real(T)}(), ROCRef{T}()
+        @test rocBLAS.rotg!(da, db, dc, ds) === (da, db, dc, ds)
+        @test da[] ≈ r
+        @test dc[] ≈ c
+        @test ds[] ≈ s
+        T <: Real && @test db[] ≈ z
+
+        # one-element arrays, feeding the rotation into `rot!` without leaving the device
+        abcs = ROCArray([a, b, zero(T)])
+        cs = ROCArray([zero(real(T))])
+        rocBLAS.rotg!(view(abcs, 1:1), view(abcs, 2:2), cs, view(abcs, 3:3))
+        x, y = rand(T, m), rand(T, m)
+        dx, dy = ROCArray(x), ROCArray(y)
+        rocBLAS.rot!(m, dx, 1, dy, 1, cs, view(abcs, 3:3))
+        rotate!(x, y, c, s)
+        @test Array(dx) ≈ x
+        @test Array(dy) ≈ y
+
+        @test_throws ArgumentError rocBLAS.rotg!(Ref(a), db, dc, ds)
+        @test_throws DimensionMismatch rocBLAS.rotg!(ROCArray([a, a]), db, dc, ds)
+    end
+
+    @testset "rotmg/rotm $T" for T in (Float32, Float64)
+        # the modified Givens rotation, from the flag and the elements of param
+        function rotm_matrix(param)
+            flag, h11, h21, h12, h22 = param
+            flag == -1 ? [h11 h12; h21 h22] :
+            flag ==  0 ? [one(T) h12; h21 one(T)] :
+            flag ==  1 ? [h11 one(T); -one(T) h22] :
+                         [one(T) zero(T); zero(T) one(T)]
+        end
+
+        d1, d2, x1, y1 = rand(T) + 1, rand(T) + 1, rand(T), rand(T)
+        d1′, d2′, x1′, param = rocBLAS.rotmg(d1, d2, x1, y1)
+        H = rotm_matrix(param)
+        @test H * [x1, y1] ≈ [x1′, 0] atol=sqrt(eps(T))
+
+        # on the device, with y1 a number (it's only read)
+        dd1, dd2, dx1 = ROCRef(d1), ROCRef(d2), ROCRef(x1)
+        dparam = ROCVector{T}(undef, 5)
+        rocBLAS.rotmg!(dd1, dd2, dx1, y1, dparam)
+        @test dd1[] ≈ d1′
+        @test dd2[] ≈ d2′
+        @test dx1[] ≈ x1′
+        @test Array(dparam) ≈ param
+
+        @test_throws ArgumentError rocBLAS.rotmg!(Ref(d1), dd2, dx1, y1, dparam)
+        @test_throws ArgumentError rocBLAS.rotmg!(dd1, dd2, dx1, y1, param)
+        @test_throws DimensionMismatch rocBLAS.rotmg!(dd1, dd2, dx1, y1, ROCVector{T}(undef, 4))
+
+        # apply the rotation with a host- or device-side param
+        x, y = rand(T, m), rand(T, m)
+        expected = H * [x'; y']
+        @testset "rotm! with $(typeof(p))" for p in (param, dparam)
+            dx, dy = ROCArray(x), ROCArray(y)
+            rocBLAS.rotm!(m, dx, 1, dy, 1, p)
+            @test Array(dx) ≈ expected[1, :]
+            @test Array(dy) ≈ expected[2, :]
+        end
+    end
+end
+
+@testset "ROCRef" begin
+    r = ROCRef(3f0)
+    @test r isa Ref{Float32}
+    @test r[] == 3f0
+    r[] = 4
+    @test r[] == 4f0
+    @test ROCRef{Float64}(1)[] === 1.0
+
+    x = ROCArray(Float32[1, 2, 3])
+    r = ROCRef(x, 2)
+    @test r[] == 2f0
+    r[] = 5f0
+    @test Array(x) == Float32[1, 5, 3]
+    @test_throws BoundsError ROCRef(x, 4)
+    @test_throws ArgumentError ROCRef{Vector{Int}}()
+end
+
+@testset "Device-side scalars" begin
+    function pointer_mode()
+        mode = Ref{rocBLAS.rocblas_pointer_mode}()
+        rocBLAS.rocblas_get_pointer_mode(rocBLAS.handle(), mode)
+        return mode[]
+    end
+
+    @testset for T in (Float32, Float64, ComplexF32, ComplexF64)
+        x, y = rand(T, m), rand(T, m)
+        dx, dy = ROCArray(x), ROCArray(y)
+        α, β = rand(T), rand(T)
+
+        @testset "scal! with $(typeof(s))" for s in (
+            ROCRef(α), ROCArray([α]), view(ROCArray([zero(T), α]), 2:2), Ref(α),
+        )
+            d = copy(dx)
+            rocBLAS.scal!(m, s, d, 1)
+            @test Array(d) ≈ α * x
+        end
+        @test_throws DimensionMismatch rocBLAS.scal!(m, ROCArray([α, β]), copy(dx), 1)
+
+        @testset "axpy!" begin
+            d = copy(dy)
+            rocBLAS.axpy!(m, ROCRef(α), dx, 1, d, 1)
+            @test Array(d) ≈ α * x + y
+        end
+
+        @testset "results on the device" begin
+            jdot = T <: Real ? rocBLAS.dot : rocBLAS.dotc
+            result = ROCRef{T}()
+            @test jdot(m, dx, 1, dy, 1, result) === result
+            @test result[] ≈ dot(x, y)
+            result = ROCVector{T}(undef, 1)
+            jdot(m, dx, 1, dy, 1, result)
+            @test Array(result)[1] ≈ dot(x, y)
+            result = Ref{T}()
+            jdot(m, dx, 1, dy, 1, result)
+            @test result[] ≈ dot(x, y)
+
+            result = ROCRef{real(T)}()
+            rocBLAS.nrm2(m, dx, 1, result)
+            @test result[] ≈ norm(x)
+            rocBLAS.asum(m, dx, 1, result)
+            @test result[] ≈ BLAS.asum(x)
+        end
+
+        @testset "rot!" begin
+            c, s = rand(real(T)), rand(T)
+            d1, d2 = copy(dx), copy(dy)
+            rocBLAS.rot!(m, d1, 1, d2, 1, ROCRef(c), ROCRef(s))
+            h1, h2 = copy(x), copy(y)
+            rotate!(h1, h2, c, s)
+            @test Array(d1) ≈ h1
+            @test Array(d2) ≈ h2
+        end
+
+        A = rand(T, m, m)
+        dA = ROCArray(A)
+        @testset "gemv!" begin
+            d = copy(dy)
+            # mixing device- and host-side scalars
+            rocBLAS.gemv!('N', ROCRef(α), dA, dx, β, d)
+            @test Array(d) ≈ α * A * x + β * y
+        end
+
+        B, C = rand(T, m, m), rand(T, m, m)
+        dB, dC = ROCArray(B), ROCArray(C)
+        @testset "gemm!" begin
+            d = copy(dC)
+            rocBLAS.gemm!('N', 'N', ROCRef(α), dA, dB, ROCRef(β), d)
+            @test Array(d) ≈ α * A * B + β * C
+            # scalars that are elements of another array
+            s = ROCArray([α, β])
+            d = copy(dC)
+            rocBLAS.gemm!('N', 'N', ROCRef(s, 1), dA, dB, ROCRef(s, 2), d)
+            @test Array(d) ≈ α * A * B + β * C
+        end
+
+        @testset "geam!" begin
+            d = similar(dC)
+            rocBLAS.geam!('N', 'N', ROCRef(α), dA, β, dB, d)
+            @test Array(d) ≈ α * A + β * B
+        end
+
+        if T <: Complex
+            @testset "real scalars" begin
+                a = rand(real(T))
+                d = copy(dx)
+                rocBLAS.scal!(m, ROCRef(a), d, 1)
+                @test Array(d) ≈ a * x
+
+                H = Matrix(Hermitian(A))
+                dH = ROCArray(H)
+                rocBLAS.her!('U', ROCRef(a), dx, dH)
+                @test triu(Array(dH)) ≈ triu(H + a * x * x')
+            end
+        end
+
+        # the handle is put back in the host pointer mode
+        @test pointer_mode() == rocBLAS.rocblas_pointer_mode_host
+    end
+
+    @testset "gemm_ex!" begin
+        A, B, C = rand(Float16, m, m), rand(Float16, m, m), rand(Float16, m, m)
+        dA, dB, dC = ROCArray(A), ROCArray(B), ROCArray(C)
+        # 16-bit inputs compute in Float32, so do the scalars
+        rocBLAS.gemm_ex!('N', 'N', ROCRef(2f0), dA, dB, ROCRef(3f0), dC)
+        @test Array(dC) ≈ 2 * A * B + 3 * C rtol=1e-2
+        @test_throws ArgumentError rocBLAS.gemm_ex!('N', 'N', ROCRef(Float16(2)), dA, dB, 1, dC)
+    end
+end
+
 @testset "Handling size zero arrays correctly" begin
     for T in (Float32, Float64, ComplexF32, ComplexF64)
         m, n, k = (12, 6, 0)

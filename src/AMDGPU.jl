@@ -44,7 +44,7 @@ const LAUNCH_BLOCKING::Ref{Bool} = Ref{Bool}(false)
 
 export @roc, roc, rocconvert
 export HIPDevice, has_rocm_gpu
-export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
+export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat, ROCRef
 export DenseROCArray, DenseROCVector, DenseROCMatrix, DenseROCVecOrMat,
        StridedROCArray, StridedROCVector, StridedROCMatrix, StridedROCVecOrMat,
        AnyROCArray, AnyROCVector, AnyROCMatrix, AnyROCVecOrMat
@@ -122,6 +122,7 @@ include("highlevel.jl")
 include("reflection.jl")
 include("array.jl")
 include("conversions.jl")
+include("refpointer.jl")
 include("broadcast.jl")
 include("exception_handler.jl")
 

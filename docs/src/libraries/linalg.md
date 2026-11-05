@@ -51,3 +51,24 @@ Because `svdvals` is supported, so is `cond`. (`opnorm(A, 2)` is not yet availab
 ## Direct library access
 
 Lower-level routines are available in the `AMDGPU.rocBLAS` and `AMDGPU.rocSOLVER` submodules for cases the generic interface does not cover — for example batched factorizations, or the raw `gesvd!` (QR) and `gesvdj!` (Jacobi) SVD kernels.
+
+### Device-side scalars
+
+The scalar arguments of the `rocBLAS` wrappers (e.g. `alpha` and `beta`) can reside on the device, so that they don't need to be known on the host when an operation is enqueued — for example because a previous operation computed them. Pass an [`AMDGPU.ROCRef`](@ref), or a one-element `ROCArray`; scalars on the host can still be passed as numbers, and the two can be mixed. Routines that return a scalar (`dot`, `dotc`, `dotu`, `nrm2`, `asum`) accept an extra argument to write the result into, which avoids synchronizing with the host when it is a device-side scalar:
+
+```julia
+x, y = AMDGPU.rand(Float32, 1024), AMDGPU.rand(Float32, 1024)
+
+d = ROCRef{Float32}()
+rocBLAS.dot(length(x), x, 1, y, 1, d)  # d = x ⋅ y, without synchronizing
+rocBLAS.scal!(length(x), d, x, 1)      # x .*= d
+d[]                                    # copy to the host
+```
+
+`ROCRef(A, i)` refers to element `i` of the array `A`, without copying it.
+
+The Givens rotation routines `rotg!` and `rotmg!` overwrite their scalar arguments, so these can't be copied between the host and the device: either pass them all as host `Ref`s, or all on the device. That makes it possible to construct a rotation on the device and apply it with `rot!` or `rotm!` without synchronizing. `rotg(a, b)` and `rotmg(d1, d2, x1, y1)` compute a rotation from host values instead.
+
+```@docs
+AMDGPU.ROCRef
+```
