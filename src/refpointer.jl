@@ -12,7 +12,8 @@ device-side scalar to a library routine. The first three forms allocate a new va
 (strided) device array `A` without copying it.
 
 Reading a reference with `r[]` copies the value to the host, after the operations on the
-current stream have completed; writing it with `r[] = x` copies `x` to the device.
+current stream have completed. Writing it with `r[] = x` (or constructing it from a value)
+is ordered on the current stream, but doesn't wait for it: the host can continue right away.
 
 ```julia
 alpha = ROCRef(2f0)
@@ -54,13 +55,26 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, r::ROCRef{T}) where T =
     convert(Ptr{Cvoid}, Base.unsafe_convert(Ptr{T}, r))
 
 function Base.setindex!(r::ROCRef{T}, x) where T
-    cpu = Ref{T}(convert(T, x))
-    GC.@preserve cpu r begin
-        # a blocking copy, so `cpu` can be released right away
-        Mem.memcpy!(Base.unsafe_convert(Ptr{T}, r), Base.unsafe_convert(Ptr{T}, cpu),
-                    aligned_sizeof(T); stream=stream())
+    GC.@preserve r begin
+        memset_value!(Base.unsafe_convert(Ptr{T}, r), convert(T, x), stream())
     end
     return r
+end
+
+# Write a single value to device memory, as memsets of its words: unlike a copy from
+# (pageable) host memory, which blocks until the stream is idle, these are ordered on the
+# stream without blocking the host, and capture the value when recorded into a graph.
+function memset_value!(ptr::Ptr{T}, x::T, stm::HIPStream) where T
+    U = sizeof(T) % 4 == 0 ? UInt32 : sizeof(T) % 2 == 0 ? UInt16 : UInt8
+    cpu = Ref(x)
+    GC.@preserve cpu begin
+        src = Ptr{U}(Base.unsafe_convert(Ptr{T}, cpu))
+        dst = Ptr{U}(ptr)
+        for j in 1:(sizeof(T) ÷ sizeof(U))
+            Mem.memset!(dst + (j - 1) * sizeof(U), unsafe_load(src, j), 1; stream=stm)
+        end
+    end
+    return
 end
 
 function Base.getindex(r::ROCRef{T}) where T

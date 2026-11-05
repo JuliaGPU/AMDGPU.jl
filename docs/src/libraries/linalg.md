@@ -54,7 +54,7 @@ Lower-level routines are available in the `AMDGPU.rocBLAS` and `AMDGPU.rocSOLVER
 
 ### Device-side scalars
 
-The scalar arguments of the `rocBLAS` wrappers (e.g. `alpha` and `beta`) can reside on the device, so that they don't need to be known on the host when an operation is enqueued — for example because a previous operation computed them. Pass an [`AMDGPU.ROCRef`](@ref), or a one-element `ROCArray`; scalars on the host can still be passed as numbers, and the two can be mixed. Routines that return a scalar (`dot`, `dotc`, `dotu`, `nrm2`, `asum`) accept an extra argument to write the result into, which avoids synchronizing with the host when it is a device-side scalar:
+The scalar arguments of the `rocBLAS` wrappers (e.g. `alpha` and `beta`) can reside on the device, so that they don't need to be known on the host when an operation is enqueued — for example because a previous operation computed them. Pass an [`AMDGPU.ROCRef`](@ref), or a one-element `ROCArray`; scalars on the host can still be passed as numbers, and the two can be mixed (host-side scalars are then written to the device, which is ordered on the stream without synchronizing). Routines that return a scalar (`dot`, `dotc`, `dotu`, `nrm2`, `asum`) accept an extra argument to write the result into, which avoids synchronizing with the host when it is a device-side scalar:
 
 ```julia
 x, y = AMDGPU.rand(Float32, 1024), AMDGPU.rand(Float32, 1024)
