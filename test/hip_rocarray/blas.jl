@@ -855,7 +855,8 @@ end
         @test dd1[] ≈ d1′
         @test dd2[] ≈ d2′
         @test dx1[] ≈ x1′
-        @test Array(dparam) ≈ param
+        # rotmg leaves the entries of param that the flag doesn't use unspecified
+        @test rotm_matrix(Array(dparam)) ≈ H
 
         @test_throws ArgumentError rocBLAS.rotmg!(Ref(d1), dd2, dx1, y1, dparam)
         @test_throws ArgumentError rocBLAS.rotmg!(dd1, dd2, dx1, y1, param)
