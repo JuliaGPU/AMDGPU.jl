@@ -7,6 +7,7 @@ LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
 SIMD = "fdea26ae-647d-5447-a871-4b548cad5224"
 
 [sources]
+GPUArrays = {url = "https://github.com/JuliaGPU/GPUArrays.jl", rev = "tb/sparse"}
 AMDGPU = {path = ".."}
 
 [compat]
