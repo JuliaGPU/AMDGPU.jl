@@ -37,9 +37,11 @@ for (fname, elty) in (
     (:rocblas_cscal,:ComplexF32),
 )
     @eval begin
-        function scal!(n::Integer, DA::$elty, DX::ROCArray{$elty}, incx::Integer)
+        function scal!(n::Integer, DA::Scalar{$elty}, DX::ROCArray{$elty}, incx::Integer)
             (; handle, stream) = lib_state()
-            $(fname)(handle, n, Ref(DA), DX, incx)
+            with_scalars(handle, DA) do DA
+                $(fname)(handle, n, DA, DX, incx)
+            end
             DX
         end
     end
@@ -48,9 +50,11 @@ end
 for (fname, elty, celty) in ((:rocblas_sscal, :Float32, :ComplexF32),
                              (:rocblas_dscal, :Float64, :ComplexF64))
     @eval begin
-        function scal!(n::Integer, DA::$elty, DX::ROCArray{$celty}, incx::Integer)
+        function scal!(n::Integer, DA::Scalar{$elty}, DX::ROCArray{$celty}, incx::Integer)
             (; handle, stream) = lib_state()
-            $(fname)(handle, 2*n, Ref(DA), DX, incx)
+            with_scalars(handle, DA) do DA
+                $(fname)(handle, 2*n, DA, DX, incx)
+            end
             DX
         end
     end
@@ -67,9 +71,20 @@ for (jname, fname, elty) in ((:dot,:rocblas_ddot,:Float64),
         function $jname(
             n::Integer, DX::ROCArray{$elty}, incx::Integer,
             DY::ROCArray{$elty}, incy::Integer,
+            result::Union{Ref{$elty}, StridedROCArray{$elty}},
+        )
+            (; handle) = lib_state()
+            with_scalars(handle, result) do result
+                $(fname)(handle, n, DX, incx, DY, incy, result)
+            end
+            return result
+        end
+        function $jname(
+            n::Integer, DX::ROCArray{$elty}, incx::Integer,
+            DY::ROCArray{$elty}, incy::Integer,
         )
             result = Ref{$elty}()
-            $(fname)(handle(), n, DX, incx, DY, incy, result)
+            $jname(n, DX, incx, DY, incy, result)
             return result[]
         end
     end
@@ -81,9 +96,17 @@ for (fname, elty, ret_type) in ((:rocblas_dnrm2,:Float64,:Float64),
                                 (:rocblas_dznrm2,:ComplexF64,:Float64),
                                 (:rocblas_scnrm2,:ComplexF32,:Float32))
     @eval begin
+        function nrm2(n::Integer, X::ROCArray{$elty}, incx::Integer,
+                      result::Union{Ref{$ret_type}, StridedROCArray{$ret_type}})
+            (; handle) = lib_state()
+            with_scalars(handle, result) do result
+                $(fname)(handle, n, X, incx, result)
+            end
+            return result
+        end
         function nrm2(n::Integer, X::ROCArray{$elty}, incx::Integer)
             result = Ref{$ret_type}()
-            $(fname)(handle(), n, X, incx, result)
+            nrm2(n, X, incx, result)
             return result[]
         end
     end
@@ -97,9 +120,17 @@ for (fname, elty, ret_type) in ((:rocblas_dasum,:Float64,:Float64),
                                 (:rocblas_dzasum,:ComplexF64,:Float64),
                                 (:rocblas_scasum,:ComplexF32,:Float32))
     @eval begin
+        function asum(n::Integer, X::ROCArray{$elty}, incx::Integer,
+                      result::Union{Ref{$ret_type}, StridedROCArray{$ret_type}})
+            (; handle) = lib_state()
+            with_scalars(handle, result) do result
+                $(fname)(handle, n, X, incx, result)
+            end
+            return result
+        end
         function asum(n::Integer, X::ROCArray{$elty}, incx::Integer)
             result = Ref{$ret_type}()
-            $(fname)(handle(), n, X, incx, result)
+            asum(n, X, incx, result)
             return result[]
         end
     end
@@ -113,11 +144,13 @@ for (fname, elty) in ((:rocblas_daxpy,:Float64),
                       (:rocblas_caxpy,:ComplexF32))
     @eval begin
         function axpy!(
-            n::Integer, alpha::($elty), dx::ROCArray{$elty}, incx::Integer,
+            n::Integer, alpha::Scalar{$elty}, dx::ROCArray{$elty}, incx::Integer,
             dy::ROCArray{$elty}, incy::Integer,
         )
             (; handle, stream) = lib_state()
-            $(fname)(handle, n, Ref(alpha), dx, incx, dy, incy)
+            with_scalars(handle, alpha) do alpha
+                $(fname)(handle, n, alpha, dx, incx, dy, incy)
+            end
             dy
         end
     end
@@ -149,12 +182,94 @@ for (fname, elty, cty, sty) in (
     @eval begin
         function rot!(
             n::Integer, dx::ROCArray{$elty}, incx::Integer, dy::ROCArray{$elty},
-            incy::Integer, c::$cty, s::$sty,
+            incy::Integer, c::Scalar{$cty}, s::Scalar{$sty},
         )
-            $fname(handle(), n, dx, incx, dy, incy, Ref(c), Ref(s))
+            (; handle) = lib_state()
+            with_scalars(handle, c, s) do c, s
+                $fname(handle, n, dx, incx, dy, incy, c, s)
+            end
             dx, dy
         end
     end
+end
+
+## rotg
+for (fname, elty, relty) in ((:rocblas_srotg, :Float32, :Float32),
+                             (:rocblas_drotg, :Float64, :Float64),
+                             (:rocblas_crotg, :ComplexF32, :Float32),
+                             (:rocblas_zrotg, :ComplexF64, :Float64))
+    @eval begin
+        # `a` is overwritten with `r`, and for real types `b` with `z`
+        function rotg!(
+            a::Union{Ref{$elty}, StridedROCArray{$elty}},
+            b::Union{Ref{$elty}, StridedROCArray{$elty}},
+            c::Union{Ref{$relty}, StridedROCArray{$relty}},
+            s::Union{Ref{$elty}, StridedROCArray{$elty}},
+        )
+            foreach(check_scalar, (a, b, c, s))
+            device = outputs_on_device("rotg!", a, b, c, s)
+            (; handle) = lib_state()
+            with_pointer_mode(handle, device) do
+                $fname(handle, a, b, c, s)
+            end
+            return a, b, c, s
+        end
+    end
+end
+function rotg(a::T, b::T) where T <: ROCBLASFloat
+    ref_a, ref_b, c, s = Ref(a), Ref(b), Ref{real(T)}(), Ref{T}()
+    rotg!(ref_a, ref_b, c, s)
+    return ref_a[], ref_b[], c[], s[]
+end
+
+## rotm
+for (fname, elty) in ((:rocblas_srotm, :Float32),
+                      (:rocblas_drotm, :Float64))
+    @eval begin
+        function rotm!(
+            n::Integer, x::ROCArray{$elty}, incx::Integer,
+            y::ROCArray{$elty}, incy::Integer,
+            param::Union{Vector{$elty}, StridedROCVector{$elty}},
+        )
+            check_rotm_param(param)
+            (; handle) = lib_state()
+            with_pointer_mode(handle, on_device(param)) do
+                $fname(handle, n, x, incx, y, incy, param)
+            end
+            return x, y
+        end
+    end
+end
+
+## rotmg
+for (fname, elty) in ((:rocblas_srotmg, :Float32),
+                      (:rocblas_drotmg, :Float64))
+    @eval begin
+        # `d1`, `d2` and `x1` are updated, and the rotation is written to `param`
+        function rotmg!(
+            d1::Union{Ref{$elty}, StridedROCArray{$elty}},
+            d2::Union{Ref{$elty}, StridedROCArray{$elty}},
+            x1::Union{Ref{$elty}, StridedROCArray{$elty}},
+            y1::Scalar{$elty},
+            param::Union{Vector{$elty}, StridedROCVector{$elty}},
+        )
+            foreach(check_scalar, (d1, d2, x1))
+            check_rotm_param(param)
+            device = outputs_on_device("rotmg!", d1, d2, x1, param)
+            # `y1` is only read, so it can be copied to where the outputs reside
+            y1_ref = device ? device_scalar(y1) : host_scalar(y1)
+            (; handle) = lib_state()
+            with_pointer_mode(handle, device) do
+                $fname(handle, d1, d2, x1, y1_ref, param)
+            end
+            return d1, d2, x1, param
+        end
+    end
+end
+function rotmg(d1::T, d2::T, x1::T, y1::T) where T <: ROCBLASReal
+    ref_d1, ref_d2, ref_x1, param = Ref(d1), Ref(d2), Ref(x1), Vector{T}(undef, 5)
+    rotmg!(ref_d1, ref_d2, ref_x1, y1, param)
+    return ref_d1[], ref_d2[], ref_x1[], param
 end
 
 # Level 2
@@ -165,8 +280,8 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
                       (:rocblas_cgemv,:ComplexF32))
     @eval begin
         function gemv!(
-            trans::Char, alpha::($elty), A::ROCMatrix{$elty}, X::ROCVector{$elty},
-            beta::($elty), Y::ROCVector{$elty},
+            trans::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, X::ROCVector{$elty},
+            beta::Scalar{$elty}, Y::ROCVector{$elty},
         )
             m,n = size(A)
             # check dimensions
@@ -175,10 +290,12 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
             lda = max(1,stride(A,2))
             incx, incy = stride(X,1), stride(Y,1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, trans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, trans, m, n, alpha, A, lda, X, incx, beta, Y, incy)
+            end
             Y
         end
-        function gemv(trans::Char, alpha::($elty), A::ROCMatrix{$elty}, X::ROCVector{$elty})
+        function gemv(trans::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, X::ROCVector{$elty})
             gemv!(trans, alpha, A, X, zero($elty), similar(X, $elty, size(A, (trans == 'N' ? 1 : 2))))
         end
         function gemv(trans::Char, A::ROCMatrix{$elty}, X::ROCVector{$elty})
@@ -194,8 +311,8 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
                       (:rocblas_cgbmv,:ComplexF32))
     @eval begin
         function gbmv!(
-            trans::Char, m::Integer, kl::Integer, ku::Integer, alpha::($elty),
-            A::ROCMatrix{$elty}, x::ROCVector{$elty}, beta::($elty), y::ROCVector{$elty},
+            trans::Char, m::Integer, kl::Integer, ku::Integer, alpha::Scalar{$elty},
+            A::ROCMatrix{$elty}, x::ROCVector{$elty}, beta::Scalar{$elty}, y::ROCVector{$elty},
         )
             n = size(A, 2)
             # check dimensions
@@ -204,11 +321,13 @@ for (fname, elty) in ((:rocblas_dgbmv,:Float64),
             lda = max(1, stride(A, 2))
             incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, trans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
         function gbmv(
-            trans::Char, m::Integer, kl::Integer, ku::Integer, alpha::($elty),
+            trans::Char, m::Integer, kl::Integer, ku::Integer, alpha::Scalar{$elty},
             A::ROCMatrix{$elty}, x::ROCVector{$elty},
         )
             # TODO: fix gbmv bug in julia
@@ -233,8 +352,8 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
     # Note that the complex symv are not BLAS but auiliary functions in LAPACK
     @eval begin
         function symv!(
-            uplo::Char, alpha::($elty), A::ROCMatrix{$elty}, x::ROCVector{$elty},
-            beta::($elty), y::ROCVector{$elty},
+            uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, x::ROCVector{$elty},
+            beta::Scalar{$elty}, y::ROCVector{$elty},
         )
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
@@ -242,10 +361,12 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
             lda = max(1, stride(A, 2))
             incx, incy = stride(x, 1), stride(y,1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
-        function symv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty}, x::ROCVector{$elty})
+        function symv(uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, x::ROCVector{$elty})
                 symv!(uplo, alpha, A, x, zero($elty), similar(x))
         end
         function symv(uplo::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
@@ -260,8 +381,8 @@ for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
                       (:rocblas_chemv,:ComplexF32))
     @eval begin
         function hemv!(
-            uplo::Char, alpha::$elty, A::ROCMatrix{$elty}, x::ROCVector{$elty},
-            beta::$elty, y::ROCVector{$elty},
+            uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, x::ROCVector{$elty},
+            beta::Scalar{$elty}, y::ROCVector{$elty},
         )
             # TODO: fix dimension check bug in julia
             m, n = size(A)
@@ -270,10 +391,12 @@ for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
             lda = max(1, stride(A, 2))
             incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
-        function hemv(uplo::Char, alpha::($elty), A::ROCMatrix{$elty},
+        function hemv(uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty},
                       x::ROCVector{$elty})
             hemv!(uplo, alpha, A, x, zero($elty), similar(x))
         end
@@ -291,8 +414,8 @@ for (fname, elty) in ((:rocblas_dsbmv,:Float64),
                       (:rocblas_ssbmv,:Float32))
     @eval begin
         function sbmv!(
-            uplo::Char, k::Integer, alpha::($elty), A::ROCMatrix{$elty},
-            x::ROCVector{$elty}, beta::($elty), y::ROCVector{$elty},
+            uplo::Char, k::Integer, alpha::Scalar{$elty}, A::ROCMatrix{$elty},
+            x::ROCVector{$elty}, beta::Scalar{$elty}, y::ROCVector{$elty},
         )
             m, n = size(A)
             #if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
@@ -302,10 +425,12 @@ for (fname, elty) in ((:rocblas_dsbmv,:Float64),
             lda = max(1, stride(A, 2))
             incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
-        function sbmv(uplo::Char, k::Integer, alpha::($elty),
+        function sbmv(uplo::Char, k::Integer, alpha::Scalar{$elty},
                       A::ROCMatrix{$elty}, x::ROCVector{$elty})
             n = size(A,2)
             sbmv!(uplo, k, alpha, A, x, zero($elty), similar(x, $elty, n))
@@ -322,8 +447,8 @@ for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
                       (:rocblas_chbmv,:ComplexF32))
     @eval begin
         function hbmv!(
-            uplo::Char, k::Integer, alpha::($elty), A::ROCMatrix{$elty},
-            x::ROCVector{$elty}, beta::($elty), y::ROCVector{$elty},
+            uplo::Char, k::Integer, alpha::Scalar{$elty}, A::ROCMatrix{$elty},
+            x::ROCVector{$elty}, beta::Scalar{$elty}, y::ROCVector{$elty},
         )
             m, n = size(A)
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
@@ -332,10 +457,12 @@ for (fname, elty) in ((:rocblas_zhbmv,:ComplexF64),
             lda = max(1,stride(A, 2))
             incx, incy = stride(x, 1), stride(y, 1)
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
+            end
             y
         end
-        function hbmv(uplo::Char, k::Integer, alpha::($elty),
+        function hbmv(uplo::Char, k::Integer, alpha::Scalar{$elty},
                       A::ROCMatrix{$elty}, x::ROCVector{$elty})
             n = size(A,2)
             hbmv!(uplo, k, alpha, A, x, zero($elty), similar(x, $elty, n))
@@ -461,7 +588,7 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
                       (:rocblas_zgerc,:ComplexF64),
                       (:rocblas_cgerc,:ComplexF32))
     @eval begin
-        function ger!(alpha::$elty, x::ROCVector{$elty}, y::ROCVector{$elty}, A::ROCMatrix{$elty})
+        function ger!(alpha::Scalar{$elty}, x::ROCVector{$elty}, y::ROCVector{$elty}, A::ROCMatrix{$elty})
             m, n = size(A)
             m == length(x) || throw(DimensionMismatch(""))
             n == length(y) || throw(DimensionMismatch(""))
@@ -469,7 +596,9 @@ for (fname, elty) in ((:rocblas_dger,:Float64),
             incy = stride(y,1)
             lda = max(1,stride(A,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, m, n, Ref(alpha), x, incx, y, incy, A, lda)
+            with_scalars(handle, alpha) do alpha
+                $(fname)(handle, m, n, alpha, x, incx, y, incy, A, lda)
+            end
             A
         end
     end
@@ -482,14 +611,16 @@ for (fname, elty) in ((:rocblas_dsyr,:Float64),
                       (:rocblas_zsyr,:ComplexF64),
                       (:rocblas_csyr,:ComplexF32))
     @eval begin
-        function syr!(uplo::Char, alpha::$elty, x::ROCVector{$elty}, A::ROCMatrix{$elty})
+        function syr!(uplo::Char, alpha::Scalar{$elty}, x::ROCVector{$elty}, A::ROCMatrix{$elty})
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), x, incx, A, lda)
+            with_scalars(handle, alpha) do alpha
+                $(fname)(handle, uplo, n, alpha, x, incx, A, lda)
+            end
             A
         end
     end
@@ -499,14 +630,16 @@ end
 for (fname, elty, relty) in ((:rocblas_zher,:ComplexF64,:Float64),
                              (:rocblas_cher,:ComplexF32,:Float32))
     @eval begin
-        function her!(uplo::Char, alpha::$relty, x::ROCVector{$elty}, A::ROCMatrix{$elty})
+        function her!(uplo::Char, alpha::Scalar{$relty}, x::ROCVector{$elty}, A::ROCMatrix{$elty})
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), x, incx, A, lda)
+            with_scalars(handle, alpha) do alpha
+                $(fname)(handle, uplo, n, alpha, x, incx, A, lda)
+            end
             A
         end
     end
@@ -517,7 +650,7 @@ for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
                       (:rocblas_cher2,:ComplexF32))
     @eval begin
         function her2!(
-            uplo::Char, alpha::$elty, x::ROCVector{$elty},
+            uplo::Char, alpha::Scalar{$elty}, x::ROCVector{$elty},
             y::ROCVector{$elty}, A::ROCMatrix{$elty},
         )
             m, n = size(A)
@@ -528,7 +661,9 @@ for (fname, elty) in ((:rocblas_zher2,:ComplexF64),
             incy = stride(y,1)
             lda = max(1,stride(A,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, n, Ref(alpha), x, incx, y, incy, A, lda)
+            with_scalars(handle, alpha) do alpha
+                $(fname)(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
+            end
             A
         end
     end
@@ -545,8 +680,8 @@ for (fname, elty) in (
 )
     @eval begin
         function gemm!(
-            transA::Char, transB::Char, alpha::($elty),
-            A::StridedROCVecOrMat{$elty}, B::StridedROCVecOrMat{$elty}, beta::($elty),
+            transA::Char, transB::Char, alpha::Scalar{$elty},
+            A::StridedROCVecOrMat{$elty}, B::StridedROCVecOrMat{$elty}, beta::Scalar{$elty},
             C::StridedROCVecOrMat{$elty},
         )
             m = size(A, transA == 'N' ? 1 : 2)
@@ -560,12 +695,14 @@ for (fname, elty) in (
             ldb = max(1, stride(B, 2))
             ldc = max(1, stride(C, 2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, transA, transB,
-                     m, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, transA, transB,
+                         m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
         function gemm(
-            transA::Char, transB::Char, alpha::($elty),
+            transA::Char, transB::Char, alpha::Scalar{$elty},
             A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
         )
             gemm!(transA, transB, alpha, A, B, zero($elty),
@@ -667,8 +804,8 @@ for (fname, elty) in
     @eval begin
         function gemm_batched!(
             transA::Char, transB::Char,
-            alpha::($elty), A::TA,
-            B::TB, beta::($elty), C::TC,
+            alpha::Scalar{$elty}, A::TA,
+            B::TB, beta::Scalar{$elty}, C::TC,
         ) where {TA<:Union{ROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
                  TB<:Union{ROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
                  TC<:Union{ROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}}}
@@ -683,14 +820,16 @@ for (fname, elty) in
             Cb = device_batch(C)
 
             (; handle, stream) = lib_state()
-            $(fname)(
-                handle, transA, transB,
-                m, n, k, Ref(alpha), Ab, lda, Bb, ldb, Ref(beta),
-                Cb, ldc, batch_count)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(
+                    handle, transA, transB,
+                    m, n, k, alpha, Ab, lda, Bb, ldb, beta,
+                    Cb, ldc, batch_count)
+            end
             return C
         end
         function gemm_batched(
-            transA::Char, transB::Char, alpha::($elty), A::T, B::K,
+            transA::Char, transB::Char, alpha::Scalar{$elty}, A::T, B::K,
         ) where {
             T <: Union{AnyROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
             K <: Union{AnyROCArray{$elty, 3}, Vector{<:ROCMatrix{$elty}}},
@@ -729,9 +868,9 @@ for (fname, elty) in
          (:rocblas_cgemm_strided_batched,:ComplexF32))
     @eval begin
         function gemm_strided_batched!(
-            transA::Char, transB::Char, alpha::($elty),
+            transA::Char, transB::Char, alpha::Scalar{$elty},
             A::ROCArray{$elty, 3}, B::ROCArray{$elty, 3},
-            beta::($elty), C::ROCArray{$elty, 3},
+            beta::Scalar{$elty}, C::ROCArray{$elty, 3},
         )
            m = size(A, transA == 'N' ? 1 : 2)
            k = size(A, transA == 'N' ? 2 : 1)
@@ -750,11 +889,13 @@ for (fname, elty) in
            strideC = stride(C, 3)
            batchCount = size(A, 3)
            (; handle, stream) = lib_state()
-           $(fname)(handle, transA, transB, m, n, k, Ref(alpha), A, lda, strideA, B, ldb, strideB, Ref(beta), C, ldc, strideC, batchCount)
+           with_scalars(handle, alpha, beta) do alpha, beta
+               $(fname)(handle, transA, transB, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta, C, ldc, strideC, batchCount)
+           end
            C
         end
         function gemm_strided_batched(
-            transA::Char, transB::Char, alpha::($elty),
+            transA::Char, transB::Char, alpha::Scalar{$elty},
             A::ROCArray{$elty, 3}, B::ROCArray{$elty, 3},
         )
             C = similar(B, (size(A, transA == 'N' ? 1 : 2), size(B, transB == 'N' ? 2 : 1), size(A, 3)))
@@ -780,9 +921,16 @@ gemmex_compute_type(TA, TB, TC) = promote_type(TA, TB, TC)
 gemmex_compute_type(::Type{Float16}, ::Type{Float16}, TC) = Float32
 gemmex_compute_type(::Type{BFloat16}, ::Type{BFloat16}, TC) = Float32
 
+# alpha and beta are passed in the compute type. scalars that already reside on the device
+# are passed as is, so they need to be of that type.
+gemmex_scalar(::Type{T}, x::Number) where T = convert(T, x)
+gemmex_scalar(::Type{T}, x::Union{Ref{T}, StridedROCArray{T}}) where T = x
+gemmex_scalar(::Type{T}, x) where T = throw(ArgumentError(
+    "a GEMM that computes in $T cannot use a scalar of type $(eltype(x))"))
+
 function gemm_ex!(
-    transA::Char, transB::Char, alpha::Number,
-    A::StridedROCVecOrMat, B::StridedROCVecOrMat, beta::Number,
+    transA::Char, transB::Char, alpha::Union{Number, Ref, StridedROCArray},
+    A::StridedROCVecOrMat, B::StridedROCVecOrMat, beta::Union{Number, Ref, StridedROCArray},
     C::StridedROCVecOrMat;
     compute_type::Type = gemmex_compute_type(eltype(A), eltype(B), eltype(C)),
 )
@@ -796,17 +944,19 @@ function gemm_ex!(
     lda = max(1, stride(A, 2))
     ldb = max(1, stride(B, 2))
     ldc = max(1, stride(C, 2))
-    α = Ref(convert(compute_type, alpha))
-    β = Ref(convert(compute_type, beta))
+    α = gemmex_scalar(compute_type, alpha)
+    β = gemmex_scalar(compute_type, beta)
     (; handle, stream) = lib_state()
     GC.@preserve A B C begin
-        rocblas_gemm_ex_64(handle, transA, transB, m, n, k,
-            α, pointer(A), gemmex_datatype(eltype(A)), lda,
-            pointer(B), gemmex_datatype(eltype(B)), ldb,
-            β, pointer(C), gemmex_datatype(eltype(C)), ldc,
-            pointer(C), gemmex_datatype(eltype(C)), ldc,
-            gemmex_datatype(compute_type), rocblas_gemm_algo_standard,
-            Int32(0), UInt32(0))
+        with_scalars(handle, α, β) do α, β
+            rocblas_gemm_ex_64(handle, transA, transB, m, n, k,
+                α, pointer(A), gemmex_datatype(eltype(A)), lda,
+                pointer(B), gemmex_datatype(eltype(B)), ldb,
+                β, pointer(C), gemmex_datatype(eltype(C)), ldc,
+                pointer(C), gemmex_datatype(eltype(C)), ldc,
+                gemmex_datatype(compute_type), rocblas_gemm_algo_standard,
+                Int32(0), UInt32(0))
+        end
     end
     C
 end
@@ -819,9 +969,9 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
     # TODO: fix julia dimension checks in symm!
     @eval begin
         function symm!(
-            side::Char, uplo::Char, alpha::($elty),
+            side::Char, uplo::Char, alpha::Scalar{$elty},
             A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
-            beta::($elty), C::ROCMatrix{$elty},
+            beta::Scalar{$elty}, C::ROCMatrix{$elty},
         )
             k, nA = size(A)
             if k != nA throw(DimensionMismatch("Matrix A must be square")) end
@@ -834,11 +984,13 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, side, uplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
         function symm(
-            side::Char, uplo::Char, alpha::($elty),
+            side::Char, uplo::Char, alpha::Scalar{$elty},
             A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
         )
             symm!(side, uplo, alpha, A, B, zero($elty), similar(B))
@@ -856,8 +1008,8 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
                       (:rocblas_csyrk,:ComplexF32))
     @eval begin
         function syrk!(
-            uplo::Char, trans::Char, alpha::($elty),
-            A::StridedROCVecOrMat{$elty}, beta::($elty), C::StridedROCMatrix{$elty},
+            uplo::Char, trans::Char, alpha::Scalar{$elty},
+            A::StridedROCVecOrMat{$elty}, beta::Scalar{$elty}, C::StridedROCMatrix{$elty},
         )
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -867,7 +1019,9 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+            end
             C
         end
     end
@@ -884,8 +1038,8 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
                       (:rocblas_chemm,:ComplexF32))
     @eval begin
         function hemm!(
-            side::Char, uplo::Char, alpha::($elty), A::ROCMatrix{$elty},
-            B::ROCMatrix{$elty}, beta::($elty), C::ROCMatrix{$elty},
+            side::Char, uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty},
+            B::ROCMatrix{$elty}, beta::Scalar{$elty}, C::ROCMatrix{$elty},
         )
             mA, nA = size(A)
             m, n = size(B)
@@ -898,10 +1052,12 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, side, uplo, m, n, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
-        function hemm(uplo::Char, trans::Char, alpha::($elty), A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
+        function hemm(uplo::Char, trans::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
             m,n = size(B)
             hemm!( uplo, trans, alpha, A, B, zero($elty), similar(B, $elty, (m,n) ) )
         end
@@ -915,8 +1071,8 @@ for (fname, elty, relty) in ((:rocblas_zherk,:ComplexF64,:Float64),
                              (:rocblas_cherk,:ComplexF32,:Float32))
     @eval begin
         function herk!(
-            uplo::Char, trans::Char, alpha::($relty), A::ROCVecOrMat{$elty},
-            beta::($relty), C::ROCMatrix{$elty},
+            uplo::Char, trans::Char, alpha::Scalar{$relty}, A::ROCVecOrMat{$elty},
+            beta::Scalar{$relty}, C::ROCMatrix{$elty},
         )
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -926,10 +1082,12 @@ for (fname, elty, relty) in ((:rocblas_zherk,:ComplexF64,:Float64),
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, Ref(beta), C, ldc)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
+            end
             C
         end
-        function herk(uplo::Char, trans::Char, alpha::($relty), A::ROCVecOrMat{$elty})
+        function herk(uplo::Char, trans::Char, alpha::Scalar{$relty}, A::ROCVecOrMat{$elty})
             n = size(A, trans == 'N' ? 1 : 2)
             herk!(uplo, trans, alpha, A, zero($relty), similar(A, $elty, (n,n)))
         end
@@ -945,8 +1103,8 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
                       (:rocblas_csyr2k,:ComplexF32))
     @eval begin
         function syr2k!(
-            uplo::Char, trans::Char, alpha::($elty), A::ROCVecOrMat{$elty},
-            B::ROCVecOrMat{$elty}, beta::($elty), C::ROCMatrix{$elty},
+            uplo::Char, trans::Char, alpha::Scalar{$elty}, A::ROCVecOrMat{$elty},
+            B::ROCVecOrMat{$elty}, beta::Scalar{$elty}, C::ROCMatrix{$elty},
         )
             # TODO: check size of B in julia (syr2k!)
             m, n = size(C)
@@ -962,7 +1120,9 @@ for (fname, elty) in ((:rocblas_dsyr2k,:Float64),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             (; handle, stream) = lib_state()
-            $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
+            with_scalars(handle, alpha, beta) do alpha, beta
+                $(fname)(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+            end
             C
         end
     end
@@ -980,8 +1140,8 @@ for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
                               (:rocblas_cher2k,:ComplexF32,:Float32))
     @eval begin
         function her2k!(
-            uplo::Char, trans::Char, alpha::($elty1), A::ROCVecOrMat{$elty1},
-            B::ROCVecOrMat{$elty1}, beta::($elty2), C::ROCMatrix{$elty1},
+            uplo::Char, trans::Char, alpha::Scalar{$elty1}, A::ROCVecOrMat{$elty1},
+            B::ROCVecOrMat{$elty1}, beta::Scalar{$elty2}, C::ROCMatrix{$elty1},
         )
            # TODO: check size of B in julia (her2k!)
            m, n = size(C)
@@ -998,11 +1158,13 @@ for (fname, elty1, elty2) in ((:rocblas_zher2k,:ComplexF64,:Float64),
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
            (; handle, stream) = lib_state()
-           $(fname)(handle, uplo, trans, n, k, Ref(alpha), A, lda, B, ldb, Ref(beta), C, ldc)
+           with_scalars(handle, alpha, beta) do alpha, beta
+               $(fname)(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+           end
            C
         end
         function her2k(
-            uplo::Char, trans::Char, alpha::($elty1),
+            uplo::Char, trans::Char, alpha::Scalar{$elty1},
             A::ROCVecOrMat{$elty1}, B::ROCVecOrMat{$elty1},
         )
            n = size(A, trans == 'N' ? 1 : 2)
@@ -1021,7 +1183,7 @@ for (mmname, smname, elty) in
          (:rocblas_ctrmm,:rocblas_ctrsm,:ComplexF32))
     @eval begin
         function trmm!(
-            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::Scalar{$elty},
             A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty}, C::StridedROCMatrix{$elty},
         )
             m, n = size(B)
@@ -1033,19 +1195,21 @@ for (mmname, smname, elty) in
             ldb = max(1, stride(B, 2))
             ldc = max(1, stride(C, 2))
             (; handle, stream) = lib_state()
-            $(mmname)(
-                handle, side, uplo, transa, diag, m, n, Ref(alpha),
-                A, lda, B, ldb, C, ldc)
+            with_scalars(handle, alpha) do alpha
+                $(mmname)(
+                    handle, side, uplo, transa, diag, m, n, alpha,
+                    A, lda, B, ldb, C, ldc)
+            end
             C
         end
         function trmm(
-            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::Scalar{$elty},
             A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty},
         )
             trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
         end
         function trsm!(
-            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::Scalar{$elty},
             A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty},
         )
             m, n = size(B)
@@ -1056,11 +1220,13 @@ for (mmname, smname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             (; handle, stream) = lib_state()
-            $(smname)(handle, side, uplo, transa, diag, m, n, Ref(alpha), A, lda, B, ldb)
+            with_scalars(handle, alpha) do alpha
+                $(smname)(handle, side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb)
+            end
             B
         end
         function trsm(
-            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::Scalar{$elty},
             A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty},
         )
             trsm!(side, uplo, transa, diag, alpha, A, copy(B))
@@ -1076,7 +1242,7 @@ for (fname, elty) in
          (:rocblas_ctrsm_batched,:ComplexF32))
     @eval begin
         function trsm_batched!(
-            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::Scalar{$elty},
             A::Array{<:ROCMatrix{$elty},1}, B::Array{<:ROCMatrix{$elty},1},
         )
             if( length(A) != length(B) )
@@ -1094,11 +1260,13 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Bptrs = device_batch(B)
             (; handle, stream) = lib_state()
-            $(fname)(handle, side, uplo, transa, diag, m, n, Ref(alpha), Aptrs, lda, Bptrs, ldb, length(A))
+            with_scalars(handle, alpha) do alpha
+                $(fname)(handle, side, uplo, transa, diag, m, n, alpha, Aptrs, lda, Bptrs, ldb, length(A))
+            end
             B
         end
         function trsm_batched(
-            side::Char, uplo::Char, transa::Char, diag::Char, alpha::($elty),
+            side::Char, uplo::Char, transa::Char, diag::Char, alpha::Scalar{$elty},
             A::Array{<:ROCMatrix{$elty},1}, B::Array{<:ROCMatrix{$elty},1},
         )
             trsm_batched!(side, uplo, transa, diag, alpha, A, copy(B) )
@@ -1107,7 +1275,7 @@ for (fname, elty) in
 end
 
 # TODO: julia, tr{m,s}m, Char -> Char
-# TODO: julia, trmm!, alpha::Number -> alpha::$elty
+# TODO: julia, trmm!, alpha::Number -> alpha::Scalar{$elty}
 
 # BLAS-like extensions
 ## geam
@@ -1117,8 +1285,8 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
                       (:rocblas_cgeam,:ComplexF32))
     @eval begin
         function geam!(
-            transa::Char, transb::Char, alpha::($elty), A::ROCMatrix{$elty},
-            beta::($elty), B::ROCMatrix{$elty}, C::ROCMatrix{$elty},
+            transa::Char, transb::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty},
+            beta::Scalar{$elty}, B::ROCMatrix{$elty}, C::ROCMatrix{$elty},
         )
            mA, nA = size(A)
            mB, nB = size(B)
@@ -1131,12 +1299,14 @@ for (fname, elty) in ((:rocblas_dgeam,:Float64),
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
            (; handle, stream) = lib_state()
-           $(fname)(handle, transa, transb, m, n, Ref(alpha), A, lda, Ref(beta), B, ldb, C, ldc)
+           with_scalars(handle, alpha, beta) do alpha, beta
+               $(fname)(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
+           end
            C
         end
         function geam(
-            transa::Char, transb::Char, alpha::($elty), A::ROCMatrix{$elty},
-            beta::($elty), B::ROCMatrix{$elty},
+            transa::Char, transb::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty},
+            beta::Scalar{$elty}, B::ROCMatrix{$elty},
         )
            m,n = size(B)
            if ((transb == 'T' || transb == 'C'))
