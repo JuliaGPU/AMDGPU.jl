@@ -69,15 +69,17 @@ for jltype in (Float64, Float32, Float16)
     @eval @device_override Base.:(^)(x::$jltype, y::Int32) = ccall(
         $("extern __ocml_pown_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Int32), x, y)
 
-    @eval @device_override function Base.sincos(x::$jltype)
-        ref = Ref{$jltype}()
-        ret = ccall($("extern __ocml_sincos_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ref{$jltype}), x, ref)
-        return (ret, ref[])
-    end
-    @eval @device_override function Base.sincospi(x::$jltype)
-        ref = Ref{$jltype}()
-        ret = ccall($("extern __ocml_sincospi_$(fntypes[jltype])"), llvmcall, $jltype, ($jltype, Ref{$jltype}), x, ref)
-        return (ret, ref[])
+    for intrinsic in (:sincos, :sincospi)
+        @eval @device_override function Base.$intrinsic(x::$jltype)
+            ref = Ref{$jltype}()
+            GC.@preserve ref begin
+                generic = LLVMPtr{$jltype,AS.Generic}(Base.unsafe_convert(Ptr{$jltype}, ref))
+                private = addrspacecast(LLVMPtr{$jltype,AS.Private}, generic)
+                ret = @typed_ccall($("__ocml_$(intrinsic)_$(type_suffix)"), llvmcall,
+                    $jltype, ($jltype, LLVMPtr{$jltype,AS.Private}), x, private)
+                return (ret, ref[])
+            end
+        end
     end
 
     # TODO remove once we drop support for 1.12.

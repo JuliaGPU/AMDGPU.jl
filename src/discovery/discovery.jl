@@ -65,7 +65,7 @@ function downgrade_device_libs(src_dir::String)::String
     mktempdir(dirname(dir)) do tmp
         for file in readdir(src_dir)
             endswith(file, ".bc") || continue
-            # Just skip libraries the downgrader can't handle. `link_device_libs!` will throw an error if it is actually needed
+            # Skip libraries the downgrader can't handle; compilation diagnoses unresolved imports.
             try
                 bitcode = downgrade_bitcode(read(joinpath(src_dir, file)), target)
                 write(joinpath(tmp, file), bitcode)
