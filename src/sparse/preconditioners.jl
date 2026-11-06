@@ -17,7 +17,8 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_zcsric0_buffer_size, :rocsparse_zcsric0_analysis, :rocsparse_zcsric0, :ComplexF64),
 )
     @eval begin
-        function ic0!(A::ROCSparseMatrixCSR{$elty}, index::SparseChar)
+        function ic0!(A₀::ROCSparseMatrixCSR{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -43,7 +44,7 @@ for (bname,aname,sname,elty) in (
                     handle(), m, nnz(A), desc, nonzeros(A), A.rowPtr, A.colVal,
                     info, rocsparse_solve_policy_auto, buffer)
             end
-            A
+            A₀
         end
     end
 end
@@ -56,7 +57,8 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_zcsric0_buffer_size, :rocsparse_zcsric0_analysis, :rocsparse_zcsric0, :ComplexF64),
 )
     @eval begin
-        function ic0!(A::ROCSparseMatrixCSC{$elty}, index::SparseChar)
+        function ic0!(A₀::ROCSparseMatrixCSC{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -85,7 +87,7 @@ for (bname,aname,sname,elty) in (
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr, rowvals(A),
                     info, rocsparse_solve_policy_auto, buffer)
             end
-            A
+            A₀
         end
     end
 end
@@ -105,7 +107,8 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_zcsrilu0_buffer_size, :rocsparse_zcsrilu0_analysis, :rocsparse_zcsrilu0, :ComplexF64),
 )
     @eval begin
-        function ilu0!(A::ROCSparseMatrixCSR{$elty}, index::SparseChar)
+        function ilu0!(A₀::ROCSparseMatrixCSR{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -135,7 +138,7 @@ for (bname,aname,sname,elty) in (
                     desc, nonzeros(A), A.rowPtr, A.colVal, info,
                     rocsparse_solve_policy_auto, buffer)
             end
-            A
+            A₀
         end
     end
 end
@@ -148,7 +151,8 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_zcsrilu0_buffer_size, :rocsparse_zcsrilu0_analysis, :rocsparse_zcsrilu0, :ComplexF64),
 )
     @eval begin
-        function ilu0!(A::ROCSparseMatrixCSC{$elty}, index::SparseChar)
+        function ilu0!(A₀::ROCSparseMatrixCSC{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -177,7 +181,7 @@ for (bname,aname,sname,elty) in (
                     handle(), m, nnz(A), desc, nonzeros(A), A.colPtr,
                     rowvals(A), info, rocsparse_solve_policy_auto, buffer)
             end
-            A
+            A₀
         end
     end
 end
@@ -190,7 +194,8 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_zbsric0_buffer_size, :rocsparse_zbsric0_analysis, :rocsparse_zbsric0, :ComplexF64),
 )
     @eval begin
-        function ic0!(A::ROCSparseMatrixBSR{$elty}, index::SparseChar)
+        function ic0!(A₀::ROCSparseMatrixBSR{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             desc = ROCMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n
@@ -222,7 +227,7 @@ for (bname,aname,sname,elty) in (
                     nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
                     rocsparse_solve_policy_auto, buffer)
             end
-            A
+            A₀
         end
     end
 end
@@ -235,7 +240,8 @@ for (bname,aname,sname,elty) in (
     (:rocsparse_zbsrilu0_buffer_size, :rocsparse_zbsrilu0_analysis, :rocsparse_zbsrilu0, :ComplexF64),
 )
     @eval begin
-        function ilu0!(A::ROCSparseMatrixBSR{$elty}, index::SparseChar)
+        function ilu0!(A₀::ROCSparseMatrixBSR{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             desc = ROCMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n
@@ -267,7 +273,7 @@ for (bname,aname,sname,elty) in (
                     nonzeros(A), A.rowPtr, A.colVal, A.blockDim, info,
                     rocsparse_solve_policy_auto, buffer)
             end
-            A
+            A₀
         end
     end
 end

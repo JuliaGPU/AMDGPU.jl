@@ -11,13 +11,16 @@ import Adapt
 # CPU → GPU
 # NOTE: `SparseMatricesCSR.SparseMatrixCSR{Bi,Tv,Ti}` has a type parameter `Bi` for the index base (0 or 1),
 # but `ROCSPARSE` expects 1-based pointer. Therefore, we restrict dispatch to `SparseMatrixCSR{1}`.
-AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(Mat::SparseMatrixCSR{1}) where {T} =
-    AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(
-        AMDGPU.ROCVector{Cint}(Mat.rowptr),
-        AMDGPU.ROCVector{Cint}(Mat.colval),
+# (with `Cint` indices, like the other constructors)
+AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T,Ti}(Mat::SparseMatrixCSR{1}) where {T,Ti} =
+    AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T,Ti}(
+        AMDGPU.ROCVector{Ti}(Mat.rowptr),
+        AMDGPU.ROCVector{Ti}(Mat.colval),
         AMDGPU.ROCVector{T}(Mat.nzval),
         size(Mat),
     )
+AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(Mat::SparseMatrixCSR{1}) where {T} =
+    AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T,AMDGPU.rocSPARSE.roc_indtype(Mat)}(Mat)
 AMDGPU.rocSPARSE.ROCSparseMatrixCSR(Mat::SparseMatrixCSR{1, T}) where {T} =
     AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(Mat)
 
@@ -31,6 +34,7 @@ AMDGPU.rocSPARSE.ROCSparseMatrixBSR{T}(Mat::SparseMatrixCSR{1}, blockdim) where 
     "but got a $Bi-based `SparseMatrixCSR{$Bi}`."))
 
 AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T}(Mat::SparseMatrixCSR) where {T} = _unsupported_index_base(Mat)
+AMDGPU.rocSPARSE.ROCSparseMatrixCSR{T,Ti}(Mat::SparseMatrixCSR) where {T,Ti} = _unsupported_index_base(Mat)
 AMDGPU.rocSPARSE.ROCSparseMatrixCSR(Mat::SparseMatrixCSR) = _unsupported_index_base(Mat)
 AMDGPU.rocSPARSE.ROCSparseMatrixCSC{T}(Mat::SparseMatrixCSR) where {T} = _unsupported_index_base(Mat)
 AMDGPU.rocSPARSE.ROCSparseMatrixCOO{T}(Mat::SparseMatrixCSR) where {T} = _unsupported_index_base(Mat)

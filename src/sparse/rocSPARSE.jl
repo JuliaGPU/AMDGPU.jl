@@ -12,9 +12,8 @@ using ..AMDGPU
 using ..AMDGPU: @allowscalar
 using ..AMDGPU: ROCArrayStyle, threadIdx, blockIdx, blockDim
 
-import GPUArrays: _sptranspose, _spadjoint
 import SparseArrays: SparseVector, SparseMatrixCSC
-import AMDGPU: librocsparse, HandleCache, HIP, library_state, ROCVector
+import AMDGPU: librocsparse, HandleCache, HIP, library_state, ROCVector, ROCArray
 import AMDGPU.Device: ROCDeviceVector
 import .HIP: HIPContext, HIPStream, hipStream_t
 
@@ -72,6 +71,5 @@ include("generic.jl")
 
 # high-level integrations
 include("interfaces.jl")
-include("linalg.jl")
 
 end

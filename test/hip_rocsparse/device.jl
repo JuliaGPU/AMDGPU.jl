@@ -4,64 +4,34 @@ using AMDGPU: ROCVector, ROCMatrix, ROCArray
 using AMDGPU.rocSPARSE
 using AMDGPU.Device.AS
 using AMDGPU.Device: ROCDeviceVector
-using AMDGPU.GPUArrays:
-    GPUSparseDeviceVector, GPUSparseDeviceMatrixCSC, GPUSparseDeviceMatrixCSR,
-    GPUSparseDeviceMatrixBSR, GPUSparseDeviceMatrixCOO
+using AMDGPU.GPUArrays: GPUSparseVector, GPUSparseMatrixCSC, GPUSparseMatrixCSR, GPUSparseMatrixCOO
 using SparseArrays
 
 @assert AMDGPU.functional(:rocsparse)
 
+# the canonical formats are the same structs on the device, with device vectors
 @testset "rocconvert" begin
-    @test isbitstype(GPUSparseDeviceVector{
-        Float32, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCSC{
-        Float32, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCSR{
-        Float32, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixBSR{
-        Float32, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCOO{
-        Float32, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float32, AS.Global}, AS.Global})
+    DV{T} = ROCDeviceVector{T, AS.Global}
+    @test isbitstype(GPUSparseVector{Float32, Cint, DV{Cint}, DV{Float32}})
+    @test isbitstype(GPUSparseMatrixCSC{Float32, Cint, DV{Cint}, DV{Float32}})
+    @test isbitstype(GPUSparseMatrixCSR{Float32, Cint, DV{Cint}, DV{Float32}})
+    @test isbitstype(GPUSparseMatrixCOO{Float32, Cint, DV{Cint}, DV{Float32}})
+    @test isbitstype(rocSPARSE.ROCSparseDeviceMatrixBSR{Float32, Cint, DV{Cint}, DV{Float32}})
 
     V = sprand(10, 0.5)
     rocV = ROCSparseVector(V)
-    @test rocconvert(rocV) isa GPUSparseDeviceVector{
-        Float64, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float64, AS.Global}, AS.Global}
+    @test rocconvert(rocV) isa GPUSparseVector{Float64, Cint, DV{Cint}, DV{Float64}}
 
     A = sprand(10, 10, 0.5)
-    rocA = ROCSparseMatrixCSC(A)
-    @test rocconvert(rocA) isa GPUSparseDeviceMatrixCSC{
-        Float64, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float64, AS.Global}, AS.Global}
+    rocA = ROCSparseMatrixCSC{Float64,Cint}(A)
+    @test rocconvert(rocA) isa GPUSparseMatrixCSC{Float64, Cint, DV{Cint}, DV{Float64}}
 
-    rocA = ROCSparseMatrixCSR(A)
-    @test rocconvert(rocA) isa GPUSparseDeviceMatrixCSR{
-        Float64, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float64, AS.Global}, AS.Global}
+    rocA = ROCSparseMatrixCSR{Float64,Cint}(A)
+    @test rocconvert(rocA) isa GPUSparseMatrixCSR{Float64, Cint, DV{Cint}, DV{Float64}}
 
-    rocA = ROCSparseMatrixCOO(A)
-    @test rocconvert(rocA) isa GPUSparseDeviceMatrixCOO{
-        Float64, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float64, AS.Global}, AS.Global}
+    rocA = ROCSparseMatrixCOO{Float64,Cint}(A)
+    @test rocconvert(rocA) isa GPUSparseMatrixCOO{Float64, Cint, DV{Cint}, DV{Float64}}
 
     rocA = ROCSparseMatrixBSR(A, 2)
-    @test rocconvert(rocA) isa GPUSparseDeviceMatrixBSR{
-        Float64, Cint,
-        ROCDeviceVector{Cint, AS.Global},
-        ROCDeviceVector{Float64, AS.Global}, AS.Global}
+    @test rocconvert(rocA) isa rocSPARSE.ROCSparseDeviceMatrixBSR{Float64, Cint, DV{Cint}, DV{Float64}}
 end

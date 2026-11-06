@@ -42,3 +42,24 @@ function with_workspace(
     AMDGPU.unsafe_free!(workspace)
     return res
 end
+
+"""
+    cint_view(A)
+
+The legacy routines of rocSPARSE only take 32-bit indices (`rocsparse_int`). Return `A`
+with `Cint` indices, sharing its values (which in-place routines update), or `A` itself if
+its indices are `Cint` already.
+"""
+cint_view(A::Union{ROCSparseMatrixCSR{<:Any,Cint},ROCSparseMatrixCSC{<:Any,Cint},
+                   ROCSparseMatrixCOO{<:Any,Cint},ROCSparseVector{<:Any,Cint}}) = A
+cint_view(A::ROCSparseMatrixBSR{<:Any,Cint}) = A
+function cint_view(A::Union{ROCSparseMatrixCSR,ROCSparseMatrixCSC,ROCSparseMatrixCOO,ROCSparseVector})
+    max(size(A)..., nnz(A) + 1) <= typemax(Cint) ||
+        throw(ArgumentError("this rocSPARSE routine takes 32-bit indices, which cannot represent a $(join(size(A), '×')) array with $(nnz(A)) stored entries"))
+    buffers = GPUArrays.sparse_buffers(A)
+    return typeof(A).name.wrapper(map(b -> convert(ROCVector{Cint}, b), Base.front(buffers))...,
+                                  last(buffers), A isa ROCSparseVector ? length(A) : size(A))
+end
+cint_view(A::ROCSparseMatrixBSR) =
+    ROCSparseMatrixBSR{eltype(A),Cint}(A.rowPtr, A.colVal, nonzeros(A), size(A), A.blockDim,
+                                       A.dir, A.nnzb)

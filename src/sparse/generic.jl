@@ -287,46 +287,17 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseROCM
     return C
 end
 
+# C = αAB + βC, where C gets the union of the structures of both terms (its buffers are
+# resized, so it must not share them with another array)
 function gemm!(
     transa::SparseChar, transb::SparseChar, α::Number, A::ROCSparseMatrixCSR{T},
     B::ROCSparseMatrixCSR{T}, β::Number, C::ROCSparseMatrixCSR{T},
     index::SparseChar,
 ) where T
-    m, k = size(A)
-    n = size(C)[2]
-    alpha = convert(T, α)
-    beta = convert(T, β)
-
-    if transa == 'N' && transb == 'N'
-        chkmmdims(B,C,k,n,m,n)
-    else
-        throw(ArgumentError("Sparse mm! only supports transa ($transa) = 'N' and transb ($transb) = 'N'"))
-    end
-
-    descA = ROCSparseMatrixDescriptor(A, index)
-    descB = ROCSparseMatrixDescriptor(B, index)
-    descC = ROCSparseMatrixDescriptor(C, index)
-
-    function bufferSize()
-        out = Ref{Csize_t}(0)
-        rocsparse_spgemm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default,
-            rocsparse_spgemm_stage_buffer_size, out, C_NULL)
-        return out[]
-    end
-    with_workspace(bufferSize) do buffer
-        buffer_len_ref = Ref{Csize_t}(sizeof(buffer))
-        rocsparse_spgemm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default,
-            rocsparse_spgemm_stage_nnz, buffer_len_ref, buffer)
-        rocsparse_spgemm(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, descC, T, rocsparse_spgemm_alg_default,
-            rocsparse_spgemm_stage_compute, buffer_len_ref, buffer)
-    end
-    return C
+    P = gemm(transa, transb, α, A, B, index)
+    size(P) == size(C) ||
+        throw(DimensionMismatch("C has dimensions $(size(C)), the product has $(size(P))"))
+    copyto!(C, iszero(β) ? P : P .+ β .* C)
 end
 
 function gemm(

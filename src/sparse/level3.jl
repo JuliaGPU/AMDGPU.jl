@@ -26,9 +26,10 @@ for (fname,elty) in ((:rocsparse_sbsrmm, :Float32),
     @eval begin
         function mm!(
             transa::SparseChar, transb::SparseChar, alpha::Number,
-            A::ROCSparseMatrixBSR{$elty}, B::StridedROCMatrix{$elty},
+            A₀::ROCSparseMatrixBSR{$elty}, B::StridedROCMatrix{$elty},
             beta::Number, C::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             desc = ROCMatrixDescriptor('G', 'L', 'N', index)
             m,k = size(A)
             mb = cld(m, A.blockDim)
@@ -62,9 +63,10 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
     @eval begin
         function mm2!(
             transa::SparseChar, transb::SparseChar, alpha::Number,
-            A::ROCSparseMatrixCSR{$elty}, B::StridedROCMatrix{$elty},
+            A₀::ROCSparseMatrixCSR{$elty}, B::StridedROCMatrix{$elty},
             beta::Number, C::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             if transb == 'C'
                 throw(ArgumentError("B^H is not supported"))
             elseif transb == 'T' && transa != 'N'
@@ -92,9 +94,10 @@ for (fname,elty) in ((:rocsparse_scsrmm, :Float32),
         end
         function mm2!(
             transa::SparseChar, transb::SparseChar, alpha::Number,
-            A::ROCSparseMatrixCSC{$elty}, B::StridedROCMatrix{$elty},
+            A₀::ROCSparseMatrixCSC{$elty}, B::StridedROCMatrix{$elty},
             beta::Number, C::StridedROCMatrix{$elty}, index::SparseChar,
         )
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
             if transb == 'C'
                 throw(ArgumentError("B^H is not supported"))
             elseif transb == 'T' && transa != 'N'
@@ -153,8 +156,9 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
-            diag::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
+            diag::SparseChar, alpha::Number, A₀::ROCSparseMatrixBSR{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
 
             # Support transa = 'C' and transxy = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -222,8 +226,9 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
-            diag::SparseChar, alpha::Number, A::ROCSparseMatrixCSR{$elty},
+            diag::SparseChar, alpha::Number, A₀::ROCSparseMatrixCSR{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
 
             # Support transa = 'C' and transxy = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -290,8 +295,9 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sm2!(
             transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
-            diag::SparseChar, alpha::Number, A::ROCSparseMatrixCSC{$elty},
+            diag::SparseChar, alpha::Number, A₀::ROCSparseMatrixCSC{$elty},
             X::StridedROCMatrix{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
 
             # Support transa = 'C' and transxy = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa

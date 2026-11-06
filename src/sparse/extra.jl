@@ -27,8 +27,10 @@ for (fname, elty) in (
 )
     @eval begin
         function geam(
-            alpha::Number, A::ROCSparseMatrixCSR{$elty}, beta::Number,
-            B::ROCSparseMatrixCSR{$elty}, index::SparseChar)
+            alpha::Number, A₀::ROCSparseMatrixCSR{$elty}, beta::Number,
+            B₀::ROCSparseMatrixCSR{$elty}, index::SparseChar)
+            # (the legacy routine takes 32-bit indices)
+            A, B = cint_view(A₀), cint_view(B₀)
 
             m, n = size(A)
             (m, n) == size(B) && DimensionMismatch("dimensions must match: a has dims $(axes(A)), b has dims $(axes(B))")
@@ -66,20 +68,20 @@ for (fname, elty) in (
             return C
         end
 
-        function axpby(alpha::Number, x::ROCSparseVector{$elty}, beta::Number, y::ROCSparseVector{$elty}, index::SparseChar)
+        function axpby(alpha::Number, x::ROCSparseVector{$elty,Ti}, beta::Number, y::ROCSparseVector{$elty,Ti}, index::SparseChar) where {Ti}
             n = length(x)
             n == length(y) || throw(DimensionMismatch("dimensions must match: x has length $(length(x)), y has length $(length(y))"))
 
              # we model x as a ROCSparseMatrixCSR with one row.
-            rowPtrA = ROCVector{Int32}([1; nnz(x)+1])
-            A = ROCSparseMatrixCSR(rowPtrA, x.iPtr, nonzeros(x), (1,n))
+            rowPtrA = ROCVector{Ti}([1; nnz(x)+1])
+            A = ROCSparseMatrixCSR(rowPtrA, nonzeroinds(x), nonzeros(x), (1,n))
 
             # we model y as a ROCSparseMatrixCSR with one row.
-            rowPtrB = ROCVector{Int32}([1; nnz(y)+1])
-            B = ROCSparseMatrixCSR(rowPtrB, y.iPtr, nonzeros(y), (1,n))
+            rowPtrB = ROCVector{Ti}([1; nnz(y)+1])
+            B = ROCSparseMatrixCSR(rowPtrB, nonzeroinds(y), nonzeros(y), (1,n))
 
             C = geam(alpha, A, beta, B, index)
-            z = ROCSparseVector(C.colVal, C.nzVal, n)
+            z = ROCSparseVector{$elty,Ti}(C.colVal, C.nzVal, n)
             return z
         end
     end

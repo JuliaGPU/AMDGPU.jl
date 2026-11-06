@@ -14,7 +14,8 @@ for (fname,elty) in ((:rocsparse_saxpyi, :Float32),
                      (:rocsparse_caxpyi, :ComplexF32),
                      (:rocsparse_zaxpyi, :ComplexF64))
     @eval begin
-        function axpyi!(alpha::Number, X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+        function axpyi!(alpha::Number, X₀::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            X = cint_view(X₀)  # (the legacy routine takes 32-bit indices)
             $fname(handle(), nnz(X), alpha, nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
@@ -38,9 +39,10 @@ for (fname,elty) in ((:rocsparse_sgthr, :Float32),
                      (:rocsparse_cgthr, :ComplexF32),
                      (:rocsparse_zgthr, :ComplexF64))
     @eval begin
-        function gthr!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+        function gthr!(X₀::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            X = cint_view(X₀)  # (the legacy routine takes 32-bit indices)
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
-            X
+            X₀
         end
         function gthr(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
             gthr!(copy(X),Y,index)
@@ -59,7 +61,8 @@ for (fname,elty) in ((:rocsparse_sgthrz, :Float32),
                      (:rocsparse_cgthrz, :ComplexF32),
                      (:rocsparse_zgthrz, :ComplexF64))
     @eval begin
-        function gthrz!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+        function gthrz!(X₀::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            X = cint_view(X₀)  # (the legacy routine takes 32-bit indices)
             $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X,Y
         end
@@ -78,7 +81,8 @@ roti!(X::ROCSparseVector, Y::ROCVector, c::BlasFloat, s::BlasFloat, index::Spars
 for (fname,elty) in ((:rocsparse_sroti, :Float32),
                      (:rocsparse_droti, :Float64))
     @eval begin
-        function roti!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, c::Number, s::Number, index::SparseChar)
+        function roti!(X₀::ROCSparseVector{$elty}, Y::ROCVector{$elty}, c::Number, s::Number, index::SparseChar)
+            X = cint_view(X₀)  # (the legacy routine takes 32-bit indices)
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, c, s, index)
             X,Y
         end
@@ -99,7 +103,8 @@ for (fname,elty) in ((:rocsparse_ssctr, :Float32),
                      (:rocsparse_csctr, :ComplexF32),
                      (:rocsparse_zsctr, :ComplexF64))
     @eval begin
-        function sctr!(X::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+        function sctr!(X₀::ROCSparseVector{$elty}, Y::ROCVector{$elty}, index::SparseChar)
+            X = cint_view(X₀)  # (the legacy routine takes 32-bit indices)
             $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end

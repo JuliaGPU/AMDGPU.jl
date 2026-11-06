@@ -22,8 +22,9 @@ for (fname,elty) in ((:rocsparse_sbsrmv, :Float32),
                      (:rocsparse_zbsrmv, :ComplexF64))
     @eval begin
         function mv!(
-            transa::SparseChar, alpha::Number, A::ROCSparseMatrixBSR{$elty},
+            transa::SparseChar, alpha::Number, A₀::ROCSparseMatrixBSR{$elty},
             X::ROCVector{$elty}, beta::Number, Y::ROCVector{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -71,7 +72,8 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixBSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            A₀::ROCSparseMatrixBSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -131,7 +133,8 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixCSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            A₀::ROCSparseMatrixCSR{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -189,7 +192,8 @@ for (bname,aname,sname,elty) in (
     @eval begin
         function sv2!(
             transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-            A::ROCSparseMatrixCSC{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            A₀::ROCSparseMatrixCSC{$elty}, X::ROCVector{$elty}, index::SparseChar)
+            A = cint_view(A₀)  # (the legacy routine takes 32-bit indices)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa

@@ -480,8 +480,8 @@ end
         d_vals = ROCArray(vals)
         v = sparsevec(i, vals, n)
         d_v = sparsevec(d_i, d_vals, n)
-        @test Array(d_v.iPtr) == v.nzind
+        @test Array(SparseArrays.nonzeroinds(d_v)) == v.nzind
         @test Array(d_v.nzVal) == v.nzval
-        @test d_v.len == v.n
+        @test length(d_v) == v.n
     end
 end
