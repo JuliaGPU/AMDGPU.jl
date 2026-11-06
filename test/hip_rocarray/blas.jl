@@ -473,6 +473,21 @@ end
             @test collect(dC) ≈ triu(A) * B
         end
 
+        # the blocked fallback of `rocSOLVER.ormqr!` and `orgqr!` relies on in-place TRMM (C === B)
+        @testset "trmm! in place" begin
+            alpha = rand(T)
+            A = triu(rand(T, m, m))
+            dA = ROCArray(A)
+            for (side, trans) in Iterators.product(('L', 'R'), ('N', 'T', 'C'))
+                B = side == 'L' ? rand(T, m, n) : rand(T, n, m)
+                opA = trans == 'N' ? A : trans == 'T' ? transpose(A) : adjoint(A)
+                dB = ROCArray(B)
+                dC = rocBLAS.trmm!(side, 'U', trans, 'N', alpha, dA, dB, dB)
+                @test dC === dB
+                @test Array(dB) ≈ (side == 'L' ? alpha * opA * B : alpha * B * opA)
+            end
+        end
+
          @testset "trmm strided" begin
             A  = rand(T, 2m, 2m)
             dA = view(ROCArray(A),1:m,1:m)
