@@ -79,12 +79,9 @@ end
 
 ## scalar arguments
 
-# Scalar arguments (`alpha`, `beta`, ...) are either host-side scalars (a number, or a
-# `Ref` for outputs), or device-side scalars: a `ROCRef`, or a one-element device array.
-# Host-side scalars are passed in the host pointer mode, so that they don't require an
-# allocation and a copy; if any scalar resides on the device, they all are passed in the
-# device pointer mode, and the operation doesn't synchronize with the host.
-const DeviceScalar{T} = Union{ROCRef{T}, StridedROCArray{T}}
+# Scalar arguments (`alpha`, `beta`, ...) are host-side (a number or a `Ref`) or
+# device-side (a `ROCRef` or a one-element array). If any of them is device-side, all
+# are passed in the device pointer mode; otherwise, the host pointer mode avoids copies.
 const Scalar{T} = Union{T, Ref{T}, StridedROCArray{T}}
 
 on_device(x) = false
