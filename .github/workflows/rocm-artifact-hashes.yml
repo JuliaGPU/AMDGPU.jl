@@ -16,8 +16,8 @@ jobs:
           import Pkg
           Pkg.add("ArtifactUtils")
           using ArtifactUtils, Base.BinaryPlatforms
-          const rocm_version = "10.0.0"
-          const rocm_tag = "10.0"
+          const rocm_version = "10.1.0"
+          const rocm_tag = "10.1"
 
           # Every family TheRock publishes for this release; see the listing at
           # https://stable.repo.amd.com/rocm/core/tarball/ and

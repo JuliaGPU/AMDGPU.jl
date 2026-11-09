@@ -44,13 +44,17 @@ The bundles currently shipped are:
 ```@eval
 using AMDGPU, TOML, Markdown
 toml = TOML.parsefile(joinpath(pkgdir(AMDGPU.ROCm_Runtime), "Artifacts.toml"))
-bundles = Dict{String,Set{String}}()
+bundles = Dict{String,Tuple{Set{String},Set{String}}}()
 for entry in toml["ROCm_Runtime"]
-    push!(get!(bundles, entry["rocm_arch"], Set{String}()), entry["os"])
+    platforms, versions = get!(bundles, entry["rocm_arch"], (Set{String}(), Set{String}()))
+    push!(platforms, entry["os"])
+    push!(versions, entry["rocm"])
 end
-rows = ["| `$arch` | $(join(sort(collect(bundles[arch])), ", ")) |"
-        for arch in sort(collect(keys(bundles)))]
-Markdown.parse(join(vcat("| Bundle | Platforms |", "|:--|:--|", rows), "\n"))
+rows = map(sort(collect(keys(bundles)))) do arch
+    platforms, versions = bundles[arch]
+    "| `$arch` | $(join(sort(collect(platforms)), ", ")) | $(join(sort(collect(versions); by=VersionNumber), ", ")) |"
+end
+Markdown.parse(join(vcat("| Bundle | Platforms | ROCm |", "|:--|:--|:--|", rows), "\n"))
 ```
 
 To pin the architecture when detection is not possible, for example when preparing a depot on a CPU-only build machine, pass `arch` a `gfx` target or a collection of them:
@@ -61,7 +65,7 @@ AMDGPU.set_rocm_version!(arch="gfx942")
 
 As with `local`, this writes the `arch` preference of `ROCm_Runtime`, so it can equally be set with `set_preferences!` before AMDGPU.jl is loaded.
 
-The `version` preference selects which ROCm distribution the bundle is taken from. Only 10.0 is currently available, so it mainly becomes useful for pinning once more versions ship.
+The `version` preference selects which ROCm distribution the bundle is taken from, by default the newest one listed above. Pinning an older one, e.g. `AMDGPU.set_rocm_version!(v"10.0")`, is useful to rule out a ROCm regression.
 
 ## Local ROCm discovery
 
