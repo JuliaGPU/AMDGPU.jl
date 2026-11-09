@@ -3,8 +3,10 @@ module Compiler
 import Core: LLVMPtr
 
 using ..GPUCompiler
-using ..LLVM
+using ..LLVM, ..LLVM.IR, ..LLVM.Build, ..LLVM.Passes
 using Printf
+
+import GPUToolbox: @gcsafe_ccall
 
 import AMDGPU_LLVM_Backend_jll # used for linking; GPUCompiler uses the in-tree backend otherwise
 using AMDGPU_LLVM_Backend_jll: libamdgpu

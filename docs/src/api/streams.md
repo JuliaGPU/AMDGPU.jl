@@ -56,14 +56,19 @@ AMDGPU.HIPStream
 
 ## Synchronization
 
-AMDGPU.jl by default uses non-blocking stream synchronization with
-[`AMDGPU.synchronize`](@ref) to work correctly with TLS and [Hostcall](@ref).
+By default, [`AMDGPU.synchronize`](@ref) does not block the calling thread:
+it briefly polls the stream, and then waits for it on a separate worker
+thread, so that other tasks can run on the calling thread in the meantime.
+This is required for [Hostcall](@ref), whose host side runs as a task.
+Synchronizing events and `HIP.device_synchronize()` works the same way.
+Inside finalizers, which cannot switch tasks, synchronization blocks.
 
 Users, however, can switch to a blocking synchronization globally
 with `nonblocking_synchronization`
 [preference](https://github.com/JuliaPackaging/Preferences.jl)
 or with fine-grained `AMDGPU.synchronize(; blocking=true)`.
-Blocking synchronization might offer slightly lower latency.
+Blocking synchronization might offer slightly lower latency,
+but must not be used while hostcalls are running.
 
 You can also perform synchronization of the expression with
 [`AMDGPU.@sync`](@ref) macro, which will execute given expression and
@@ -82,4 +87,31 @@ Finally, you can perform full device synchronization with
 AMDGPU.synchronize
 AMDGPU.@sync
 AMDGPU.device_synchronize
+```
+
+## Implicit synchronization of arrays
+
+AMDGPU.jl keeps track of the stream that last used the memory of each `ROCArray`.
+Using the array on another stream (launching a kernel, copying,
+or taking its pointer) first waits, on the host, for the stream that used it before,
+so that operations on different streams are ordered.
+[`AMDGPU.synchronize(A)`](@ref AMDGPU.synchronize) waits for the stream
+that last used `A`.
+
+This implicit synchronization can be disabled per array, e.g. to let kernels
+that work on disjoint parts of an array run concurrently on different streams.
+Ordering the streams is then up to the user:
+
+```julia
+s1, s2 = HIPStream(), HIPStream()
+AMDGPU.enable_synchronization!(A, false)
+@roc stream=s1 kernel_a!(A)  # e.g. computes the interior of `A`
+@roc stream=s2 kernel_b!(A)  # e.g. computes the boundary of `A`, concurrently
+AMDGPU.synchronize(s1); AMDGPU.synchronize(s2)
+AMDGPU.enable_synchronization!(A)
+```
+
+```@docs
+AMDGPU.enable_synchronization!
+AMDGPU.synchronization_enabled
 ```

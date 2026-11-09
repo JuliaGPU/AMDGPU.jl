@@ -230,3 +230,9 @@ mjx-container > svg {
 .jldocstring.custom-block summary a {
   pointer-events: none;
 }
+
+/* Icons of the feature tiles on the landing page (components/FeatureIcons.vue). */
+.VPFeature .icon .feature-icon {
+  width: 28px;
+  height: 28px;
+}

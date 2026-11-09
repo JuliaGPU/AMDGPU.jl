@@ -56,17 +56,21 @@ function alloc_exception_info()
     return ei_ptr
 end
 
+# nothing reachable from the throw overlays may throw, not even a checked conversion like
+# `UInt64(0)`: the resulting inference cycle taints Base on Julia 1.12+ (#808)
 @inline function signal_exception!(ei::Ptr{UInt64}, code::UInt8)
     packed = pack_exception(code)
     # First writer wins via atomic CAS; losers are no-ops.
     ei_llvm = reinterpret(LLVMPtr{UInt64, AS.Generic}, ei)
-    llvm_atomic_cas(ei_llvm, UInt64(0), packed)
+    llvm_atomic_cas(ei_llvm, 0 % UInt64, packed)
     endpgm()
     return
 end
 
-macro gpu_throw(reason)
-    code = _reason_to_code(reason)
+# throw a device-side exception of type `name`. only the type is reported: the exception
+# info only has room for an error code, so `reason` is dropped.
+macro gputhrow(name::String, reason::String)
+    code = _name_to_code(name)
     quote
         ei = kernel_state().exception_info
         signal_exception!(ei, $code)
@@ -74,24 +78,23 @@ macro gpu_throw(reason)
     end
 end
 
-# Map reason strings to error codes at macro expansion time
-function _reason_to_code(reason::String)
-    if startswith(reason, "BoundsError")
+# Map exception type names to error codes at macro expansion time
+function _name_to_code(name::String)
+    if name == "BoundsError"
         ExceptionCode.BOUNDS_ERROR
-    elseif startswith(reason, "DomainError")
+    elseif name == "DomainError"
         ExceptionCode.DOMAIN_ERROR
-    elseif startswith(reason, "OverflowError")
+    elseif name == "OverflowError"
         ExceptionCode.OVERFLOW_ERROR
-    elseif startswith(reason, "InexactError")
+    elseif name == "InexactError"
         ExceptionCode.INEXACT_ERROR
-    elseif startswith(reason, "ArgumentError")
+    elseif name == "ArgumentError"
         ExceptionCode.ARGUMENT_ERROR
-    elseif startswith(reason, "DivideError")
+    elseif name == "DivideError"
         ExceptionCode.DIVIDE_ERROR
-    elseif startswith(reason, "DimensionMismatch")
+    elseif name == "DimensionMismatch"
         ExceptionCode.DIM_MISMATCH
     else
         ExceptionCode.UNKNOWN
     end
 end
-_reason_to_code(reason) = ExceptionCode.UNKNOWN

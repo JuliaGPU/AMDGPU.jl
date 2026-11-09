@@ -1,49 +1,26 @@
 name: Benchmarks
-permissions:
-  statuses: read        # find Buildkite URL from PR status
-  contents: write       # update benchmark contents in gh-pages branch
-  pull-requests: write  # comment on PR with benchmark results
-  deployments: write    # deploy GitHub pages website
 
-on:
-  pull_request_target:
-    branches:
-      - main
-  push:
-    branches:
-      - main
+# Buildkite posts a commit status for every step, so we can react to the benchmark step
+# finishing instead of keeping a runner busy polling for it. Status events are delivered
+# to this repository even for pull requests from forks, and always run this workflow as
+# it exists on the default branch, with access to secrets. Never check out or execute
+# code from the commit being benchmarked; the results are untrusted data.
+on: status
+
+permissions: {}
 
 jobs:
-  benchmark:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Download Buildkite Artifacts
-        id: download
-        uses: EnricoMi/download-buildkite-artifact-action@v1
-        with:
-          buildkite_token: ${{ secrets.BUILDKITE_TOKEN }}
-          ignore_build_states: blocked,canceled,skipped,not_run
-          ignore_job_states: timed_out,failed
-          output_path: artifacts
-
-      - name: Locate Benchmarks Artifact
-        id: locate
-        if: ${{ steps.download.outputs.download-state == 'success' }}
-        run: echo "path=$(find artifacts -type f -name benchmarkresults.json 2>/dev/null)" >> $GITHUB_OUTPUT
-
-      - name: Upload Benchmark Results
-        if: ${{ steps.locate.outputs.path != '' }}
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          name: AMDGPU.jl Benchmarks
-          tool: "julia"
-          output-file-path: ${{ steps.locate.outputs.path }}
-          benchmark-data-dir-path: "bench"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-always: ${{ github.event_name == 'pull_request_target' }}
-          summary-always: true
-          alert-threshold: "125%"
-          fail-on-alert: false
-          auto-push: ${{ github.event_name != 'pull_request_target' }}
+  # Adds the results of every commit on main to the benchmark history at
+  # https://juliagpu.org/perf/, and compares those of pull requests with it in a comment.
+  history:
+    if: |
+      github.event.context == 'buildkite/amdgpu-dot-jl/racehorse-benchmarks' &&
+      github.event.state == 'success'
+    permissions:
+      contents: write       # update the history in the gh-pages branch
+      pull-requests: write  # comment on pull requests
+    uses: JuliaGPU/benchmark-action/.github/workflows/publish.yml@5a6d44cf881aef52c806497634960940749994c7
+    with:
+      pipeline: amdgpu-dot-jl
+    secrets:
+      BUILDKITE_TOKEN: ${{ secrets.BUILDKITE_TOKEN }}

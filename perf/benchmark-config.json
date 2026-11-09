@@ -1,0 +1,39 @@
+{
+  "dashboard": "https://juliagpu.org/perf/?pkg=amdgpu",
+  "stat": "min",
+  "categories": [
+    {
+      "id": "performance",
+      "label": "Performance",
+      "description": "Array operations, kernels, launches and synchronization, with everything compiled.",
+      "floor": 0.03
+    },
+    {
+      "id": "latency",
+      "label": "Latency",
+      "description": "Time to precompile and import the package, and to compile a first kernel, each in a fresh Julia process.",
+      "floor": 0.05
+    },
+    {
+      "id": "applications",
+      "label": "Applications",
+      "description": "Larger applications and integration tests.",
+      "floor": 0.03
+    }
+  ],
+  "legacy": [
+    {
+      "stat": "min"
+    }
+  ],
+  "notes": [
+    {
+      "commit": "30d6501f4",
+      "date": "2026-07-22T23:44:11+02:00",
+      "kind": "methodology",
+      "label": "4 evals per sample",
+      "description": "Every sample evaluates its benchmark 4 times instead of once, keeping the slow allocation after the per-sample GC out of most evaluations. Allocation-heavy benchmarks appear up to twice as fast.",
+      "rebase": true
+    }
+  ]
+}

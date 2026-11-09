@@ -7,11 +7,11 @@ using GPUCompiler
 using GPUArrays
 using GPUArrays: allowscalar
 using Libdl
-using LLVM, LLVM.Interop
+using LLVM
 using Preferences
 using Printf
 
-import AcceleratedKernels as AK
+import KernelInterface
 import UnsafeAtomics
 import Atomix
 import Atomix: @atomic, @atomicswap, @atomicreplace
@@ -44,7 +44,7 @@ const LAUNCH_BLOCKING::Ref{Bool} = Ref{Bool}(false)
 
 export @roc, roc, rocconvert
 export HIPDevice, has_rocm_gpu
-export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat
+export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat, ROCRef
 export DenseROCArray, DenseROCVector, DenseROCMatrix, DenseROCVecOrMat,
        StridedROCArray, StridedROCVector, StridedROCMatrix, StridedROCVecOrMat,
        AnyROCArray, AnyROCVector, AnyROCMatrix, AnyROCVecOrMat
@@ -57,6 +57,7 @@ LockedObject(payload) = LockedObject(ReentrantLock(), payload)
 
 # Load binary dependencies.
 include("libs.jl")
+include("system_scope_fences.jl")
 
 include("utils.jl")
 
@@ -77,9 +78,21 @@ include("memory.jl")
 
 Base.Experimental.@MethodTable(method_table)
 
-#needs to be before Device since sync uses this
-const syncscope_agent = UnsafeAtomics.Internal.LLVMSyncScope{:agent}()
-const syncscope_workgroup = UnsafeAtomics.Internal.LLVMSyncScope{:workgroup}()
+# Needs to be before Device since sync uses this. GPUCompiler emits `device` as LLVM's
+# `agent`, and `subgroup` as `wavefront`.
+const syncscope_agent = UnsafeAtomics.device
+const syncscope_workgroup = UnsafeAtomics.workgroup
+const syncscope_wavefront = UnsafeAtomics.subgroup
+
+# Referenced by the generated `kernel_state()`, and generators run in the world they are
+# defined in, so this has to precede the device code.
+struct KernelState
+    exception_info::Ptr{UInt64}
+    malloc_hc::Ptr{Cvoid}
+    free_hc::Ptr{Cvoid}
+    output_context::Ptr{Cvoid}
+    printf_output_context::Ptr{Cvoid}
+end
 
 # Device sources must load _before_ the compiler infrastructure,
 # because of generated functions.
@@ -90,21 +103,13 @@ import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 import .Device: threadIdx, blockIdx, blockDim
-import .Device: sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
+import .Device: sync_workgroup, sync_wavefront, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
 import .Device: @rocprint, @rocprintln, @rocprintf
 
 export ROCDeviceArray, @ROCDynamicLocalArray, @ROCStaticLocalArray
 export @rocprint, @rocprintln, @rocprintf
 export workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim
 export sync_workgroup, sync_workgroup_count, sync_workgroup_and, sync_workgroup_or
-
-struct KernelState
-    exception_info::Ptr{UInt64}
-    malloc_hc::Ptr{Cvoid}
-    free_hc::Ptr{Cvoid}
-    output_context::Ptr{Cvoid}
-    printf_output_context::Ptr{Cvoid}
-end
 
 include("compiler/Compiler.jl")
 import .Compiler
@@ -115,14 +120,9 @@ include("highlevel.jl")
 include("reflection.jl")
 include("array.jl")
 include("conversions.jl")
+include("refpointer.jl")
 include("broadcast.jl")
 include("exception_handler.jl")
-
-include("kernels/mapreduce.jl")
-include("kernels/indexing.jl")
-include("kernels/accumulate.jl")
-include("kernels/sorting.jl")
-include("kernels/reverse.jl")
 
 include("blas/rocBLAS.jl")
 include("solver/rocSOLVER.jl")
@@ -134,15 +134,7 @@ include("dnn/MIOpen.jl")
 
 include("random.jl")
 
-# Enable hardware FP atomics for +/- ops.
-const ROCIndexableRef{Indexable <: ROCDeviceArray} = Atomix.IndexableRef{Indexable}
-function Atomix.modify!(ref::ROCIndexableRef, op::OP, x, ord) where OP <: Union{typeof(+), typeof(-)}
-    x = Atomix.asstorable(ref, x)
-    ptr = Atomix.pointer(ref)
-    root = Atomix.gcroot(ref)
-    GC.@preserve root UnsafeAtomics.modify!(ptr, op, x, ord, syncscope_agent)
-end
-
+# KernelInterface
 include("ROCKernels.jl")
 import .ROCKernels: ROCBackend
 export ROCBackend
@@ -150,6 +142,9 @@ export ROCBackend
 include("precompile.jl")
 
 function __init__()
+    force_emulated = parse(Bool, get(ENV, "JULIA_AMDGPU_FORCE_EMULATED_SIGNALS", "0"))
+    Device.EMULATED_SIGNALS[] = force_emulated || isempty(libhsa_runtime64)
+
     # Used to shutdown hostcalls if any is running.
     atexit(() -> begin Runtime.RT_EXITING[] = true end)
 
@@ -165,6 +160,9 @@ function __init__()
             end
         end
     end
+
+    # before HIP initializes, which reads `AMD_OPT_FLUSH` once
+    configure_system_scope_fences!(visible_gpus(kfd_gpu_nodes()))
 
     if haskey(ENV, "HIP_LAUNCH_BLOCKING")
         launch_blocking = parse(Bool, ENV["HIP_LAUNCH_BLOCKING"])

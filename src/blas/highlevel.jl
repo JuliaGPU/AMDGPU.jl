@@ -294,7 +294,7 @@ function LinearAlgebra.generic_trimatmul!(
         tril!(B)
         trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
     elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
-        # operation is reversed to avoid executing the tranpose
+        # operation is reversed to avoid executing the transpose
         triu!(A)
         trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
     elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'

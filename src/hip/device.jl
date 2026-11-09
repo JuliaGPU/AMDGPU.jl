@@ -3,6 +3,8 @@ struct HIPDevice
     device_id::Cint
     gcn_arch::String
     wavefrontsize::Cint
+    max_workgroup_dims::NTuple{3, Int}
+    max_workgroup_size::Int
 end
 
 const DEFAULT_DEVICE = Ref{Union{Nothing, HIPDevice}}(nothing)
@@ -18,7 +20,10 @@ function HIPDevice(device_id::Integer)
     gcn_arch = unsafe_string(pointer([props.gcnArchName...]))
 
     wavefrontsize = props.warpSize
-    HIPDevice(device_ref[], device_id, gcn_arch, wavefrontsize)
+    max_workgroup_dims = Int.(props.maxThreadsDim)
+    max_workgroup_size = Int(props.maxThreadsPerBlock)
+    HIPDevice(device_ref[], device_id, gcn_arch, wavefrontsize, max_workgroup_dims,
+              max_workgroup_size)
 end
 
 """
@@ -37,11 +42,47 @@ Get size of the wavefront. AMD GPUs support either 32 or 64.
 wavefrontsize(d::HIPDevice)::Cint = d.wavefrontsize
 
 """
+    max_workgroup_dims(d::HIPDevice)::NTuple{3, Int}
+
+Get the maximum number of work-items along each dimension of a workgroup.
+"""
+max_workgroup_dims(d::HIPDevice)::NTuple{3, Int} = d.max_workgroup_dims
+
+"""
+    max_workgroup_size(d::HIPDevice)::Int
+
+Get the maximum number of work-items in a workgroup.
+"""
+max_workgroup_size(d::HIPDevice)::Int = d.max_workgroup_size
+
+"""
     gcn_arch(d::HIPDevice)::String
 
 Get GCN architecture for the device.
 """
 gcn_arch(d::HIPDevice)::String = d.gcn_arch
+
+# Warn when using a GPU that needs system-scope fences while HIP doesn't use them.
+function check_system_scope_fences(dev::HIPDevice)
+    AMDGPU.system_scope_fences && return
+    affected = AMDGPU.system_scope_fence_devices
+    isempty(affected) && return
+    props = properties(dev)
+    (props.pciDomainID, props.pciBusID, props.pciDeviceID) in affected || return
+
+    reason, fix = if AMDGPU.system_scope_fences_source == :environment
+        "the `AMD_OPT_FLUSH` environment variable is set to $(repr(AMDGPU.amd_opt_flush))",
+        "unset it or set it to 0"
+    elseif AMDGPU.system_scope_fences_source == :preference
+        return  # explicitly disabled
+    else
+        "other AMD GPUs in this system don't need them, and would be slowed down",
+        "call `AMDGPU.system_scope_fences!(true)`"
+    end
+    @warn("""Your $(name(dev)) GPU ($(gcn_arch(dev))) can silently lose kernel results unless HIP uses system-scope fences, which are not enabled because $reason.
+             To enable them, $fix and restart Julia. See the FAQ in the AMDGPU.jl documentation for details.""",
+          maxlog=1, _id=(:amdgpu_system_scope_fences, device_id(dev)))
+end
 
 function stack_size()
     value = Ref{Csize_t}()

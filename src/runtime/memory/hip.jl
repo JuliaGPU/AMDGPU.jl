@@ -1,19 +1,43 @@
 # Device ID => HIPMemoryPool
 const MEMORY_POOLS = AMDGPU.LockedObject(Dict{Int64, HIP.HIPMemoryPool}())
+# Device ID => whether the pool was created with an export handle type (IPC-capable). Protected by `MEMORY_POOLS.lock`.
+const MEMORY_POOLS_EXPORTABLE = Dict{Int64, Bool}()
+
+# Create the memory pool of `dev`. With the default handle type preference (`"posix_fd"`, see
+# `AMDGPU.memory_pool_handle_type!`), the pool is created with `hipMemHandleTypePosixFileDescriptor`: on ROCm >= 7.1,
+# memory of a pool without export handle type is backed by a virtual-memory heap that cannot be exported
+# (`hipIpcGetMemHandle`), which breaks GPU-aware MPI with `ROCArray`s. If the exportable pool cannot be created
+# (e.g. unsupported by the platform or driver), a pool without export handle type is created instead.
+function create_pool(dev::HIPDevice, max_size::UInt64)
+    if AMDGPU.memory_pool_handle_type() == "posix_fd"
+        try
+            pool = HIP.HIPMemoryPool(dev; max_size,
+                handle_type=HIP.hipMemHandleTypePosixFileDescriptor)
+            return pool, true
+        catch err
+            err isa HIP.HIPError || rethrow()
+            @warn """Could not create an exportable (IPC-capable) memory pool on $dev; using a pool without export handle type.
+            Device memory from this pool cannot be shared via IPC (e.g. by GPU-aware MPI).
+            Use `AMDGPU.memory_pool_handle_type!("none")` to select this pool type explicitly and silence this warning.""" exception=err maxlog=1
+        end
+    end
+    return HIP.HIPMemoryPool(dev; max_size), false
+end
 
 function pool_create(dev::HIPDevice)
     mp = MEMORY_POOLS.payload
     did = HIP.device_id(dev)
 
-    pool = get(mp, did, nothing)
-    pool ≡ nothing || return pool
+    existing = get(mp, did, nothing)
+    existing ≡ nothing || return existing
 
     Base.@lock MEMORY_POOLS.lock begin
         get!(mp, HIP.device_id(dev)) do
             max_size::UInt64 = AMDGPU.hard_memory_limit()
             max_size = max_size != typemax(UInt64) ? max_size : UInt64(0)
 
-            pool = HIP.HIPMemoryPool(dev; max_size)
+            pool, exportable = create_pool(dev, max_size)
+            MEMORY_POOLS_EXPORTABLE[HIP.device_id(dev)] = exportable
             # Allow pool to use up all device memory.
             soft_limit = AMDGPU.soft_memory_limit()
             HIP.attribute!(pool, HIP.hipMemPoolAttrReleaseThreshold, soft_limit)
@@ -25,7 +49,7 @@ function pool_create(dev::HIPDevice)
 end
 
 # ccall integration
-Base.unsafe_convert(T, buf::AbstractAMDBuffer) = convert(T, buf)
+Base.unsafe_convert(::Type{Ptr{T}}, buf::AbstractAMDBuffer) where {T} = convert(Ptr{T}, buf)
 
 struct HIPBuffer <: AbstractAMDBuffer
     device::HIPDevice # TODO not used?
@@ -45,9 +69,8 @@ function HIPBuffer(bytesize; stream::HIP.HIPStream)
     ptr = alloc_or_retry!(isnothing; stream) do
         try
             HIP.hipMallocFromPoolAsync(ptr_ref, bytesize, pool, stream)
-            ptr = ptr_ref[]
-            ptr == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
-            return ptr
+            ptr_ref[] == C_NULL && throw(HIP.HIPError(HIP.hipErrorOutOfMemory))
+            return ptr_ref[]
         catch err
             # Only retry for OOM. Any other error (e.g. hipErrorLaunchFailure
             # from a prior kernel exception surfacing here) must propagate
@@ -219,6 +242,10 @@ function register(ptr::Ptr{Cvoid}, sz::Integer)
     Base.@lock __pin_lock begin
         count = get(__pin_count, ptr, 0)
         if count > 0
+            # the existing registration can't be extended
+            sz > __pinned_memory[ptr] && error("""
+                Cannot register $(Base.format_bytes(sz)) at $ptr, which is still registered with a smaller size of $(Base.format_bytes(__pinned_memory[ptr])).
+                Make sure that previous wrappers of this memory have been freed, and that their release has finished (it is postponed while the stream that last used them is being captured).""")
             __pin_count[ptr] = count + 1
             return
         end
@@ -237,6 +264,9 @@ function register(ptr::Ptr{Cvoid}, sz::Integer)
     return
 end
 
+# querying host memory that is concurrently being unregistered can crash HIP
+memory_type(ptr::Ptr{Cvoid}) = Base.@lock __pin_lock attributes(ptr).type
+
 """
     unregister(ptr::Ptr{Cvoid})
 
@@ -246,22 +276,19 @@ Decrement the refcount for `ptr`. When it reaches zero the underlying
 function unregister(ptr::Ptr{Cvoid})
     ptr == C_NULL && error("Cannot unregister `NULL` pointer.")
 
-    do_unregister = false
     Base.@lock __pin_lock begin
         count = get(__pin_count, ptr, 0)
         count == 0 && error("Cannot unregister untracked pointer $ptr.")
 
         if count == 1
+            # unregister while holding the lock, or a concurrent `register` could see the
+            # memory as registered externally, and not track it
             delete!(__pinned_memory, ptr)
             delete!(__pin_count, ptr)
-            do_unregister = true
+            HIP.relaxed_capture_mode(() -> HIP.hipHostUnregister(ptr))
         else
             __pin_count[ptr] = count - 1
         end
-    end
-
-    if do_unregister
-        HIP.hipHostUnregister(ptr)
     end
     return
 end

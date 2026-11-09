@@ -29,7 +29,7 @@ if :AMDGPU in LLVM.backends()
             # `--check-bounds=yes`/`--code-coverage`, where `@inbounds` is ignored).
             target = GPUCompiler.GCNCompilerTarget(;
                 dev_isa="gfx1030", features="+wavefrontsize32,-wavefrontsize64")
-            params = Compiler.HIPCompilerParams(false, true)
+            params = Compiler.HIPCompilerParams(false, true, true)
             config = GPUCompiler.CompilerConfig(target, params;
                 kernel=true, name=nothing, always_inline=true)
 
@@ -37,21 +37,13 @@ if :AMDGPU in LLVM.backends()
             source = GPUCompiler.methodinstance(typeof(_precompile_kernel), tt)
             job = GPUCompiler.CompilerJob(source, config)
 
-            # Under `--check-bounds=yes` (used by `Pkg.test`) or `--code-coverage`,
-            # `@inbounds` is ignored, so `a[i]` emits a bounds-error path
-            # (`throw_boundserror` -> `signal_exception` -> `kernel_state()`). That
-            # path compiles fine at *runtime*, but NOT during precompilation: the
-            # `@generated kernel_state()` fails to inline there, leaving a dynamic
-            # call -> invalid GPU IR. Those flags only occur during testing, never
-            # in normal user precompilation (where `@inbounds` elides the path), so
-            # skip the warming compile then -- users still get the full benefit.
-            instrumented = Base.JLOptions().code_coverage != 0 ||
-                           Base.JLOptions().check_bounds == 1
+            # `AMDGPULink` deadlocks in a precompilation worker on Windows (#1083)
+            linkable = !Sys.iswindows()
 
             # On Julia < 1.12, GPU compilation during precompilation leaks foreign
             # MIs into native compilation, causing LLVM errors. Guard like CUDA.jl.
             @static if VERSION >= v"1.12-"
-                if !instrumented
+                if linkable
                     # Exercise the same compile-or-lookup path used by kernel launches, and
                     # attach its artifact to the package-image CI.
                     Compiler.compile_or_lookup(job)
@@ -74,6 +66,9 @@ end
 # `cufunction`, `link_kernel`, `compile_or_lookup`, and `cached_results`).
 let HIPCompilerJob = Compiler.HIPCompilerJob
     precompile(Tuple{typeof(Compiler.hipfunction), typeof(identity), Type{Tuple{Nothing}}})
+    # as called by `KernelInterface.kernel_function`
+    precompile(Tuple{typeof(Compiler.hipfunction_link), Core.MethodInstance, HIPDevice,
+                     NamedTuple{(:name,), Tuple{Nothing}}})
     precompile(Tuple{typeof(Compiler.hiplink), HIPCompilerJob,
         Vector{UInt8}, String, Vector{Symbol}, GPUCompiler.Relocations})
 
@@ -82,6 +77,9 @@ let HIPCompilerJob = Compiler.HIPCompilerJob
     precompile(Tuple{typeof(GPUCompiler.cached_results),
         Type{Compiler.HIPResults}, HIPCompilerJob})
 end
+
+# Freeing an array, which otherwise compiles in the first garbage collection that frees one.
+precompile(Tuple{typeof(pool_free), Managed{Mem.HIPBuffer}})
 
 # Hot entry points of the bundled ROCm libraries, mirroring CUDA.jl's per-library
 # precompile directives. These compile the (GPU-free) Julia wrappers so the first
@@ -162,5 +160,15 @@ let RM   = (T) -> ROCArray{T, 2, Mem.HIPBuffer},
         precompile(Tuple{typeof(LinearAlgebra.tril), RCOO(T), Int})
         # kron for COO×COO and COO×Diagonal (linalg.jl)
         precompile(Tuple{typeof(LinearAlgebra.kron), RCOO(T), RCOO(T)})
+    end
+end
+
+# Displaying an array, which the device-free workload above can't do, compiles for about
+# 150 ms otherwise. The REPL displays on a `TTYTerminal`, which is part of Base on 1.12+.
+let ios = @static isdefined(Base, :Terminals) ? (IOBuffer, Base.Terminals.TTYTerminal) :
+                                               (IOBuffer,)
+    for io in ios, N in (1, 2)
+        precompile(Tuple{typeof(show), IOContext{io}, MIME"text/plain",
+                         ROCArray{Float32, N, Mem.HIPBuffer}})
     end
 end

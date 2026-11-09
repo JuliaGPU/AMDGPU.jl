@@ -80,7 +80,7 @@ init_code = quote
     include($gpuarrays_testsuite)
     testf(f, xs...; kwargs...) = TestSuite.compare(f, AMDGPU.ROCArray, xs...; kwargs...)
 
-    const eltypes = [Int16, Int32, Int64, # TODO: add Int128 once #1002 is addressed
+    const eltypes = [Int16, Int32, Int64, Int128,
                      Float16, Float32, Float64,
                      ComplexF16, ComplexF32, ComplexF64,
                      Complex{Int16}, Complex{Int32}, Complex{Int64}]
@@ -110,7 +110,7 @@ end
 runtests(AMDGPU, args; testsuite, init_code)
 
 # Hostcall tests must run on main thread (not in parallel workers). To be addressed by https://github.com/JuliaTesting/ParallelTestRunner.jl/issues/77
-if any(name -> startswith(name, "core"), keys(testsuite)) && Sys.islinux()
+if any(name -> startswith(name, "core"), keys(testsuite))
     @info "Testing `Hostcalls` on the main thread."
     @testset "Hostcalls" begin
         include("device/hostcall.jl")

@@ -12,7 +12,7 @@
     "@mathjax/src": "^4.1.2",
     "@mdit/plugin-mathjax": "^0.26.1",
     "@mdit/plugin-tex": "^0.24.1",
-    "@nolebase/vitepress-plugin-enhanced-readabilities": "^2.18.2",
+    "@nolebase/vitepress-plugin-enhanced-readabilities": "~2.18.2",
     "markdown-it": "^14.1.0",
     "markdown-it-footnote": "^4.0.0",
     "vitepress": "^1.6.4",

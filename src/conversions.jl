@@ -11,3 +11,10 @@ Adapt.adapt_structure(to::Runtime.Adaptor, r::Base.RefValue) = ROCRefValue(adapt
 struct ROCRefType{T} <: Ref{DataType} end
 Base.getindex(r::ROCRefType{T}) where T = T
 Adapt.adapt_structure(to::Runtime.Adaptor, r::Base.RefValue{<:Union{DataType,Type}}) = ROCRefType{r[]}()
+
+# functions that capture a type, e.g., `Base.Fix1(convert, T)` as used by LinearAlgebra,
+# which isn't a valid kernel argument either
+Adapt.adapt_structure(to::Runtime.Adaptor, f::Base.Fix1{<:Any, <:Type{T}}) where {T} =
+    let g = adapt(to, f.f); (x...) -> g(T, x...) end
+Adapt.adapt_structure(to::Runtime.Adaptor, f::Base.Fix2{<:Any, <:Type{T}}) where {T} =
+    let g = adapt(to, f.f); (x...) -> g(x..., T) end

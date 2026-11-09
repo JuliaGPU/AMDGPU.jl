@@ -175,7 +175,7 @@ const ROCSparseMatrix{Tv,Ti} = Union{
 const ROCSparseVecOrMat = Union{ROCSparseVector,ROCSparseMatrix}
 
 # NOTE: we use Cint as default Ti on ROCm instead of Int to provide
-# maximum compatiblity to old ROCSparse APIs
+# maximum compatibility to old ROCSparse APIs
 # The same pattern was followed for AMDGPU as well
 function ROCSparseVector{Tv}(iPtr::ROCVector{<:Integer}, nzVal::ROCVector, len::Integer) where Tv
     ROCSparseVector{Tv,Cint}(convert(ROCVector{Cint}, iPtr), nzVal, len)

@@ -1,12 +1,12 @@
 function create_malloc_hostcall!()
     dev = AMDGPU.device()
-    _, buf = Device.named_perdevice_hostcall(dev, :malloc_hostcall) do
+    _, hc_buf = Device.named_perdevice_hostcall(dev, :malloc_hostcall) do
         holder = Device.HostCallHolder(
             Ptr{Cvoid}, Tuple{Csize_t}; continuous=true,
         ) do bytesize
-            buf = Mem.HostBuffer(bytesize, HIP.hipHostAllocDefault)
-            dev_ptr = Mem.device_ptr(buf)
-            @assert buf.ptr == dev_ptr # TODO
+            mem = Mem.HostBuffer(bytesize, HIP.hipHostAllocDefault)
+            dev_ptr = Mem.device_ptr(mem)
+            @assert mem.ptr == dev_ptr # TODO
             return dev_ptr
         end
 
@@ -17,12 +17,12 @@ function create_malloc_hostcall!()
         Base.unsafe_store!(ptr, holder.hc)
         return holder, buf
     end
-    return Mem.device_ptr(buf)
+    return Mem.device_ptr(hc_buf)
 end
 
 function create_free_hostcall!()
     dev = AMDGPU.device()
-    _, buf = Device.named_perdevice_hostcall(dev, :free_hostcall) do
+    _, hc_buf = Device.named_perdevice_hostcall(dev, :free_hostcall) do
         holder = Device.HostCallHolder(
             Nothing, Tuple{Ptr{Cvoid}}; continuous=true,
         ) do ptr
@@ -37,5 +37,5 @@ function create_free_hostcall!()
         Base.unsafe_store!(ptr, holder.hc)
         return holder, buf
     end
-    return Mem.device_ptr(buf)
+    return Mem.device_ptr(hc_buf)
 end

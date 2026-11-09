@@ -1,13 +1,20 @@
 struct HIPCompilerParams <: AbstractCompilerParams
     # Whether to compile kernel for the wavefront of size 64.
     wavefrontsize64::Bool
-    # AMD GPU devices support fast atomic read-modify-write (RMW)
-    # operations on floating-point values.
-    # On single- or double-precision floating-point values this may generate
-    # a hardware RMW instruction that is faster than emulating
-    # the atomic operation using an atomic compare-and-swap (CAS) loop.
+    # Whether floating-point atomic RMW operations may ignore the denormal mode,
+    # which lets some targets use hardware instructions instead of CAS loops.
     unsafe_fp_atomics::Bool
+    # Whether atomic RMW operations with a scope narrower than system scope may assume
+    # that they access neither fine-grained nor remote memory, which lets the back-end
+    # use native instructions instead of CAS loops.
+    atomic_memory_assumptions::Bool
+    # Minimum number of waves per execution unit (SIMD) the kernel should allow
+    # (`amdgpu-waves-per-eu`); `0` leaves it unset.
+    waves_per_eu::Int
 end
+
+HIPCompilerParams(wavefrontsize64::Bool, unsafe_fp_atomics::Bool, atomic_memory_assumptions::Bool) =
+    HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics, atomic_memory_assumptions, 0)
 
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
 const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
@@ -42,9 +49,6 @@ mutable struct HIPResults
         nothing, nothing, Symbol[], GPUCompiler.Relocations(),
         Tuple{HIP.HIPDevice,HIP.HIPFunction}[])
 end
-
-# (objectid(source), hash(fun), f) => HIPKernel
-const _kernel_instances = Dict{Any, Any}()
 
 GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
 
@@ -95,11 +99,12 @@ function GPUCompiler.finish_module!(
         job.config.target, mod;
         wavefrontsize64=job.config.params.wavefrontsize64)
 
+    fold_wavefrontsize!(mod, job.config.params.wavefrontsize64)
+
     # Set kernel target cpu and features.
-    if LLVM.callconv(entry) == LLVM.API.LLVMAMDGPUKERNELCallConv
+    if entry.callconv == LLVM.CallConv.AMDGPUKERNEL
         target_cpu_attr = StringAttribute("target-cpu", job.config.target.dev_isa)
         target_features_attr = StringAttribute("target-features", job.config.target.features)
-        atomic_attr = StringAttribute("amdgpu-unsafe-fp-atomics", "true")
 
         # TODO add convergent, mustprogress, willreturn attributes?
 
@@ -107,11 +112,16 @@ function GPUCompiler.finish_module!(
         # grid dimensions are read from it (see device/gcn/indexing.jl),
         implicitarg_attr = StringAttribute("amdgpu-implicitarg-num-bytes", "256")
 
-        attrs = LLVM.function_attributes(entry)
+        attrs = entry.function_attributes
         push!(attrs, target_cpu_attr)
         push!(attrs, target_features_attr)
-        push!(attrs, atomic_attr)
+        if job.config.params.unsafe_fp_atomics
+            push!(attrs, StringAttribute("amdgpu-unsafe-fp-atomics", "true"))
+        end
         push!(attrs, implicitarg_attr)
+        if job.config.params.waves_per_eu > 0
+            push!(attrs, StringAttribute("amdgpu-waves-per-eu", string(job.config.params.waves_per_eu)))
+        end
     end
 
     # Workaround for the lack of zeroinitializer support for LDS.
@@ -123,37 +133,73 @@ function GPUCompiler.finish_module!(
     # And GPUCompiler fails to inline all functions without forcing
     # always-inline attributes on them. Add them here.
     target_fns = ("signal_exception", "report_exception", "malloc", "__throw_")
-    inline_attr = EnumAttribute("alwaysinline")
 
-    for fn in LLVM.functions(mod)
-        do_inline = any(occursin.(target_fns, LLVM.name(fn)))
+    for fn in mod.functions
+        do_inline = any(occursin.(target_fns, fn.name))
         if job.config.params.unsafe_fp_atomics || do_inline
-            attrs = LLVM.function_attributes(fn)
+            attrs = fn.function_attributes
 
-            do_inline && inline_attr ∉ collect(attrs) && push!(attrs, inline_attr)
-        end
-    end
-
-    # LLVM 20+ requires !amdgpu.no.fine.grained.memory on FP atomicrmw to emit
-    # native hardware atomics (e.g. global_atomic_add_f32) instead of a CAS loop.
-    # Mirrors Clang's setTargetAtomicMetadata; unsafe_fp_atomics is the opt-in.
-    if job.config.params.unsafe_fp_atomics
-        fp_binops = (LLVM.API.LLVMAtomicRMWBinOpFAdd, LLVM.API.LLVMAtomicRMWBinOpFSub,
-                     LLVM.API.LLVMAtomicRMWBinOpFMax, LLVM.API.LLVMAtomicRMWBinOpFMin)
-        empty_md = MDNode(Metadata[])
-        for fn in LLVM.functions(mod), bb in LLVM.blocks(fn), inst in LLVM.instructions(bb)
-            inst isa LLVM.AtomicRMWInst || continue
-            op = LLVM.binop(inst)
-            op ∈ fp_binops || continue
-            md = LLVM.metadata(inst)
-            md["amdgpu.no.fine.grained.memory"] = empty_md
-            if op == LLVM.API.LLVMAtomicRMWBinOpFAdd && LLVM.value_type(inst) == LLVM.FloatType()
-                md["amdgpu.ignore.denormal.mode"] = empty_md
+            if do_inline && !haskey(attrs, :alwaysinline)
+                # the two are mutually exclusive, and some matched functions are
+                # `@noinline` in Base (e.g. `_throw_boundserror_indices` on Julia 1.14)
+                delete!(attrs, :noinline)
+                push!(attrs, EnumAttribute(:alwaysinline))
             end
         end
     end
 
     return entry
+end
+
+# AMDGPU sync scopes narrower than the system scope. The system scope ("" and "one-as")
+# and scopes we don't know never get memory assumptions.
+const NARROW_SYNCSCOPES = (
+    "agent", "cluster", "workgroup", "wavefront", "singlethread",
+    "agent-one-as", "cluster-one-as", "workgroup-one-as", "wavefront-one-as",
+    "singlethread-one-as")
+
+# Attach the metadata that lets the AMDGPU back-end use native atomic instructions, like
+# Clang's `setTargetAtomicMetadata`. Unlike Clang, system-scope RMWs never get the memory
+# assumptions, which keeps the system scope usable for fine-grained or remote memory.
+# Since LLVM 22, integer RMWs other than add/xchg are CAS loops without them on several
+# targets, and FP RMWs have needed them since LLVM 20.
+function annotate_atomics!(mod::LLVM.Module, job::HIPCompilerJob)
+    params = job.config.params
+    denormal_md = denormal_metadata_name(job.config.target)
+    empty_md = MDNode(Metadata[])
+    for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
+        inst isa LLVM.AtomicRMWInst || continue
+        md = inst.metadata
+        if params.atomic_memory_assumptions && inst.syncscope.name in NARROW_SYNCSCOPES
+            md["amdgpu.no.fine.grained.memory"] = empty_md
+            md["amdgpu.no.remote.memory"] = empty_md
+        end
+        if params.unsafe_fp_atomics && inst.binop == LLVM.AtomicRMWBinOp.FAdd &&
+           inst.value_type isa LLVM.FloatType
+            md[denormal_md] = empty_md
+        end
+    end
+end
+
+# LLVM 24 renamed the metadata (llvm/llvm-project#217585) and only upgrades the old name
+# when reading IR, which the in-process back-end doesn't do.
+function denormal_metadata_name(target::GCNCompilerTarget)
+    llvm = target.backend === :external ? pkgversion(AMDGPU_LLVM_Backend_jll) :
+                                          Base.libllvm_version
+    llvm >= v"24" ? "atomic.ignore.denormal.mode" : "amdgpu.ignore.denormal.mode"
+end
+
+# LLVM only folds `llvm.amdgcn.wavefrontsize` during instruction selection, which then
+# fails on branches for the other wavefront size (e.g. in `ballot`), so fold it here.
+function fold_wavefrontsize!(mod::LLVM.Module, wavefrontsize64::Bool)
+    f = get(mod.functions, "llvm.amdgcn.wavefrontsize", nothing)
+    f === nothing && return
+    ws = ConstantInt(f.function_type.return_type, wavefrontsize64 ? 64 : 32)
+    for call in collect(f.users)
+        LLVM.replace_uses!(call::LLVM.CallInst, ws)
+        LLVM.erase!(call)
+    end
+    return
 end
 
 function parse_llvm_features(arch::String)
@@ -171,7 +217,8 @@ const _compiler_configs = Dict{UInt, HIPCompilerConfig}()
 const compiler_config_lock = ReentrantLock()
 
 function compiler_config(dev::HIP.HIPDevice; kwargs...)
-    h = hash(dev, hash(kwargs))
+    # (as a `NamedTuple`: hashing the `Pairs` boxes each value, on every launch)
+    h = hash(dev, hash(values(kwargs)))
     return Base.@lock compiler_config_lock begin
         get!(_compiler_configs, h) do
             _compiler_config(dev; kwargs...)
@@ -181,10 +228,13 @@ end
 
 function _compiler_config(dev::HIP.HIPDevice;
     name::Union{String, Nothing} = nothing, kernel::Bool = true,
-    unsafe_fp_atomics::Bool = true, wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
+    unsafe_fp_atomics::Bool = true, atomic_memory_assumptions::Bool = true,
+    wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
     minthreads::Union{Nothing, Int, Dims} = nothing,
     maxthreads::Union{Nothing, Int, Dims} = nothing,
+    waves_per_eu::Int = 0,
 )
+    waves_per_eu >= 0 || throw(ArgumentError("`waves_per_eu` must be non-negative, got $waves_per_eu"))
     dev_isa, features = parse_llvm_features(HIP.gcn_arch(dev))
     if !isempty(features)
         features = "$features,"
@@ -197,7 +247,7 @@ function _compiler_config(dev::HIP.HIPDevice;
     end
 
     target = GCNCompilerTarget(; dev_isa, features, minthreads, maxthreads)
-    params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics)
+    params = HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics, atomic_memory_assumptions, waves_per_eu)
     CompilerConfig(target, params; kernel, name, always_inline=true)
 end
 
@@ -214,33 +264,60 @@ The following kwargs are supported:
 - `name::Union{String, Nothing} = nothing`:
     A unique name to give a compiled kernel.
 - `unsafe_fp_atomics::Bool = true`:
-    Whether to use 'unsafe' floating-point atomics.
+    Whether floating-point atomic read-modify-write operations may ignore the
+    floating-point denormal mode, so that targets whose hardware atomics flush
+    denormals can use them instead of a compare-and-swap (CAS) loop.
+- `atomic_memory_assumptions::Bool = true`:
+    Whether atomic read-modify-write operations with a scope narrower than the
+    system scope may assume that they access memory that is neither fine-grained
+    nor remote (on another device). This lets them use hardware instructions
+    instead of CAS loops. Disable it for kernels that use such atomics on
+    fine-grained memory, e.g. host or unified memory; see the
+    "Atomics" section of the kernel programming documentation.
 - `maxthreads::Union{Nothing, Int, Dims} = nothing`:
     An upper bound on the workgroup size the kernel will be launched with
     (`__launch_bounds__` equivalent); lets the backend size its register
     budget for the actual occupancy target instead of 1024-item workgroups.
 - `minthreads::Union{Nothing, Int, Dims} = nothing`:
     The workgroup size the kernel is guaranteed to be launched with.
-    AMD GPU devices support fast atomic read-modify-write (RMW)
-    operations on floating-point values.
-    On single- or double-precision floating-point values this may generate
-    a hardware RMW instruction that is faster than emulating
-    the atomic operation using an atomic compare-and-swap (CAS) loop.
+- `waves_per_eu::Int = 0`:
+    Minimum number of waves to keep resident per execution unit (SIMD), set as the
+    `amdgpu-waves-per-eu` function attribute. The register allocator limits the
+    registers per thread to what this occupancy allows, so a large value trades
+    registers (spills) for occupancy, and a small one the reverse. `0` leaves it
+    to the compiler. Combine with `maxthreads`: without it, values up to 4 on wave64
+    devices (8 on wave32 ones) have no effect, since the default 1024-item workgroup
+    bound already implies that many waves per EU. Values above what the hardware
+    supports (e.g. above 8 on gfx90a) make LLVM warn ("failed to meet occupancy
+    target") and fall back to no limit, so pick the value per architecture. Negative
+    values throw an `ArgumentError`.
 """
-function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F <: Core.Function, TT}
-    Base.@lock hipfunction_lock begin
-        dev = AMDGPU.device()
-        config = compiler_config(dev; kwargs...)
-        source = methodinstance(F, tt)
-        fun = hipfunction_lookup(source, config, dev)
+function hipfunction(f::F, tt::TT = Tuple{}; kwargs...) where {F, TT}
+    kw = values(kwargs)
+    dev = AMDGPU.device()
+    fun = GPUCompiler.cached_lookup(KernelLinker(F, tt, dev, kw), HIP.HIPFunction, F, tt,
+                                    (dev, kw))
+    return Runtime.HIPKernel{F, tt}(f, fun)
+end
 
-        key = (objectid(source), hash(fun), f)
-        kernel = get(_kernel_instances, key, nothing)
-        if kernel === nothing
-            kernel = Runtime.HIPKernel{F, tt}(f, fun)
-            _kernel_instances[key] = kernel
-        end
-        return kernel::Runtime.HIPKernel{F, tt}
+# what `hipfunction` calls when the kernel isn't cached: a callable struct rather than a
+# closure, whose type would depend on the kernel's, compiling it (and the inlined
+# `methodinstance`) again for every kernel.
+struct KernelLinker{K}
+    ft::Type
+    tt::Type
+    dev::HIP.HIPDevice
+    kw::K
+end
+(l::KernelLinker)() = hipfunction_link(methodinstance(l.ft, l.tt), l.dev, l.kw)
+
+# the part of `hipfunction` that doesn't depend on the kernel's types, kept out of the code
+# compiled for every kernel
+@noinline function hipfunction_link(source::Core.MethodInstance, dev::HIP.HIPDevice,
+                                    kw::NamedTuple)
+    Base.@lock hipfunction_lock begin
+        config = compiler_config(dev; kw...)
+        return hipfunction_lookup(source, config, dev)
     end
 end
 
@@ -273,11 +350,14 @@ end
 # Storage is managed by `GPUCompiler.cached_results`: Julia's integrated code cache on
 # 1.11+ (which also persists artifacts through precompilation), or a session-local store
 # on 1.10. `obj === nothing` identifies a freshly-created `HIPResults` that hasn't been
-# compiled yet; the `compile_hook` check additionally forces the compile path so that
-# reflection consumers (`@device_code_*`) observe the compilation even on a cache hit.
-function compile_or_lookup(@nospecialize(job::CompilerJob))::HIPResults
+# compiled yet. Every lookup is reported to the `@device_code_*` hook, so reflection
+# observes cached kernels without recompiling them.
+# Specialize on the target/parameter types so callers can avoid boxing CompilerJob.
+# Keep the body out of callers that specialize per kernel.
+@noinline function compile_or_lookup(job::CompilerJob)::HIPResults
+    GPUCompiler.run_compile_hook(job)
     res = GPUCompiler.cached_results(HIPResults, job)
-    if res === nothing || res.obj === nothing || GPUCompiler.compile_hook[] !== nothing
+    if res === nothing || res.obj === nothing
         compiled = hipcompile(job)
         res = @something res GPUCompiler.cached_results(HIPResults, job)
         res.obj = compiled.obj
@@ -299,7 +379,8 @@ function link_in_process(obj::AbstractVector{UInt8})
     obj = convert(Vector{UInt8}, obj)
     buffer = Ref{Ptr{Cvoid}}(C_NULL)
     message = Ref{Cstring}(C_NULL)
-    status = @ccall libamdgpu.AMDGPULink(
+    # linking can take a while, so don't block the GC
+    status = @gcsafe_ccall libamdgpu.AMDGPULink(
         obj::Ptr{UInt8}, length(obj)::Csize_t,
         buffer::Ptr{Ptr{Cvoid}}, message::Ptr{Cstring})::Cint
     if status != 0
@@ -322,23 +403,32 @@ function find_global_hostcalls(mod::LLVM.Module)
         :malloc_hostcall, :free_hostcall, :print_hostcall, :printf_hostcall)
 
     global_hostcalls = Symbol[]
-    for gbl in LLVM.globals(mod), gbl_name in global_hostcall_names
-        occursin("__$gbl_name", LLVM.name(gbl)) || continue
+    for gbl in mod.globals, gbl_name in global_hostcall_names
+        occursin("__$gbl_name", gbl.name) || continue
         push!(global_hostcalls, gbl_name)
     end
     return global_hostcalls
 end
 
 function hipcompile(@nospecialize(job::CompilerJob))
-    obj, meta = JuliaContext() do ctx
-        GPUCompiler.compile(:obj, job)
+    # the IR in `meta` is ours: inspect it in here, and dispose of it so that it does not leak
+    obj, entry, late_hostcalls, extinit_globals, relocations = JuliaContext() do ctx
+        image, meta = GPUCompiler.compile(:obj, job)
+        @dispose ir=meta.ir begin
+            # Filter out extinit global from `relocations` that :patch strategy emits.
+            relocated = Set(rec.name for rec in meta.relocations.records)
+            extinit = [gv.name for gv in ir.globals
+                       if gv.externally_initialized && gv.name ∉ relocated]
+
+            image, meta.entry.name, find_global_hostcalls(ir), extinit, meta.relocations
+        end
     end
 
     # Collect early-detected hostcalls written by link_libraries! on this task.
     # Falls back gracefully to empty if link_libraries! was not called.
     global_hostcalls = pop!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
     # Late global hostcalls detection.
-    append!(global_hostcalls, find_global_hostcalls(meta.ir))
+    append!(global_hostcalls, late_hostcalls)
 
     if !isempty(global_hostcalls)
         @info """Global hostcalls detected!
@@ -350,14 +440,6 @@ function hipcompile(@nospecialize(job::CompilerJob))
         """
     end
 
-    entry = LLVM.name(meta.entry)
-
-    # Filter out extinit global from `relocations` that :patch strategy emits.
-    relocations = meta.relocations
-    relocated = Set(rec.name for rec in relocations.records)
-    extinit_globals = filter(collect(LLVM.globals(meta.ir))) do gv
-        isextinit(gv) && LLVM.name(gv) ∉ relocated
-    end .|> LLVM.name
     if !isempty(extinit_globals)
         @warn """
         HIP backend does not support setting extinit globals.
@@ -421,17 +503,20 @@ function GPUCompiler.finish_ir!(
     entry = invoke(GPUCompiler.finish_ir!,
         Tuple{CompilerJob{GCNCompilerTarget}, typeof(mod), typeof(entry)},
         job, mod, entry)
+
+    # after optimization, so that sync scopes have their AMDGPU names
+    annotate_atomics!(mod, job)
+
     job.config.kernel || return entry
 
-    name = LLVM.name(entry)
-    tm = GPUCompiler.llvm_machine(job.config.target)
+    name = entry.name
     # The textual pass name is only registered since LLVM 18; it's a pure
     # optimization, so skip it on older LLVM (e.g. Julia 1.10's LLVM 15).
     if LLVM.version() >= v"18"
-        @dispose pb=NewPMPassBuilder() begin
+        @dispose tm=GPUCompiler.llvm_machine(job.config.target) pb=PassBuilder() begin
             add!(pb, "amdgpu-attributor")
             run!(pb, mod, tm)
         end
     end
-    return functions(mod)[name]
+    return mod.functions[name]
 end

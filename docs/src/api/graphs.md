@@ -19,7 +19,7 @@ AMDGPU.launch(graph)
 ```
 
 However, if your code contains more complex flow, it requires more preparations:
-- code **must not** result in hostcall invokation.
+- code **must not** result in hostcall invocation.
 - if code contains malloc and respective frees, then it can be captured and relaunched as is.
 - if code contains **only** allocations (without freeing), allocations must be cached with `GPUArrays.@cached` beforehand (see example below).
 - other unsupported operations (e.g. RNG init) must be done beforehand as well.

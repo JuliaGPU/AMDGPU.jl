@@ -3,13 +3,6 @@ include:
 
 # Slurm/Julia settings shared by all jobs; JULIA is set per Julia version.
 .common_variables: &common_variables
-  # Workaround for MIOpen CK Group-Xdlops solvers segfaulting on gfx942 (MI300).
-  # Remove once fixed upstream: https://github.com/ROCm/rocm-libraries/issues/9088
-  MIOPEN_DEBUG_CONV_IMPLICIT_GEMM_ASM_FWD_GTC_XDLOPS_NHWC: "0"
-  MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
-  MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
-  MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS: "0"
-  MIOPEN_DEBUG_3D_CONV_IMPLICIT_GEMM_HIP_WRW_XDLOPS: "0"
   SLURM_JOB_NUM_NODES: 1
   SLURM_NTASKS_PER_NODE: 1
   SLURM_GPUS_PER_TASK: 2

@@ -59,6 +59,24 @@ using AMDGPU.Device: workitemIdx
         # Test zero-initialization
         @test all(iszero, Array(RC))
     end
+
+    @testset "Dynamic-size Local Allocation, unsigned length" begin
+        # `workgroupDim().x` is a `UInt32`
+        function dynamic_localmem_unsigned_kernel(A)
+            i = workitemIdx().x
+            B = @ROCDynamicLocalArray(eltype(A), workgroupDim().x, false)
+            @inbounds B[i] = A[i]
+            sync_workgroup()
+            @inbounds A[i] = B[length(B) - i + 1]
+            return
+        end
+
+        N = 64
+        A = rand(Float32, N)
+        RA = ROCArray(A)
+        @roc groupsize=N shmem=N * sizeof(Float32) dynamic_localmem_unsigned_kernel(RA)
+        @test Array(RA) == reverse(A)
+    end
 end
 
 # TODO

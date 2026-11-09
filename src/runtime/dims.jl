@@ -7,8 +7,8 @@
 A type used to specify dimensions, consisting of 3 integers for the `x`, `y`,
 and `z` dimension, respectively. Unspecified dimensions default to `1`.
 
-Often accepted as argument through the `ROCDim` type alias, eg. in the case of
-[`roccall`](@ref) or [`launch_kernel!`](@ref), allowing to pass dimensions as a
+Often accepted as argument through the `ROCDim` type alias, eg. for the
+`gridsize` and `groupsize` of a kernel launch, allowing to pass dimensions as a
 plain integer or a tuple without having to construct an explicit `ROCDim3`
 object.
 """

@@ -20,6 +20,8 @@ Random.rand!(a)
 Random.randn!(a)
 ```
 
+rocRAND handles `rand!` for `UInt8`, `UInt16`, `UInt32`, `Float16`, `Float32` and `Float64`, and `randn!` for the three float types. Every other element type goes to the kernel-based GPUArrays generator instead: `rand!` accepts any `isbits` type `Random` can sample, such as `Int32`, tuples, or structs with a custom sampler, and `randn!` accepts any float or complex float type, such as `ComplexF32`. The `mean` and `stddev` keywords of `randn!` work on both paths.
+
 ## Seeding
 
 Seed the device generators for reproducible results with `AMDGPU.seed!`:

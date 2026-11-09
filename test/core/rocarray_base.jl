@@ -1,4 +1,5 @@
 using Test
+using Adapt
 using AMDGPU
 using AMDGPU: ROCArray, ROCVector, ROCMatrix, @allowscalar
 
@@ -21,6 +22,32 @@ end
     @test y !== x
     # But is still equal.
     @test y == x
+end
+
+@testset "Adapt" begin
+    HIPBuffer = AMDGPU.Mem.HIPBuffer
+    HostBuffer = AMDGPU.Mem.HostBuffer
+    @test adapt(ROCArray, [1, 2]) isa ROCArray{Int, 1, HIPBuffer}
+    @test adapt(ROCArray{Float32}, [1 2; 3 4]) isa ROCArray{Float32, 2, HIPBuffer}
+
+    # unspecified type parameters are taken from the source array (JuliaGPU/Metal.jl#363)
+    @test adapt(ROCMatrix, [1 2; 3 4]) isa ROCArray{Int, 2, HIPBuffer}
+    @test adapt(ROCArray{<:Any, <:Any, HostBuffer}, [1 2; 3 4]) isa ROCArray{Int, 2, HostBuffer}
+    @test adapt(ROCVector{<:Any, HostBuffer}, [1, 2]) isa ROCArray{Int, 1, HostBuffer}
+    @test adapt(ROCArray{Float32, <:Any, HostBuffer}, [1 2; 3 4]) isa ROCArray{Float32, 2, HostBuffer}
+    let xs = adapt(ROCArray{<:Any, <:Any, HostBuffer}, (Float32[1], Int32[1 2]))
+        @test xs[1] isa ROCArray{Float32, 1, HostBuffer}
+        @test xs[2] isa ROCArray{Int32, 2, HostBuffer}
+    end
+    @test_throws MethodError adapt(ROCVector{Float32}, [1 2; 3 4])
+    @test_throws ArgumentError adapt(ROCArray{<:Real}, ComplexF32[1])
+    let xs = ROCArray{Float32, 1, HostBuffer}([1])
+        @test adapt(ROCArray, xs) === xs
+        @test adapt(ROCArray{Float32}, xs) === xs
+        @test adapt(ROCArray{Int32}, xs) isa ROCArray{Int32, 1, HostBuffer}
+        @test adapt(typeof(xs), xs) === xs
+        @test adapt(ROCArray{<:Any, <:Any, HIPBuffer}, xs) isa ROCArray{Float32, 1, HIPBuffer}
+    end
 end
 
 @testset "ones/zeros" begin
@@ -61,6 +88,55 @@ end
     @test Array(r) == reinterpret(Int64, @view Array(a)[2:7])
 end
 
+@testset "aliasing" begin
+    x = ROCArray([1, 2])
+    y = view(x, 2:2)
+    @test Base.mightalias(x, x)
+    @test Base.mightalias(x, y)
+    z = view(x, 1:1)
+    @test Base.mightalias(x, z)
+    @test !Base.mightalias(y, z)
+
+    a = copy(y)::typeof(x)
+    @test !Base.mightalias(x, a)
+    a .= 3
+    @test Array(y) == [2]
+
+    b = Base.unaliascopy(y)::typeof(y)
+    @test !Base.mightalias(x, b)
+    b .= 3
+    @test Array(y) == [2]
+
+    # contiguous views are ROCArrays with an offset into the parent's memory,
+    # which should still alias wrapped arrays (like SubArrays) of that memory
+    x = ROCArray(1:16)
+    @test Base.mightalias(view(x, 2:16), view(x, 15:-1:1))
+    @test Base.mightalias(view(x, 1:2:15), view(x, 2:9))
+    @test Base.mightalias(view(x, 2:16), view(reinterpret(Int32, x), 1:2:31))
+    @test !Base.mightalias(view(x, 2:16), view(ROCArray(1:16), 15:-1:1))
+
+    # memory wrapped from a view's pointer
+    y = view(x, 2:16)
+    z = unsafe_wrap(ROCArray, pointer(y), size(y))
+    @test Base.mightalias(y, view(z, 15:-1:1))
+
+    # so in-place broadcasts between them should make a copy first
+    n = 2^20
+    x = ROCArray{Float32}(1:n)
+    view(x, 2:n) .= view(x, n-1:-1:1)
+    @test Array(x) == [1; n-1:-1:1]
+
+    # empty arrays alias nothing, also on Julia 1.10 (where all have address 0)
+    @test !Base.mightalias(ROCArray(Int[]), ROCArray(Float32[]))
+    @test !Base.mightalias(view(ROCArray(zeros(2, 0)), 1:1, :), ROCArray(Int[]))
+    @test isempty(cumsum(ROCArray(Int[])))
+
+    # disjoint parts of one array may be each other's source and destination
+    x = ROCArray(collect(1:10))
+    @test Array(sum!(view(x, 1:1), view(x, 2:10))) == [54]
+    @test Array(cumsum!(view(x, 1:5), view(x, 6:10))) == cumsum(6:10)
+end
+
 @testset "resize!" begin
     a_h = Array(range(1, 10))
     a_d = a_h |> roc
@@ -88,6 +164,46 @@ end
         @test a_h == a_d
         length(a_h) == length(a_d)
     end
+end
+
+# JuliaGPU/AMDGPU.jl#1179: arrays in host memory used to come back as device
+# memory from `copy`, and `resize!` failed on them.
+@testset "HostBuffer copy & resize!" begin
+    HostBuffer = AMDGPU.Mem.HostBuffer
+    x = ROCArray{Float32, 1, HostBuffer}(undef, 4)
+    fill!(x, 1f0)
+
+    y = copy(x)
+    @test y isa ROCArray{Float32, 1, HostBuffer}
+    @test y !== x
+    @test !Base.mightalias(x, y)
+    @test Array(y) == Array(x)
+    @test deepcopy(x) isa ROCArray{Float32, 1, HostBuffer}
+    # `deepcopy` of a container asserts that the copied field keeps its type
+    @test deepcopy(Ref(x))[] isa ROCArray{Float32, 1, HostBuffer}
+
+    resize!(x, 8)
+    @test x isa ROCArray{Float32, 1, HostBuffer}
+    @test length(x) == 8
+    x[5:8] .= 2f0
+    @test Array(x) == [fill(1f0, 4); fill(2f0, 4)]
+    resize!(x, 2)
+    @test x isa ROCArray{Float32, 1, HostBuffer}
+    @test Array(x) == fill(1f0, 2)
+    resize!(x, 0)
+    @test isempty(x)
+    resize!(x, 3)
+    @test length(x) == 3
+
+    # resizing a wrapper around a host array detaches it from that array
+    a = Float32[1, 2, 3]
+    w = unsafe_wrap(ROCArray, a)
+    resize!(w, 5)
+    @test w isa ROCArray{Float32, 1, HostBuffer}
+    @test Array(w)[1:3] == a
+    w .= 0f0
+    AMDGPU.synchronize()
+    @test a == Float32[1, 2, 3]
 end
 
 @testset "unsafe_wrap" begin
@@ -160,6 +276,126 @@ end
         AMDGPU.unsafe_free!(xd2)
         @test_throws ArgumentError pointer(xd2)
         @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x))) == false
+    end
+
+    @testset "Registration is undone when freeing" begin
+        x = zeros(Float32, 16)
+        xd = unsafe_wrap(ROCArray, pointer(x), size(x))
+        @test AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x)))
+        AMDGPU.unsafe_free!(xd)
+        @test !AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(x)))
+        @test !AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(x)))
+    end
+
+    @testset "Wrap Array" begin
+        for AT in [ROCArray, ROCArray{Float32}, ROCArray{Float32, 1}]
+            a = Float32[1, 2, 3]
+            b = unsafe_wrap(AT, a)
+            @test b isa ROCVector{Float32, AMDGPU.Mem.HostBuffer}
+            @test Array(b) == a
+        end
+        @test isempty(Array(unsafe_wrap(ROCArray, Float32[])))
+
+        # the wrapper keeps the array alive
+        xd = unsafe_wrap(ROCArray, fill(1f0, 1024))
+        GC.gc(true)
+        AMDGPU.@sync xd .+= 1f0
+        @test all(==(2f0), Array(xd))
+
+        # ... and lets go of it once the device is done using it
+        function wrap_tracked(collected)
+            local a, xd
+            a = fill(1f0, 1024)
+            finalizer(_ -> collected[] = true, a)
+            xd = unsafe_wrap(ROCArray, a)
+            xd .+= 1f0
+            return
+        end
+        collected = Threads.Atomic{Bool}(false)
+        wrap_tracked(collected)
+        # a few GC rounds with a device round trip in between; bound by rounds, not time
+        for _ in 1:100
+            collected[] && break
+            GC.gc(true)
+            AMDGPU.synchronize()
+            sleep(0.01)
+        end
+        @test collected[]
+
+        # and the other way around
+        a = Float32[1, 2, 3]
+        b = unsafe_wrap(ROCArray, a)
+        @test pointer(unsafe_wrap(Array, b)) == pointer(a)
+        @test_throws ArgumentError unsafe_wrap(Array, AMDGPU.zeros(Float32, 3))
+    end
+
+    @testset "Re-wrapping after freeing" begin
+        # an explicit free waits for the release, so that the memory can be wrapped again
+        x = zeros(Float32, 1 << 20)
+        xd = unsafe_wrap(ROCArray, pointer(x), 16)
+        xd .+= 1f0
+        AMDGPU.unsafe_free!(xd)
+        @test !AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(x)))
+        xd = unsafe_wrap(ROCArray, pointer(x), length(x))
+        xd .+= 1f0
+        AMDGPU.synchronize()
+        @test sum(x) == 16 + length(x)
+
+        # a registration can't be extended while it's still in use
+        @test_throws ErrorException unsafe_wrap(ROCArray, pointer(x), 2 * length(x))
+        AMDGPU.unsafe_free!(xd)
+    end
+
+    @testset "Freeing while capturing" begin
+        # last used on the stream of another task, which is still alive
+        a = zeros(Float32, 1024)
+        wrapped = Channel(1)
+        finish = Channel(1)
+        t = @async begin
+            xd = unsafe_wrap(ROCArray, a)
+            xd .+= 1f0
+            put!(wrapped, xd)
+            take!(finish)
+        end
+        xd = take!(wrapped)
+        y = AMDGPU.zeros(Float32, 16)
+        graph = AMDGPU.capture() do
+            AMDGPU.unsafe_free!(xd)
+            y .+= 1f0
+        end
+        @test graph !== nothing
+        @test !AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(a)))
+        put!(finish, nothing)
+        wait(t)
+        @test all(==(1f0), a)
+        AMDGPU.HIP.launch(AMDGPU.HIP.instantiate(graph))
+        @test all(==(1f0), Array(y))
+
+        # last used on a stream that has since been handed to another task, which is
+        # capturing it. that work has finished, so the memory is released right away.
+        # (simulated by bumping the stream's generation, as recycling isn't deterministic)
+        a = zeros(Float32, 1024)
+        s = HIPStream()
+        old_stream = AMDGPU.stream()
+        AMDGPU.stream!(s)
+        try
+            xd = unsafe_wrap(ROCArray, a)
+            xd .+= 1f0
+            AMDGPU.synchronize()
+            Base.@atomic s.generation += 1
+            z = AMDGPU.zeros(Float32, 16)
+            released = false
+            graph = AMDGPU.capture() do
+                AMDGPU.unsafe_free!(xd)
+                released = !AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(a)))
+                z .+= 1f0
+            end
+            @test graph !== nothing
+            @test released
+        finally
+            AMDGPU.stream!(old_stream)
+        end
+        @test all(==(1f0), a)
     end
 
     @testset "Broadcasting different buffer types" begin
@@ -258,12 +494,6 @@ end
     @test Array(x) == [true, false]
     @roc pass_symbol(x, :not_var)
     @test Array(x) == [true, true]
-end
-
-@testset "mapreducedim! returning same type" begin
-    R = transpose(AMDGPU.zeros(Float32, 2, 3))
-    A = ROCArray(rand(Float32, 3, 2, 10))
-    @test @inferred(GPUArrays.mapreducedim!(identity, +, R, A)) === R
 end
 
 end

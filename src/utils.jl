@@ -1,3 +1,17 @@
+# `"err"` = present but the version query threw, so a broken or mismatched
+# install cannot crash `versioninfo()` itself.
+function _ver(is_functional::Bool, ver_fn; on_error = Returns(nothing))
+    is_functional || return "-"
+    try
+        return string(ver_fn())
+    catch e
+        on_error(e)
+        return "err"
+    end
+end
+_ver(lib::Symbol, ver_fn, errors::Vector{Pair{Symbol, String}}) = _ver(
+    functional(lib), ver_fn; on_error = e -> push!(errors, lib => sprint(showerror, e)))
+
 """
     versioninfo(io::IO=stdout)
 
@@ -11,33 +25,32 @@ function versioninfo(io::IO=stdout)
         "local ROCm installation" : "downloaded artifacts")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
-    # rocSPARSE needs a handle for its version, so its query can fail where the
-    # others cannot; `"err"` keeps one library from sinking the whole report.
-    _ver(lib::Symbol, ver_fn) =
-        functional(lib) ? (try "$(ver_fn())" catch; "err" end) : "-"
+
+    errs = Pair{Symbol, String}[]
 
     data = String[
-        _status(functional(:lld))         "LLD"              "-"                                 _libpath(functional(:lld) ? AMDGPU_LLVM_Backend_jll.libamdgpu : "");
-        _status(functional(:device_libs)) "Device Libraries" "-"                                 _libpath(libdevice_libs);
-        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version)     _libpath(libamdhip64);
-        _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version)     _libpath(librocblas);
-        _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version) _libpath(librocsolver);
-        _status(functional(:rocsparse))   "rocSPARSE"        _ver(:rocsparse, rocSPARSE.version) _libpath(librocsparse);
-        _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version)     _libpath(librocrand);
-        _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version)       _libpath(librocfft);
-        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version) _libpath(libhiptensor);
-        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version)       _libpath(libMIOpen);
+        _status(functional(:lld))         "LLD"              "-"                                       _libpath(functional(:lld) ? AMDGPU_LLVM_Backend_jll.libamdgpu : "");
+        _status(functional(:device_libs)) "Device Libraries" "-"                                       _libpath(libdevice_libs);
+        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version, errs)     _libpath(libamdhip64);
+        _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version, errs)     _libpath(librocblas);
+        _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version, errs) _libpath(librocsolver);
+        _status(functional(:rocsparse))   "rocSPARSE"        _ver(:rocsparse, rocSPARSE.version, errs) _libpath(librocsparse);
+        _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version, errs)     _libpath(librocrand);
+        _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version, errs)       _libpath(librocfft);
+        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version, errs) _libpath(libhiptensor);
+        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version, errs)       _libpath(libMIOpen);
     ]
 
     PrettyTables.pretty_table(io, data; column_labels=[
         "Available", "Name", "Version", "Path"],
         alignment=[:c, :l, :l, :l])
 
-    if any(==("err"), @view data[:, 3])
-        @warn """A library is installed but its version query failed. Check the \
+    if !isempty(errs)
+        @warn """Some installed libraries failed their version query. Check the \
             foreign-library report below: a ROCm from the environment mixed into \
             this process is the usual cause. See \
-            https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
+            https://github.com/JuliaGPU/AMDGPU.jl/issues/920.
+            $(join(("  $lib: $msg" for (lib, msg) in errs), "\n"))"""
     end
 
     # Artifact-mode hygiene: what a ROCm elsewhere in the environment is doing
@@ -63,7 +76,29 @@ function versioninfo(io::IO=stdout)
                 println(io, "  $path")
             end
         end
+        println(io)
     end
+
+    get_module(name::Symbol) = (name, getfield(AMDGPU, name))
+    function get_module(pkg::Tuple{String, String})
+        id = Base.PkgId(Base.UUID(pkg[1]), pkg[2])
+        (pkg[2], get(Base.loaded_modules, id, nothing))
+    end
+
+    println(io, "Julia packages: ")
+    println(io, "- AMDGPU.jl: $(Base.pkgversion(AMDGPU))")
+    for pkg in [:GPUArrays, :GPUCompiler, :KernelInterface,
+                 ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
+                 :LLVM, :AMDGPU_LLVM_Backend_jll, :LLVMDowngrader_jll]
+        name, mod = get_module(pkg)
+        isnothing(mod) || println(io, "- $(name): $(Base.pkgversion(mod))")
+    end
+    println(io)
+
+    println(io, "Toolchain:")
+    println(io, "- Julia: $VERSION")
+    println(io, "- LLVM: $(LLVM.version())")
+    println(io)
 
     if functional(:hip)
         println(io)
@@ -111,8 +146,10 @@ function correctly. Available `component` values are:
 - `:rocsparse`   - Queries rocSPARSE library availability
 - `:rocrand`     - Queries rocRAND library availability
 - `:rocfft`      - Queries rocFFT library availability
-- `:hiptensor`   - Queries hipTENSOR library availability and whether every
-                   present device has an architecture supported by it
+- `:hiptensor`   - Queries hipTENSOR library availability, whether every
+                   present device has an architecture supported by it, and
+                   whether it exports the C API (ROCm 7.2+) at a version at
+                   least that of the headers the bindings were generated from
 - `:MIOpen`      - Queries MIOpen library availability
 - `:all`         - Queries all above components
 
@@ -142,12 +179,16 @@ function functional(component::Symbol)
         # architectures. Require every device to be supported, so that this
         # stays valid no matter which one is current. Enumerating devices may
         # throw on a broken install.
-        return try
+        supported = try
             devs = devices()
             !isempty(devs) && all(hiptensor_supported, devs)
         catch
             false
         end
+        supported || return false
+        # Only load the library once the arch check has passed: on an
+        # unsupported device hipTENSOR's init calls `exit()`, killing Julia.
+        return _hiptensor_api_compatible()
     elseif component == :MIOpen
         return !isempty(libMIOpen)
     elseif component == :all
@@ -170,6 +211,26 @@ end
 # that ROCm 6.x builds still supported.
 const HIPTENSOR_ARCHS = (
     "gfx908", "gfx90a", "gfx940", "gfx941", "gfx942", "gfx950")
+
+# hipTENSOR only exports a C API since ROCm 7.2; older versions only have
+# C++-mangled names, so none of our bindings resolve. Also require at least the
+# header version the bindings were generated from. Cached: hit on every handle creation.
+const _HIPTENSOR_API_COMPATIBLE = Ref{Union{Nothing, Bool}}(nothing)
+function _hiptensor_api_compatible()
+    cached = _HIPTENSOR_API_COMPATIBLE[]
+    cached === nothing || return cached
+    bindings_version = VersionNumber(
+        hipTENSOR.HIPTENSOR_MAJOR_VERSION, hipTENSOR.HIPTENSOR_MINOR_VERSION,
+        hipTENSOR.HIPTENSOR_PATCH_VERSION)
+    ok = try
+        Libdl.dlsym_e(Libdl.dlopen(libhiptensor), :hiptensorGetVersion) != C_NULL &&
+            hipTENSOR.version() >= bindings_version
+    catch
+        false
+    end
+    _HIPTENSOR_API_COMPATIBLE[] = ok
+    return ok
+end
 
 """
     hiptensor_supported(arch::AbstractString) -> Bool

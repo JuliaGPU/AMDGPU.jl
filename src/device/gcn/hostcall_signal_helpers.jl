@@ -4,6 +4,10 @@ const ATOMIC_RELEASE = Int32(3)
 const ATOMIC_ACQ_REL = Int32(4)
 const ATOMIC_SEQ_CST = Int32(5)
 
+const AMD_SIGNAL_KIND_USER = Int64(1)
+
+const AMD_SIGNAL_VALUE_OFFSET = Int64(8)
+
 # Hostcall signal helpers.
 
 @device_function @inline function device_signal_load(
@@ -77,31 +81,84 @@ end
     hostcall_device_signal_wait(signal.handle, value, order)
 end
 
+function create_hostcall_signal(init_val::Int64 = 1)
+    if use_emulated_signals()
+        ptr_ref = Ref{Ptr{Cvoid}}()
+        HIP.hipHostMalloc(ptr_ref, 64, HIP.hipHostMallocCoherent)
+        # update_mbox follows event_mailbox_ptr if it isn't null
+        unsafe_wrap(Array, reinterpret(Ptr{UInt8}, ptr_ref[]), 64) .= 0
+        p64 = reinterpret(Ptr{Int64}, ptr_ref[])
+        unsafe_store!(p64, AMD_SIGNAL_KIND_USER, 1)
+        unsafe_store!(p64, init_val, 2)
+        return HSA.Signal(reinterpret(UInt64, ptr_ref[]))
+    else
+        signal_ref = Ref{HSA.Signal}()
+        HSA.signal_create(init_val, 0, C_NULL, signal_ref) |> Runtime.check
+        return signal_ref[]
+    end
+end
+
+function destroy_hostcall_signal!(signal::HSA.Signal)
+    if use_emulated_signals()
+        ptr = reinterpret(Ptr{Cvoid}, signal.handle)
+        HIP.hipHostFree(ptr)
+    else
+        HSA.signal_destroy(signal) |> Runtime.check
+    end
+end
+
 @inline function host_signal_store!(
     signal::HSA.Signal, value, order::Val{O} = Val{:release}(),
 ) where O
-    if O == :release
-        HSA.signal_store_screlease(signal, value)
-    elseif O == :relaxed
-        HSA.signal_store_relaxed(signal, value)
-    else
+    if O ∉ (:release, :relaxed)
         throw(ArgumentError("Unsupported `order`: `$order`. Supported values are: `Val{:release}` and `Val{:relaxed}`."))
+    end
+    if use_emulated_signals()
+        ptr = reinterpret(Ptr{Int64}, signal.handle + AMD_SIGNAL_VALUE_OFFSET)
+        if O == :release
+            unsafe_store!(ptr, Int64(value), :release)
+        elseif O == :relaxed
+            unsafe_store!(ptr, Int64(value), :monotonic)
+        end
+    else
+        if O == :release
+            HSA.signal_store_screlease(signal, value)
+        elseif O == :relaxed
+            HSA.signal_store_relaxed(signal, value)
+        end
     end
 end
 
 @inline function host_signal_load(
     signal::HSA.Signal, order::Val{O} = Val{:acquire}(),
 ) where O
-    if O == :acquire
-        return HSA.signal_load_scacquire(signal)
-    elseif O == :relaxed
-        return HSA.signal_load_relaxed(signal)
+    if O ∉ (:acquire, :relaxed)
+        throw(ArgumentError("Unsupported `order`: `$order`. Supported values are: `Val{:acquire}` and `Val{:relaxed}`."))
     end
-    throw(ArgumentError("Unsupported `order`: `$order`. Supported values are: `Val{:release}` and `Val{:relaxed}`."))
+    if use_emulated_signals()
+        ptr = reinterpret(Ptr{Int64}, signal.handle + AMD_SIGNAL_VALUE_OFFSET)
+        if O == :acquire
+            return unsafe_load(ptr, :acquire)
+        elseif O == :relaxed
+            return unsafe_load(ptr, :monotonic)
+        end
+    else
+        if O == :acquire
+            return HSA.signal_load_scacquire(signal)
+        elseif O == :relaxed
+            return HSA.signal_load_relaxed(signal)
+        end
+    end
 end
 
 @inline function host_signal_cmpxchg!(signal::HSA.Signal, expected, value)
-    HSA.signal_cas_scacq_screl(signal, expected, value)
+    if use_emulated_signals()
+        ptr = reinterpret(Ptr{Int64}, signal.handle + AMD_SIGNAL_VALUE_OFFSET)
+        return unsafe_replace!(
+            ptr, Int64(expected), Int64(value), :acquire_release, :acquire).old
+    else
+        HSA.signal_cas_scacq_screl(signal, expected, value)
+    end
 end
 
 @device_function @inline function device_sleep(duration::Int32)

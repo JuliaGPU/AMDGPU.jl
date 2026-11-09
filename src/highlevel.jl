@@ -10,8 +10,8 @@ device_id(device::HIPDevice)::Int = device.device_id
 """
     device_id!(idx::Integer)
 
-Sets the current device to `AMDGPU.devices()[idx]`. See
-[`device_id`](@ref) for details on the numbering semantics.
+Same as [`device!`](@ref)`(AMDGPU.devices()[idx])`, so it also sets the default
+device. See [`device_id`](@ref) for details on the numbering semantics.
 """
 device_id!(idx::Integer) = device!(devices()[idx])
 
@@ -88,13 +88,14 @@ converted to a GPU-friendly format. By default, the function does nothing and re
 input object `x` as-is.
 
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
-register methods for the the `AMDGPU.Adaptor` type.
+register methods for the `AMDGPU.Adaptor` type.
 """
 rocconvert(arg) = adapt(Runtime.Adaptor(nothing), arg)
 rocconvert(arg, stream::HIPStream) = adapt(Runtime.Adaptor(stream), arg)
 
 const MACRO_KWARGS = [:launch]
-const COMPILER_KWARGS = [:name, :unsafe_fp_atomics, :wavefrontsize64, :minthreads, :maxthreads]
+const COMPILER_KWARGS = [:name, :unsafe_fp_atomics, :atomic_memory_assumptions,
+                         :wavefrontsize64, :minthreads, :maxthreads, :waves_per_eu]
 const LAUNCH_KWARGS = [:gridsize, :groupsize, :shmem, :stream, :cooperative]
 
 """
@@ -151,8 +152,8 @@ macro roc(ex...)
         quote
             GC.@preserve $(vars...) begin
                 local $kernel_f = $rocconvert($f)
-                local $kernel_args = map($rocconvert, ($(var_exprs...),))
-                local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
+                local $kernel_args = $(Runtime._tmap)($rocconvert, ($(var_exprs...),))
+                local $kernel_tt = $(Runtime.argument_types)($kernel_args)
                 local $kernel = $hipfunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
 
                 if $launch

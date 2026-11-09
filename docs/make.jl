@@ -27,6 +27,8 @@ function main()
             devbranch="main",
             devurl="dev",
             deploy_decision,
+            # keep one build per minor release (v2.10, v2.11, ...) next to `stable` and `v2`
+            keep=:minor,
         ),
         pages=[
             "Home" => "index.md",
@@ -62,6 +64,7 @@ function main()
                 "Fourier Transforms" => "libraries/fft.md",
                 "Random Numbers" => "libraries/rand.md",
                 "Deep Learning (MIOpen)" => "libraries/dnn.md",
+                "Tensor Operations" => "libraries/tensor.md",
             ],
             "FAQ" => "faq.md",
         ],

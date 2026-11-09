@@ -19,21 +19,28 @@ copies to the device while narrowing floating-point types to 32-bit, and the
 mutable struct ROCArray{T, N, B} <: AbstractGPUArray{T, N}
     buf::DataRef{Managed{B}}
     dims::Dims{N}
-    offset::Int # offset of the data in memory, in bytes
+    offset::Int  # offset of the data in memory, in bytes
+    # size of the data in memory, in bytes, excluding any selector bytes. for arrays of
+    # isbits unions, this is where the array's selector bytes start (see `typetagdata`)
+    maxsize::Int
 
     function ROCArray{T, N, B}(::UndefInitializer, dims::Dims{N}) where {T, N, B <: Mem.AbstractAMDBuffer}
         check_eltype("ROCArray", T)
-        sz::Int64 = prod(dims) * aligned_sizeof(T)
-        ref = GPUArrays.cached_alloc((ROCArray, AMDGPU.device(), B, sz)) do
-            @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(sz))"
-            DataRef(pool_free, pool_alloc(B, sz))
+        maxsize::Int64 = prod(dims) * aligned_sizeof(T)
+        # arrays of isbits unions keep one selector byte per element past the data
+        bufsize = Base.isbitsunion(T) ? maxsize + prod(dims) : maxsize
+        ref = GPUArrays.cached_alloc((ROCArray, AMDGPU.device(), B, bufsize)) do
+            @debug "Allocate `T=$T`, `dims=$dims`: $(Base.format_bytes(bufsize))"
+            DataRef(pool_free, pool_alloc(B, bufsize))
         end
-        return finalizer(unsafe_free!, new{T, N, B}(ref, dims, 0))
+        return finalizer(unsafe_free!, new{T, N, B}(ref, dims, 0, maxsize))
     end
 
-    function ROCArray{T, N}(buf::DataRef{Managed{B}}, dims::Dims{N}; offset::Integer = 0) where {T, N, B <: Mem.AbstractAMDBuffer}
+    function ROCArray{T, N}(buf::DataRef{Managed{B}}, dims::Dims{N};
+                            maxsize::Integer = prod(dims) * aligned_sizeof(T),
+                            offset::Integer = 0) where {T, N, B <: Mem.AbstractAMDBuffer}
         check_eltype("ROCArray", T)
-        xs = new{T, N, B}(buf, dims, offset)
+        xs = new{T, N, B}(buf, dims, offset, maxsize)
         return finalizer(unsafe_free!, xs)
     end
 end
@@ -81,7 +88,8 @@ end
 # 2. structs of unions (`struct Foo; x::Union{Int, Float32}; end`)
 #    these are stored with a selector at the end (handled by Julia).
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
-#    these are stored contiguously and require a selector array (handled by us)
+#    these are stored contiguously, with one selector byte per element past the data
+#    (handled by us, see `typetagdata`)
 # As well as "mutable singleton" types like `Symbol` that use pointer-identity
 
 function valid_type(@nospecialize(T))
@@ -110,8 +118,12 @@ GPUArrays.storage(a::ROCArray) = a.buf
 
 function GPUArrays.derive(::Type{T}, x::ROCArray, dims::Dims{N}, offset::Int) where {N, T}
     ref = copy(x.buf)
+    # the selector bytes are indexed by element, so advance them here: the byte offset
+    # can't tell how many elements of zero size (like unions of singletons) were skipped.
+    # union arrays only derive arrays of the same element type, as `reinterpret` rejects them
+    maxsize = Base.isbitsunion(T) ? x.maxsize + offset : x.maxsize
     offset = x.offset + offset * aligned_sizeof(T)
-    ROCArray{T, N}(ref, dims; offset)
+    ROCArray{T, N}(ref, dims; maxsize, offset)
 end
 
 """
@@ -120,6 +132,49 @@ end
 Return the device associated with the array `A`.
 """
 device(A::ROCArray) = A.buf[].mem.device
+
+## synchronization
+
+"""
+    synchronize(A::ROCArray)
+
+Wait until the operations on the stream that last used the memory of `A` have completed.
+"""
+synchronize(A::ROCArray) = synchronize(A.buf[])
+
+"""
+    enable_synchronization!(A::ROCArray, enable::Bool=true) -> A
+
+By default, using a `ROCArray` on another stream than the one that used it last (launching
+a kernel, copying, or taking its pointer) first synchronizes that stream from the host, so
+that operations on different streams are ordered. This may be unwanted when, e.g., disjoint
+parts of an array are processed concurrently on different streams. This function disables
+(`enable=false`) or re-enables this implicit synchronization. The memory is still recorded
+as used by the stream that uses it last.
+
+!!! warning
+
+    This affects all `ROCArray`s that refer to the same memory (e.g. views and reshapes).
+    While implicit synchronization is disabled, ordering operations on different streams,
+    and synchronizing before accessing the memory from the host or freeing it, is up to the
+    user: unsafe use results in data races. Re-enabling it does not wait for operations
+    that used the memory on other streams in the meantime.
+
+See also [`AMDGPU.synchronization_enabled`](@ref), [`AMDGPU.synchronize`](@ref).
+"""
+function enable_synchronization!(A::ROCArray, enable::Bool=true)
+    managed = A.buf[]
+    Base.@lock managed.lock managed.synchronizing = enable
+    return A
+end
+
+"""
+    synchronization_enabled(A::ROCArray) -> Bool
+
+Whether the implicit synchronization of the memory of `A` is enabled
+(see [`AMDGPU.enable_synchronization!`](@ref)).
+"""
+synchronization_enabled(A::ROCArray) = A.buf[].synchronizing
 
 buftype(x::ROCArray) = buftype(typeof(x))
 buftype(::Type{<:ROCArray{<:Any, <:Any, B}}) where B = B # TODO check `@isdefined`?
@@ -189,7 +244,17 @@ Base.similar(::ROCArray{<:Any, <:Any, B}, ::Type{T}, dims::Base.Dims{N}) where {
 Base.elsize(::Type{<:ROCArray{T}}) where {T} = aligned_sizeof(T)
 Base.size(x::ROCArray) = x.dims
 Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
-Base.dataids(A::ROCArray) = (UInt(pointer(A)),)
+
+## alias detection
+
+# GPUArrays implements `Base.dataids` and `Base.mightalias` from where an array lives. Not
+# using `pointer(x)`, which takes ownership of the memory for the current stream.
+function GPUArrays.memory_location(x::ROCArray)
+    mem = x.buf[].mem
+    return (UInt(mem isa Mem.HostBuffer ? mem.dev_ptr : mem.ptr), x.offset)
+end
+
+Base.unaliascopy(x::ROCArray) = copy(x)
 
 ## interop with Julia arrays
 
@@ -210,6 +275,25 @@ ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = copy(xs)
 
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
+## type tags of isbits-union arrays
+
+# Arrays of isbits unions (`Union{Int, Nothing}`, ...) store one selector byte per element
+# past the data, `maxsize` bytes into the memory, like `Array` does. The selector is the
+# zero-based index of the element's type in `Base.uniontypes(T)`.
+
+@static if VERSION >= v"1.11.0-DEV.753"
+function typetagdata(a::Array, i=1)
+    # for memory of isbits unions, the reference holds the offset of the data in elements
+    ptr_or_offset = Int(a.ref.ptr_or_offset)
+    @ccall(jl_genericmemory_typetagdata(a.ref.mem::Any)::Ptr{UInt8}) + ptr_or_offset + i - 1
+end
+else
+typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
+end
+
+# the (device-visible) address of the selector byte of element `i`
+typetagdata(a::ROCArray, i=1) = convert(Ptr{UInt8}, a.buf[]) + a.maxsize + i - 1
+
 ## memory operations
 
 function Base.copyto!(
@@ -221,7 +305,12 @@ function Base.copyto!(
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
     stm = stream()
-    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+    GC.@preserve dest source begin
+        Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+        if Base.isbitsunion(T)
+            Mem.memcpy!(typetagdata(dest, d_offset), typetagdata(source, s_offset), amount; stream=stm)
+        end
+    end
     async || synchronize(stm)
     return dest
 end
@@ -233,7 +322,13 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
+    stm = stream()
+    GC.@preserve dest source begin
+        Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+        if Base.isbitsunion(T)
+            Mem.memcpy!(typetagdata(dest, d_offset), typetagdata(source, s_offset), amount; stream=stm)
+        end
+    end
     return dest
 end
 
@@ -244,7 +339,13 @@ function Base.copyto!(
     amount == 0 && return dest
     @boundscheck checkbounds(dest, d_offset + amount - 1)
     @boundscheck checkbounds(source, s_offset + amount - 1)
-    Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stream())
+    stm = stream()
+    GC.@preserve dest source begin
+        Mem.memcpy!(pointer(dest, d_offset), pointer(source, s_offset), amount * aligned_sizeof(T); stream=stm)
+        if Base.isbitsunion(T)
+            Mem.memcpy!(typetagdata(dest, d_offset), typetagdata(source, s_offset), amount; stream=stm)
+        end
+    end
     return dest
 end
 
@@ -259,25 +360,53 @@ memset_type(::Type{T}) where T = aligned_sizeof(T) == 1 ? UInt8 :
     (aligned_sizeof(T) == 2 ? UInt16 : UInt32)
 
 function Base.fill!(A::ROCArray{T}, x) where T <: MemsetTypes
+    # memset can't write the selector bytes of unions of these types
+    Base.isbitsunion(T) && return invoke(fill!, Tuple{GPUArrays.AnyGPUArray, Any}, A, x)
     isempty(A) && return A
     U = memset_type(T)
     Mem.memset!(pointer(A), reinterpret(U, convert(T, x)), length(A); stream=stream())
     return A
 end
 
-function Base.copy(X::ROCArray{T}) where T
-    Xnew = ROCArray{T}(undef, size(X))
+function Base.copy(X::ROCArray)
+    # `similar` keeps the buffer type, so a copy of a host-memory array stays in host memory
+    Xnew = similar(X)
     copyto!(Xnew, 1, X, 1, length(X))
     return Xnew
 end
 
+"""
+    unsafe_wrap(ROCArray, ptr::Ptr{T}, dims; own=false)
+    unsafe_wrap(ROCArray, a::Array)
+
+Wrap a `ROCArray` around existing memory, without copying it. `ptr` can point to device
+memory or to host memory; host memory that is not yet page-locked is registered with
+`hipHostRegister` for as long as the wrapper exists, which can be slow.
+
+When wrapping an `Array`, the returned `ROCArray` keeps it alive. When wrapping a pointer,
+the caller has to keep the memory valid for as long as the `ROCArray` is used. If `own` is
+set, the memory is freed (or, for registered host memory, unregistered) when the
+`ROCArray` is freed, as soon as the device is done using it.
+
+Device operations execute asynchronously, so synchronize (e.g., using
+`AMDGPU.synchronize()`) before accessing wrapped host memory on the host.
+"""
 function Base.unsafe_wrap(
     ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
     own::Bool = false,
 ) where {T,N}
-    check_eltype("unsafe_wrap(CuArray, ...)", T)
+    return wrap_memory(ptr, dims, own)
+end
 
-    memtype = Mem.attributes(ptr).type
+# `owner` is kept alive for as long as the wrapper
+function wrap_memory(ptr::Ptr{T}, dims::NTuple{N, <:Integer}, own::Bool,
+                     owner = nothing) where {T,N}
+    check_eltype("unsafe_wrap(ROCArray, ...)", T)
+    # the selector bytes of such arrays live past the data, outside of the wrapped memory
+    Base.isbitsunion(T) && throw(ArgumentError(
+        "unsafe_wrap(ROCArray, ...) does not support isbits-union element types like $T"))
+
+    memtype = Mem.memory_type(Ptr{Cvoid}(ptr))
     B = if memtype == HIP.hipMemoryTypeUnregistered
         Mem.HostBuffer
     elseif memtype == HIP.hipMemoryTypeHost
@@ -289,9 +418,122 @@ function Base.unsafe_wrap(
     end
 
     sz = prod(dims) * aligned_sizeof(T)
-    buf = B(Ptr{Cvoid}(ptr), sz; own)
-    dref = DataRef(own ? pool_free : Returns(nothing), Managed(buf))
+    if B == Mem.HostBuffer && sz == 0
+        # registering an empty range is invalid
+        buf = Mem.HostBuffer()
+    else
+        buf = B(Ptr{Cvoid}(ptr), sz; own)
+    end
+    managed = Managed(buf)
+    finalize_buffer = if buf isa Mem.HostBuffer && buf.ptr != C_NULL &&
+                         (own || Mem.is_registered(buf.ptr))
+        # constructing the buffer registered the memory (or took another reference to an
+        # existing registration), which needs to be undone even if we don't own it
+        release_after_use(() -> release_host_memory(managed, own), owner)
+    elseif own
+        pool_free
+    elseif owner !== nothing
+        release_after_use(Returns(nothing), owner)
+    else
+        Returns(nothing)
+    end
+    dref = DataRef(finalize_buffer, managed)
     return ROCArray{T, N}(dref, dims)
+end
+
+# Returns a finalizer for the `Managed` memory of a wrapper, which calls `release` and lets
+# go of `owner` once the device is done with that memory.
+#
+# Waiting for the device is not possible from a finalizer: finalizers cannot yield, and
+# blocking could deadlock with a kernel waiting for the host to service a hostcall. Instead,
+# a host function launched on the stream that last used the memory signals an async
+# condition when the device reaches it, and the task waiting for that condition performs
+# the release. That task keeps `owner` alive, so if the condition can't be signalled, the
+# memory is leaked rather than released while it may still be in use. The task is not
+# affected by cancellation of the scope that wrapped the memory.
+function release_after_use(release, owner)
+    released = Threads.Atomic{Bool}(false)
+    release_once() = Threads.atomic_xchg!(released, true) || release()
+    done = Threads.Atomic{Bool}(false)
+    cond = Base.AsyncCondition() do cond
+        close(cond)
+        GC.@preserve owner release_once()
+        done[] = true
+    end
+    return managed -> release_when_done(managed, release_once, cond, done)
+end
+
+function release_when_done(managed::Managed, release, cond::Base.AsyncCondition,
+                           done::Threads.Atomic{Bool})
+    # if the stream has been handed to another task since it last used the memory, that
+    # work has finished, and the stream may now be used (or captured) by the other task
+    if !managed.dirty || recycled(managed)
+        GC.in_finalizer() || release()
+        ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
+        return
+    end
+    try
+        used = managed.stream
+        AMDGPU.context!(used.ctx) do
+            # a destroyed stream may still have work in flight. our streams are blocking,
+            # so the default stream waits for that work.
+            stream = HIP.isvalid(used) ? used : AMDGPU.default_stream()
+            if HIP.is_capturing(stream)
+                # a host function launched on a capturing stream would become part of the
+                # graph, so retry after the capture. finalizers can't switch tasks, but
+                # they can schedule them. note that this can't be checked atomically, so a
+                # capture started concurrently by another thread may still record it.
+                @async begin
+                    while AMDGPU.context!(() -> HIP.is_capturing(stream), stream.ctx)
+                        sleep(0.01)
+                    end
+                    release_when_done(managed, release, cond, done)
+                end
+            elseif !GC.in_finalizer() && HIP.query(stream) == HIP.hipSuccess
+                # freed explicitly after the device is done with the memory: release it now
+                release()
+                ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
+            else
+                # another stream may be capturing, which launching on this one doesn't affect
+                HIP.relaxed_capture_mode() do
+                    HIP.hipLaunchHostFunc(stream, cglobal(:uv_async_send), cond)
+                end
+                # when freed explicitly, wait for the release, so that the memory can be
+                # wrapped again right away
+                GC.in_finalizer() || wait_for_release(done, stream)
+            end
+        end
+    catch ex
+        Base.showerror_nostdio(ex, "WARNING: Error while releasing wrapped memory; leaking it")
+        Base.show_backtrace(Core.stdout, catch_backtrace())
+        Core.println()
+    end
+    return
+end
+
+function wait_for_release(done::Threads.Atomic{Bool}, stream::HIPStream)
+    while !done[]
+        # if the device fails, the host function never runs
+        HIP.isvalid(stream) || return
+        status = HIP.query(stream)
+        (status == HIP.hipSuccess || status == HIP.hipErrorNotReady) || return
+        sleep(0.001)
+    end
+    return
+end
+
+function release_host_memory(managed::Managed{Mem.HostBuffer}, own::Bool)
+    buf = managed.mem
+    try
+        if own
+            pool_free(managed)
+        else
+            AMDGPU.context!(() -> Mem.unregister(buf.ptr), buf.ctx)
+        end
+    catch ex
+        @error "Error while releasing $(Base.format_bytes(buf.bytesize)) of wrapped host memory" exception=(ex, catch_backtrace())
+    end
+    return
 end
 
 Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr, dim::Integer; own::Bool=false) =
@@ -300,17 +542,55 @@ Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr, dim::Integer; own::Bool=false) =
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims::NTuple{N, <:Integer}; kwargs...) where {T, N} =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
 
+# array input: keep the array alive for as long as the wrapper
+Base.unsafe_wrap(::Union{Type{ROCArray}, Type{ROCArray{T}}, Type{ROCArray{T, N}}},
+                 a::Array{T, N}) where {T, N} =
+    wrap_memory(pointer(a), size(a), false, a)
+
+"""
+    unsafe_wrap(Array, a::ROCArray)
+
+Wrap an `Array` around the memory of a `ROCArray`, without copying it. This is only
+possible for arrays backed by host memory, i.e., with buffer type `Mem.HostBuffer`.
+
+!!! warning
+
+    The returned `Array` does **not** keep the `ROCArray` alive. The caller has to keep a
+    reference to the `ROCArray` for as long as the `Array`, or anything derived from it,
+    is used; otherwise the `Array` may end up referring to freed memory. Device operations
+    execute asynchronously, so synchronize before accessing the returned array.
+"""
+function Base.unsafe_wrap(::Type{Array}, a::ROCArray{T, N, Mem.HostBuffer}) where {T, N}
+    # an `Array` keeps its selector bytes elsewhere than the `ROCArray` does
+    Base.isbitsunion(T) && throw(ArgumentError(
+        "unsafe_wrap(Array, ...) does not support isbits-union element types like $T"))
+    ptr = convert(Ptr{T}, a.buf[].mem.ptr) + a.offset
+    return unsafe_wrap(Array, ptr, size(a))
+end
+Base.unsafe_wrap(::Type{Array}, a::ROCArray) =
+    throw(ArgumentError("Can only wrap an Array around a ROCArray backed by host memory"))
+
 ## interop with CPU arrays
 
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
 
-Adapt.adapt_storage(::Type{ROCArray}, xs::AT) where {AT<:AbstractArray} =
-    isbitstype(AT) ? xs : convert(ROCArray, xs)
+# Type parameters that are specified are preserved, the others are taken from the source
+# array (or the default buffer type). Any subset can be given, e.g. `ROCArray{<:Any,<:Any,B}`.
+adapt_eltype(::Type{<:ROCArray{T}}, xs) where {T} = T
+adapt_eltype(::Type{<:ROCArray}, xs) = eltype(xs)
+adapt_ndims(::Type{<:ROCArray{<:Any,N}}, xs) where {N} = N
+adapt_ndims(::Type{<:ROCArray}, xs) = ndims(xs)
+adapt_buftype(::Type{<:ROCArray{<:Any,<:Any,B}}, xs) where {B} = B
+adapt_buftype(::Type{<:ROCArray}, xs) = xs isa ROCArray ? buftype(xs) : Mem.HIPBuffer
 
-# if an element type is specified, convert to it
-Adapt.adapt_storage(::Type{<:ROCArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
-    isbitstype(AT) ? xs : convert(ROCArray{T}, xs)
+function Adapt.adapt_storage(::Type{A}, xs::AT) where {A<:ROCArray,AT<:AbstractArray}
+    isbitstype(AT) && return xs
+    B = ROCArray{adapt_eltype(A, xs),adapt_ndims(A, xs),adapt_buftype(A, xs)}
+    # parameters taken from the source may violate bounds in `A`, e.g. `ROCArray{<:Real}`
+    B <: A || throw(ArgumentError("cannot adapt a $AT to $A"))
+    return convert(B, xs)
+end
 
 Adapt.adapt_storage(::Type{Array}, xs::ROCArray) = convert(Array, xs)
 
@@ -369,33 +649,40 @@ Resize `a` to contain `n` elements. If `n` is smaller than the current
 collection length, the first `n` elements will be retained. If `n` is larger,
 the new elements are not guaranteed to be initialized.
 
-Note that this operation is only supported on managed buffers, i.e., not on
-arrays that are created by `unsafe_wrap`.
+The new storage has the same buffer type as `a`, so an array in host memory
+(`Mem.HostBuffer`) stays in host memory. Resizing always allocates new memory,
+which detaches `a` from memory it was wrapped around with `unsafe_wrap`.
 """
-function Base.resize!(A::ROCVector{T}, n::Integer) where T
-    # TODO
-    #   1. Specialize ROCArray on storage type.
-    #   2. Check that it is not HostBuffer.
-    # if A.buf.host_ptr != C_NULL
-    #     throw(ArgumentError("Cannot resize an unowned `ROCVector`"))
-    # end
+function Base.resize!(A::ROCVector{T, B}, n::Integer) where {T, B}
     n == length(A) && return A
 
     maxsize = n * aligned_sizeof(T)
-    bufsize = Base.isbitsunion(T) ? (maxsize + n) : maxsize
-    new_buf = Mem.HIPBuffer(bufsize; stream=stream())
+    # arrays of isbits unions keep one selector byte per element past the data
+    bufsize = Base.isbitsunion(T) ? maxsize + n : maxsize
+    managed = pool_alloc(B, bufsize)
 
-    copy_size = min(length(A), n) * aligned_sizeof(T)
-    copy_size > 0 && Mem.memcpy!(new_buf, pointer(A), copy_size; stream=stream())
+    # copy the existing elements, and their selector bytes.
+    # `convert(Ptr, managed)` gives the device-visible pointer for host memory
+    m = min(length(A), n)
+    if m > 0
+        Mem.memcpy!(convert(Ptr{T}, managed), pointer(A), m * aligned_sizeof(T); stream=stream())
+        if Base.isbitsunion(T)
+            Mem.memcpy!(convert(Ptr{UInt8}, managed) + maxsize, typetagdata(A), m; stream=stream())
+        end
+    end
     unsafe_free!(A)
 
-    A.buf = DataRef(pool_free, Managed(new_buf))
+    A.buf = DataRef(pool_free, managed)
     A.dims = (n,)
     A.offset = 0
+    A.maxsize = maxsize
     return A
 end
 
 # @roc conversion
+
+# the device array addresses its selector bytes relative to its first element
+device_maxsize(a::ROCArray) = a.maxsize - a.offset
 
 function Base.convert(
     ::Type{ROCDeviceArray{T, N, AS.Global}}, a::ROCArray{T, N},
@@ -405,7 +692,7 @@ function Base.convert(
     ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ?
         buf : buf.dev_ptr)
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset)
-    ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr)
+    ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr, device_maxsize(a))
 end
 
 function Adapt.adapt_storage(to::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N}
@@ -414,5 +701,11 @@ function Adapt.adapt_storage(to::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N}
     buf = managed.mem
     ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ? buf : buf.dev_ptr)
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + x.offset)
-    return ROCDeviceArray{T, N, AS.Global}(x.dims, llvm_ptr)
+    return ROCDeviceArray{T, N, AS.Global}(x.dims, llvm_ptr, device_maxsize(x))
 end
+
+# CPU arrays would otherwise only be rejected by the compiler, with an error that dumps the
+# full argument type
+Adapt.adapt_storage(::Runtime.Adaptor, xs::Array) =
+    throw(ArgumentError("""cannot use a CPU array ($(typeof(xs))) in an AMDGPU kernel.
+                           Convert it to a GPU array first, e.g. using `ROCArray(x)`."""))

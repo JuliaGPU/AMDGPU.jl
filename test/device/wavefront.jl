@@ -137,6 +137,25 @@ end
     end
 end
 
+@testset "Wavefront Ballot" begin
+    # Lanes with an even id vote, so every other bit of the mask is set.
+    function ker_ballot!(x)
+        i = AMDGPU.Device.activelane()
+        x[i + 0x1] = AMDGPU.Device.ballot(i % 2 == 0)
+        return
+    end
+
+    ws = Int(AMDGPU.HIP.wavefrontsize(AMDGPU.device()))
+    x = ROCArray{UInt64}(undef, ws)
+    @roc groupsize=ws ker_ballot!(x)
+    @test all(==(0x5555555555555555 >> (64 - ws)), Array(x))
+
+    # Wave64 takes the other branch of `ballot` on wave32 GPUs.
+    x = ROCArray{UInt64}(undef, 64)
+    @roc groupsize=64 wavefrontsize64=true ker_ballot!(x)
+    @test all(==(0x5555555555555555), Array(x))
+end
+
 @testset "Wavefront Information" begin
     wavefrontsize = AMDGPU.HIP.wavefrontsize(AMDGPU.device())
     @test wavefrontsize == 32 || wavefrontsize == 64

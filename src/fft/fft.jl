@@ -27,6 +27,7 @@ const ROCFFT_INVERSE = false
 mutable struct cROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T, K, inplace}
     handle::rocfft_plan
     workarea::ROCVector{Int8}
+    ctx::HIPContext # context the plan was created in; used by `release_plan!`
     sz::NTuple{N, Int} # Julia size of input array
     osz::NTuple{N, Int} # Julia size of output array
     xtype::rocfft_transform_type
@@ -39,12 +40,12 @@ mutable struct cROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T, K, inplace}
     pinv::ScaledPlan
 
     function cROCFFTPlan{T,K,inplace,N,R,B}(
-        handle::rocfft_plan, workarea::ROCVector{Int8},
+        handle::rocfft_plan, workarea::ROCVector{Int8}, ctx::HIPContext,
         X::ROCArray{T,N}, sizey::Tuple,
         xtype::rocfft_transform_type, region::NTuple{R,Int},
         buffer::B, input_sz_as_key::Bool, key_T::Type,
     ) where {T,K,inplace,N,R,B}
-        p = new(handle, workarea, size(X), sizey, xtype, region, buffer, input_sz_as_key, key_T)
+        p = new(handle, workarea, ctx, size(X), sizey, xtype, region, buffer, input_sz_as_key, key_T)
         return finalizer(AMDGPU.unsafe_free!, p)
     end
 end
@@ -52,6 +53,7 @@ end
 mutable struct rROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T,K,inplace}
     handle::rocfft_plan
     workarea::ROCVector{Int8}
+    ctx::HIPContext # context the plan was created in; used by `release_plan!`
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
     xtype::rocfft_transform_type
@@ -64,11 +66,11 @@ mutable struct rROCFFTPlan{T,K,inplace,N,R,B} <: ROCFFTPlan{T,K,inplace}
     pinv::ScaledPlan
 
     function rROCFFTPlan{T,K,inplace,N,R,B}(
-        handle::rocfft_plan, workarea::ROCVector{Int8}, X::ROCArray{T,N},
+        handle::rocfft_plan, workarea::ROCVector{Int8}, ctx::HIPContext, X::ROCArray{T,N},
         sizey::Tuple, xtype::rocfft_transform_type, region::NTuple{R,Int},
         buffer::B, input_sz_as_key::Bool, key_T::Type,
     ) where {T,inplace,N,K,R,B}
-        p = new(handle, workarea, size(X), sizey, xtype, region, buffer, input_sz_as_key, key_T)
+        p = new(handle, workarea, ctx, size(X), sizey, xtype, region, buffer, input_sz_as_key, key_T)
         return finalizer(unsafe_free!, p)
     end
 end

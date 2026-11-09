@@ -32,6 +32,7 @@ Several behaviours are configured through [Preferences.jl](https://github.com/Ju
 | `eager_gc` | `AMDGPU.eager_gc!(::Bool)` | Trigger GC before allocations under memory pressure. See [Memory Allocation and Intrinsics](@ref). |
 | `hard_memory_limit` | `AMDGPU.hard_memory_limit!("8 GiB")` | Hard cap on GPU memory, checked before every allocation. |
 | `soft_memory_limit` | `AMDGPU.soft_memory_limit!("6 GiB")` | Advisory limit for the memory pool. |
+| `system_scope_fences` | `AMDGPU.system_scope_fences!(true)` | Write back the GPU cache after every kernel (default `"auto"`), needed on the integrated GPU of Ryzen 7000/9000 CPUs. See [FAQ](@ref). Takes effect after a restart. |
 
 The `version`, `local` and `arch` preferences belong to the `ROCm_Runtime` subpackage rather than to AMDGPU itself, so when editing `LocalPreferences.toml` by hand they go under a `[ROCm_Runtime]` section. They are compile-time preferences: changing one invalidates precompilation and takes effect after restarting Julia.
 

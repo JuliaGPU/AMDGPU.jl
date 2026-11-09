@@ -19,7 +19,59 @@ hero:
   image:
     src: /logo.png
     alt: AMDGPU.jl
+
+features:
+  # Icons are <symbol>s in components/FeatureIcons.vue, referenced by name
+  - icon: '<svg class="feature-icon"><use href="#icon-grid-3x3"/></svg>'
+    title: Arrays
+    details: 'Dense <code>ROCArray</code>, broadcasting, reductions, sorting'
+    link: /usage/arrays
+    linkText: Array Programming
+  - icon: '<svg class="feature-icon"><use href="#icon-cpu"/></svg>'
+    title: Kernels
+    details: 'Native <code>@roc</code> kernels and portable KernelAbstractions kernels'
+    link: /api/kernel_programming
+    linkText: Kernel Programming
+  - icon: '<svg class="feature-icon"><use href="#icon-network"/></svg>'
+    title: Multi-GPU
+    details: 'Task-local devices and streams'
+    link: /usage/multitasking
+    linkText: Tasks and Streams
+  - icon: '<svg class="feature-icon"><use href="#icon-sigma"/></svg>'
+    title: Linear algebra
+    details: '<code>*</code>, <code>\</code>, <code>cholesky</code>, <code>lu</code>, <code>qr</code> via rocBLAS and rocSOLVER'
+    link: /libraries/linalg
+    linkText: Linear Algebra
+  - icon: '<svg class="feature-icon"><use href="#icon-grip"/></svg>'
+    title: Sparse arrays
+    details: 'CSR, CSC and COO arrays, SpMV and SpMM via rocSPARSE'
+    link: /libraries/sparse
+    linkText: Sparse Arrays
+  - icon: '<svg class="feature-icon"><use href="#icon-audio-waveform"/></svg>'
+    title: FFT
+    details: '<code>fft</code> and <code>plan_fft</code> via rocFFT'
+    link: /libraries/fft
+    linkText: Fourier Transforms
+  - icon: '<svg class="feature-icon"><use href="#icon-dices"/></svg>'
+    title: Random numbers
+    details: '<code>rand</code> and <code>randn</code> via rocRAND'
+    link: /libraries/rand
+    linkText: Random Numbers
+  - icon: '<svg class="feature-icon"><use href="#icon-brain"/></svg>'
+    title: Deep learning
+    details: 'Convolutions, pooling and softmax via MIOpen, used by NNlib and Flux'
+    link: /libraries/dnn
+    linkText: Deep Learning (MIOpen)
+  - icon: '<svg class="feature-icon"><use href="#icon-cuboid"/></svg>'
+    title: Tensor operations
+    details: 'Contractions, permutations and reductions via hipTensor'
+    link: /libraries/tensor
+    linkText: Tensor Operations
 ---
+```
+
+```@raw html
+<FeatureIcons />
 ```
 
 ## Install
@@ -92,20 +144,6 @@ gridsize = cld(length(c), groupsize)
 
 @assert (a .+ b) ≈ c
 ```
-
-## Feature overview
-
-| Area | What you get | Learn more |
-|:--|:--|:--|
-| Arrays | Dense `ROCArray`, broadcasting, reductions, sorting | [Array Programming](usage/arrays.md) |
-| Kernels | Native `@roc` kernels and portable [KernelAbstractions](usage/kernelabstractions.md) | [Kernel Programming](api/kernel_programming.md) |
-| Multi-GPU | Task-local devices and streams | [Tasks and Streams](usage/multitasking.md) |
-| Linear algebra | `*`, `\`, `cholesky`, `lu`, `qr` via rocBLAS/rocSOLVER | [Linear Algebra](libraries/linalg.md) |
-| Sparse | CSR/CSC/COO arrays, SpMV/SpMM via rocSPARSE | [Sparse Arrays](libraries/sparse.md) |
-| FFT | `fft`/`plan_fft` via rocFFT | [Fourier Transforms](libraries/fft.md) |
-| Random | `rand`/`randn` via rocRAND | [Random Numbers](libraries/rand.md) |
-| Deep learning | Conv/pooling/softmax via MIOpen (NNlib/Flux) | [Deep Learning (MIOpen)](libraries/dnn.md) |
-| Tensor operations | contract/permute/reduce via hipTensor | [Tensor Operations](libraries/tensor.md) |
 
 ## Questions and Contributions
 

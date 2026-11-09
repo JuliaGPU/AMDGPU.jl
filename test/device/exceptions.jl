@@ -64,9 +64,27 @@ end
     @test occursin("global_atomic_cmpswap", asm2) || occursin("flat_atomic_cmpswap", asm2)
 end
 
+@testset "InexactError" begin
+    function inexact_kernel(X, Y)
+        X[1] = Int32(Y[1])
+        return
+    end
+
+    X = ROCArray(zeros(Int32, 1))
+    Y = ROCArray([typemax(Int64)])
+    @roc inexact_kernel(X, Y)
+    err = try
+        AMDGPU.synchronize()
+        nothing
+    catch err
+        err
+    end
+    @test err isa ErrorException
+    @test occursin("InexactError", err.msg)
+end
+
 if VERSION ≥ v"1.11-"
-    # FIXME: https://github.com/JuliaGPU/AMDGPU.jl/issues/808
-    # For now InexactError with just throw(nothing) and not log anything.
+    # reporting InexactError must not block constant folding in `reinterpret`
     @testset "Issue #808: InexactError failure" begin
         @inline function add!(a::MMatrix{NC,NC,Complex{T},NC2}) where {NC,NC2,T}
             ar = reinterpret(reshape, T, a)

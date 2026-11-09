@@ -15,33 +15,10 @@ const fntypes = Dict{Type,Symbol}(
     Float64 => :f64
 )
 
-import ExprTools
-
 macro device_override(ex)
-    ex = macroexpand(__module__, ex)
-    if VERSION >= v"1.12.0-DEV.745" || v"1.11-rc1" <= VERSION < v"1.12-"
-        esc(quote
-            Base.Experimental.@consistent_overlay(AMDGPU.method_table, $ex)
-        end)
-    else
-        esc(quote
-            Base.Experimental.@overlay(AMDGPU.method_table, $ex)
-        end)
-    end
+    esc(GPUToolbox.Overlays.device_override(__module__, GlobalRef(AMDGPU, :method_table), ex))
 end
 
 macro device_function(ex)
-    ex = macroexpand(__module__, ex)
-    def = ExprTools.splitdef(ex)
-    method_table = GlobalRef(AMDGPU, :method_table)
-
-    # generate a function that errors
-    def[:body] = quote
-        error("This function is not intended for use on the CPU")
-    end
-
-    esc(quote
-        Base.@__doc__ $(ExprTools.combinedef(def))
-        Base.Experimental.@overlay($method_table, $ex)
-    end)
+    esc(GPUToolbox.Overlays.device_function(__module__, GlobalRef(AMDGPU, :method_table), ex))
 end

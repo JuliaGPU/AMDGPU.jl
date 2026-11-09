@@ -5,7 +5,7 @@ mutable struct TaskLocalState
 end
 
 function TaskLocalState(
-    dev::HIPDevice = something(HIP.DEFAULT_DEVICE[], HIPDevice(1)),
+    dev::HIPDevice = default_device(),
     ctx::HIPContext = HIPContext(dev),
 )
     streams = Union{Nothing, HIPStream}[nothing for _ in 1:HIP.ndevices()]
@@ -46,13 +46,17 @@ device() = task_local_state!().device
 
 """
     device!(device::HIPDevice)
+    device!(f::Function, device::HIPDevice)
 
-Switch current device being used.
-This switches only for a task inside which it is called.
+Switch the calling task to `device`, and make it the [`default_device`](@ref),
+so that tasks which have not used AMDGPU yet start on it too. Use
+[`default_device!`](@ref) to change only the default.
+
+With `f`, switch the calling task to `device` only while `f` runs.
+This leaves the default device unchanged.
 """
 function device!(dev::HIPDevice)
-    # Set the new default device.
-    HIP.DEFAULT_DEVICE[] = dev
+    default_device!(dev)
 
     ctx = HIPContext(dev)
     state = task_local_state()
@@ -68,10 +72,31 @@ end
 
 device!(f::Function, dev::HIPDevice) = context!(f, HIPContext(dev))
 
+"""
+    default_device()::HIPDevice
+
+Device that a task starts on, the first time it uses AMDGPU.
+This is the first device, until changed with [`default_device!`](@ref)
+or [`device!`](@ref).
+"""
+default_device() = something(HIP.DEFAULT_DEVICE[], HIPDevice(1))
+
+"""
+    default_device!(device::HIPDevice)
+
+Make `device` the one that tasks start on, the first time they use AMDGPU.
+Unlike [`device!`](@ref), this does not switch the calling task, nor any
+other task that already uses AMDGPU.
+"""
+function default_device!(dev::HIPDevice)
+    HIP.DEFAULT_DEVICE[] = dev
+    return dev
+end
+
 function stream(state::TaskLocalState)::HIPStream
     i = device_id(state.device)
     if state.streams[i] ≡ nothing
-        state.streams[i] = HIPStream(:normal)
+        state.streams[i] = HIP.task_stream(:normal)
     else
         state.streams[i]
     end
@@ -82,6 +107,11 @@ end
 
 Get the HIP stream that should be used as the default one
 for the currently executing task.
+
+Each task gets its own stream, which may be handed to another task once the task has
+finished and all work on the stream has completed. If you need a stream that outlives the
+task, or that is never shared, create one with `HIPStream()` and activate it using
+[`AMDGPU.stream!`](@ref).
 """
 stream()::HIPStream = stream(task_local_state!())
 
@@ -107,43 +137,43 @@ execute `f` and revert to the original stream.
 Return value of the function `f`.
 """
 function stream!(f::Function, s::HIPStream)
-    old_s = stream()
+    state = task_local_state!()
+    idx = device_id(state.device)
+
+    old_s = state.stream
+    state.streams[idx] = s
     return try
         f()
     finally
-        stream!(old_s)
+        state.streams[idx] = old_s
     end
 end
 
 context() = task_local_state!().context
 
 function context!(ctx::HIPContext)
-    state = task_local_state()
-    if state ≡ nothing
-        old_ctx = nothing
+    # Start from the default state, so that `context!(f, ctx)` has a context
+    # to switch back to even on a task that had no state yet.
+    state = task_local_state!()
+    old_ctx = state.context
+    if old_ctx != ctx
         HIP.context!(ctx)
-        task_local_state!(HIP.device(), ctx)
-    else
-        old_ctx = state.context
-        if old_ctx != ctx
-            HIP.context!(ctx)
-            state.device = HIP.device()
-            state.context = ctx
-        end
+        state.device = HIP.device()
+        state.context = ctx
     end
     return old_ctx
 end
 
 function context!(f::Function, ctx::HIPContext)
-    if ctx.valid
-        old_ctx = context!(ctx)
-        return try
-            f()
-        finally
-            old_ctx ≢ nothing && old_ctx != ctx && context!(old_ctx)
-        end
-    else
-        @warn "CTX not valid"
+    # GC runs finalizers on whichever task it interrupts, so switch only the
+    # thread there and leave that task's state alone. `prepare_state` skips
+    # finalizers, so the switch holds for the calls inside `f`.
+    GC.in_finalizer() && return HIP.context!(f, ctx)
+    old_ctx = context!(ctx)
+    return try
+        f()
+    finally
+        old_ctx != ctx && context!(old_ctx)
     end
 end
 
@@ -159,14 +189,14 @@ function priority!(p::Symbol)
     state = task_local_state!()
     state.stream.priority == p && return p
 
-    state.streams[device_id(state.device)] = HIPStream(p)
+    state.streams[device_id(state.device)] = HIP.task_stream(p)
     return p
 end
 
 """
     priority!(f::Base.Callable, priority::Symbol)
 
-Chnage the priority of default stream, execute `f` and
+Change the priority of default stream, execute `f` and
 revert to the original priority.
 Accepted values are `:normal` (the default), `:low` and `:high`.
 
@@ -180,7 +210,7 @@ function priority!(f::Function, p::Symbol)
 
     old_s = state.stream
     swap = p != old_s.priority
-    swap && (state.streams[idx] = HIPStream(p);)
+    swap && (state.streams[idx] = HIP.task_stream(p);)
 
     return try
         f()
@@ -189,7 +219,11 @@ function priority!(f::Function, p::Symbol)
     end
 end
 
-@inline function prepare_state(state = task_local_state!())
+@inline function prepare_state(state = nothing)
+    # Finalizers run on whichever task GC interrupted and pick their own context
+    # with `context!(f, ctx)`, so leave that task's state and sticky error alone.
+    GC.in_finalizer() && return
+    isnothing(state) && (state = task_local_state!())
     HIP.clear_last_error() # Drain any sticky HIP error left by a prior kernel failure
     hip_ctx = Ref{HIP.hipCtx_t}()
     HIP.hipCtxGetCurrent(hip_ctx)

@@ -113,3 +113,22 @@ end
         @test Array(out) ≈ expected
     end
 end
+
+# https://github.com/JuliaGPU/AMDGPU.jl/issues/1113
+# StructurizeCFG miscompile in LLVM 22 (llvm/llvm-project#149744), fixed by
+# llvm/llvm-project#183792: `a` was hoisted out of the short-circuit branch and
+# every lane received `b`.
+
+function shortcircuit_select!(out, s, t, h, a, b)
+    i = workitemIdx().x
+    v = t == 1 ? i : t == 2 ? 2i : 3i
+    @inbounds out[i] = (s == 0 || v <= h) ? a : b
+    return
+end
+
+@testset "Short-circuit select of kernel arguments (#1113)" begin
+    out = AMDGPU.zeros(Int, 32)
+    @roc groupsize=32 shortcircuit_select!(out, 1, 1, 8, 1, -1)
+    AMDGPU.synchronize()
+    @test Array(out) == [fill(1, 8); fill(-1, 24)]
+end

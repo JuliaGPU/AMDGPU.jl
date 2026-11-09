@@ -6,6 +6,7 @@ using EnzymeCore: EnzymeRules
 using GPUCompiler
 
 include("meta_kernels.jl")
+include("array_rules.jl")
 
 function EnzymeCore.compiler_job_from_backend(
     ::ROCBackend, @nospecialize(F::Type), @nospecialize(TT::Type),

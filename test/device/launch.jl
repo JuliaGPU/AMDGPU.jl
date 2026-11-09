@@ -60,7 +60,44 @@ end
     AMDGPU.synchronize()
 end
 
+# https://github.com/JuliaGPU/AMDGPU.jl/issues/1002
+@testset "Int128 layout matches the host" begin
+    # a kernel argument with fields after an Int128
+    function kernel(out, s)
+        out[1] = s[1]
+        out[2] = s[2]
+        out[3] = s[3]
+        return
+    end
+    s = (Int32(-7), typemax(Int128) - 3, Int64(42))
+    out = ROCArray{Int128}(undef, 3)
+    @roc kernel(out, s)
+    @test Array(out) == [-7, typemax(Int128) - 3, 42]
+
+    # device memory holding such values, as laid out by the host
+    xs = [(Int32(i), Int128(i) << 70, Int64(-i)) for i in 1:4]
+    @test Array(map(x -> x[1] + x[2] + x[3], ROCArray(xs))) == map(x -> x[1] + x[2] + x[3], xs)
+end
+
+# a callable object used as a kernel
+struct StoreValue
+    val::Float64
+end
+function (f::StoreValue)(a)
+    a[1] = f.val
+    return
+end
+
 @testset "Function/Argument Conversion" begin
+    @testset "Callable object as kernel" begin
+        a_dev = ROCArray([1.0])
+        @roc StoreValue(2.0)(a_dev)
+        @test Array(a_dev) == [2.0]
+        # reuses the compiled kernel, with the new instance's state
+        @roc StoreValue(3.0)(a_dev)
+        @test Array(a_dev) == [3.0]
+    end
+
     @testset "Closure as Argument" begin
         function kernel(closure)
             closure()
@@ -74,6 +111,49 @@ end
         a_dev = ROCArray([1.0])
         outer(a_dev, 2.0)
         @test Array(a_dev) == [2.0]
+    end
+
+    @testset "CPU array argument" begin
+        kernel(a) = return
+        a = ROCArray([1f0])
+        b = [1f0]
+        for f in (() -> @roc(kernel(b)), () -> a .+ b)
+            err = try f(); nothing catch err; err end
+            @test err isa ArgumentError
+            @test occursin("ROCArray", sprint(showerror, err))
+        end
+    end
+end
+
+@testset "Many arguments" begin
+    # more arguments than Julia splats or maps over without falling back to dynamic calls
+    params = [Symbol(:x, i) for i in 1:40]
+    @eval function many_args_kernel(out, $(params...))
+        out[1] = $(foldl((a, b) -> :($a + $b), params))
+        return
+    end
+    @eval many_args_launch(out) = @roc many_args_kernel(out, $(1:40...))
+    @eval many_args_call(kernel, out) = kernel(out, $(1:40...); groupsize=1)
+
+    few_args_kernel(out, x) = (out[1] = x; return)
+    few_args_launch(out) = @roc few_args_kernel(out, 1)
+    few_args_call(kernel, out) = kernel(out, 1; groupsize=1)
+
+    out = ROCArray([0])
+    kernel = Base.invokelatest(many_args_launch, out)
+    @test Array(out)[1] == sum(1:40)
+    @test Base.invokelatest(many_args_call, kernel, out) === nothing
+    @test Array(out)[1] == sum(1:40)
+
+    # launching should not be much more expensive than with few arguments
+    # (Julia 1.11 and older allocate a little per argument)
+    Base.invokelatest() do
+        @inferred many_args_launch(out)
+        few_kernel = few_args_launch(out)
+        few_args_call(few_kernel, out)
+        @test @allocated(many_args_launch(out)) <= @allocated(few_args_launch(out)) + 40*32
+        @test @allocated(many_args_call(kernel, out)) <=
+              @allocated(few_args_call(few_kernel, out)) + 40*32
     end
 end
 
@@ -104,6 +184,15 @@ end
     @test haskey(occ, :groupsize) && haskey(occ, :gridsize)
     # This kernel has no occupancy constraints
     @test occ.groupsize == AMDGPU.Device._max_group_size
+
+    # the configuration without dynamic shared memory is cached, which must not change it
+    for kern in (kern, @roc launch=false maxthreads=256 f(x))
+        for max_block_size in (0, 1, 31, 32, 33, 100, 256, 257, 1000, 1024, 2048)
+            @test AMDGPU.HIP.launch_configuration(kern.fun; max_block_size) ==
+                  NamedTuple{(:gridsize, :groupsize)}(
+                      AMDGPU.HIP.query_launch_configuration(kern.fun, 0, max_block_size))
+        end
+    end
 
     # TODO
     # @testset "Automatic groupsize selection" begin
