@@ -26,9 +26,10 @@ include:
 
 # ROCm comes from the uenv ($ROCM_LOCAL == "true", via the merged ROCM_PATH below
 # and ROCm_Runtime_Discovery) or from the TheRock artifacts. ROCm_Runtime's "local"
-# preference decides, and gates artifact resolution too, so it must be set before
-# Pkg.instantiate(). Both variants set it explicitly and assert the result, so a
-# change of default cannot silently swap the ROCm underneath a job.
+# preference decides, and gates artifact resolution too: Pkg downloads the matching
+# bundle on the first package operation, so it is written before Julia starts.
+# Both variants set it explicitly and assert the result, so a change of default
+# cannot silently swap the ROCm underneath a job.
 #
 # The uenv provides the system ROCm (and MIOpen) and is mounted only where UENV
 # is set. The artifact variant runs on the bare node, without it: anything of the
@@ -58,15 +59,14 @@ include:
         done;
         export ROCM_PATH="$MERGED_ROCM";
       fi;
+      printf "[ROCm_Runtime]\nlocal = \"%s\"\n" "$ROCM_LOCAL" > LocalPreferences.toml;
       exec "$0" "$@"
     ' $JULIA --project -e '
       println("Instantiating project");
       using Pkg;
       Pkg.activate(pwd());
       Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")]);
-      using Preferences;
       want_local = ENV["ROCM_LOCAL"] == "true";
-      set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => string(want_local); force=true);
       Pkg.instantiate();
       using AMDGPU;
       AMDGPU.versioninfo();

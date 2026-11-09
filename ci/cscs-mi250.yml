@@ -26,8 +26,9 @@ include:
 
 # ROCm (and MIOpen) come from the uenv, through the merged ROCM_PATH below and
 # ROCm_Runtime_Discovery. ROCm_Runtime's "local" preference selects that, and
-# gates artifact resolution too, so it is set before Pkg.instantiate() and the
-# result asserted. See ci/cscs-mi300.yml, which also covers the artifacts.
+# gates artifact resolution too: Pkg downloads the matching bundle on the first
+# package operation, so it is written before Julia starts, and the result
+# asserted. See ci/cscs-mi300.yml, which also covers the artifacts.
 .unit_test_script: &unit_test_script
   - srun -n 1 --uenv $UENV --view=default bash -c '
       set -euo pipefail;
@@ -46,14 +47,13 @@ include:
         ln -s "$libdir"/libMIOpen* "$MERGED_ROCM/lib/" 2>/dev/null || true;
       done;
       export ROCM_PATH="$MERGED_ROCM";
+      printf "[ROCm_Runtime]\nlocal = \"true\"\n" > LocalPreferences.toml;
       exec "$0" "$@"
     ' $JULIA --project -e '
       println("Instantiating project");
       using Pkg;
       Pkg.activate(pwd());
       Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")]);
-      using Preferences;
-      set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "true"; force=true);
       Pkg.instantiate();
       using AMDGPU;
       AMDGPU.versioninfo();

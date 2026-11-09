@@ -8,10 +8,11 @@
 # AMDGPU.jl chooses between the ROCm_Runtime artifacts and a local ROCm through
 # ROCm_Runtime's "local" preference. Every GPU step writes that preference and
 # then asserts the provider it actually resolved to, so that a change of default
-# cannot silently swap the ROCm underneath a job. The artifacts are lazy, so
-# Pkg.instantiate/update download nothing; the pin only has to be in place
-# before AMDGPU is first loaded, which also covers the steps where the
-# julia-test plugin instantiates before the command below runs.
+# cannot silently swap the ROCm underneath a job. ROCm_Runtime's artifact
+# selection hook includes its lazy artifacts, so the first Pkg operation
+# downloads the bundle the preference selects; the julia-test plugin
+# instantiates before the command below writes the pin, which only works out
+# because its steps want the artifacts, the default.
 steps:
   - label: "Documentation"
     plugins:
