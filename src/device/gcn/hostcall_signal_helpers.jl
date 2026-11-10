@@ -21,7 +21,7 @@ end
     signal_handle::UInt64, value::Int64, order::Int32 = ATOMIC_RELEASE,
 )
     ccall("extern __ockl_hsa_signal_store", llvmcall,
-        Int64, (UInt64, Int64, Int32), signal_handle, value, order)
+        Cvoid, (UInt64, Int64, Int32), signal_handle, value, order)
 end
 
 @device_function @inline function device_signal_cas!(
