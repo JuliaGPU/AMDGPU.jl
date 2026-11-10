@@ -6,6 +6,7 @@ using ..GPUCompiler
 using ..LLVM, ..LLVM.IR, ..LLVM.Build, ..LLVM.Passes
 using Printf
 
+import GPUToolbox
 import GPUToolbox: @gcsafe_ccall
 
 import AMDGPU_LLVM_Backend_jll # used for linking; GPUCompiler uses the in-tree backend otherwise
