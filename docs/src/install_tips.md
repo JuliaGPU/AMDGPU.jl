@@ -2,42 +2,37 @@
 
 ## ROCm libraries
 
-By default, AMDGPU.jl ships the ROCm runtime (HIP and HSA) and the vendor
-libraries (rocBLAS, rocSPARSE, rocSOLVER, rocRAND, rocFFT, hipTENSOR, MIOpen) as lazy
-artifacts through the `ROCm_Runtime` subpackage, which downloads AMD's TheRock
-distribution tarball matching the GPUs detected on the host. `ld.lld` and the
-device bitcode libraries always come from `AMDGPU_LLVM_Backend_jll`; the bitcode
-is downgraded to the LLVM version of the running Julia with `LLVMDowngrader_jll`
-and cached in a scratch space. No system-wide ROCm installation is needed in this
-mode.
+By default, AMDGPU.jl downloads the ROCm runtime (HIP and HSA) and libraries (rocBLAS, rocSOLVER, rocSPARSE, rocFFT, rocRAND, MIOpen and hipTensor) as artifacts, taken from AMD's [TheRock](https://github.com/ROCm/TheRock) distribution for the GPUs detected on the host. No ROCm installation is needed, only the GPU driver. The kernel linker and the device libraries always come from `AMDGPU_LLVM_Backend_jll`; the device libraries are converted to the LLVM version of the running Julia on first use and cached in the depot.
 
-To use a local ROCm installation instead, set the `local` preference in the
-active project and restart Julia:
+To use a local ROCm installation instead, set the `local` preference and restart Julia:
 
 ```julia
 AMDGPU.set_rocm_version!(local_rocm=true)
 ```
 
-The library locations are then discovered through the `ROCm_Runtime_Discovery`
-package, as described below. Use `AMDGPU.reset_rocm_version!()` to go back to
-the default artifact-based setup.
+Its libraries are then found as described in [Local ROCm discovery](@ref). `AMDGPU.reset_rocm_version!()` goes back to the artifacts.
 
-### Selecting the provider without loading AMDGPU.jl
+### Selecting the provider before installing
 
-`local` is a compile-time preference, and it also gates whether the artifact is *resolved* at all, so in CI or in a fresh depot it has to be set before `Pkg.instantiate()` rather than through `AMDGPU.set_rocm_version!` (which needs AMDGPU.jl loaded first). Write it directly against `ROCm_Runtime`'s UUID:
+Pkg reads the `local` preference when it installs the artifacts, so in CI or a fresh depot set it before `Pkg.instantiate()` to avoid downloading a bundle that will not be used. `AMDGPU.set_rocm_version!` needs AMDGPU.jl to be installed, so write the preference by hand instead, under `[ROCm_Runtime]` in the project's `LocalPreferences.toml` (see [Preferences](@ref)):
 
-```julia
-using Preferences
-set_preferences!(Base.UUID("3129f4d2-de71-4ff3-9833-76037e3ea355"), "local" => "true"; force=true)
+```toml
+[ROCm_Runtime]
+local = true
 ```
 
-`AMDGPU.local_rocm` reports which provider was actually selected. Asserting on it is worthwhile in CI, so that a change of default cannot silently swap the ROCm underneath a job.
+Unless `ROCm_Runtime` is a direct dependency, Julia only reads this section when the project's `Project.toml` lists the package (`AMDGPU.set_rocm_version!` adds this entry itself):
+
+```toml
+[extras]
+ROCm_Runtime = "3129f4d2-de71-4ff3-9833-76037e3ea355"
+```
+
+`AMDGPU.local_rocm` tells which provider was selected. Asserting on it in CI keeps a change of default from silently switching the ROCm a job tests.
 
 ### When no artifact matches
 
-The artifact is chosen from the GPU architectures detected on the host, which on Linux are read from the `/sys/class/kfd/kfd/topology` nodes. If nothing is detected — a container without KFD passthrough, a login node, or a host where the `amdgpu` driver is not loaded — or if the detected architecture is not one of the shipped bundles, then no artifact is downloaded and AMDGPU.jl reports its ROCm components as unavailable.
-
-There is no fallback path: the provider is decided when AMDGPU.jl is loaded, so an existing system-wide ROCm is only picked up after explicitly opting in with the `local` preference above.
+The bundle is chosen from the GPU architectures detected on the host, which on Linux are read from `/sys/class/kfd/kfd/topology`. If none is detected (in a container without `/dev/kfd`, on a login node, or when the `amdgpu` driver is not loaded), or no bundle supports it, nothing is downloaded, and AMDGPU.jl warns and reports its ROCm components as unavailable. It does not fall back to a ROCm installed on the system; that one is only used with the `local` preference.
 
 The bundles currently shipped are:
 
@@ -57,15 +52,15 @@ end
 Markdown.parse(join(vcat("| Bundle | Platforms | ROCm |", "|:--|:--|:--|", rows), "\n"))
 ```
 
-To pin the architecture when detection is not possible, for example when preparing a depot on a CPU-only build machine, pass `arch` a `gfx` target or a collection of them:
+When the architecture cannot be detected, for example when preparing a depot on a machine without a GPU, select the bundle with the `arch` preference, a `gfx` target or a collection of them:
 
 ```julia
 AMDGPU.set_rocm_version!(arch="gfx942")
 ```
 
-As with `local`, this writes the `arch` preference of `ROCm_Runtime`, so it can equally be set with `set_preferences!` before AMDGPU.jl is loaded.
+Like `local`, it can also be written to `LocalPreferences.toml` before AMDGPU.jl is installed.
 
-The `version` preference selects which ROCm distribution the bundle is taken from, by default the newest one listed above.
+The `version` preference selects the ROCm release the bundle is taken from, by default the newest one listed above.
 
 ## Local ROCm discovery
 
@@ -91,11 +86,15 @@ Starting with ROCm 7.14, libraries are installed under a versioned `core-<versio
 
 ## GPU selection and architecture overrides
 
-These apply in both provider modes, because they are read by the HSA and HIP runtimes themselves rather than by AMDGPU.jl.
+These also apply with the artifacts, as they are read by the ROCm runtime itself.
 
-Depending on your GPU model and the functionality you want to use, you may have to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION` variable to a compatible version.
+Depending on your GPU model and the functionality you want to use, you may have
+to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION`
+variable to a compatible version.
 
-You may also have more than one type of GPU, for example a dedicated AMD GPU and an integrated one. In that case use `AMDGPU.devices()` to find which device they are and set `HIP_VISIBLE_DEVICES` to the specific device you want to use. Otherwise the runtime may crash if it sees two different architectures.
+You may also have more than one type of GPU, for example a dedicated AMD GPU and an integrated one.
+In that case use `AMDGPU.devices()` to find which device they are and set `HIP_VISIBLE_DEVICES` to the specific device you want to use.
+Otherwise the runtime may crash if it sees two different architectures.
 
 ## Extra Setup Details
 
@@ -150,6 +149,7 @@ AMDGPU.jl supports setting
 
 ```toml
 [ROCm_Runtime]
+# Only read when `ROCm_Runtime` is in the `[extras]` of Project.toml (see above).
 # Use a local ROCm installation instead of the downloaded artifacts (default is "false").
 local = "false"
 # ROCm distribution to download (default is the newest one shipped), and the GPU
