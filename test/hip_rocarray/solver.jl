@@ -207,6 +207,74 @@ end
     end
 end
 
+# the blocked application of the reflectors (used for very tall matrices), compared against
+# LAPACK for arbitrary reflectors, including some with τ = 0
+@testset "blocked ormqr! and orgqr! elty = $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+    trans_types = elty <: Real ? ('N', 'T', 'C') : ('N', 'C')
+    @testset "size = $((r, c))" for (r, c) in ((m, n), (n, m), (n, n))
+        k = min(r, c)
+        A = rand(elty, r, c)
+        τ = rand(elty, k)
+        τ[[1, k ÷ 2]] .= 0
+        dA, dτ = ROCArray(A), ROCArray(τ)
+        @testset "blocksize = $blocksize" for blocksize in (1, 3, 64)
+            @testset "trans = $trans" for trans in trans_types
+                # LAPACK only accepts 'C' for complex matrices
+                ref_trans = elty <: Real && trans == 'C' ? 'T' : trans
+
+                B = rand(elty, r, 4)
+                dB = ROCArray(B)
+                rocSOLVER.ormqr!('L', trans, dA, dτ, dB; blocksize)
+                @test Array(dB) ≈ LAPACK.ormqr!('L', ref_trans, copy(A), τ, copy(B))
+
+                B = rand(elty, 4, r)
+                dB = ROCArray(B)
+                rocSOLVER.ormqr!('R', trans, dA, dτ, dB; blocksize)
+                @test Array(dB) ≈ LAPACK.ormqr!('R', ref_trans, copy(A), τ, copy(B))
+
+                b = rand(elty, r)
+                db = ROCArray(b)
+                rocSOLVER.ormqr!('L', trans, dA, dτ, db; blocksize)
+                @test Array(db) ≈ LAPACK.ormqr!('L', ref_trans, copy(A), τ, copy(b))
+
+                db = ROCArray([b; 0])
+                rocSOLVER.ormqr!('L', trans, dA, dτ, view(db, 1:1:r); blocksize)
+                @test Array(db)[1:r] ≈ LAPACK.ormqr!('L', ref_trans, copy(A), τ, copy(b))
+            end
+
+            # rocSOLVER.orgqr! needs at most as many columns as rows
+            Q = LAPACK.orgqr!(copy(A), τ)[:, 1:k]
+            @test Array(rocSOLVER.orgqr!(dA[:, 1:k], dτ; blocksize)) ≈ Q
+            # fewer reflectors than columns of Q
+            @test Array(rocSOLVER.orgqr!(dA[:, 1:k], dτ[1:k-2]; blocksize)) ≈
+                  LAPACK.orgqr!(copy(A), τ[1:k-2])[:, 1:k]
+        end
+    end
+
+    # strided inputs and outputs
+    A = rand(elty, m + 2, n + 1)
+    τ = rand(elty, n)
+    dA, dτ = ROCArray(A), ROCArray(τ)
+    B = rand(elty, m + 3, 5)
+    dB = ROCArray(B)
+    rocSOLVER.ormqr!('L', 'N', view(dA, 2:m+1, 2:n+1), dτ, view(dB, 2:m+1, 2:4); blocksize=3)
+    B[2:m+1, 2:4] = LAPACK.ormqr!('L', 'N', A[2:m+1, 2:n+1], τ, B[2:m+1, 2:4])
+    @test Array(dB) ≈ B
+    rocSOLVER.orgqr!(view(dA, 2:m+1, 2:n+1), dτ; blocksize=3)
+    A[2:m+1, 2:n+1] = LAPACK.orgqr!(A[2:m+1, 2:n+1], τ)
+    @test Array(dA) ≈ A
+
+    # tall matrices take the blocked path by default
+    if elty == Float32
+        F, τ = rocSOLVER.geqrf!(ROCArray(rand(elty, 2^15, 4)))
+        hF, hτ = Array(F), Array(τ)
+        @test Array(rocSOLVER.orgqr!(copy(F), τ)) ≈ LAPACK.orgqr!(copy(hF), hτ)
+        C = rand(elty, 2^15, 2)
+        @test Array(rocSOLVER.ormqr!('L', 'T', F, τ, ROCArray(C))) ≈
+              LAPACK.ormqr!('L', 'T', hF, hτ, copy(C))
+    end
+end
+
 @testset "potrf! -- potrs!" begin
     @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A    = rand(elty,n,n)

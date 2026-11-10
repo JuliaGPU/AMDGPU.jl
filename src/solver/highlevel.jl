@@ -96,6 +96,163 @@ for (fname, elty) in (
     end
 end
 
+# Blocked Householder (compact WY) application of Q
+#
+# Applies the reflectors from geqrf a panel at a time using only rocBLAS GEMM, TRMM and
+# TRSM. Scratch space is O(nb * width), so it does not grow with the number of rows of A.
+const HOUSEHOLDER_BLOCKSIZE = 128
+
+# whether to prefer the blocked implementation even when rocSOLVER could accept the problem.
+prefer_blocked(m, k) = m >= max(2^15, 8k)
+
+# compute R for the panel V with reflector coefficients τ.
+function householder_ut!(R, V1, V, tau)
+    T = eltype(V)
+    mv, jb = size(V)
+    transv = T <: Real ? 'T' : 'C'
+    V1 .= ifelse.((1:jb) .> (1:jb)', view(V, 1:jb, :), ifelse.((1:jb) .== (1:jb)', one(T), zero(T)))
+    rocBLAS.gemm!(transv, 'N', one(T), V1, V1, zero(T), R)
+    if mv > jb
+        V2 = view(V, (jb+1):mv, :)
+        rocBLAS.gemm!(transv, 'N', one(T), V2, V2, one(T), R)
+    end
+    R .= tau .* R
+end
+
+function householder_t!(side, adj, R, tau, W)
+    T = eltype(W)
+    transr = T <: Real ? 'T' : 'C'
+    if side == 'L'
+        if adj
+            rocBLAS.trsm!('L', 'U', transr, 'U', one(T), R, W)
+            W .= conj.(tau) .* W
+        else
+            W .= tau .* W
+            rocBLAS.trsm!('L', 'U', 'N', 'U', one(T), R, W)
+        end
+    else
+        if adj
+            W .= W .* adjoint(tau)
+            rocBLAS.trsm!('R', 'U', transr, 'U', one(T), R, W)
+        else
+            rocBLAS.trsm!('R', 'U', 'N', 'U', one(T), R, W)
+            W .= W .* transpose(tau)
+        end
+    end
+    W
+end
+
+# apply H = I - V T Vᴴ, or Hᴴ, to C from the left or the right, similar to LAPACK's larfb.
+function apply_block_reflector!(side, adj, V, R, tau, C, W)
+    T = eltype(C)
+    mv, jb = size(V)
+    transv = T <: Real ? 'T' : 'C'
+    V1 = view(V, 1:jb, :)
+    V2 = view(V, (jb+1):mv, :)
+    if side == 'L'
+        C1 = view(C, 1:jb, :)
+        C2 = view(C, (jb+1):mv, :)
+        rocBLAS.trmm!('L', 'L', transv, 'U', one(T), V1, C1, W)      # W = Vᴴ C
+        mv > jb && rocBLAS.gemm!(transv, 'N', one(T), V2, C2, one(T), W)
+        householder_t!('L', adj, R, tau, W)                         # W = op(T) W
+        mv > jb && rocBLAS.gemm!('N', 'N', -one(T), V2, W, one(T), C2)
+        rocBLAS.trmm!('L', 'L', 'N', 'U', one(T), V1, W, W)          # C -= V W
+        C1 .-= W
+    else
+        C1 = view(C, :, 1:jb)
+        C2 = view(C, :, (jb+1):mv)
+        rocBLAS.trmm!('R', 'L', 'N', 'U', one(T), V1, C1, W)         # W = C V
+        mv > jb && rocBLAS.gemm!('N', 'N', one(T), C2, V2, one(T), W)
+        householder_t!('R', adj, R, tau, W)                         # W = W op(T)
+        mv > jb && rocBLAS.gemm!('N', transv, -one(T), W, V2, one(T), C2)
+        rocBLAS.trmm!('R', 'L', transv, 'U', one(T), V1, W, W)       # C -= W Vᴴ
+        C1 .-= W
+    end
+    C
+end
+
+function ormqr_blocked!(side::Char, trans::Char, A::StridedROCMatrix{T},
+                        tau::StridedROCVector{T}, C::StridedROCVecOrMat{T},
+                        nb::Integer) where {T}
+    mA = size(A, 1)
+    k = length(tau)
+    k == 0 && return C
+    if C isa AbstractVector && !(C isa ROCVector)
+        c = copy(C)
+        ormqr_blocked!(side, trans, A, tau, c, nb)
+        copyto!(C, c)
+        AMDGPU.unsafe_free!(c)
+        return C
+    end
+    Cm = C isa AbstractVector ? reshape(C, length(C), 1) : C
+    nb = min(nb, k)
+    R = similar(A, nb, nb)
+    V1 = similar(A, nb, nb)
+    W = side == 'L' ? similar(A, nb, size(Cm, 2)) : similar(A, size(Cm, 1), nb)
+    try
+        forward = (side == 'L') != (trans == 'N')
+        for j in (forward ? (0:nb:k-1) : reverse(0:nb:k-1))
+            jb = min(nb, k - j)
+            V = view(A, (j+1):mA, (j+1):(j+jb))
+            tauj = view(tau, (j+1):(j+jb))
+            Rj = view(R, 1:jb, 1:jb)
+            householder_ut!(Rj, view(V1, 1:jb, 1:jb), V, tauj)
+            Cj = side == 'L' ? view(Cm, (j+1):mA, :) : view(Cm, :, (j+1):mA)
+            Wj = side == 'L' ? view(W, 1:jb, :) : view(W, :, 1:jb)
+            apply_block_reflector!(side, trans != 'N', V, Rj, tauj, Cj, Wj)
+        end
+    finally
+        AMDGPU.unsafe_free!(R)
+        AMDGPU.unsafe_free!(V1)
+        AMDGPU.unsafe_free!(W)
+    end
+    C
+end
+
+# overwrite A[:, 1:n] with the first n columns of Q, back to front as LAPACK's orgqr does
+function orgqr_blocked!(A::StridedROCMatrix{T}, tau::StridedROCVector{T}, n::Integer,
+                        nb::Integer) where {T}
+    m = size(A, 1)
+    k = length(tau)
+    if k < n
+        view(A, :, (k+1):n) .= ifelse.((1:m) .== ((k+1):n)', one(T), zero(T))
+    end
+    k == 0 && return A
+    nb = min(nb, k)
+    R = similar(A, nb, nb)
+    V1 = similar(A, nb, nb)
+    Y = similar(A, nb, nb)
+    W = similar(A, nb, n)
+    try
+        for j in reverse(0:nb:k-1)
+            jb = min(nb, k - j)
+            V = view(A, (j+1):m, (j+1):(j+jb))
+            tauj = view(tau, (j+1):(j+jb))
+            Rj = view(R, 1:jb, 1:jb)
+            V1j = view(V1, 1:jb, 1:jb)
+            householder_ut!(Rj, V1j, V, tauj)
+
+            if j + jb < n
+                apply_block_reflector!('L', false, V, Rj, tauj, view(A, (j+1):m, (j+jb+1):n),
+                                       view(W, 1:jb, 1:(n-j-jb)))
+            end
+            Yj = view(Y, 1:jb, 1:jb)
+            Yj .= adjoint(V1j)
+            householder_t!('L', false, Rj, tauj, Yj)
+            copyto!(view(V, 1:jb, :), V1j)
+            rocBLAS.trmm!('R', 'U', 'N', 'N', -one(T), Yj, V, V)
+            view(V, 1:jb, :) .+= ifelse.((1:jb) .== (1:jb)', one(T), zero(T))
+            fill!(view(A, 1:j, (j+1):(j+jb)), zero(T))
+        end
+    finally
+        AMDGPU.unsafe_free!(R)
+        AMDGPU.unsafe_free!(V1)
+        AMDGPU.unsafe_free!(Y)
+        AMDGPU.unsafe_free!(W)
+    end
+    A
+end
+
 for (fname, elty) in (
     (:rocsolver_sormqr, :Float32),
     (:rocsolver_dormqr, :Float64),
@@ -105,7 +262,8 @@ for (fname, elty) in (
     @eval begin
         function ormqr!(
             side::Char, trans::Char, A::StridedROCMatrix{$elty},
-            τ::ROCVector{$elty}, C::StridedROCVecOrMat{$elty},
+            τ::ROCVector{$elty}, C::StridedROCVecOrMat{$elty};
+            blocksize::Union{Nothing, Integer} = nothing,
         )
             $elty <: Complex && trans == 'T' && throw(ArgumentError(
                 "rocSOLVER.ormqr! supports only 'N' or 'C' for Complex types, " *
@@ -131,6 +289,12 @@ for (fname, elty) in (
 
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
+            if blocksize === nothing && prefer_blocked(mA, k)
+                blocksize = HOUSEHOLDER_BLOCKSIZE
+            end
+            if blocksize !== nothing
+                return ormqr_blocked!(side, trans, A, τ, C, blocksize)
+            end
             $fname(rocBLAS.handle(), side, trans, m, n, k, A, lda, τ, C, ldc)
             return C
         end
@@ -144,10 +308,23 @@ for (fname, elty) in (
     (:rocsolver_zungqr, :ComplexF64),
 )
     @eval begin
-        function orgqr!(A::StridedROCMatrix{$elty}, tau::ROCVector{$elty})
+        function orgqr!(
+            A::StridedROCMatrix{$elty}, tau::ROCVector{$elty};
+            blocksize::Union{Nothing, Integer} = nothing,
+        )
             m, n = size(A)
             lda = max(1, stride(A, 2))
             k = length(tau)
+            n > m && throw(DimensionMismatch(
+                "A has more columns ($n) than rows ($m)"))
+            k > n && throw(DimensionMismatch(
+                "invalid number of reflectors: k = $k should be <= n = $n"))
+            if blocksize === nothing && prefer_blocked(m, k)
+                blocksize = HOUSEHOLDER_BLOCKSIZE
+            end
+            if blocksize !== nothing
+                return orgqr_blocked!(A, tau, n, blocksize)
+            end
             $fname(rocBLAS.handle(), m, n, k, A, lda, tau)
             A
         end
