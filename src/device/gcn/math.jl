@@ -105,7 +105,8 @@ end
     y == 1 && return x
     y == 2 && return x * x
     y == 3 && return x * x * x
-    x ^ Float32(y)
+    r = abs(x) ^ Float32(y)
+    ifelse(isodd(y), copysign(r, x), r)
 end
 
 @device_override @inline function Base.:(^)(x::Float64, y::Int64)
