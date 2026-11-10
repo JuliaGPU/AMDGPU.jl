@@ -280,25 +280,25 @@ for (fname, elty) in ((:rocblas_dgemv,:Float64),
                       (:rocblas_cgemv,:ComplexF32))
     @eval begin
         function gemv!(
-            trans::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, X::ROCVector{$elty},
-            beta::Scalar{$elty}, Y::ROCVector{$elty},
+            trans::Char, alpha::Scalar{$elty}, A::StridedROCMatrix{$elty}, X::StridedROCVector{$elty},
+            beta::Scalar{$elty}, Y::StridedROCVector{$elty},
         )
             m,n = size(A)
             # check dimensions
             length(X) == (trans == 'N' ? n : m) && length(Y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
             # compute increments
-            lda = max(1,stride(A,2))
-            incx, incy = stride(X,1), stride(Y,1)
+            lda = leading_dim(A)
+            incx, incy = vector_inc(X), vector_inc(Y)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha, beta) do alpha, beta
                 $(fname)(handle, trans, m, n, alpha, A, lda, X, incx, beta, Y, incy)
             end
             Y
         end
-        function gemv(trans::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, X::ROCVector{$elty})
+        function gemv(trans::Char, alpha::Scalar{$elty}, A::StridedROCMatrix{$elty}, X::StridedROCVector{$elty})
             gemv!(trans, alpha, A, X, zero($elty), similar(X, $elty, size(A, (trans == 'N' ? 1 : 2))))
         end
-        function gemv(trans::Char, A::ROCMatrix{$elty}, X::ROCVector{$elty})
+        function gemv(trans::Char, A::StridedROCMatrix{$elty}, X::StridedROCVector{$elty})
             gemv!(trans, one($elty), A, X, zero($elty), similar(X, $elty, size(A, (trans == 'N' ? 1 : 2))))
         end
     end
@@ -352,24 +352,24 @@ for (fname, elty) in ((:rocblas_dsymv,:Float64),
     # Note that the complex symv are not BLAS but auiliary functions in LAPACK
     @eval begin
         function symv!(
-            uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, x::ROCVector{$elty},
-            beta::Scalar{$elty}, y::ROCVector{$elty},
+            uplo::Char, alpha::Scalar{$elty}, A::StridedROCMatrix{$elty}, x::StridedROCVector{$elty},
+            beta::Scalar{$elty}, y::StridedROCVector{$elty},
         )
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if m != length(x) || m != length(y) throw(DimensionMismatch("")) end
-            lda = max(1, stride(A, 2))
-            incx, incy = stride(x, 1), stride(y,1)
+            lda = leading_dim(A)
+            incx, incy = vector_inc(x), vector_inc(y)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha, beta) do alpha, beta
                 $(fname)(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
             end
             y
         end
-        function symv(uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, x::ROCVector{$elty})
+        function symv(uplo::Char, alpha::Scalar{$elty}, A::StridedROCMatrix{$elty}, x::StridedROCVector{$elty})
                 symv!(uplo, alpha, A, x, zero($elty), similar(x))
         end
-        function symv(uplo::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
+        function symv(uplo::Char, A::StridedROCMatrix{$elty}, x::StridedROCVector{$elty})
             symv(uplo, one($elty), A, x)
         end
     end
@@ -381,27 +381,27 @@ for (fname, elty) in ((:rocblas_zhemv,:ComplexF64),
                       (:rocblas_chemv,:ComplexF32))
     @eval begin
         function hemv!(
-            uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, x::ROCVector{$elty},
-            beta::Scalar{$elty}, y::ROCVector{$elty},
+            uplo::Char, alpha::Scalar{$elty}, A::StridedROCMatrix{$elty}, x::StridedROCVector{$elty},
+            beta::Scalar{$elty}, y::StridedROCVector{$elty},
         )
             # TODO: fix dimension check bug in julia
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if m != length(x) || m != length(y) throw(DimensionMismatch("")) end
-            lda = max(1, stride(A, 2))
-            incx, incy = stride(x, 1), stride(y, 1)
+            lda = leading_dim(A)
+            incx, incy = vector_inc(x), vector_inc(y)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha, beta) do alpha, beta
                 $(fname)(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
             end
             y
         end
-        function hemv(uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty},
-                      x::ROCVector{$elty})
+        function hemv(uplo::Char, alpha::Scalar{$elty}, A::StridedROCMatrix{$elty},
+                      x::StridedROCVector{$elty})
             hemv!(uplo, alpha, A, x, zero($elty), similar(x))
         end
-        function hemv(uplo::Char, A::ROCMatrix{$elty},
-                      x::ROCVector{$elty})
+        function hemv(uplo::Char, A::StridedROCMatrix{$elty},
+                      x::StridedROCVector{$elty})
             hemv(uplo, one($elty), A, x)
         end
     end
@@ -539,20 +539,20 @@ for (fname, elty) in ((:rocblas_dtrmv,:Float64),
                       (:rocblas_ctrmv,:ComplexF32))
     @eval begin
         function trmv!(
-            uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty},
+            uplo::Char, trans::Char, diag::Char, A::StridedROCMatrix{$elty}, x::StridedROCVector{$elty},
         )
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if n != length(x)
                 throw(DimensionMismatch("length(x)=$(length(x)) does not match size(A)=$(size(A))"))
             end
-            lda = max(1,stride(A,2))
-            incx = stride(x,1)
+            lda = leading_dim(A)
+            incx = vector_inc(x)
             (; handle, stream) = lib_state()
             $(fname)(handle, uplo, trans, diag, n, A, lda, x, incx)
             x
         end
-        function trmv(uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
+        function trmv(uplo::Char, trans::Char, diag::Char, A::StridedROCMatrix{$elty}, x::StridedROCVector{$elty})
             trmv!(uplo, trans, diag, A, copy(x))
         end
     end
@@ -564,19 +564,19 @@ for (fname, elty) in ((:rocblas_dtrsv,:Float64),
                       (:rocblas_ztrsv,:ComplexF64),
                       (:rocblas_ctrsv,:ComplexF32))
     @eval begin
-        function trsv!(uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
+        function trsv!(uplo::Char, trans::Char, diag::Char, A::StridedROCMatrix{$elty}, x::StridedROCVector{$elty})
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if n != length(x)
                 throw(DimensionMismatch("length(x)=$(length(x)) does not match size(A)=$(size(A))"))
             end
-            lda = max(1,stride(A,2))
-            incx = stride(x,1)
+            lda = leading_dim(A)
+            incx = vector_inc(x)
             (; handle, stream) = lib_state()
             $(fname)(handle, uplo, trans, diag, n, A, lda, x, incx)
             x
         end
-        function trsv(uplo::Char, trans::Char, diag::Char, A::ROCMatrix{$elty}, x::ROCVector{$elty})
+        function trsv(uplo::Char, trans::Char, diag::Char, A::StridedROCMatrix{$elty}, x::StridedROCVector{$elty})
             trsv!(uplo, trans, diag, A, copy(x))
         end
     end
@@ -691,9 +691,9 @@ for (fname, elty) in (
                 throw(DimensionMismatch(""))
             end
 
-            lda = max(1, stride(A, 2))
-            ldb = max(1, stride(B, 2))
-            ldc = max(1, stride(C, 2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha, beta) do alpha, beta
                 $(fname)(handle, transA, transB,
@@ -941,9 +941,9 @@ function gemm_ex!(
         throw(DimensionMismatch(""))
     end
 
-    lda = max(1, stride(A, 2))
-    ldb = max(1, stride(B, 2))
-    ldc = max(1, stride(C, 2))
+    lda = leading_dim(A)
+    ldb = leading_dim(B)
+    ldc = leading_dim(C)
     α = gemmex_scalar(compute_type, alpha)
     β = gemmex_scalar(compute_type, beta)
     (; handle, stream) = lib_state()
@@ -970,8 +970,8 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
     @eval begin
         function symm!(
             side::Char, uplo::Char, alpha::Scalar{$elty},
-            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
-            beta::Scalar{$elty}, C::ROCMatrix{$elty},
+            A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty},
+            beta::Scalar{$elty}, C::StridedROCMatrix{$elty},
         )
             k, nA = size(A)
             if k != nA throw(DimensionMismatch("Matrix A must be square")) end
@@ -980,9 +980,9 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
             if m != size(C,1) || n != size(C,2) || k != size(B, side == 'L' ? 1 : 2)
                 throw(DimensionMismatch(""))
             end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha, beta) do alpha, beta
                 $(fname)(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
@@ -991,11 +991,11 @@ for (fname, elty) in ((:rocblas_dsymm,:Float64),
         end
         function symm(
             side::Char, uplo::Char, alpha::Scalar{$elty},
-            A::ROCMatrix{$elty}, B::ROCMatrix{$elty},
+            A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty},
         )
             symm!(side, uplo, alpha, A, B, zero($elty), similar(B))
         end
-        function symm(side::Char, uplo::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
+        function symm(side::Char, uplo::Char, A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty})
             symm(side, uplo, one($elty), A, B)
         end
     end
@@ -1016,8 +1016,8 @@ for (fname, elty) in ((:rocblas_dsyrk,:Float64),
             nn = size(A, trans == 'N' ? 1 : 2)
             if nn != n throw(DimensionMismatch("syrk!")) end
             k  = size(A, trans == 'N' ? 2 : 1)
-            lda = max(1,stride(A,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha, beta) do alpha, beta
                 $(fname)(handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
@@ -1038,8 +1038,8 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
                       (:rocblas_chemm,:ComplexF32))
     @eval begin
         function hemm!(
-            side::Char, uplo::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty},
-            B::ROCMatrix{$elty}, beta::Scalar{$elty}, C::ROCMatrix{$elty},
+            side::Char, uplo::Char, alpha::Scalar{$elty}, A::StridedROCMatrix{$elty},
+            B::StridedROCMatrix{$elty}, beta::Scalar{$elty}, C::StridedROCMatrix{$elty},
         )
             mA, nA = size(A)
             m, n = size(B)
@@ -1048,20 +1048,20 @@ for (fname, elty) in ((:rocblas_zhemm,:ComplexF64),
             if ((m != mC) || (n != nC)) throw(DimensionMismatch("B and C must have same dimensions")) end
             if ((side == 'L') && (mA != m)) throw(DimensionMismatch("")) end
             if ((side == 'R') && (mA != n)) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha, beta) do alpha, beta
                 $(fname)(handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
             end
             C
         end
-        function hemm(uplo::Char, trans::Char, alpha::Scalar{$elty}, A::ROCMatrix{$elty}, B::ROCMatrix{$elty})
+        function hemm(uplo::Char, trans::Char, alpha::Scalar{$elty}, A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty})
             m,n = size(B)
             hemm!( uplo, trans, alpha, A, B, zero($elty), similar(B, $elty, (m,n) ) )
         end
-        hemm( uplo::Char, trans::Char, A::ROCMatrix{$elty}, B::ROCMatrix{$elty}) =
+        hemm( uplo::Char, trans::Char, A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty}) =
             hemm( uplo, trans, one($elty), A, B)
     end
 end
@@ -1191,9 +1191,9 @@ for (mmname, smname, elty) in
             # TODO: clean up error messages
             if mA != nA throw(DimensionMismatch("A must be square")) end
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trmm!")) end
-            lda = max(1, stride(A, 2))
-            ldb = max(1, stride(B, 2))
-            ldc = max(1, stride(C, 2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha) do alpha
                 $(mmname)(
@@ -1217,8 +1217,8 @@ for (mmname, smname, elty) in
             # TODO: clean up error messages
             if mA != nA throw(DimensionMismatch("A must be square")) end
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
             (; handle, stream) = lib_state()
             with_scalars(handle, alpha) do alpha
                 $(smname)(handle, side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb)
@@ -1327,7 +1327,7 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
                       (:rocblas_cdgmm,:ComplexF32))
    @eval begin
        function dgmm!(
-           mode::Char, A::ROCMatrix{$elty}, X::ROCVector{$elty}, C::ROCMatrix{$elty},
+           mode::Char, A::StridedROCMatrix{$elty}, X::StridedROCVector{$elty}, C::StridedROCMatrix{$elty},
         )
            m, n = size(C)
            mA, nA = size(A)
@@ -1335,14 +1335,14 @@ for (fname, elty) in ((:rocblas_ddgmm,:Float64),
            if ((mA != m) || (nA != n )) throw(DimensionMismatch("")) end
            if ((mode == 'L') && (lx != m)) throw(DimensionMismatch("")) end
            if ((mode == 'R') && (lx != n)) throw(DimensionMismatch("")) end
-           lda = max(1,stride(A,2))
-           incx = stride(X,1)
-           ldc = max(1,stride(C,2))
+           lda = leading_dim(A)
+           incx = vector_inc(X)
+           ldc = leading_dim(C)
            (; handle, stream) = lib_state()
            $(fname)(handle, mode, m, n, A, lda, X, incx, C, ldc)
            C
        end
-       function dgmm(mode::Char, A::ROCMatrix{$elty}, X::ROCVector{$elty})
+       function dgmm(mode::Char, A::StridedROCMatrix{$elty}, X::StridedROCVector{$elty})
            m,n = size(A)
            dgmm!(mode, A, X, similar(A, $elty, (m,n) ) )
        end

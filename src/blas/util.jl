@@ -77,6 +77,21 @@ function Base.convert(::Type{rocblas_side}, side::Char)
     end
 end
 
+function leading_dim(A::AbstractVecOrMat)
+    m = size(A, 1)
+    if !((stride(A, 1) == 1 || m <= 1) && (m == 0 || stride(A, 2) >= m))
+        throw(ArgumentError("rocBLAS cannot address an array of size $(size(A)) with strides $(strides(A)); copy it first"))
+    end
+    return max(1, stride(A, 2))
+end
+
+function vector_inc(x::AbstractVector)
+    length(x) <= 1 && return 1
+    inc = stride(x, 1)
+    inc > 0 || throw(ArgumentError("rocBLAS cannot address a vector with stride $inc; copy it first"))
+    return inc
+end
+
 ## scalar arguments
 
 # Scalar arguments (`alpha`, `beta`, ...) are host-side (a number or a `Ref`) or
