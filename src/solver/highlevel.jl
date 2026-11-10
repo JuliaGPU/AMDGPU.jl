@@ -99,26 +99,13 @@ end
 # Blocked Householder (compact WY) application of Q
 #
 # Applies the reflectors from geqrf a panel at a time using only rocBLAS GEMM, TRMM and
-# TRSM. It serves problems whose dimensions do not fit in a `rocblas_int`, and tall
-# matrices for which it is faster than rocSOLVER's ormqr/orgqr. Scratch space is
-# O(nb * width), so it does not grow with the number of rows of A.
-#
-# A panel of reflectors H(1)⋯H(k) = I - V T Vᴴ, where V is unit lower trapezoidal and is
-# read in place from the output of geqrf. The triangular factor is T = R⁻¹ D, with
-# D = diag(τ) and R = I + D triu(VᴴV, 1) unit upper triangular (the UT transform of
-# Joffrain et al., "Accumulating Householder transformations, revisited", 2006, scaled so
-# that τ = 0 needs no special case). We keep R and multiply by T with a triangular solve.
-
+# TRSM. Scratch space is O(nb * width), so it does not grow with the number of rows of A.
 const HOUSEHOLDER_BLOCKSIZE = 128
 
-# whether to prefer the blocked implementation even when rocSOLVER accepts the problem.
-# On an MI210 the blocked path was 1.1-6x faster than rocSOLVER for every shape and
-# element type measured (64² to 8192², and up to 2^23 × 32), so this threshold may be
-# worth lowering further.
+# whether to prefer the blocked implementation even when rocSOLVER could accept the problem.
 prefer_blocked(m, k) = m >= max(2^15, 8k)
 
-# compute R for the panel V with reflector coefficients τ. V1 receives the leading jb×jb
-# block of V in explicit unit lower triangular form.
+# compute R for the panel V with reflector coefficients τ.
 function householder_ut!(R, V1, V, tau)
     T = eltype(V)
     mv, jb = size(V)
@@ -129,11 +116,9 @@ function householder_ut!(R, V1, V, tau)
         V2 = view(V, (jb+1):mv, :)
         rocBLAS.gemm!(transv, 'N', one(T), V2, V2, one(T), R)
     end
-    # only the strict upper triangle is used, R having a unit diagonal
     R .= tau .* R
 end
 
-# W = op(T) W (side 'L') or W = W op(T) (side 'R'), with op(T) = T or Tᴴ
 function householder_t!(side, adj, R, tau, W)
     T = eltype(W)
     transr = T <: Real ? 'T' : 'C'
@@ -157,9 +142,7 @@ function householder_t!(side, adj, R, tau, W)
     W
 end
 
-# apply H = I - V T Vᴴ, or Hᴴ, to C from the left or the right, as LAPACK's larfb does.
-# V's leading block is read as unit lower triangular, so its upper triangle is not
-# referenced. W is scratch space of size (jb, n) for side 'L' or (m, jb) for side 'R'.
+# apply H = I - V T Vᴴ, or Hᴴ, to C from the left or the right, similar to LAPACK's larfb.
 function apply_block_reflector!(side, adj, V, R, tau, C, W)
     T = eltype(C)
     mv, jb = size(V)
@@ -195,7 +178,6 @@ function ormqr_blocked!(side::Char, trans::Char, A::StridedROCMatrix{T},
     k = length(tau)
     k == 0 && return C
     if C isa AbstractVector && !(C isa ROCVector)
-        # rocBLAS needs a matrix, which a reshaped view is not
         c = copy(C)
         ormqr_blocked!(side, trans, A, tau, c, nb)
         copyto!(C, c)
@@ -208,8 +190,6 @@ function ormqr_blocked!(side::Char, trans::Char, A::StridedROCMatrix{T},
     V1 = similar(A, nb, nb)
     W = side == 'L' ? similar(A, nb, size(Cm, 2)) : similar(A, size(Cm, 1), nb)
     try
-        # Q = H(1) ⋯ H(k), so Qᴴ C and C Q apply the panels front to back, Q C and C Qᴴ
-        # back to front. The reflectors of panel j only touch rows (or columns) j+1:mA.
         forward = (side == 'L') != (trans == 'N')
         for j in (forward ? (0:nb:k-1) : reverse(0:nb:k-1))
             jb = min(nb, k - j)
@@ -252,14 +232,10 @@ function orgqr_blocked!(A::StridedROCMatrix{T}, tau::StridedROCVector{T}, n::Int
             V1j = view(V1, 1:jb, 1:jb)
             householder_ut!(Rj, V1j, V, tauj)
 
-            # the columns to the right already hold H(j+jb+1) ⋯ H(k) applied to I
             if j + jb < n
                 apply_block_reflector!('L', false, V, Rj, tauj, view(A, (j+1):m, (j+jb+1):n),
                                        view(W, 1:jb, 1:(n-j-jb)))
             end
-
-            # this panel's columns of I - V T Vᴴ are [I; 0] - V Y with Y = T V1ᴴ, which is
-            # upper triangular, so they can be formed in place over V
             Yj = view(Y, 1:jb, 1:jb)
             Yj .= adjoint(V1j)
             householder_t!('L', false, Rj, tauj, Yj)
@@ -313,8 +289,7 @@ for (fname, elty) in (
 
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
-            if blocksize === nothing &&
-                    (max(m, n, k, lda, ldc) > typemax(rocblas_int) || prefer_blocked(mA, k))
+            if blocksize === nothing && prefer_blocked(mA, k)
                 blocksize = HOUSEHOLDER_BLOCKSIZE
             end
             if blocksize !== nothing
@@ -344,8 +319,7 @@ for (fname, elty) in (
                 "A has more columns ($n) than rows ($m)"))
             k > n && throw(DimensionMismatch(
                 "invalid number of reflectors: k = $k should be <= n = $n"))
-            if blocksize === nothing &&
-                    (max(m, lda) > typemax(rocblas_int) || prefer_blocked(m, k))
+            if blocksize === nothing && prefer_blocked(m, k)
                 blocksize = HOUSEHOLDER_BLOCKSIZE
             end
             if blocksize !== nothing
