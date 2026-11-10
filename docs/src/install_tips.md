@@ -69,18 +69,23 @@ The `version` preference selects which ROCm distribution the bundle is taken fro
 
 ## Local ROCm discovery
 
-Everything in this section applies only when the `local` preference is set. In the default artifact mode the library paths come from the downloaded bundle, and the `ROCM_PATH`, `DEVICE_LIB_PATH` and `HIP_DEVICE_LIB_PATH` environment variables are ignored.
+Everything in this section applies only when the `local` preference is set, which needs ROCm 6.0 or newer installed on the system. In the default artifact mode the library paths come from the downloaded bundle and `ROCM_PATH` is not consulted; a ROCm reachable through `LD_LIBRARY_PATH` or the device-library variables is still picked up by the runtime and mixed into the process, see the [FAQ](@ref).
 
-On Linux, AMDGPU.jl queries the location of ROCm libraries through `rocminfo` by default.
-If not successful or on Windows, the following standard directories are searched:
+The ROCm root is taken from `ROCM_PATH` if set, on Linux otherwise from `hipconfig --rocmpath`, and failing that from the standard paths:
 
-Standard paths:
 - Linux: `/opt/rocm`, `/usr`
 - Windows: `C:/Program Files/AMD/ROCm/<rocm-version>`
 
 If you have non-standard path for ROCm, set `ROCM_PATH=<path>`
 environment variable before launching Julia. The `AMDGPU.versioninfo()`
 function prints the paths of any libraries found.
+
+!!! note "On Fedora ROCm packages"
+    Although not included in the AMD's list of supported Linux distributions,
+    Fedora provides its own ROCM packages.
+    ```
+    sudo dnf install rocminfo rocblas rocfft rocsparse rocsolver rocrand roctracer miopen rocm-hip-devel
+    ```
 
 Starting with ROCm 7.14, libraries are installed under a versioned `core-<version>` subdirectory (for example `/opt/rocm/core-7.14/lib`) instead of directly in `/opt/rocm/lib`. AMDGPU.jl handles this automatically by selecting the newest `core-*` directory found under the ROCm root, so keep `ROCM_PATH` pointed at the install root (e.g. `/opt/rocm`) rather than at the versioned subdirectory. A full ("metapackage") install additionally provides a `/opt/rocm/lib` compatibility symlink and needs no special handling; the versioned lookup mainly benefits minimal, GPU-architecture-specific installs that omit that symlink.
 
@@ -90,7 +95,7 @@ These apply in both provider modes, because they are read by the HSA and HIP run
 
 Depending on your GPU model and the functionality you want to use, you may have to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION` variable to a compatible version.
 
-You may also have more than one type of GPU, for example a dedicated AMD GPU and an integrated one. In that case use `rocminfo` to find which device they are and setting `HIP_VISIBLE_DEVICES` to the specific device you want to use. Otherwise the runtime may crash if it sees two different architectures.
+You may also have more than one type of GPU, for example a dedicated AMD GPU and an integrated one. In that case use `AMDGPU.devices()` to find which device they are and set `HIP_VISIBLE_DEVICES` to the specific device you want to use. Otherwise the runtime may crash if it sees two different architectures.
 
 ## Extra Setup Details
 
@@ -110,9 +115,7 @@ List of additional steps that may be needed to take to ensure everything is work
     sudo usermod -aG render username
     ```
 
-- ROCm libraries should be in the standard library locations, or in your `LD_LIBRARY_PATH`.
-
-- If you get an error message along the lines of `GLIB_CXX_... not found`,
+- With a local ROCm, if you get an error message along the lines of `GLIB_CXX_... not found`,
     it's possible that the C++ runtime used to build the ROCm stack
     and the one used by Julia are different.
     If you built the ROCm stack yourself this is very likely the case
@@ -131,7 +134,7 @@ List of additional steps that may be needed to take to ensure everything is work
 
     ```
     using Libdl
-    Libdl.dlopen("/opt/rocm/hsa/lib/libhsa-runtime64.so.1")
+    Libdl.dlopen("/opt/rocm/lib/libhsa-runtime64.so.1")
     ```
 
 Once all of this is setup properly, you should be able to do `using AMDGPU`
@@ -142,10 +145,18 @@ See the [Quick Start](@ref) documentation for an introduction to using AMDGPU.jl
 ## Preferences
 
 AMDGPU.jl supports setting
-[preferences](https://github.com/JuliaPackaging/Preferences.jl).
-Template of `LocalPreferences.toml` with all options:
+[preferences](https://github.com/JuliaPackaging/Preferences.jl); see
+[Configuration preferences](@ref) for the full list. Template of `LocalPreferences.toml`:
 
 ```toml
+[ROCm_Runtime]
+# Use a local ROCm installation instead of the downloaded artifacts (default is "false").
+local = "false"
+# ROCm distribution to download (default is the newest one shipped), and the GPU
+# architectures to select it for when none can be detected (see above).
+# version = "10.1"
+# arch = "gfx942"
+
 [AMDGPU]
 # If `true` (default is `false`), eagerly run GC to keep the pool from growing too big.
 # GC is triggered during new allocatoins or synchronization points.
