@@ -65,7 +65,7 @@ AMDGPU.set_rocm_version!(arch="gfx942")
 
 As with `local`, this writes the `arch` preference of `ROCm_Runtime`, so it can equally be set with `set_preferences!` before AMDGPU.jl is loaded.
 
-The `version` preference selects which ROCm distribution the bundle is taken from, by default the newest one listed above. Pinning an older one, e.g. `AMDGPU.set_rocm_version!(v"10.0")`, is useful to rule out a ROCm regression.
+The `version` preference selects which ROCm distribution the bundle is taken from, by default the newest one listed above.
 
 ## Local ROCm discovery
 
