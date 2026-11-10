@@ -86,6 +86,14 @@ GPUArrays.blas_scal!(α::Number, x::ROCArray{T}) where T <: ROCBLASFloat =
     scal!(length(x), convert(T, α), x, 1)
 GPUArrays.blas_scal!(α::Real, x::ROCArray{T}) where T <: ROCBLASComplex =
     scal!(length(x), convert(real(T), α), x, 1)
+# more specific than LinearAlgebra's methods for host BLAS
+LinearAlgebra.dot(x::StridedROCArray{T}, y::StridedROCArray{T}) where T <: Union{Float16, ROCBLASFloat} =
+    GPUArrays.gpu_dot(x, y)
+LinearAlgebra.dot(x::AnyROCArray, y::AnyROCArray) = GPUArrays.gpu_dot(x, y)
+LinearAlgebra.dot(x::Adjoint{<:Union{Real,Complex},<:ROCArray}, y::Adjoint{<:Union{Real,Complex},<:ROCArray}) =
+    GPUArrays.gpu_dot(x, y)
+LinearAlgebra.dot(A::Hermitian{<:Union{Real,Complex},<:ROCMatrix}, B::Hermitian{<:Union{Real,Complex},<:ROCMatrix}) =
+    GPUArrays.gpu_dot(A, B)
 GPUArrays.blas_dot(x::ROCArray{T}, y::ROCArray{T}) where T <: Union{Float16, ROCBLASReal} =
     dot(length(x), x, 1, y, 1)
 GPUArrays.blas_dot(x::ROCArray{T}, y::ROCArray{T}) where T <: ROCBLASComplex =
