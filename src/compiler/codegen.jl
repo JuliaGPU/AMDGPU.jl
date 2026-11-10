@@ -54,6 +54,11 @@ GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
 
 GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
+# Base's exceptions with formatted messages don't compile, so use the overrides that throw
+# with a constant message.
+GPUCompiler.method_tables(@nospecialize(::HIPCompilerJob)) =
+    (AMDGPU.method_table, GPUToolbox.Overlays.throw_overrides)
+
 GPUCompiler.kernel_state_type(@nospecialize(::HIPCompilerJob)) = AMDGPU.KernelState
 
 # Julia codegen embeds host addresses
