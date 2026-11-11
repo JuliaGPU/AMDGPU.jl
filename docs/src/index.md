@@ -89,24 +89,9 @@ Pkg.add("AMDGPU")
 - Julia 1.10+
 - MI300X requires Julia 1.12+
 - 64-bit Linux or Windows
-- ROCm 6.0+
+- An AMD GPU driver: the `amdgpu` kernel driver on Linux, [AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software) on Windows
 
-### Required software
-
-|Linux|Windows|
-|:---:|:---:|
-|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html)|[ROCm](https://rocm.docs.amd.com/en/latest/deploy/windows/quick_start.html)|
-|-|[AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software)|
-
-!!! note "On Windows AMD Software"
-    Adrenalin Edition contains HIP library itself, while ROCm provides support for other functionality.
-
-!!! note "On Fedora ROCm packages"
-    Although not included in the AMD's list of supported Linux distributions,
-    Fedora provides its own ROCM packages.
-    ```
-    sudo dnf install rocminfo rocblas rocfft rocsparse rocsolver rocrand roctracer miopen rocm-hip-devel
-    ```
+The ROCm runtime and libraries are downloaded automatically, matching the GPUs detected on the host, so no ROCm installation is needed. To use a ROCm installed on the system instead, or when no GPU is visible at install time, see [Installation Info](@ref).
 
 ## Test
 

@@ -340,12 +340,12 @@ end
 end
 
 @checked function hipGetDevicePropertiesR0600(prop, deviceId)
-    @gcsafe_ccall(libhip.hipGetDevicePropertiesR0600(prop::Ptr{hipDeviceProp_tR0600},
+    @gcsafe_ccall(libamdhip64.hipGetDevicePropertiesR0600(prop::Ptr{hipDeviceProp_tR0600},
                                                      deviceId::Cint)::hipError_t)
 end
 
 @checked function hipChooseDeviceR0600(device, prop)
-    @gcsafe_ccall(libhip.hipChooseDeviceR0600(device::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipChooseDeviceR0600(device::Ptr{Cint},
                                               prop::Ptr{hipDeviceProp_tR0600})::hipError_t)
 end
 
@@ -1263,18 +1263,18 @@ end
 
 @checked function make_hipPitchedPtr(d, p, xsz, ysz)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_hipPitchedPtr(d::Ptr{Cvoid}, p::Csize_t, xsz::Csize_t,
+    @gcsafe_ccall(libamdhip64.make_hipPitchedPtr(d::Ptr{Cvoid}, p::Csize_t, xsz::Csize_t,
                                             ysz::Csize_t)::hipPitchedPtr)
 end
 
 @checked function make_hipPos(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_hipPos(x::Csize_t, y::Csize_t, z::Csize_t)::hipPos)
+    @gcsafe_ccall(libamdhip64.make_hipPos(x::Csize_t, y::Csize_t, z::Csize_t)::hipPos)
 end
 
 @checked function make_hipExtent(w, h, d)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_hipExtent(w::Csize_t, h::Csize_t,
+    @gcsafe_ccall(libamdhip64.make_hipExtent(w::Csize_t, h::Csize_t,
                                         d::Csize_t)::hipExtent)
 end
 
@@ -1584,257 +1584,257 @@ end
 
 @checked function make_uchar1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_uchar1(x::Cuchar)::uchar1)
+    @gcsafe_ccall(libamdhip64.make_uchar1(x::Cuchar)::uchar1)
 end
 
 @checked function make_uchar2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_uchar2(x::Cuchar, y::Cuchar)::uchar2)
+    @gcsafe_ccall(libamdhip64.make_uchar2(x::Cuchar, y::Cuchar)::uchar2)
 end
 
 @checked function make_uchar3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_uchar3(x::Cuchar, y::Cuchar, z::Cuchar)::uchar3)
+    @gcsafe_ccall(libamdhip64.make_uchar3(x::Cuchar, y::Cuchar, z::Cuchar)::uchar3)
 end
 
 @checked function make_uchar4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_uchar4(x::Cuchar, y::Cuchar, z::Cuchar,
+    @gcsafe_ccall(libamdhip64.make_uchar4(x::Cuchar, y::Cuchar, z::Cuchar,
                                      w::Cuchar)::uchar4)
 end
 
 @checked function make_char1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_char1(x::Int8)::char1)
+    @gcsafe_ccall(libamdhip64.make_char1(x::Int8)::char1)
 end
 
 @checked function make_char2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_char2(x::Int8, y::Int8)::char2)
+    @gcsafe_ccall(libamdhip64.make_char2(x::Int8, y::Int8)::char2)
 end
 
 @checked function make_char3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_char3(x::Int8, y::Int8, z::Int8)::char3)
+    @gcsafe_ccall(libamdhip64.make_char3(x::Int8, y::Int8, z::Int8)::char3)
 end
 
 @checked function make_char4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_char4(x::Int8, y::Int8, z::Int8, w::Int8)::char4)
+    @gcsafe_ccall(libamdhip64.make_char4(x::Int8, y::Int8, z::Int8, w::Int8)::char4)
 end
 
 @checked function make_ushort1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ushort1(x::Cushort)::ushort1)
+    @gcsafe_ccall(libamdhip64.make_ushort1(x::Cushort)::ushort1)
 end
 
 @checked function make_ushort2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ushort2(x::Cushort, y::Cushort)::ushort2)
+    @gcsafe_ccall(libamdhip64.make_ushort2(x::Cushort, y::Cushort)::ushort2)
 end
 
 @checked function make_ushort3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ushort3(x::Cushort, y::Cushort, z::Cushort)::ushort3)
+    @gcsafe_ccall(libamdhip64.make_ushort3(x::Cushort, y::Cushort, z::Cushort)::ushort3)
 end
 
 @checked function make_ushort4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ushort4(x::Cushort, y::Cushort, z::Cushort,
+    @gcsafe_ccall(libamdhip64.make_ushort4(x::Cushort, y::Cushort, z::Cushort,
                                       w::Cushort)::ushort4)
 end
 
 @checked function make_short1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_short1(x::Cshort)::short1)
+    @gcsafe_ccall(libamdhip64.make_short1(x::Cshort)::short1)
 end
 
 @checked function make_short2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_short2(x::Cshort, y::Cshort)::short2)
+    @gcsafe_ccall(libamdhip64.make_short2(x::Cshort, y::Cshort)::short2)
 end
 
 @checked function make_short3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_short3(x::Cshort, y::Cshort, z::Cshort)::short3)
+    @gcsafe_ccall(libamdhip64.make_short3(x::Cshort, y::Cshort, z::Cshort)::short3)
 end
 
 @checked function make_short4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_short4(x::Cshort, y::Cshort, z::Cshort,
+    @gcsafe_ccall(libamdhip64.make_short4(x::Cshort, y::Cshort, z::Cshort,
                                      w::Cshort)::short4)
 end
 
 @checked function make_uint1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_uint1(x::Cuint)::uint1)
+    @gcsafe_ccall(libamdhip64.make_uint1(x::Cuint)::uint1)
 end
 
 @checked function make_uint2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_uint2(x::Cuint, y::Cuint)::uint2)
+    @gcsafe_ccall(libamdhip64.make_uint2(x::Cuint, y::Cuint)::uint2)
 end
 
 @checked function make_uint3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_uint3(x::Cuint, y::Cuint, z::Cuint)::uint3)
+    @gcsafe_ccall(libamdhip64.make_uint3(x::Cuint, y::Cuint, z::Cuint)::uint3)
 end
 
 @checked function make_uint4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_uint4(x::Cuint, y::Cuint, z::Cuint, w::Cuint)::uint4)
+    @gcsafe_ccall(libamdhip64.make_uint4(x::Cuint, y::Cuint, z::Cuint, w::Cuint)::uint4)
 end
 
 @checked function make_int1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_int1(x::Cint)::int1)
+    @gcsafe_ccall(libamdhip64.make_int1(x::Cint)::int1)
 end
 
 @checked function make_int2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_int2(x::Cint, y::Cint)::int2)
+    @gcsafe_ccall(libamdhip64.make_int2(x::Cint, y::Cint)::int2)
 end
 
 @checked function make_int3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_int3(x::Cint, y::Cint, z::Cint)::int3)
+    @gcsafe_ccall(libamdhip64.make_int3(x::Cint, y::Cint, z::Cint)::int3)
 end
 
 @checked function make_int4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_int4(x::Cint, y::Cint, z::Cint, w::Cint)::int4)
+    @gcsafe_ccall(libamdhip64.make_int4(x::Cint, y::Cint, z::Cint, w::Cint)::int4)
 end
 
 @checked function make_float1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_float1(x::Cfloat)::float1)
+    @gcsafe_ccall(libamdhip64.make_float1(x::Cfloat)::float1)
 end
 
 @checked function make_float2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_float2(x::Cfloat, y::Cfloat)::float2)
+    @gcsafe_ccall(libamdhip64.make_float2(x::Cfloat, y::Cfloat)::float2)
 end
 
 @checked function make_float3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_float3(x::Cfloat, y::Cfloat, z::Cfloat)::float3)
+    @gcsafe_ccall(libamdhip64.make_float3(x::Cfloat, y::Cfloat, z::Cfloat)::float3)
 end
 
 @checked function make_float4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_float4(x::Cfloat, y::Cfloat, z::Cfloat,
+    @gcsafe_ccall(libamdhip64.make_float4(x::Cfloat, y::Cfloat, z::Cfloat,
                                      w::Cfloat)::float4)
 end
 
 @checked function make_double1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_double1(x::Cdouble)::double1)
+    @gcsafe_ccall(libamdhip64.make_double1(x::Cdouble)::double1)
 end
 
 @checked function make_double2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_double2(x::Cdouble, y::Cdouble)::double2)
+    @gcsafe_ccall(libamdhip64.make_double2(x::Cdouble, y::Cdouble)::double2)
 end
 
 @checked function make_double3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_double3(x::Cdouble, y::Cdouble, z::Cdouble)::double3)
+    @gcsafe_ccall(libamdhip64.make_double3(x::Cdouble, y::Cdouble, z::Cdouble)::double3)
 end
 
 @checked function make_double4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_double4(x::Cdouble, y::Cdouble, z::Cdouble,
+    @gcsafe_ccall(libamdhip64.make_double4(x::Cdouble, y::Cdouble, z::Cdouble,
                                       w::Cdouble)::double4)
 end
 
 @checked function make_ulong1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ulong1(x::Culong)::ulong1)
+    @gcsafe_ccall(libamdhip64.make_ulong1(x::Culong)::ulong1)
 end
 
 @checked function make_ulong2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ulong2(x::Culong, y::Culong)::ulong2)
+    @gcsafe_ccall(libamdhip64.make_ulong2(x::Culong, y::Culong)::ulong2)
 end
 
 @checked function make_ulong3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ulong3(x::Culong, y::Culong, z::Culong)::ulong3)
+    @gcsafe_ccall(libamdhip64.make_ulong3(x::Culong, y::Culong, z::Culong)::ulong3)
 end
 
 @checked function make_ulong4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ulong4(x::Culong, y::Culong, z::Culong,
+    @gcsafe_ccall(libamdhip64.make_ulong4(x::Culong, y::Culong, z::Culong,
                                      w::Culong)::ulong4)
 end
 
 @checked function make_long1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_long1(x::Clong)::long1)
+    @gcsafe_ccall(libamdhip64.make_long1(x::Clong)::long1)
 end
 
 @checked function make_long2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_long2(x::Clong, y::Clong)::long2)
+    @gcsafe_ccall(libamdhip64.make_long2(x::Clong, y::Clong)::long2)
 end
 
 @checked function make_long3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_long3(x::Clong, y::Clong, z::Clong)::long3)
+    @gcsafe_ccall(libamdhip64.make_long3(x::Clong, y::Clong, z::Clong)::long3)
 end
 
 @checked function make_long4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_long4(x::Clong, y::Clong, z::Clong, w::Clong)::long4)
+    @gcsafe_ccall(libamdhip64.make_long4(x::Clong, y::Clong, z::Clong, w::Clong)::long4)
 end
 
 @checked function make_ulonglong1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ulonglong1(x::Culonglong)::ulonglong1)
+    @gcsafe_ccall(libamdhip64.make_ulonglong1(x::Culonglong)::ulonglong1)
 end
 
 @checked function make_ulonglong2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ulonglong2(x::Culonglong, y::Culonglong)::ulonglong2)
+    @gcsafe_ccall(libamdhip64.make_ulonglong2(x::Culonglong, y::Culonglong)::ulonglong2)
 end
 
 @checked function make_ulonglong3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ulonglong3(x::Culonglong, y::Culonglong,
+    @gcsafe_ccall(libamdhip64.make_ulonglong3(x::Culonglong, y::Culonglong,
                                          z::Culonglong)::ulonglong3)
 end
 
 @checked function make_ulonglong4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_ulonglong4(x::Culonglong, y::Culonglong, z::Culonglong,
+    @gcsafe_ccall(libamdhip64.make_ulonglong4(x::Culonglong, y::Culonglong, z::Culonglong,
                                          w::Culonglong)::ulonglong4)
 end
 
 @checked function make_longlong1(x)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_longlong1(x::Clonglong)::longlong1)
+    @gcsafe_ccall(libamdhip64.make_longlong1(x::Clonglong)::longlong1)
 end
 
 @checked function make_longlong2(x, y)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_longlong2(x::Clonglong, y::Clonglong)::longlong2)
+    @gcsafe_ccall(libamdhip64.make_longlong2(x::Clonglong, y::Clonglong)::longlong2)
 end
 
 @checked function make_longlong3(x, y, z)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_longlong3(x::Clonglong, y::Clonglong,
+    @gcsafe_ccall(libamdhip64.make_longlong3(x::Clonglong, y::Clonglong,
                                         z::Clonglong)::longlong3)
 end
 
 @checked function make_longlong4(x, y, z, w)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.make_longlong4(x::Clonglong, y::Clonglong, z::Clonglong,
+    @gcsafe_ccall(libamdhip64.make_longlong4(x::Clonglong, y::Clonglong, z::Clonglong,
                                         w::Clonglong)::longlong4)
 end
 
 @checked function hipCreateChannelDesc(x, y, z, w, f)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCreateChannelDesc(x::Cint, y::Cint, z::Cint, w::Cint,
+    @gcsafe_ccall(libamdhip64.hipCreateChannelDesc(x::Cint, y::Cint, z::Cint, w::Cint,
                                               f::hipChannelFormatKind)::hipChannelFormatDesc)
 end
 
@@ -2906,7 +2906,7 @@ const hipExternalSemaphoreWaitParams = hipExternalSemaphoreWaitParams_st
 
 @checked function __hipGetPCH(pch, size)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.__hipGetPCH(pch::Ptr{Cstring}, size::Ptr{Cuint})::Cvoid)
+    @gcsafe_ccall(libamdhip64.__hipGetPCH(pch::Ptr{Cstring}, size::Ptr{Cuint})::Cvoid)
 end
 
 @cenum hipGraphicsRegisterFlags::UInt32 begin
@@ -3883,43 +3883,43 @@ end
 end
 
 @checked function hipInit(flags)
-    @gcsafe_ccall(libhip.hipInit(flags::Cuint)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipInit(flags::Cuint)::hipError_t)
 end
 
 @checked function hipDriverGetVersion(driverVersion)
-    @gcsafe_ccall(libhip.hipDriverGetVersion(driverVersion::Ptr{Cint})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDriverGetVersion(driverVersion::Ptr{Cint})::hipError_t)
 end
 
 @checked function hipRuntimeGetVersion(runtimeVersion)
-    @gcsafe_ccall(libhip.hipRuntimeGetVersion(runtimeVersion::Ptr{Cint})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipRuntimeGetVersion(runtimeVersion::Ptr{Cint})::hipError_t)
 end
 
 @checked function hipDeviceGet(device, ordinal)
-    @gcsafe_ccall(libhip.hipDeviceGet(device::Ptr{hipDevice_t},
+    @gcsafe_ccall(libamdhip64.hipDeviceGet(device::Ptr{hipDevice_t},
                                       ordinal::Cint)::hipError_t)
 end
 
 @checked function hipDeviceComputeCapability(major, minor, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceComputeCapability(major::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipDeviceComputeCapability(major::Ptr{Cint},
                                                     minor::Ptr{Cint},
                                                     device::hipDevice_t)::hipError_t)
 end
 
 @checked function hipDeviceGetName(name, len, device)
-    @gcsafe_ccall(libhip.hipDeviceGetName(name::Cstring, len::Cint,
+    @gcsafe_ccall(libamdhip64.hipDeviceGetName(name::Cstring, len::Cint,
                                           device::hipDevice_t)::hipError_t)
 end
 
 @checked function hipDeviceGetUuid(uuid, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetUuid(uuid::Ptr{hipUUID},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetUuid(uuid::Ptr{hipUUID},
                                           device::hipDevice_t)::hipError_t)
 end
 
 @checked function hipDeviceGetP2PAttribute(value, attr, srcDevice, dstDevice)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetP2PAttribute(value::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetP2PAttribute(value::Ptr{Cint},
                                                   attr::hipDeviceP2PAttr,
                                                   srcDevice::Cint,
                                                   dstDevice::Cint)::hipError_t)
@@ -3927,308 +3927,308 @@ end
 
 @checked function hipDeviceGetPCIBusId(pciBusId, len, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetPCIBusId(pciBusId::Cstring, len::Cint,
+    @gcsafe_ccall(libamdhip64.hipDeviceGetPCIBusId(pciBusId::Cstring, len::Cint,
                                               device::Cint)::hipError_t)
 end
 
 @checked function hipDeviceGetByPCIBusId(device, pciBusId)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetByPCIBusId(device::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetByPCIBusId(device::Ptr{Cint},
                                                 pciBusId::Cstring)::hipError_t)
 end
 
 @checked function hipDeviceTotalMem(bytes, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceTotalMem(bytes::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipDeviceTotalMem(bytes::Ptr{Csize_t},
                                            device::hipDevice_t)::hipError_t)
 end
 
 @checked function hipDeviceSynchronize()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceSynchronize()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceSynchronize()::hipError_t)
 end
 
 @checked function hipDeviceReset()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceReset()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceReset()::hipError_t)
 end
 
 @checked function hipSetDevice(deviceId)
-    @gcsafe_ccall(libhip.hipSetDevice(deviceId::Cint)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipSetDevice(deviceId::Cint)::hipError_t)
 end
 
 @checked function hipSetValidDevices(device_arr, len)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipSetValidDevices(device_arr::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipSetValidDevices(device_arr::Ptr{Cint},
                                             len::Cint)::hipError_t)
 end
 
 @checked function hipGetDevice(deviceId)
-    @gcsafe_ccall(libhip.hipGetDevice(deviceId::Ptr{Cint})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipGetDevice(deviceId::Ptr{Cint})::hipError_t)
 end
 
 @checked function hipGetDeviceCount(count)
-    @gcsafe_ccall(libhip.hipGetDeviceCount(count::Ptr{Cint})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipGetDeviceCount(count::Ptr{Cint})::hipError_t)
 end
 
 @checked function hipDeviceGetAttribute(pi, attr, deviceId)
-    @gcsafe_ccall(libhip.hipDeviceGetAttribute(pi::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetAttribute(pi::Ptr{Cint},
                                                attr::hipDeviceAttribute_t,
                                                deviceId::Cint)::hipError_t)
 end
 
 @checked function hipDeviceGetDefaultMemPool(mem_pool, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetDefaultMemPool(mem_pool::Ptr{hipMemPool_t},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetDefaultMemPool(mem_pool::Ptr{hipMemPool_t},
                                                     device::Cint)::hipError_t)
 end
 
 @checked function hipDeviceSetMemPool(device, mem_pool)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceSetMemPool(device::Cint,
+    @gcsafe_ccall(libamdhip64.hipDeviceSetMemPool(device::Cint,
                                              mem_pool::hipMemPool_t)::hipError_t)
 end
 
 @checked function hipDeviceGetMemPool(mem_pool, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetMemPool(mem_pool::Ptr{hipMemPool_t},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetMemPool(mem_pool::Ptr{hipMemPool_t},
                                              device::Cint)::hipError_t)
 end
 
 @checked function hipDeviceGetTexture1DLinearMaxWidth(max_width, desc, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetTexture1DLinearMaxWidth(max_width::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetTexture1DLinearMaxWidth(max_width::Ptr{Csize_t},
                                                              desc::Ptr{hipChannelFormatDesc},
                                                              device::Cint)::hipError_t)
 end
 
 @checked function hipDeviceSetCacheConfig(cacheConfig)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceSetCacheConfig(cacheConfig::hipFuncCache_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceSetCacheConfig(cacheConfig::hipFuncCache_t)::hipError_t)
 end
 
 @checked function hipDeviceGetCacheConfig(cacheConfig)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetCacheConfig(cacheConfig::Ptr{hipFuncCache_t})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceGetCacheConfig(cacheConfig::Ptr{hipFuncCache_t})::hipError_t)
 end
 
 @checked function hipDeviceGetLimit(pValue, limit)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetLimit(pValue::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetLimit(pValue::Ptr{Csize_t},
                                            limit::hipLimit_t)::hipError_t)
 end
 
 @checked function hipDeviceSetLimit(limit, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceSetLimit(limit::hipLimit_t,
+    @gcsafe_ccall(libamdhip64.hipDeviceSetLimit(limit::hipLimit_t,
                                            value::Csize_t)::hipError_t)
 end
 
 @checked function hipDeviceGetSharedMemConfig(pConfig)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetSharedMemConfig(pConfig::Ptr{hipSharedMemConfig})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceGetSharedMemConfig(pConfig::Ptr{hipSharedMemConfig})::hipError_t)
 end
 
 @checked function hipGetDeviceFlags(flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetDeviceFlags(flags::Ptr{Cuint})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipGetDeviceFlags(flags::Ptr{Cuint})::hipError_t)
 end
 
 @checked function hipDeviceSetSharedMemConfig(config)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceSetSharedMemConfig(config::hipSharedMemConfig)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceSetSharedMemConfig(config::hipSharedMemConfig)::hipError_t)
 end
 
 @checked function hipSetDeviceFlags(flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipSetDeviceFlags(flags::Cuint)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipSetDeviceFlags(flags::Cuint)::hipError_t)
 end
 
 @checked function hipExtGetLinkTypeAndHopCount(device1, device2, linktype, hopcount)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtGetLinkTypeAndHopCount(device1::Cint, device2::Cint,
+    @gcsafe_ccall(libamdhip64.hipExtGetLinkTypeAndHopCount(device1::Cint, device2::Cint,
                                                       linktype::Ptr{UInt32},
                                                       hopcount::Ptr{UInt32})::hipError_t)
 end
 
 @checked function hipIpcGetMemHandle(handle, devPtr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipIpcGetMemHandle(handle::Ptr{hipIpcMemHandle_t},
+    @gcsafe_ccall(libamdhip64.hipIpcGetMemHandle(handle::Ptr{hipIpcMemHandle_t},
                                             devPtr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipIpcOpenMemHandle(devPtr, handle, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipIpcOpenMemHandle(devPtr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipIpcOpenMemHandle(devPtr::Ptr{Ptr{Cvoid}},
                                              handle::hipIpcMemHandle_t,
                                              flags::Cuint)::hipError_t)
 end
 
 @checked function hipIpcCloseMemHandle(devPtr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipIpcCloseMemHandle(devPtr::Ptr{Cvoid})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipIpcCloseMemHandle(devPtr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipIpcGetEventHandle(handle, event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipIpcGetEventHandle(handle::Ptr{hipIpcEventHandle_t},
+    @gcsafe_ccall(libamdhip64.hipIpcGetEventHandle(handle::Ptr{hipIpcEventHandle_t},
                                               event::hipEvent_t)::hipError_t)
 end
 
 @checked function hipIpcOpenEventHandle(event, handle)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipIpcOpenEventHandle(event::Ptr{hipEvent_t},
+    @gcsafe_ccall(libamdhip64.hipIpcOpenEventHandle(event::Ptr{hipEvent_t},
                                                handle::hipIpcEventHandle_t)::hipError_t)
 end
 
 @checked function hipFuncSetAttribute(func, attr, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFuncSetAttribute(func::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipFuncSetAttribute(func::Ptr{Cvoid},
                                              attr::hipFuncAttribute,
                                              value::Cint)::hipError_t)
 end
 
 @checked function hipKernelSetAttribute(attrib, value, kernel, dev)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipKernelSetAttribute(attrib::hipFunction_attribute,
+    @gcsafe_ccall(libamdhip64.hipKernelSetAttribute(attrib::hipFunction_attribute,
                                                value::Cint, kernel::hipKernel_t,
                                                dev::hipDevice_t)::hipError_t)
 end
 
 @checked function hipKernelGetFunction(pFunc, kernel)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipKernelGetFunction(pFunc::Ptr{hipFunction_t},
+    @gcsafe_ccall(libamdhip64.hipKernelGetFunction(pFunc::Ptr{hipFunction_t},
                                               kernel::hipKernel_t)::hipError_t)
 end
 
 @checked function hipFuncSetCacheConfig(func, config)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFuncSetCacheConfig(func::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipFuncSetCacheConfig(func::Ptr{Cvoid},
                                                config::hipFuncCache_t)::hipError_t)
 end
 
 @checked function hipFuncSetSharedMemConfig(func, config)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFuncSetSharedMemConfig(func::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipFuncSetSharedMemConfig(func::Ptr{Cvoid},
                                                    config::hipSharedMemConfig)::hipError_t)
 end
 
 @checked function hipGetLastError()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetLastError()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipGetLastError()::hipError_t)
 end
 
 @checked function hipExtGetLastError()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtGetLastError()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipExtGetLastError()::hipError_t)
 end
 
 @checked function hipPeekAtLastError()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipPeekAtLastError()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipPeekAtLastError()::hipError_t)
 end
 
 @checked function hipGetErrorName(hip_error)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetErrorName(hip_error::hipError_t)::Cstring)
+    @gcsafe_ccall(libamdhip64.hipGetErrorName(hip_error::hipError_t)::Cstring)
 end
 
 @checked function hipGetErrorString(hipError)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetErrorString(hipError::hipError_t)::Cstring)
+    @gcsafe_ccall(libamdhip64.hipGetErrorString(hipError::hipError_t)::Cstring)
 end
 
 @checked function hipDrvGetErrorName(hipError, errorString)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGetErrorName(hipError::hipError_t,
+    @gcsafe_ccall(libamdhip64.hipDrvGetErrorName(hipError::hipError_t,
                                             errorString::Ptr{Cstring})::hipError_t)
 end
 
 @checked function hipDrvGetErrorString(hipError, errorString)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGetErrorString(hipError::hipError_t,
+    @gcsafe_ccall(libamdhip64.hipDrvGetErrorString(hipError::hipError_t,
                                               errorString::Ptr{Cstring})::hipError_t)
 end
 
 @checked function hipStreamCreate(stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamCreate(stream::Ptr{hipStream_t})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipStreamCreate(stream::Ptr{hipStream_t})::hipError_t)
 end
 
 @checked function hipStreamCreateWithFlags(stream, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamCreateWithFlags(stream::Ptr{hipStream_t},
+    @gcsafe_ccall(libamdhip64.hipStreamCreateWithFlags(stream::Ptr{hipStream_t},
                                                   flags::Cuint)::hipError_t)
 end
 
 @checked function hipStreamCreateWithPriority(stream, flags, priority)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamCreateWithPriority(stream::Ptr{hipStream_t},
+    @gcsafe_ccall(libamdhip64.hipStreamCreateWithPriority(stream::Ptr{hipStream_t},
                                                      flags::Cuint,
                                                      priority::Cint)::hipError_t)
 end
 
 @checked function hipDeviceGetStreamPriorityRange(leastPriority, greatestPriority)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetStreamPriorityRange(leastPriority::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipDeviceGetStreamPriorityRange(leastPriority::Ptr{Cint},
                                                          greatestPriority::Ptr{Cint})::hipError_t)
 end
 
 @checked function hipStreamDestroy(stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamDestroy(stream::hipStream_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipStreamDestroy(stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipStreamQuery(stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamQuery(stream::hipStream_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipStreamQuery(stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipStreamSynchronize(stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamSynchronize(stream::hipStream_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipStreamSynchronize(stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipStreamWaitEvent(stream, event, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamWaitEvent(stream::hipStream_t, event::hipEvent_t,
+    @gcsafe_ccall(libamdhip64.hipStreamWaitEvent(stream::hipStream_t, event::hipEvent_t,
                                             flags::Cuint)::hipError_t)
 end
 
 @checked function hipStreamGetFlags(stream, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetFlags(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetFlags(stream::hipStream_t,
                                            flags::Ptr{Cuint})::hipError_t)
 end
 
 @checked function hipStreamGetId(stream, streamId)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetId(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetId(stream::hipStream_t,
                                         streamId::Ptr{Culonglong})::hipError_t)
 end
 
 @checked function hipStreamGetPriority(stream, priority)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetPriority(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetPriority(stream::hipStream_t,
                                               priority::Ptr{Cint})::hipError_t)
 end
 
 @checked function hipStreamGetDevice(stream, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetDevice(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetDevice(stream::hipStream_t,
                                             device::Ptr{hipDevice_t})::hipError_t)
 end
 
 @checked function hipExtStreamCreateWithCUMask(stream, cuMaskSize, cuMask)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtStreamCreateWithCUMask(stream::Ptr{hipStream_t},
+    @gcsafe_ccall(libamdhip64.hipExtStreamCreateWithCUMask(stream::Ptr{hipStream_t},
                                                       cuMaskSize::UInt32,
                                                       cuMask::Ptr{UInt32})::hipError_t)
 end
 
 @checked function hipExtStreamGetCUMask(stream, cuMaskSize, cuMask)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtStreamGetCUMask(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipExtStreamGetCUMask(stream::hipStream_t,
                                                cuMaskSize::UInt32,
                                                cuMask::Ptr{UInt32})::hipError_t)
 end
@@ -4238,7 +4238,7 @@ const hipStreamCallback_t = Ptr{Cvoid}
 
 @checked function hipStreamAddCallback(stream, callback, userData, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamAddCallback(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamAddCallback(stream::hipStream_t,
                                               callback::hipStreamCallback_t,
                                               userData::Ptr{Cvoid},
                                               flags::Cuint)::hipError_t)
@@ -4246,55 +4246,55 @@ end
 
 @checked function hipStreamSetAttribute(stream, attr, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamSetAttribute(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamSetAttribute(stream::hipStream_t,
                                                attr::hipLaunchAttributeID,
                                                value::Ptr{hipLaunchAttributeValue})::hipError_t)
 end
 
 @checked function hipStreamGetAttribute(stream, attr, value_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetAttribute(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetAttribute(stream::hipStream_t,
                                                attr::hipLaunchAttributeID,
                                                value_out::Ptr{hipLaunchAttributeValue})::hipError_t)
 end
 
 @checked function hipStreamCopyAttributes(dst, src)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamCopyAttributes(dst::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamCopyAttributes(dst::hipStream_t,
                                                  src::hipStream_t)::hipError_t)
 end
 
 @checked function hipStreamWaitValue32(stream, ptr, value, flags, mask)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamWaitValue32(stream::hipStream_t, ptr::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipStreamWaitValue32(stream::hipStream_t, ptr::Ptr{Cvoid},
                                               value::UInt32, flags::Cuint,
                                               mask::UInt32)::hipError_t)
 end
 
 @checked function hipStreamWaitValue64(stream, ptr, value, flags, mask)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamWaitValue64(stream::hipStream_t, ptr::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipStreamWaitValue64(stream::hipStream_t, ptr::Ptr{Cvoid},
                                               value::UInt64, flags::Cuint,
                                               mask::UInt64)::hipError_t)
 end
 
 @checked function hipStreamWriteValue32(stream, ptr, value, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamWriteValue32(stream::hipStream_t, ptr::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipStreamWriteValue32(stream::hipStream_t, ptr::Ptr{Cvoid},
                                                value::UInt32,
                                                flags::Cuint)::hipError_t)
 end
 
 @checked function hipStreamWriteValue64(stream, ptr, value, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamWriteValue64(stream::hipStream_t, ptr::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipStreamWriteValue64(stream::hipStream_t, ptr::Ptr{Cvoid},
                                                value::UInt64,
                                                flags::Cuint)::hipError_t)
 end
 
 @checked function hipStreamBatchMemOp(stream, count, paramArray, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamBatchMemOp(stream::hipStream_t, count::Cuint,
+    @gcsafe_ccall(libamdhip64.hipStreamBatchMemOp(stream::hipStream_t, count::Cuint,
                                              paramArray::Ptr{hipStreamBatchMemOpParams},
                                              flags::Cuint)::hipError_t)
 end
@@ -4302,7 +4302,7 @@ end
 @checked function hipGraphAddBatchMemOpNode(phGraphNode, hGraph, dependencies, numDependencies,
                                             nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddBatchMemOpNode(phGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddBatchMemOpNode(phGraphNode::Ptr{hipGraphNode_t},
                                                    hGraph::hipGraph_t,
                                                    dependencies::Ptr{hipGraphNode_t},
                                                    numDependencies::Csize_t,
@@ -4311,91 +4311,91 @@ end
 
 @checked function hipGraphBatchMemOpNodeGetParams(hNode, nodeParams_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphBatchMemOpNodeGetParams(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphBatchMemOpNodeGetParams(hNode::hipGraphNode_t,
                                                          nodeParams_out::Ptr{hipBatchMemOpNodeParams})::hipError_t)
 end
 
 @checked function hipGraphBatchMemOpNodeSetParams(hNode, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphBatchMemOpNodeSetParams(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphBatchMemOpNodeSetParams(hNode::hipGraphNode_t,
                                                          nodeParams::Ptr{hipBatchMemOpNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExecBatchMemOpNodeSetParams(hGraphExec, hNode, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecBatchMemOpNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecBatchMemOpNodeSetParams(hGraphExec::hipGraphExec_t,
                                                              hNode::hipGraphNode_t,
                                                              nodeParams::Ptr{hipBatchMemOpNodeParams})::hipError_t)
 end
 
 @checked function hipEventCreateWithFlags(event, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventCreateWithFlags(event::Ptr{hipEvent_t},
+    @gcsafe_ccall(libamdhip64.hipEventCreateWithFlags(event::Ptr{hipEvent_t},
                                                  flags::Cuint)::hipError_t)
 end
 
 @checked function hipEventCreate(event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventCreate(event::Ptr{hipEvent_t})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipEventCreate(event::Ptr{hipEvent_t})::hipError_t)
 end
 
 @checked function hipEventRecordWithFlags(event, stream, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventRecordWithFlags(event::hipEvent_t,
+    @gcsafe_ccall(libamdhip64.hipEventRecordWithFlags(event::hipEvent_t,
                                                  stream::hipStream_t,
                                                  flags::Cuint)::hipError_t)
 end
 
 @checked function hipEventRecord(event, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventRecord(event::hipEvent_t,
+    @gcsafe_ccall(libamdhip64.hipEventRecord(event::hipEvent_t,
                                         stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipEventDestroy(event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventDestroy(event::hipEvent_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipEventDestroy(event::hipEvent_t)::hipError_t)
 end
 
 @checked function hipEventSynchronize(event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventSynchronize(event::hipEvent_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipEventSynchronize(event::hipEvent_t)::hipError_t)
 end
 
 @checked function hipEventElapsedTime(ms, start, stop)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventElapsedTime(ms::Ptr{Cfloat}, start::hipEvent_t,
+    @gcsafe_ccall(libamdhip64.hipEventElapsedTime(ms::Ptr{Cfloat}, start::hipEvent_t,
                                              stop::hipEvent_t)::hipError_t)
 end
 
 @checked function hipEventQuery(event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventQuery(event::hipEvent_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipEventQuery(event::hipEvent_t)::hipError_t)
 end
 
 @checked function hipPointerSetAttribute(value, attribute, ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipPointerSetAttribute(value::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipPointerSetAttribute(value::Ptr{Cvoid},
                                                 attribute::hipPointer_attribute,
                                                 ptr::hipDeviceptr_t)::hipError_t)
 end
 
 @checked function hipPointerGetAttributes(attributes, ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipPointerGetAttributes(attributes::Ptr{hipPointerAttribute_t},
+    @gcsafe_ccall(libamdhip64.hipPointerGetAttributes(attributes::Ptr{hipPointerAttribute_t},
                                                  ptr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipPointerGetAttribute(data, attribute, ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipPointerGetAttribute(data::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipPointerGetAttribute(data::Ptr{Cvoid},
                                                 attribute::hipPointer_attribute,
                                                 ptr::hipDeviceptr_t)::hipError_t)
 end
 
 @checked function hipDrvPointerGetAttributes(numAttributes, attributes, data, ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvPointerGetAttributes(numAttributes::Cuint,
+    @gcsafe_ccall(libamdhip64.hipDrvPointerGetAttributes(numAttributes::Cuint,
                                                     attributes::Ptr{hipPointer_attribute},
                                                     data::Ptr{Ptr{Cvoid}},
                                                     ptr::hipDeviceptr_t)::hipError_t)
@@ -4403,13 +4403,13 @@ end
 
 @checked function hipImportExternalSemaphore(extSem_out, semHandleDesc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipImportExternalSemaphore(extSem_out::Ptr{hipExternalSemaphore_t},
+    @gcsafe_ccall(libamdhip64.hipImportExternalSemaphore(extSem_out::Ptr{hipExternalSemaphore_t},
                                                     semHandleDesc::Ptr{hipExternalSemaphoreHandleDesc})::hipError_t)
 end
 
 @checked function hipSignalExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipSignalExternalSemaphoresAsync(extSemArray::Ptr{hipExternalSemaphore_t},
+    @gcsafe_ccall(libamdhip64.hipSignalExternalSemaphoresAsync(extSemArray::Ptr{hipExternalSemaphore_t},
                                                           paramsArray::Ptr{hipExternalSemaphoreSignalParams},
                                                           numExtSems::Cuint,
                                                           stream::hipStream_t)::hipError_t)
@@ -4417,7 +4417,7 @@ end
 
 @checked function hipWaitExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipWaitExternalSemaphoresAsync(extSemArray::Ptr{hipExternalSemaphore_t},
+    @gcsafe_ccall(libamdhip64.hipWaitExternalSemaphoresAsync(extSemArray::Ptr{hipExternalSemaphore_t},
                                                         paramsArray::Ptr{hipExternalSemaphoreWaitParams},
                                                         numExtSems::Cuint,
                                                         stream::hipStream_t)::hipError_t)
@@ -4425,80 +4425,80 @@ end
 
 @checked function hipDestroyExternalSemaphore(extSem)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDestroyExternalSemaphore(extSem::hipExternalSemaphore_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDestroyExternalSemaphore(extSem::hipExternalSemaphore_t)::hipError_t)
 end
 
 @checked function hipImportExternalMemory(extMem_out, memHandleDesc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipImportExternalMemory(extMem_out::Ptr{hipExternalMemory_t},
+    @gcsafe_ccall(libamdhip64.hipImportExternalMemory(extMem_out::Ptr{hipExternalMemory_t},
                                                  memHandleDesc::Ptr{hipExternalMemoryHandleDesc})::hipError_t)
 end
 
 @checked function hipExternalMemoryGetMappedBuffer(devPtr, extMem, bufferDesc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExternalMemoryGetMappedBuffer(devPtr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipExternalMemoryGetMappedBuffer(devPtr::Ptr{Ptr{Cvoid}},
                                                           extMem::hipExternalMemory_t,
                                                           bufferDesc::Ptr{hipExternalMemoryBufferDesc})::hipError_t)
 end
 
 @checked function hipDestroyExternalMemory(extMem)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDestroyExternalMemory(extMem::hipExternalMemory_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDestroyExternalMemory(extMem::hipExternalMemory_t)::hipError_t)
 end
 
 @checked function hipExternalMemoryGetMappedMipmappedArray(mipmap, extMem, mipmapDesc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExternalMemoryGetMappedMipmappedArray(mipmap::Ptr{hipMipmappedArray_t},
+    @gcsafe_ccall(libamdhip64.hipExternalMemoryGetMappedMipmappedArray(mipmap::Ptr{hipMipmappedArray_t},
                                                                   extMem::hipExternalMemory_t,
                                                                   mipmapDesc::Ptr{hipExternalMemoryMipmappedArrayDesc})::hipError_t)
 end
 
 @checked function hipMalloc(ptr, size)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMalloc(ptr::Ptr{Ptr{Cvoid}}, size::Csize_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMalloc(ptr::Ptr{Ptr{Cvoid}}, size::Csize_t)::hipError_t)
 end
 
 @checked function hipExtMallocWithFlags(ptr, sizeBytes, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtMallocWithFlags(ptr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipExtMallocWithFlags(ptr::Ptr{Ptr{Cvoid}},
                                                sizeBytes::Csize_t,
                                                flags::Cuint)::hipError_t)
 end
 
 @checked function hipMallocHost(ptr, size)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMallocHost(ptr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipMallocHost(ptr::Ptr{Ptr{Cvoid}},
                                        size::Csize_t)::hipError_t)
 end
 
 @checked function hipMemAllocHost(ptr, size)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemAllocHost(ptr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipMemAllocHost(ptr::Ptr{Ptr{Cvoid}},
                                          size::Csize_t)::hipError_t)
 end
 
 @checked function hipHostMalloc(ptr, size, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipHostMalloc(ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipHostMalloc(ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
                                        flags::Cuint)::hipError_t)
 end
 
 @checked function hipMallocManaged(dev_ptr, size, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMallocManaged(dev_ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMallocManaged(dev_ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
                                           flags::Cuint)::hipError_t)
 end
 
 @checked function hipMemPrefetchAsync(dev_ptr, count, device, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPrefetchAsync(dev_ptr::Ptr{Cvoid}, count::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemPrefetchAsync(dev_ptr::Ptr{Cvoid}, count::Csize_t,
                                              device::Cint,
                                              stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemPrefetchAsync_v2(dev_ptr, count, location, flags, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPrefetchAsync_v2(dev_ptr::Ptr{Cvoid}, count::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemPrefetchAsync_v2(dev_ptr::Ptr{Cvoid}, count::Csize_t,
                                                 location::hipMemLocation,
                                                 flags::Cuint,
                                                 stream::hipStream_t)::hipError_t)
@@ -4507,7 +4507,7 @@ end
 @checked function hipMemPrefetchBatchAsync(dev_ptrs, sizes, count, prefetch_locs, prefetch_loc_idxs,
                                            num_prefetch_locs, flags, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPrefetchBatchAsync(dev_ptrs::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipMemPrefetchBatchAsync(dev_ptrs::Ptr{Ptr{Cvoid}},
                                                   sizes::Ptr{Csize_t},
                                                   count::Csize_t,
                                                   prefetch_locs::Ptr{hipMemLocation},
@@ -4519,21 +4519,21 @@ end
 
 @checked function hipMemAdvise(dev_ptr, count, advice, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemAdvise(dev_ptr::Ptr{Cvoid}, count::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemAdvise(dev_ptr::Ptr{Cvoid}, count::Csize_t,
                                       advice::hipMemoryAdvise,
                                       device::Cint)::hipError_t)
 end
 
 @checked function hipMemAdvise_v2(dev_ptr, count, advice, location)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemAdvise_v2(dev_ptr::Ptr{Cvoid}, count::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemAdvise_v2(dev_ptr::Ptr{Cvoid}, count::Csize_t,
                                          advice::hipMemoryAdvise,
                                          location::hipMemLocation)::hipError_t)
 end
 
 @checked function hipMemRangeGetAttribute(data, data_size, attribute, dev_ptr, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemRangeGetAttribute(data::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemRangeGetAttribute(data::Ptr{Cvoid},
                                                  data_size::Csize_t,
                                                  attribute::hipMemRangeAttribute,
                                                  dev_ptr::Ptr{Cvoid},
@@ -4543,7 +4543,7 @@ end
 @checked function hipMemRangeGetAttributes(data, data_sizes, attributes, num_attributes, dev_ptr,
                                            count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemRangeGetAttributes(data::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipMemRangeGetAttributes(data::Ptr{Ptr{Cvoid}},
                                                   data_sizes::Ptr{Csize_t},
                                                   attributes::Ptr{hipMemRangeAttribute},
                                                   num_attributes::Csize_t,
@@ -4553,7 +4553,7 @@ end
 
 @checked function hipStreamAttachMemAsync(stream, dev_ptr, length, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamAttachMemAsync(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamAttachMemAsync(stream::hipStream_t,
                                                  dev_ptr::Ptr{Cvoid},
                                                  length::Csize_t,
                                                  flags::Cuint)::hipError_t)
@@ -4561,64 +4561,64 @@ end
 
 @checked function hipMallocAsync(dev_ptr, size, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMallocAsync(dev_ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMallocAsync(dev_ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
                                         stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipFreeAsync(dev_ptr, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFreeAsync(dev_ptr::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipFreeAsync(dev_ptr::Ptr{Cvoid},
                                       stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemPoolTrimTo(mem_pool, min_bytes_to_hold)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolTrimTo(mem_pool::hipMemPool_t,
+    @gcsafe_ccall(libamdhip64.hipMemPoolTrimTo(mem_pool::hipMemPool_t,
                                           min_bytes_to_hold::Csize_t)::hipError_t)
 end
 
 @checked function hipMemPoolSetAttribute(mem_pool, attr, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolSetAttribute(mem_pool::hipMemPool_t,
+    @gcsafe_ccall(libamdhip64.hipMemPoolSetAttribute(mem_pool::hipMemPool_t,
                                                 attr::hipMemPoolAttr,
                                                 value::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipMemPoolGetAttribute(mem_pool, attr, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolGetAttribute(mem_pool::hipMemPool_t,
+    @gcsafe_ccall(libamdhip64.hipMemPoolGetAttribute(mem_pool::hipMemPool_t,
                                                 attr::hipMemPoolAttr,
                                                 value::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipMemPoolSetAccess(mem_pool, desc_list, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolSetAccess(mem_pool::hipMemPool_t,
+    @gcsafe_ccall(libamdhip64.hipMemPoolSetAccess(mem_pool::hipMemPool_t,
                                              desc_list::Ptr{hipMemAccessDesc},
                                              count::Csize_t)::hipError_t)
 end
 
 @checked function hipMemPoolGetAccess(flags, mem_pool, location)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolGetAccess(flags::Ptr{hipMemAccessFlags},
+    @gcsafe_ccall(libamdhip64.hipMemPoolGetAccess(flags::Ptr{hipMemAccessFlags},
                                              mem_pool::hipMemPool_t,
                                              location::Ptr{hipMemLocation})::hipError_t)
 end
 
 @checked function hipMemPoolCreate(mem_pool, pool_props)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolCreate(mem_pool::Ptr{hipMemPool_t},
+    @gcsafe_ccall(libamdhip64.hipMemPoolCreate(mem_pool::Ptr{hipMemPool_t},
                                           pool_props::Ptr{hipMemPoolProps})::hipError_t)
 end
 
 @checked function hipMemPoolDestroy(mem_pool)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolDestroy(mem_pool::hipMemPool_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMemPoolDestroy(mem_pool::hipMemPool_t)::hipError_t)
 end
 
 @checked function hipMallocFromPoolAsync(dev_ptr, size, mem_pool, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMallocFromPoolAsync(dev_ptr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipMallocFromPoolAsync(dev_ptr::Ptr{Ptr{Cvoid}},
                                                 size::Csize_t,
                                                 mem_pool::hipMemPool_t,
                                                 stream::hipStream_t)::hipError_t)
@@ -4626,7 +4626,7 @@ end
 
 @checked function hipMemPoolExportToShareableHandle(shared_handle, mem_pool, handle_type, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolExportToShareableHandle(shared_handle::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemPoolExportToShareableHandle(shared_handle::Ptr{Cvoid},
                                                            mem_pool::hipMemPool_t,
                                                            handle_type::hipMemAllocationHandleType,
                                                            flags::Cuint)::hipError_t)
@@ -4634,7 +4634,7 @@ end
 
 @checked function hipMemPoolImportFromShareableHandle(mem_pool, shared_handle, handle_type, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolImportFromShareableHandle(mem_pool::Ptr{hipMemPool_t},
+    @gcsafe_ccall(libamdhip64.hipMemPoolImportFromShareableHandle(mem_pool::Ptr{hipMemPool_t},
                                                              shared_handle::Ptr{Cvoid},
                                                              handle_type::hipMemAllocationHandleType,
                                                              flags::Cuint)::hipError_t)
@@ -4642,70 +4642,70 @@ end
 
 @checked function hipMemPoolExportPointer(export_data, dev_ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolExportPointer(export_data::Ptr{hipMemPoolPtrExportData},
+    @gcsafe_ccall(libamdhip64.hipMemPoolExportPointer(export_data::Ptr{hipMemPoolPtrExportData},
                                                  dev_ptr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipMemPoolImportPointer(dev_ptr, mem_pool, export_data)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPoolImportPointer(dev_ptr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipMemPoolImportPointer(dev_ptr::Ptr{Ptr{Cvoid}},
                                                  mem_pool::hipMemPool_t,
                                                  export_data::Ptr{hipMemPoolPtrExportData})::hipError_t)
 end
 
 @checked function hipMemSetMemPool(location, type, pool)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemSetMemPool(location::Ptr{hipMemLocation},
+    @gcsafe_ccall(libamdhip64.hipMemSetMemPool(location::Ptr{hipMemLocation},
                                           type::hipMemAllocationType,
                                           pool::hipMemPool_t)::hipError_t)
 end
 
 @checked function hipMemGetMemPool(pool, location, type)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemGetMemPool(pool::Ptr{hipMemPool_t},
+    @gcsafe_ccall(libamdhip64.hipMemGetMemPool(pool::Ptr{hipMemPool_t},
                                           location::Ptr{hipMemLocation},
                                           type::hipMemAllocationType)::hipError_t)
 end
 
 @checked function hipHostAlloc(ptr, size, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipHostAlloc(ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipHostAlloc(ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
                                       flags::Cuint)::hipError_t)
 end
 
 @checked function hipHostGetDevicePointer(devPtr, hstPtr, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipHostGetDevicePointer(devPtr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipHostGetDevicePointer(devPtr::Ptr{Ptr{Cvoid}},
                                                  hstPtr::Ptr{Cvoid},
                                                  flags::Cuint)::hipError_t)
 end
 
 @checked function hipHostGetFlags(flagsPtr, hostPtr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipHostGetFlags(flagsPtr::Ptr{Cuint},
+    @gcsafe_ccall(libamdhip64.hipHostGetFlags(flagsPtr::Ptr{Cuint},
                                          hostPtr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipHostRegister(hostPtr, sizeBytes, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipHostRegister(hostPtr::Ptr{Cvoid}, sizeBytes::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipHostRegister(hostPtr::Ptr{Cvoid}, sizeBytes::Csize_t,
                                          flags::Cuint)::hipError_t)
 end
 
 @checked function hipHostUnregister(hostPtr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipHostUnregister(hostPtr::Ptr{Cvoid})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipHostUnregister(hostPtr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipMallocPitch(ptr, pitch, width, height)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMallocPitch(ptr::Ptr{Ptr{Cvoid}}, pitch::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipMallocPitch(ptr::Ptr{Ptr{Cvoid}}, pitch::Ptr{Csize_t},
                                         width::Csize_t, height::Csize_t)::hipError_t)
 end
 
 @checked function hipMemAllocPitch(dptr, pitch, widthInBytes, height, elementSizeBytes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemAllocPitch(dptr::Ptr{hipDeviceptr_t},
+    @gcsafe_ccall(libamdhip64.hipMemAllocPitch(dptr::Ptr{hipDeviceptr_t},
                                           pitch::Ptr{Csize_t}, widthInBytes::Csize_t,
                                           height::Csize_t,
                                           elementSizeBytes::Cuint)::hipError_t)
@@ -4713,96 +4713,96 @@ end
 
 @checked function hipFree(ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFree(ptr::Ptr{Cvoid})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipFree(ptr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipFreeHost(ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFreeHost(ptr::Ptr{Cvoid})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipFreeHost(ptr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipHostFree(ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipHostFree(ptr::Ptr{Cvoid})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipHostFree(ptr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipMemcpy(dst, src, sizeBytes, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpy(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
                                    sizeBytes::Csize_t,
                                    kind::hipMemcpyKind)::hipError_t)
 end
 
 @checked function hipMemcpyWithStream(dst, src, sizeBytes, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyWithStream(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyWithStream(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
                                              sizeBytes::Csize_t, kind::hipMemcpyKind,
                                              stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemcpyHtoD(dst, src, sizeBytes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyHtoD(dst::hipDeviceptr_t, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyHtoD(dst::hipDeviceptr_t, src::Ptr{Cvoid},
                                        sizeBytes::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpyDtoH(dst, src, sizeBytes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyDtoH(dst::Ptr{Cvoid}, src::hipDeviceptr_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyDtoH(dst::Ptr{Cvoid}, src::hipDeviceptr_t,
                                        sizeBytes::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpyDtoD(dst, src, sizeBytes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyDtoD(dst::hipDeviceptr_t, src::hipDeviceptr_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyDtoD(dst::hipDeviceptr_t, src::hipDeviceptr_t,
                                        sizeBytes::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpyAtoD(dstDevice, srcArray, srcOffset, ByteCount)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyAtoD(dstDevice::hipDeviceptr_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyAtoD(dstDevice::hipDeviceptr_t,
                                        srcArray::hipArray_t, srcOffset::Csize_t,
                                        ByteCount::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpyDtoA(dstArray, dstOffset, srcDevice, ByteCount)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyDtoA(dstArray::hipArray_t, dstOffset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyDtoA(dstArray::hipArray_t, dstOffset::Csize_t,
                                        srcDevice::hipDeviceptr_t,
                                        ByteCount::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpyAtoA(dstArray, dstOffset, srcArray, srcOffset, ByteCount)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyAtoA(dstArray::hipArray_t, dstOffset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyAtoA(dstArray::hipArray_t, dstOffset::Csize_t,
                                        srcArray::hipArray_t, srcOffset::Csize_t,
                                        ByteCount::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpyHtoDAsync(dst, src, sizeBytes, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyHtoDAsync(dst::hipDeviceptr_t, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyHtoDAsync(dst::hipDeviceptr_t, src::Ptr{Cvoid},
                                             sizeBytes::Csize_t,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemcpyDtoHAsync(dst, src, sizeBytes, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyDtoHAsync(dst::Ptr{Cvoid}, src::hipDeviceptr_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyDtoHAsync(dst::Ptr{Cvoid}, src::hipDeviceptr_t,
                                             sizeBytes::Csize_t,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemcpyDtoDAsync(dst, src, sizeBytes, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyDtoDAsync(dst::hipDeviceptr_t, src::hipDeviceptr_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyDtoDAsync(dst::hipDeviceptr_t, src::hipDeviceptr_t,
                                             sizeBytes::Csize_t,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemcpyAtoHAsync(dstHost, srcArray, srcOffset, ByteCount, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyAtoHAsync(dstHost::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyAtoHAsync(dstHost::Ptr{Cvoid},
                                             srcArray::hipArray_t, srcOffset::Csize_t,
                                             ByteCount::Csize_t,
                                             stream::hipStream_t)::hipError_t)
@@ -4810,47 +4810,47 @@ end
 
 @checked function hipMemcpyHtoAAsync(dstArray, dstOffset, srcHost, ByteCount, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyHtoAAsync(dstArray::hipArray_t, dstOffset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyHtoAAsync(dstArray::hipArray_t, dstOffset::Csize_t,
                                             srcHost::Ptr{Cvoid}, ByteCount::Csize_t,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipModuleGetGlobal(dptr, bytes, hmod, name)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleGetGlobal(dptr::Ptr{hipDeviceptr_t},
+    @gcsafe_ccall(libamdhip64.hipModuleGetGlobal(dptr::Ptr{hipDeviceptr_t},
                                             bytes::Ptr{Csize_t}, hmod::hipModule_t,
                                             name::Cstring)::hipError_t)
 end
 
 @checked function hipGetSymbolAddress(devPtr, symbol)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetSymbolAddress(devPtr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipGetSymbolAddress(devPtr::Ptr{Ptr{Cvoid}},
                                              symbol::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipGetSymbolSize(size, symbol)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetSymbolSize(size::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipGetSymbolSize(size::Ptr{Csize_t},
                                           symbol::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipGetProcAddress(symbol, pfn, hipVersion, flags, symbolStatus)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetProcAddress(symbol::Cstring, pfn::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipGetProcAddress(symbol::Cstring, pfn::Ptr{Ptr{Cvoid}},
                                            hipVersion::Cint, flags::UInt64,
                                            symbolStatus::Ptr{hipDriverProcAddressQueryResult})::hipError_t)
 end
 
 @checked function hipMemcpyToSymbol(symbol, src, sizeBytes, offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyToSymbol(symbol::Ptr{Cvoid}, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyToSymbol(symbol::Ptr{Cvoid}, src::Ptr{Cvoid},
                                            sizeBytes::Csize_t, offset::Csize_t,
                                            kind::hipMemcpyKind)::hipError_t)
 end
 
 @checked function hipMemcpyToSymbolAsync(symbol, src, sizeBytes, offset, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyToSymbolAsync(symbol::Ptr{Cvoid}, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyToSymbolAsync(symbol::Ptr{Cvoid}, src::Ptr{Cvoid},
                                                 sizeBytes::Csize_t, offset::Csize_t,
                                                 kind::hipMemcpyKind,
                                                 stream::hipStream_t)::hipError_t)
@@ -4858,14 +4858,14 @@ end
 
 @checked function hipMemcpyFromSymbol(dst, symbol, sizeBytes, offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyFromSymbol(dst::Ptr{Cvoid}, symbol::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyFromSymbol(dst::Ptr{Cvoid}, symbol::Ptr{Cvoid},
                                              sizeBytes::Csize_t, offset::Csize_t,
                                              kind::hipMemcpyKind)::hipError_t)
 end
 
 @checked function hipMemcpyFromSymbolAsync(dst, symbol, sizeBytes, offset, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyFromSymbolAsync(dst::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyFromSymbolAsync(dst::Ptr{Cvoid},
                                                   symbol::Ptr{Cvoid},
                                                   sizeBytes::Csize_t,
                                                   offset::Csize_t,
@@ -4875,72 +4875,72 @@ end
 
 @checked function hipMemcpyAsync(dst, src, sizeBytes, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyAsync(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
                                         sizeBytes::Csize_t, kind::hipMemcpyKind,
                                         stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemset(dst, value, sizeBytes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset(dst::Ptr{Cvoid}, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemset(dst::Ptr{Cvoid}, value::Cint,
                                    sizeBytes::Csize_t)::hipError_t)
 end
 
 @checked function hipMemsetD8(dest, value, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD8(dest::hipDeviceptr_t, value::Cuchar,
+    @gcsafe_ccall(libamdhip64.hipMemsetD8(dest::hipDeviceptr_t, value::Cuchar,
                                      count::Csize_t)::hipError_t)
 end
 
 @checked function hipMemsetD8Async(dest, value, count, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD8Async(dest::hipDeviceptr_t, value::Cuchar,
+    @gcsafe_ccall(libamdhip64.hipMemsetD8Async(dest::hipDeviceptr_t, value::Cuchar,
                                           count::Csize_t,
                                           stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemsetD16(dest, value, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD16(dest::hipDeviceptr_t, value::Cushort,
+    @gcsafe_ccall(libamdhip64.hipMemsetD16(dest::hipDeviceptr_t, value::Cushort,
                                       count::Csize_t)::hipError_t)
 end
 
 @checked function hipMemsetD16Async(dest, value, count, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD16Async(dest::hipDeviceptr_t, value::Cushort,
+    @gcsafe_ccall(libamdhip64.hipMemsetD16Async(dest::hipDeviceptr_t, value::Cushort,
                                            count::Csize_t,
                                            stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemsetD32(dest, value, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD32(dest::hipDeviceptr_t, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemsetD32(dest::hipDeviceptr_t, value::Cint,
                                       count::Csize_t)::hipError_t)
 end
 
 @checked function hipMemsetAsync(dst, value, sizeBytes, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetAsync(dst::Ptr{Cvoid}, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemsetAsync(dst::Ptr{Cvoid}, value::Cint,
                                         sizeBytes::Csize_t,
                                         stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemsetD32Async(dst, value, count, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD32Async(dst::hipDeviceptr_t, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemsetD32Async(dst::hipDeviceptr_t, value::Cint,
                                            count::Csize_t,
                                            stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemset2D(dst, pitch, value, width, height)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset2D(dst::Ptr{Cvoid}, pitch::Csize_t, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemset2D(dst::Ptr{Cvoid}, pitch::Csize_t, value::Cint,
                                      width::Csize_t, height::Csize_t)::hipError_t)
 end
 
 @checked function hipMemset2DAsync(dst, pitch, value, width, height, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset2DAsync(dst::Ptr{Cvoid}, pitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemset2DAsync(dst::Ptr{Cvoid}, pitch::Csize_t,
                                           value::Cint, width::Csize_t,
                                           height::Csize_t,
                                           stream::hipStream_t)::hipError_t)
@@ -4948,27 +4948,27 @@ end
 
 @checked function hipMemset3D(pitchedDevPtr, value, extent)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset3D(pitchedDevPtr::hipPitchedPtr, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemset3D(pitchedDevPtr::hipPitchedPtr, value::Cint,
                                      extent::hipExtent)::hipError_t)
 end
 
 @checked function hipMemset3DAsync(pitchedDevPtr, value, extent, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset3DAsync(pitchedDevPtr::hipPitchedPtr, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemset3DAsync(pitchedDevPtr::hipPitchedPtr, value::Cint,
                                           extent::hipExtent,
                                           stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemsetD2D8(dst, dstPitch, value, width, height)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD2D8(dst::hipDeviceptr_t, dstPitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemsetD2D8(dst::hipDeviceptr_t, dstPitch::Csize_t,
                                        value::Cuchar, width::Csize_t,
                                        height::Csize_t)::hipError_t)
 end
 
 @checked function hipMemsetD2D8Async(dst, dstPitch, value, width, height, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD2D8Async(dst::hipDeviceptr_t, dstPitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemsetD2D8Async(dst::hipDeviceptr_t, dstPitch::Csize_t,
                                             value::Cuchar, width::Csize_t,
                                             height::Csize_t,
                                             stream::hipStream_t)::hipError_t)
@@ -4976,14 +4976,14 @@ end
 
 @checked function hipMemsetD2D16(dst, dstPitch, value, width, height)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD2D16(dst::hipDeviceptr_t, dstPitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemsetD2D16(dst::hipDeviceptr_t, dstPitch::Csize_t,
                                         value::Cushort, width::Csize_t,
                                         height::Csize_t)::hipError_t)
 end
 
 @checked function hipMemsetD2D16Async(dst, dstPitch, value, width, height, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD2D16Async(dst::hipDeviceptr_t, dstPitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemsetD2D16Async(dst::hipDeviceptr_t, dstPitch::Csize_t,
                                              value::Cushort, width::Csize_t,
                                              height::Csize_t,
                                              stream::hipStream_t)::hipError_t)
@@ -4991,14 +4991,14 @@ end
 
 @checked function hipMemsetD2D32(dst, dstPitch, value, width, height)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD2D32(dst::hipDeviceptr_t, dstPitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemsetD2D32(dst::hipDeviceptr_t, dstPitch::Csize_t,
                                         value::Cuint, width::Csize_t,
                                         height::Csize_t)::hipError_t)
 end
 
 @checked function hipMemsetD2D32Async(dst, dstPitch, value, width, height, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetD2D32Async(dst::hipDeviceptr_t, dstPitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemsetD2D32Async(dst::hipDeviceptr_t, dstPitch::Csize_t,
                                              value::Cuint, width::Csize_t,
                                              height::Csize_t,
                                              stream::hipStream_t)::hipError_t)
@@ -5006,19 +5006,19 @@ end
 
 @checked function hipMemGetInfo(free, total)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemGetInfo(free::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipMemGetInfo(free::Ptr{Csize_t},
                                        total::Ptr{Csize_t})::hipError_t)
 end
 
 @checked function hipMemPtrGetInfo(ptr, size)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemPtrGetInfo(ptr::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemPtrGetInfo(ptr::Ptr{Cvoid},
                                           size::Ptr{Csize_t})::hipError_t)
 end
 
 @checked function hipMallocArray(array, desc, width, height, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMallocArray(array::Ptr{hipArray_t},
+    @gcsafe_ccall(libamdhip64.hipMallocArray(array::Ptr{hipArray_t},
                                         desc::Ptr{hipChannelFormatDesc},
                                         width::Csize_t, height::Csize_t,
                                         flags::Cuint)::hipError_t)
@@ -5026,35 +5026,35 @@ end
 
 @checked function hipArrayCreate(pHandle, pAllocateArray)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipArrayCreate(pHandle::Ptr{hipArray_t},
+    @gcsafe_ccall(libamdhip64.hipArrayCreate(pHandle::Ptr{hipArray_t},
                                         pAllocateArray::Ptr{HIP_ARRAY_DESCRIPTOR})::hipError_t)
 end
 
 @checked function hipArrayDestroy(array)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipArrayDestroy(array::hipArray_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipArrayDestroy(array::hipArray_t)::hipError_t)
 end
 
 @checked function hipArray3DCreate(array, pAllocateArray)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipArray3DCreate(array::Ptr{hipArray_t},
+    @gcsafe_ccall(libamdhip64.hipArray3DCreate(array::Ptr{hipArray_t},
                                           pAllocateArray::Ptr{HIP_ARRAY3D_DESCRIPTOR})::hipError_t)
 end
 
 @checked function hipMalloc3D(pitchedDevPtr, extent)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMalloc3D(pitchedDevPtr::Ptr{hipPitchedPtr},
+    @gcsafe_ccall(libamdhip64.hipMalloc3D(pitchedDevPtr::Ptr{hipPitchedPtr},
                                      extent::hipExtent)::hipError_t)
 end
 
 @checked function hipFreeArray(array)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFreeArray(array::hipArray_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipFreeArray(array::hipArray_t)::hipError_t)
 end
 
 @checked function hipMalloc3DArray(array, desc, extent, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMalloc3DArray(array::Ptr{hipArray_t},
+    @gcsafe_ccall(libamdhip64.hipMalloc3DArray(array::Ptr{hipArray_t},
                                           desc::Ptr{hipChannelFormatDesc},
                                           extent::hipExtent,
                                           flags::Cuint)::hipError_t)
@@ -5062,26 +5062,26 @@ end
 
 @checked function hipArrayGetInfo(desc, extent, flags, array)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipArrayGetInfo(desc::Ptr{hipChannelFormatDesc},
+    @gcsafe_ccall(libamdhip64.hipArrayGetInfo(desc::Ptr{hipChannelFormatDesc},
                                          extent::Ptr{hipExtent}, flags::Ptr{Cuint},
                                          array::hipArray_t)::hipError_t)
 end
 
 @checked function hipArrayGetDescriptor(pArrayDescriptor, array)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipArrayGetDescriptor(pArrayDescriptor::Ptr{HIP_ARRAY_DESCRIPTOR},
+    @gcsafe_ccall(libamdhip64.hipArrayGetDescriptor(pArrayDescriptor::Ptr{HIP_ARRAY_DESCRIPTOR},
                                                array::hipArray_t)::hipError_t)
 end
 
 @checked function hipArray3DGetDescriptor(pArrayDescriptor, array)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipArray3DGetDescriptor(pArrayDescriptor::Ptr{HIP_ARRAY3D_DESCRIPTOR},
+    @gcsafe_ccall(libamdhip64.hipArray3DGetDescriptor(pArrayDescriptor::Ptr{HIP_ARRAY3D_DESCRIPTOR},
                                                  array::hipArray_t)::hipError_t)
 end
 
 @checked function hipMemcpy2D(dst, dpitch, src, spitch, width, height, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2D(dst::Ptr{Cvoid}, dpitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2D(dst::Ptr{Cvoid}, dpitch::Csize_t,
                                      src::Ptr{Cvoid}, spitch::Csize_t,
                                      width::Csize_t, height::Csize_t,
                                      kind::hipMemcpyKind)::hipError_t)
@@ -5089,18 +5089,18 @@ end
 
 @checked function hipMemcpyParam2D(pCopy)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyParam2D(pCopy::Ptr{hip_Memcpy2D})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMemcpyParam2D(pCopy::Ptr{hip_Memcpy2D})::hipError_t)
 end
 
 @checked function hipMemcpyParam2DAsync(pCopy, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyParam2DAsync(pCopy::Ptr{hip_Memcpy2D},
+    @gcsafe_ccall(libamdhip64.hipMemcpyParam2DAsync(pCopy::Ptr{hip_Memcpy2D},
                                                stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemcpy2DAsync(dst, dpitch, src, spitch, width, height, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DAsync(dst::Ptr{Cvoid}, dpitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DAsync(dst::Ptr{Cvoid}, dpitch::Csize_t,
                                           src::Ptr{Cvoid}, spitch::Csize_t,
                                           width::Csize_t, height::Csize_t,
                                           kind::hipMemcpyKind,
@@ -5109,7 +5109,7 @@ end
 
 @checked function hipMemcpy2DToArray(dst, wOffset, hOffset, src, spitch, width, height, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DToArray(dst::hipArray_t, wOffset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DToArray(dst::hipArray_t, wOffset::Csize_t,
                                             hOffset::Csize_t, src::Ptr{Cvoid},
                                             spitch::Csize_t, width::Csize_t,
                                             height::Csize_t,
@@ -5119,7 +5119,7 @@ end
 @checked function hipMemcpy2DToArrayAsync(dst, wOffset, hOffset, src, spitch, width, height, kind,
                                           stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DToArrayAsync(dst::hipArray_t, wOffset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DToArrayAsync(dst::hipArray_t, wOffset::Csize_t,
                                                  hOffset::Csize_t, src::Ptr{Cvoid},
                                                  spitch::Csize_t, width::Csize_t,
                                                  height::Csize_t,
@@ -5130,7 +5130,7 @@ end
 @checked function hipMemcpy2DArrayToArray(dst, wOffsetDst, hOffsetDst, src, wOffsetSrc, hOffsetSrc,
                                           width, height, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DArrayToArray(dst::hipArray_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DArrayToArray(dst::hipArray_t,
                                                  wOffsetDst::Csize_t,
                                                  hOffsetDst::Csize_t,
                                                  src::hipArray_const_t,
@@ -5142,7 +5142,7 @@ end
 
 @checked function hipMemcpyToArray(dst, wOffset, hOffset, src, count, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyToArray(dst::hipArray_t, wOffset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyToArray(dst::hipArray_t, wOffset::Csize_t,
                                           hOffset::Csize_t, src::Ptr{Cvoid},
                                           count::Csize_t,
                                           kind::hipMemcpyKind)::hipError_t)
@@ -5150,7 +5150,7 @@ end
 
 @checked function hipMemcpyFromArray(dst, srcArray, wOffset, hOffset, count, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyFromArray(dst::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyFromArray(dst::Ptr{Cvoid},
                                             srcArray::hipArray_const_t,
                                             wOffset::Csize_t, hOffset::Csize_t,
                                             count::Csize_t,
@@ -5159,7 +5159,7 @@ end
 
 @checked function hipMemcpy2DFromArray(dst, dpitch, src, wOffset, hOffset, width, height, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DFromArray(dst::Ptr{Cvoid}, dpitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DFromArray(dst::Ptr{Cvoid}, dpitch::Csize_t,
                                               src::hipArray_const_t,
                                               wOffset::Csize_t, hOffset::Csize_t,
                                               width::Csize_t, height::Csize_t,
@@ -5169,7 +5169,7 @@ end
 @checked function hipMemcpy2DFromArrayAsync(dst, dpitch, src, wOffset, hOffset, width, height, kind,
                                             stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DFromArrayAsync(dst::Ptr{Cvoid}, dpitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DFromArrayAsync(dst::Ptr{Cvoid}, dpitch::Csize_t,
                                                    src::hipArray_const_t,
                                                    wOffset::Csize_t,
                                                    hOffset::Csize_t, width::Csize_t,
@@ -5180,43 +5180,43 @@ end
 
 @checked function hipMemcpyAtoH(dst, srcArray, srcOffset, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyAtoH(dst::Ptr{Cvoid}, srcArray::hipArray_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyAtoH(dst::Ptr{Cvoid}, srcArray::hipArray_t,
                                        srcOffset::Csize_t,
                                        count::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpyHtoA(dstArray, dstOffset, srcHost, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyHtoA(dstArray::hipArray_t, dstOffset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpyHtoA(dstArray::hipArray_t, dstOffset::Csize_t,
                                        srcHost::Ptr{Cvoid},
                                        count::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpy3D(p)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy3D(p::Ptr{hipMemcpy3DParms})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMemcpy3D(p::Ptr{hipMemcpy3DParms})::hipError_t)
 end
 
 @checked function hipMemcpy3DAsync(p, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy3DAsync(p::Ptr{hipMemcpy3DParms},
+    @gcsafe_ccall(libamdhip64.hipMemcpy3DAsync(p::Ptr{hipMemcpy3DParms},
                                           stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipDrvMemcpy3D(pCopy)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvMemcpy3D(pCopy::Ptr{HIP_MEMCPY3D})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDrvMemcpy3D(pCopy::Ptr{HIP_MEMCPY3D})::hipError_t)
 end
 
 @checked function hipDrvMemcpy3DAsync(pCopy, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvMemcpy3DAsync(pCopy::Ptr{HIP_MEMCPY3D},
+    @gcsafe_ccall(libamdhip64.hipDrvMemcpy3DAsync(pCopy::Ptr{HIP_MEMCPY3D},
                                              stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemGetAddressRange(pbase, psize, dptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemGetAddressRange(pbase::Ptr{hipDeviceptr_t},
+    @gcsafe_ccall(libamdhip64.hipMemGetAddressRange(pbase::Ptr{hipDeviceptr_t},
                                                psize::Ptr{Csize_t},
                                                dptr::hipDeviceptr_t)::hipError_t)
 end
@@ -5224,7 +5224,7 @@ end
 @checked function hipMemcpyBatchAsync(dsts, srcs, sizes, count, attrs, attrsIdxs, numAttrs, failIdx,
                                       stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyBatchAsync(dsts::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipMemcpyBatchAsync(dsts::Ptr{Ptr{Cvoid}},
                                              srcs::Ptr{Ptr{Cvoid}},
                                              sizes::Ptr{Csize_t}, count::Csize_t,
                                              attrs::Ptr{hipMemcpyAttributes},
@@ -5236,7 +5236,7 @@ end
 
 @checked function hipMemcpy3DBatchAsync(numOps, opList, failIdx, flags, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy3DBatchAsync(numOps::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy3DBatchAsync(numOps::Csize_t,
                                                opList::Ptr{hipMemcpy3DBatchOp},
                                                failIdx::Ptr{Csize_t},
                                                flags::Culonglong,
@@ -5245,196 +5245,196 @@ end
 
 @checked function hipMemcpy3DPeer(p)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy3DPeer(p::Ptr{hipMemcpy3DPeerParms})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMemcpy3DPeer(p::Ptr{hipMemcpy3DPeerParms})::hipError_t)
 end
 
 @checked function hipMemcpy3DPeerAsync(p, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy3DPeerAsync(p::Ptr{hipMemcpy3DPeerParms},
+    @gcsafe_ccall(libamdhip64.hipMemcpy3DPeerAsync(p::Ptr{hipMemcpy3DPeerParms},
                                               stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMipmappedArrayGetMemoryRequirements(memoryRequirements, mipmap, device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMipmappedArrayGetMemoryRequirements(memoryRequirements::Ptr{hipArrayMemoryRequirements},
+    @gcsafe_ccall(libamdhip64.hipMipmappedArrayGetMemoryRequirements(memoryRequirements::Ptr{hipArrayMemoryRequirements},
                                                                 mipmap::hipMipmappedArray_t,
                                                                 device::hipDevice_t)::hipError_t)
 end
 
 @checked function hipDeviceCanAccessPeer(canAccessPeer, deviceId, peerDeviceId)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceCanAccessPeer(canAccessPeer::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipDeviceCanAccessPeer(canAccessPeer::Ptr{Cint},
                                                 deviceId::Cint,
                                                 peerDeviceId::Cint)::hipError_t)
 end
 
 @checked function hipDeviceEnablePeerAccess(peerDeviceId, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceEnablePeerAccess(peerDeviceId::Cint,
+    @gcsafe_ccall(libamdhip64.hipDeviceEnablePeerAccess(peerDeviceId::Cint,
                                                    flags::Cuint)::hipError_t)
 end
 
 @checked function hipDeviceDisablePeerAccess(peerDeviceId)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceDisablePeerAccess(peerDeviceId::Cint)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceDisablePeerAccess(peerDeviceId::Cint)::hipError_t)
 end
 
 @checked function hipMemcpyPeer(dst, dstDeviceId, src, srcDeviceId, sizeBytes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyPeer(dst::Ptr{Cvoid}, dstDeviceId::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemcpyPeer(dst::Ptr{Cvoid}, dstDeviceId::Cint,
                                        src::Ptr{Cvoid}, srcDeviceId::Cint,
                                        sizeBytes::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpyPeerAsync(dst, dstDeviceId, src, srcDevice, sizeBytes, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyPeerAsync(dst::Ptr{Cvoid}, dstDeviceId::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemcpyPeerAsync(dst::Ptr{Cvoid}, dstDeviceId::Cint,
                                             src::Ptr{Cvoid}, srcDevice::Cint,
                                             sizeBytes::Csize_t,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipCtxCreate(ctx, flags, device)
-    @gcsafe_ccall(libhip.hipCtxCreate(ctx::Ptr{hipCtx_t}, flags::Cuint,
+    @gcsafe_ccall(libamdhip64.hipCtxCreate(ctx::Ptr{hipCtx_t}, flags::Cuint,
                                       device::hipDevice_t)::hipError_t)
 end
 
 @checked function hipCtxDestroy(ctx)
-    @gcsafe_ccall(libhip.hipCtxDestroy(ctx::hipCtx_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxDestroy(ctx::hipCtx_t)::hipError_t)
 end
 
 @checked function hipCtxPopCurrent(ctx)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxPopCurrent(ctx::Ptr{hipCtx_t})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxPopCurrent(ctx::Ptr{hipCtx_t})::hipError_t)
 end
 
 @checked function hipCtxPushCurrent(ctx)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxPushCurrent(ctx::hipCtx_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxPushCurrent(ctx::hipCtx_t)::hipError_t)
 end
 
 @checked function hipCtxSetCurrent(ctx)
-    @gcsafe_ccall(libhip.hipCtxSetCurrent(ctx::hipCtx_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxSetCurrent(ctx::hipCtx_t)::hipError_t)
 end
 
 @checked function hipCtxGetCurrent(ctx)
-    @gcsafe_ccall(libhip.hipCtxGetCurrent(ctx::Ref{hipCtx_t})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxGetCurrent(ctx::Ref{hipCtx_t})::hipError_t)
 end
 
 @checked function hipCtxGetDevice(device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxGetDevice(device::Ptr{hipDevice_t})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxGetDevice(device::Ptr{hipDevice_t})::hipError_t)
 end
 
 @checked function hipCtxGetApiVersion(ctx, apiVersion)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxGetApiVersion(ctx::hipCtx_t,
+    @gcsafe_ccall(libamdhip64.hipCtxGetApiVersion(ctx::hipCtx_t,
                                              apiVersion::Ptr{Cuint})::hipError_t)
 end
 
 @checked function hipCtxGetCacheConfig(cacheConfig)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxGetCacheConfig(cacheConfig::Ptr{hipFuncCache_t})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxGetCacheConfig(cacheConfig::Ptr{hipFuncCache_t})::hipError_t)
 end
 
 @checked function hipCtxSetCacheConfig(cacheConfig)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxSetCacheConfig(cacheConfig::hipFuncCache_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxSetCacheConfig(cacheConfig::hipFuncCache_t)::hipError_t)
 end
 
 @checked function hipCtxSetSharedMemConfig(config)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxSetSharedMemConfig(config::hipSharedMemConfig)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxSetSharedMemConfig(config::hipSharedMemConfig)::hipError_t)
 end
 
 @checked function hipCtxGetSharedMemConfig(pConfig)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxGetSharedMemConfig(pConfig::Ptr{hipSharedMemConfig})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxGetSharedMemConfig(pConfig::Ptr{hipSharedMemConfig})::hipError_t)
 end
 
 @checked function hipCtxSynchronize()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxSynchronize()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxSynchronize()::hipError_t)
 end
 
 @checked function hipCtxGetFlags(flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxGetFlags(flags::Ptr{Cuint})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxGetFlags(flags::Ptr{Cuint})::hipError_t)
 end
 
 @checked function hipCtxEnablePeerAccess(peerCtx, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxEnablePeerAccess(peerCtx::hipCtx_t,
+    @gcsafe_ccall(libamdhip64.hipCtxEnablePeerAccess(peerCtx::hipCtx_t,
                                                 flags::Cuint)::hipError_t)
 end
 
 @checked function hipCtxDisablePeerAccess(peerCtx)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCtxDisablePeerAccess(peerCtx::hipCtx_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipCtxDisablePeerAccess(peerCtx::hipCtx_t)::hipError_t)
 end
 
 @checked function hipDevicePrimaryCtxGetState(dev, flags, active)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDevicePrimaryCtxGetState(dev::hipDevice_t,
+    @gcsafe_ccall(libamdhip64.hipDevicePrimaryCtxGetState(dev::hipDevice_t,
                                                      flags::Ptr{Cuint},
                                                      active::Ptr{Cint})::hipError_t)
 end
 
 @checked function hipDevicePrimaryCtxRelease(dev)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDevicePrimaryCtxRelease(dev::hipDevice_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDevicePrimaryCtxRelease(dev::hipDevice_t)::hipError_t)
 end
 
 @checked function hipDevicePrimaryCtxRetain(pctx, dev)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDevicePrimaryCtxRetain(pctx::Ptr{hipCtx_t},
+    @gcsafe_ccall(libamdhip64.hipDevicePrimaryCtxRetain(pctx::Ptr{hipCtx_t},
                                                    dev::hipDevice_t)::hipError_t)
 end
 
 @checked function hipDevicePrimaryCtxReset(dev)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDevicePrimaryCtxReset(dev::hipDevice_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDevicePrimaryCtxReset(dev::hipDevice_t)::hipError_t)
 end
 
 @checked function hipDevicePrimaryCtxSetFlags(dev, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDevicePrimaryCtxSetFlags(dev::hipDevice_t,
+    @gcsafe_ccall(libamdhip64.hipDevicePrimaryCtxSetFlags(dev::hipDevice_t,
                                                      flags::Cuint)::hipError_t)
 end
 
 @checked function hipModuleLoadFatBinary(_module, fatbin)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleLoadFatBinary(_module::Ptr{hipModule_t},
+    @gcsafe_ccall(libamdhip64.hipModuleLoadFatBinary(_module::Ptr{hipModule_t},
                                                 fatbin::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipModuleLoad(_module, fname)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleLoad(_module::Ptr{hipModule_t},
+    @gcsafe_ccall(libamdhip64.hipModuleLoad(_module::Ptr{hipModule_t},
                                        fname::Cstring)::hipError_t)
 end
 
 @checked function hipModuleUnload(_module)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleUnload(_module::hipModule_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipModuleUnload(_module::hipModule_t)::hipError_t)
 end
 
 @checked function hipModuleGetFunction(_function, _module, kname)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleGetFunction(_function::Ptr{hipFunction_t},
+    @gcsafe_ccall(libamdhip64.hipModuleGetFunction(_function::Ptr{hipFunction_t},
                                               _module::hipModule_t,
                                               kname::Cstring)::hipError_t)
 end
 
 @checked function hipModuleGetFunctionCount(count, mod)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleGetFunctionCount(count::Ptr{Cuint},
+    @gcsafe_ccall(libamdhip64.hipModuleGetFunctionCount(count::Ptr{Cuint},
                                                    mod::hipModule_t)::hipError_t)
 end
 
 @checked function hipKernelGetAttribute(pi, attrib, kernel, dev)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipKernelGetAttribute(pi::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipKernelGetAttribute(pi::Ptr{Cint},
                                                attrib::hipFunction_attribute,
                                                kernel::hipKernel_t,
                                                dev::hipDevice_t)::hipError_t)
@@ -5443,7 +5443,7 @@ end
 @checked function hipLibraryLoadData(library, code, jitOptions, jitOptionsValues, numJitOptions,
                                      libraryOptions, libraryOptionValues, numLibraryOptions)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLibraryLoadData(library::Ptr{hipLibrary_t},
+    @gcsafe_ccall(libamdhip64.hipLibraryLoadData(library::Ptr{hipLibrary_t},
                                             code::Ptr{Cvoid},
                                             jitOptions::Ptr{hipJitOption},
                                             jitOptionsValues::Ptr{Ptr{Cvoid}},
@@ -5457,7 +5457,7 @@ end
                                          numJitOptions, libraryOptions, libraryOptionValues,
                                          numLibraryOptions)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLibraryLoadFromFile(library::Ptr{hipLibrary_t},
+    @gcsafe_ccall(libamdhip64.hipLibraryLoadFromFile(library::Ptr{hipLibrary_t},
                                                 fileName::Cstring,
                                                 jitOptions::Ptr{hipJitOption},
                                                 jitOptionsValues::Ptr{Ptr{Cvoid}},
@@ -5469,44 +5469,44 @@ end
 
 @checked function hipLibraryUnload(library)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLibraryUnload(library::hipLibrary_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipLibraryUnload(library::hipLibrary_t)::hipError_t)
 end
 
 @checked function hipLibraryGetKernel(pKernel, library, name)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLibraryGetKernel(pKernel::Ptr{hipKernel_t},
+    @gcsafe_ccall(libamdhip64.hipLibraryGetKernel(pKernel::Ptr{hipKernel_t},
                                              library::hipLibrary_t,
                                              name::Cstring)::hipError_t)
 end
 
 @checked function hipLibraryGetKernelCount(count, library)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLibraryGetKernelCount(count::Ptr{Cuint},
+    @gcsafe_ccall(libamdhip64.hipLibraryGetKernelCount(count::Ptr{Cuint},
                                                   library::hipLibrary_t)::hipError_t)
 end
 
 @checked function hipLibraryEnumerateKernels(kernels, numKernels, library)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLibraryEnumerateKernels(kernels::Ptr{hipKernel_t},
+    @gcsafe_ccall(libamdhip64.hipLibraryEnumerateKernels(kernels::Ptr{hipKernel_t},
                                                     numKernels::Cuint,
                                                     library::hipLibrary_t)::hipError_t)
 end
 
 @checked function hipKernelGetLibrary(library, kernel)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipKernelGetLibrary(library::Ptr{hipLibrary_t},
+    @gcsafe_ccall(libamdhip64.hipKernelGetLibrary(library::Ptr{hipLibrary_t},
                                              kernel::hipKernel_t)::hipError_t)
 end
 
 @checked function hipKernelGetName(name, kernel)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipKernelGetName(name::Ptr{Cstring},
+    @gcsafe_ccall(libamdhip64.hipKernelGetName(name::Ptr{Cstring},
                                           kernel::hipKernel_t)::hipError_t)
 end
 
 @checked function hipKernelGetParamInfo(kernel, paramIndex, paramOffset, paramSize)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipKernelGetParamInfo(kernel::hipKernel_t,
+    @gcsafe_ccall(libamdhip64.hipKernelGetParamInfo(kernel::hipKernel_t,
                                                paramIndex::Csize_t,
                                                paramOffset::Ptr{Csize_t},
                                                paramSize::Ptr{Csize_t})::hipError_t)
@@ -5514,26 +5514,26 @@ end
 
 @checked function hipFuncGetAttributes(attr, func)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFuncGetAttributes(attr::Ptr{hipFuncAttributes},
+    @gcsafe_ccall(libamdhip64.hipFuncGetAttributes(attr::Ptr{hipFuncAttributes},
                                               func::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipFuncGetAttribute(value, attrib, hfunc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFuncGetAttribute(value::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipFuncGetAttribute(value::Ptr{Cint},
                                              attrib::hipFunction_attribute,
                                              hfunc::hipFunction_t)::hipError_t)
 end
 
 @checked function hipGetFuncBySymbol(functionPtr, symbolPtr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetFuncBySymbol(functionPtr::Ptr{hipFunction_t},
+    @gcsafe_ccall(libamdhip64.hipGetFuncBySymbol(functionPtr::Ptr{hipFunction_t},
                                             symbolPtr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipGetDriverEntryPoint(symbol, funcPtr, flags, driverStatus)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetDriverEntryPoint(symbol::Cstring,
+    @gcsafe_ccall(libamdhip64.hipGetDriverEntryPoint(symbol::Cstring,
                                                 funcPtr::Ptr{Ptr{Cvoid}},
                                                 flags::Culonglong,
                                                 driverStatus::Ptr{hipDriverEntryPointQueryResult})::hipError_t)
@@ -5541,20 +5541,20 @@ end
 
 @checked function hipModuleGetTexRef(texRef, hmod, name)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleGetTexRef(texRef::Ptr{Ptr{textureReference}},
+    @gcsafe_ccall(libamdhip64.hipModuleGetTexRef(texRef::Ptr{Ptr{textureReference}},
                                             hmod::hipModule_t,
                                             name::Cstring)::hipError_t)
 end
 
 @checked function hipModuleLoadData(_module, image)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleLoadData(_module::Ptr{hipModule_t},
+    @gcsafe_ccall(libamdhip64.hipModuleLoadData(_module::Ptr{hipModule_t},
                                            image::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipModuleLoadDataEx(_module, image, numOptions, options, optionValues)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleLoadDataEx(_module::Ptr{hipModule_t},
+    @gcsafe_ccall(libamdhip64.hipModuleLoadDataEx(_module::Ptr{hipModule_t},
                                              image::Ptr{Cvoid}, numOptions::Cuint,
                                              options::Ptr{hipJitOption},
                                              optionValues::Ptr{Ptr{Cvoid}})::hipError_t)
@@ -5562,7 +5562,7 @@ end
 
 @checked function hipLinkAddData(state, type, data, size, name, numOptions, options, optionValues)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLinkAddData(state::hipLinkState_t, type::hipJitInputType,
+    @gcsafe_ccall(libamdhip64.hipLinkAddData(state::hipLinkState_t, type::hipJitInputType,
                                         data::Ptr{Cvoid}, size::Csize_t,
                                         name::Cstring, numOptions::Cuint,
                                         options::Ptr{hipJitOption},
@@ -5571,7 +5571,7 @@ end
 
 @checked function hipLinkAddFile(state, type, path, numOptions, options, optionValues)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLinkAddFile(state::hipLinkState_t, type::hipJitInputType,
+    @gcsafe_ccall(libamdhip64.hipLinkAddFile(state::hipLinkState_t, type::hipJitInputType,
                                         path::Cstring, numOptions::Cuint,
                                         options::Ptr{hipJitOption},
                                         optionValues::Ptr{Ptr{Cvoid}})::hipError_t)
@@ -5579,27 +5579,27 @@ end
 
 @checked function hipLinkComplete(state, hipBinOut, sizeOut)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLinkComplete(state::hipLinkState_t,
+    @gcsafe_ccall(libamdhip64.hipLinkComplete(state::hipLinkState_t,
                                          hipBinOut::Ptr{Ptr{Cvoid}},
                                          sizeOut::Ptr{Csize_t})::hipError_t)
 end
 
 @checked function hipLinkCreate(numOptions, options, optionValues, stateOut)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLinkCreate(numOptions::Cuint, options::Ptr{hipJitOption},
+    @gcsafe_ccall(libamdhip64.hipLinkCreate(numOptions::Cuint, options::Ptr{hipJitOption},
                                        optionValues::Ptr{Ptr{Cvoid}},
                                        stateOut::Ptr{hipLinkState_t})::hipError_t)
 end
 
 @checked function hipLinkDestroy(state)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLinkDestroy(state::hipLinkState_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipLinkDestroy(state::hipLinkState_t)::hipError_t)
 end
 
 @checked function hipModuleLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
                                         blockDimZ, sharedMemBytes, stream, kernelParams, extra)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleLaunchKernel(f::hipFunction_t, gridDimX::Cuint,
+    @gcsafe_ccall(libamdhip64.hipModuleLaunchKernel(f::hipFunction_t, gridDimX::Cuint,
                                                gridDimY::Cuint, gridDimZ::Cuint,
                                                blockDimX::Cuint, blockDimY::Cuint,
                                                blockDimZ::Cuint,
@@ -5613,7 +5613,7 @@ end
                                                    blockDimY, blockDimZ, sharedMemBytes, stream,
                                                    kernelParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleLaunchCooperativeKernel(f::hipFunction_t,
+    @gcsafe_ccall(libamdhip64.hipModuleLaunchCooperativeKernel(f::hipFunction_t,
                                                           gridDimX::Cuint,
                                                           gridDimY::Cuint,
                                                           gridDimZ::Cuint,
@@ -5627,7 +5627,7 @@ end
 
 @checked function hipModuleLaunchCooperativeKernelMultiDevice(launchParamsList, numDevices, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleLaunchCooperativeKernelMultiDevice(launchParamsList::Ptr{hipFunctionLaunchParams},
+    @gcsafe_ccall(libamdhip64.hipModuleLaunchCooperativeKernelMultiDevice(launchParamsList::Ptr{hipFunctionLaunchParams},
                                                                      numDevices::Cuint,
                                                                      flags::Cuint)::hipError_t)
 end
@@ -5635,7 +5635,7 @@ end
 @checked function hipLaunchCooperativeKernel(f, gridDim, blockDimX, kernelParams, sharedMemBytes,
                                              stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchCooperativeKernel(f::Ptr{Cvoid}, gridDim::dim3,
+    @gcsafe_ccall(libamdhip64.hipLaunchCooperativeKernel(f::Ptr{Cvoid}, gridDim::dim3,
                                                     blockDimX::dim3,
                                                     kernelParams::Ptr{Ptr{Cvoid}},
                                                     sharedMemBytes::Cuint,
@@ -5644,28 +5644,28 @@ end
 
 @checked function hipLaunchCooperativeKernelMultiDevice(launchParamsList, numDevices, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchCooperativeKernelMultiDevice(launchParamsList::Ptr{hipLaunchParams},
+    @gcsafe_ccall(libamdhip64.hipLaunchCooperativeKernelMultiDevice(launchParamsList::Ptr{hipLaunchParams},
                                                                numDevices::Cint,
                                                                flags::Cuint)::hipError_t)
 end
 
 @checked function hipExtLaunchMultiKernelMultiDevice(launchParamsList, numDevices, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtLaunchMultiKernelMultiDevice(launchParamsList::Ptr{hipLaunchParams},
+    @gcsafe_ccall(libamdhip64.hipExtLaunchMultiKernelMultiDevice(launchParamsList::Ptr{hipLaunchParams},
                                                             numDevices::Cint,
                                                             flags::Cuint)::hipError_t)
 end
 
 @checked function hipLaunchKernelExC(config, fPtr, args)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchKernelExC(config::Ptr{hipLaunchConfig_t},
+    @gcsafe_ccall(libamdhip64.hipLaunchKernelExC(config::Ptr{hipLaunchConfig_t},
                                             fPtr::Ptr{Cvoid},
                                             args::Ptr{Ptr{Cvoid}})::hipError_t)
 end
 
 @checked function hipDrvLaunchKernelEx(config, f, params, extra)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvLaunchKernelEx(config::Ptr{HIP_LAUNCH_CONFIG},
+    @gcsafe_ccall(libamdhip64.hipDrvLaunchKernelEx(config::Ptr{HIP_LAUNCH_CONFIG},
                                               f::hipFunction_t,
                                               params::Ptr{Ptr{Cvoid}},
                                               extra::Ptr{Ptr{Cvoid}})::hipError_t)
@@ -5673,7 +5673,7 @@ end
 
 @checked function hipMemGetHandleForAddressRange(handle, dptr, size, handleType, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemGetHandleForAddressRange(handle::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemGetHandleForAddressRange(handle::Ptr{Cvoid},
                                                         dptr::hipDeviceptr_t,
                                                         size::Csize_t,
                                                         handleType::hipMemRangeHandleType,
@@ -5683,7 +5683,7 @@ end
 @checked function hipModuleOccupancyMaxPotentialBlockSize(gridSize, blockSize, f, dynSharedMemPerBlk,
                                                           blockSizeLimit)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleOccupancyMaxPotentialBlockSize(gridSize::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipModuleOccupancyMaxPotentialBlockSize(gridSize::Ptr{Cint},
                                                                  blockSize::Ptr{Cint},
                                                                  f::hipFunction_t,
                                                                  dynSharedMemPerBlk::Csize_t,
@@ -5694,7 +5694,7 @@ end
                                                                    dynSharedMemPerBlk,
                                                                    blockSizeLimit, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleOccupancyMaxPotentialBlockSizeWithFlags(gridSize::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipModuleOccupancyMaxPotentialBlockSizeWithFlags(gridSize::Ptr{Cint},
                                                                           blockSize::Ptr{Cint},
                                                                           f::hipFunction_t,
                                                                           dynSharedMemPerBlk::Csize_t,
@@ -5705,7 +5705,7 @@ end
 @checked function hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks, f, blockSize,
                                                                      dynSharedMemPerBlk)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks::Ptr{Cint},
                                                                             f::hipFunction_t,
                                                                             blockSize::Cint,
                                                                             dynSharedMemPerBlk::Csize_t)::hipError_t)
@@ -5716,7 +5716,7 @@ end
                                                                               dynSharedMemPerBlk,
                                                                               flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipModuleOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipModuleOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks::Ptr{Cint},
                                                                                      f::hipFunction_t,
                                                                                      blockSize::Cint,
                                                                                      dynSharedMemPerBlk::Csize_t,
@@ -5726,7 +5726,7 @@ end
 @checked function hipOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks, f, blockSize,
                                                                dynSharedMemPerBlk)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks::Ptr{Cint},
                                                                       f::Ptr{Cvoid},
                                                                       blockSize::Cint,
                                                                       dynSharedMemPerBlk::Csize_t)::hipError_t)
@@ -5735,7 +5735,7 @@ end
 @checked function hipOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks, f, blockSize,
                                                                         dynSharedMemPerBlk, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks::Ptr{Cint},
                                                                                f::Ptr{Cvoid},
                                                                                blockSize::Cint,
                                                                                dynSharedMemPerBlk::Csize_t,
@@ -5745,7 +5745,7 @@ end
 @checked function hipOccupancyMaxPotentialBlockSize(gridSize, blockSize, f, dynSharedMemPerBlk,
                                                     blockSizeLimit)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipOccupancyMaxPotentialBlockSize(gridSize::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipOccupancyMaxPotentialBlockSize(gridSize::Ptr{Cint},
                                                            blockSize::Ptr{Cint},
                                                            f::Ptr{Cvoid},
                                                            dynSharedMemPerBlk::Csize_t,
@@ -5754,7 +5754,7 @@ end
 
 @checked function hipOccupancyAvailableDynamicSMemPerBlock(dynamicSmemSize, f, numBlocks, blockSize)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipOccupancyAvailableDynamicSMemPerBlock(dynamicSmemSize::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipOccupancyAvailableDynamicSMemPerBlock(dynamicSmemSize::Ptr{Csize_t},
                                                                   f::Ptr{Cvoid},
                                                                   numBlocks::Cint,
                                                                   blockSize::Cint)::hipError_t)
@@ -5762,14 +5762,14 @@ end
 
 @checked function hipOccupancyMaxActiveClusters(numClusters, f, config)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipOccupancyMaxActiveClusters(numClusters::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipOccupancyMaxActiveClusters(numClusters::Ptr{Cint},
                                                        f::Ptr{Cvoid},
                                                        config::Ptr{hipLaunchConfig_t})::hipError_t)
 end
 
 @checked function hipOccupancyMaxPotentialClusterSize(clusterSize, f, config)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipOccupancyMaxPotentialClusterSize(clusterSize::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipOccupancyMaxPotentialClusterSize(clusterSize::Ptr{Cint},
                                                              f::Ptr{Cvoid},
                                                              config::Ptr{hipLaunchConfig_t})::hipError_t)
 end
@@ -5777,43 +5777,43 @@ end
 # no prototype is found for this function at hip_runtime_api.h:7168:12, please use with caution
 @checked function hipProfilerStart()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipProfilerStart()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipProfilerStart()::hipError_t)
 end
 
 # no prototype is found for this function at hip_runtime_api.h:7176:12, please use with caution
 @checked function hipProfilerStop()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipProfilerStop()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipProfilerStop()::hipError_t)
 end
 
 @checked function hipConfigureCall(gridDim, blockDim, sharedMem, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipConfigureCall(gridDim::dim3, blockDim::dim3,
+    @gcsafe_ccall(libamdhip64.hipConfigureCall(gridDim::dim3, blockDim::dim3,
                                           sharedMem::Csize_t,
                                           stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipSetupArgument(arg, size, offset)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipSetupArgument(arg::Ptr{Cvoid}, size::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipSetupArgument(arg::Ptr{Cvoid}, size::Csize_t,
                                           offset::Csize_t)::hipError_t)
 end
 
 @checked function hipLaunchByPtr(func)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchByPtr(func::Ptr{Cvoid})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipLaunchByPtr(func::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function __hipPushCallConfiguration(gridDim, blockDim, sharedMem, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.__hipPushCallConfiguration(gridDim::dim3, blockDim::dim3,
+    @gcsafe_ccall(libamdhip64.__hipPushCallConfiguration(gridDim::dim3, blockDim::dim3,
                                                     sharedMem::Csize_t,
                                                     stream::hipStream_t)::hipError_t)
 end
 
 @checked function __hipPopCallConfiguration(gridDim, blockDim, sharedMem, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.__hipPopCallConfiguration(gridDim::Ptr{dim3},
+    @gcsafe_ccall(libamdhip64.__hipPopCallConfiguration(gridDim::Ptr{dim3},
                                                    blockDim::Ptr{dim3},
                                                    sharedMem::Ptr{Csize_t},
                                                    stream::Ptr{hipStream_t})::hipError_t)
@@ -5822,7 +5822,7 @@ end
 @checked function hipLaunchKernel(function_address, numBlocks, dimBlocks, args, sharedMemBytes,
                                   stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchKernel(function_address::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipLaunchKernel(function_address::Ptr{Cvoid},
                                          numBlocks::dim3, dimBlocks::dim3,
                                          args::Ptr{Ptr{Cvoid}},
                                          sharedMemBytes::Csize_t,
@@ -5831,19 +5831,19 @@ end
 
 @checked function hipLaunchHostFunc(stream, fn, userData)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchHostFunc(stream::hipStream_t, fn::hipHostFn_t,
+    @gcsafe_ccall(libamdhip64.hipLaunchHostFunc(stream::hipStream_t, fn::hipHostFn_t,
                                            userData::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipDrvMemcpy2DUnaligned(pCopy)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvMemcpy2DUnaligned(pCopy::Ptr{hip_Memcpy2D})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDrvMemcpy2DUnaligned(pCopy::Ptr{hip_Memcpy2D})::hipError_t)
 end
 
 @checked function hipExtLaunchKernel(function_address, numBlocks, dimBlocks, args, sharedMemBytes,
                                      stream, startEvent, stopEvent, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtLaunchKernel(function_address::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipExtLaunchKernel(function_address::Ptr{Cvoid},
                                             numBlocks::dim3, dimBlocks::dim3,
                                             args::Ptr{Ptr{Cvoid}},
                                             sharedMemBytes::Csize_t,
@@ -5855,7 +5855,7 @@ end
 
 @checked function hipCreateTextureObject(pTexObject, pResDesc, pTexDesc, pResViewDesc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCreateTextureObject(pTexObject::Ptr{hipTextureObject_t},
+    @gcsafe_ccall(libamdhip64.hipCreateTextureObject(pTexObject::Ptr{hipTextureObject_t},
                                                 pResDesc::Ptr{hipResourceDesc},
                                                 pTexDesc::Ptr{hipTextureDesc},
                                                 pResViewDesc::Ptr{hipResourceViewDesc})::hipError_t)
@@ -5863,36 +5863,36 @@ end
 
 @checked function hipDestroyTextureObject(textureObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDestroyTextureObject(textureObject::hipTextureObject_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDestroyTextureObject(textureObject::hipTextureObject_t)::hipError_t)
 end
 
 @checked function hipGetChannelDesc(desc, array)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetChannelDesc(desc::Ptr{hipChannelFormatDesc},
+    @gcsafe_ccall(libamdhip64.hipGetChannelDesc(desc::Ptr{hipChannelFormatDesc},
                                            array::hipArray_const_t)::hipError_t)
 end
 
 @checked function hipGetTextureObjectResourceDesc(pResDesc, textureObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetTextureObjectResourceDesc(pResDesc::Ptr{hipResourceDesc},
+    @gcsafe_ccall(libamdhip64.hipGetTextureObjectResourceDesc(pResDesc::Ptr{hipResourceDesc},
                                                          textureObject::hipTextureObject_t)::hipError_t)
 end
 
 @checked function hipGetTextureObjectResourceViewDesc(pResViewDesc, textureObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetTextureObjectResourceViewDesc(pResViewDesc::Ptr{hipResourceViewDesc},
+    @gcsafe_ccall(libamdhip64.hipGetTextureObjectResourceViewDesc(pResViewDesc::Ptr{hipResourceViewDesc},
                                                              textureObject::hipTextureObject_t)::hipError_t)
 end
 
 @checked function hipGetTextureObjectTextureDesc(pTexDesc, textureObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetTextureObjectTextureDesc(pTexDesc::Ptr{hipTextureDesc},
+    @gcsafe_ccall(libamdhip64.hipGetTextureObjectTextureDesc(pTexDesc::Ptr{hipTextureDesc},
                                                         textureObject::hipTextureObject_t)::hipError_t)
 end
 
 @checked function hipTexObjectCreate(pTexObject, pResDesc, pTexDesc, pResViewDesc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexObjectCreate(pTexObject::Ptr{hipTextureObject_t},
+    @gcsafe_ccall(libamdhip64.hipTexObjectCreate(pTexObject::Ptr{hipTextureObject_t},
                                             pResDesc::Ptr{HIP_RESOURCE_DESC},
                                             pTexDesc::Ptr{HIP_TEXTURE_DESC},
                                             pResViewDesc::Ptr{HIP_RESOURCE_VIEW_DESC})::hipError_t)
@@ -5900,30 +5900,30 @@ end
 
 @checked function hipTexObjectDestroy(texObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexObjectDestroy(texObject::hipTextureObject_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipTexObjectDestroy(texObject::hipTextureObject_t)::hipError_t)
 end
 
 @checked function hipTexObjectGetResourceDesc(pResDesc, texObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexObjectGetResourceDesc(pResDesc::Ptr{HIP_RESOURCE_DESC},
+    @gcsafe_ccall(libamdhip64.hipTexObjectGetResourceDesc(pResDesc::Ptr{HIP_RESOURCE_DESC},
                                                      texObject::hipTextureObject_t)::hipError_t)
 end
 
 @checked function hipTexObjectGetResourceViewDesc(pResViewDesc, texObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexObjectGetResourceViewDesc(pResViewDesc::Ptr{HIP_RESOURCE_VIEW_DESC},
+    @gcsafe_ccall(libamdhip64.hipTexObjectGetResourceViewDesc(pResViewDesc::Ptr{HIP_RESOURCE_VIEW_DESC},
                                                          texObject::hipTextureObject_t)::hipError_t)
 end
 
 @checked function hipTexObjectGetTextureDesc(pTexDesc, texObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexObjectGetTextureDesc(pTexDesc::Ptr{HIP_TEXTURE_DESC},
+    @gcsafe_ccall(libamdhip64.hipTexObjectGetTextureDesc(pTexDesc::Ptr{HIP_TEXTURE_DESC},
                                                     texObject::hipTextureObject_t)::hipError_t)
 end
 
 @checked function hipMallocMipmappedArray(mipmappedArray, desc, extent, numLevels, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMallocMipmappedArray(mipmappedArray::Ptr{hipMipmappedArray_t},
+    @gcsafe_ccall(libamdhip64.hipMallocMipmappedArray(mipmappedArray::Ptr{hipMipmappedArray_t},
                                                  desc::Ptr{hipChannelFormatDesc},
                                                  extent::hipExtent, numLevels::Cuint,
                                                  flags::Cuint)::hipError_t)
@@ -5931,96 +5931,96 @@ end
 
 @checked function hipFreeMipmappedArray(mipmappedArray)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipFreeMipmappedArray(mipmappedArray::hipMipmappedArray_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipFreeMipmappedArray(mipmappedArray::hipMipmappedArray_t)::hipError_t)
 end
 
 @checked function hipGetMipmappedArrayLevel(levelArray, mipmappedArray, level)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetMipmappedArrayLevel(levelArray::Ptr{hipArray_t},
+    @gcsafe_ccall(libamdhip64.hipGetMipmappedArrayLevel(levelArray::Ptr{hipArray_t},
                                                    mipmappedArray::hipMipmappedArray_const_t,
                                                    level::Cuint)::hipError_t)
 end
 
 @checked function hipMipmappedArrayCreate(pHandle, pMipmappedArrayDesc, numMipmapLevels)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMipmappedArrayCreate(pHandle::Ptr{hipMipmappedArray_t},
+    @gcsafe_ccall(libamdhip64.hipMipmappedArrayCreate(pHandle::Ptr{hipMipmappedArray_t},
                                                  pMipmappedArrayDesc::Ptr{HIP_ARRAY3D_DESCRIPTOR},
                                                  numMipmapLevels::Cuint)::hipError_t)
 end
 
 @checked function hipMipmappedArrayDestroy(hMipmappedArray)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMipmappedArrayDestroy(hMipmappedArray::hipMipmappedArray_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMipmappedArrayDestroy(hMipmappedArray::hipMipmappedArray_t)::hipError_t)
 end
 
 @checked function hipMipmappedArrayGetLevel(pLevelArray, hMipMappedArray, level)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMipmappedArrayGetLevel(pLevelArray::Ptr{hipArray_t},
+    @gcsafe_ccall(libamdhip64.hipMipmappedArrayGetLevel(pLevelArray::Ptr{hipArray_t},
                                                    hMipMappedArray::hipMipmappedArray_t,
                                                    level::Cuint)::hipError_t)
 end
 
 @checked function hipBindTextureToMipmappedArray(tex, mipmappedArray, desc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipBindTextureToMipmappedArray(tex::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipBindTextureToMipmappedArray(tex::Ptr{textureReference},
                                                         mipmappedArray::hipMipmappedArray_const_t,
                                                         desc::Ptr{hipChannelFormatDesc})::hipError_t)
 end
 
 @checked function hipGetTextureReference(texref, symbol)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetTextureReference(texref::Ptr{Ptr{textureReference}},
+    @gcsafe_ccall(libamdhip64.hipGetTextureReference(texref::Ptr{Ptr{textureReference}},
                                                 symbol::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipTexRefGetBorderColor(pBorderColor, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetBorderColor(pBorderColor::Ptr{Cfloat},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetBorderColor(pBorderColor::Ptr{Cfloat},
                                                  texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetArray(pArray, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetArray(pArray::Ptr{hipArray_t},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetArray(pArray::Ptr{hipArray_t},
                                            texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefSetAddressMode(texRef, dim, am)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetAddressMode(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetAddressMode(texRef::Ptr{textureReference},
                                                  dim::Cint,
                                                  am::hipTextureAddressMode)::hipError_t)
 end
 
 @checked function hipTexRefSetArray(tex, array, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetArray(tex::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetArray(tex::Ptr{textureReference},
                                            array::hipArray_const_t,
                                            flags::Cuint)::hipError_t)
 end
 
 @checked function hipTexRefSetFilterMode(texRef, fm)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetFilterMode(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetFilterMode(texRef::Ptr{textureReference},
                                                 fm::hipTextureFilterMode)::hipError_t)
 end
 
 @checked function hipTexRefSetFlags(texRef, Flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetFlags(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetFlags(texRef::Ptr{textureReference},
                                            Flags::Cuint)::hipError_t)
 end
 
 @checked function hipTexRefSetFormat(texRef, fmt, NumPackedComponents)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetFormat(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetFormat(texRef::Ptr{textureReference},
                                             fmt::hipArray_Format,
                                             NumPackedComponents::Cint)::hipError_t)
 end
 
 @checked function hipBindTexture(offset, tex, devPtr, desc, size)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipBindTexture(offset::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipBindTexture(offset::Ptr{Csize_t},
                                         tex::Ptr{textureReference},
                                         devPtr::Ptr{Cvoid},
                                         desc::Ptr{hipChannelFormatDesc},
@@ -6029,7 +6029,7 @@ end
 
 @checked function hipBindTexture2D(offset, tex, devPtr, desc, width, height, pitch)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipBindTexture2D(offset::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipBindTexture2D(offset::Ptr{Csize_t},
                                           tex::Ptr{textureReference},
                                           devPtr::Ptr{Cvoid},
                                           desc::Ptr{hipChannelFormatDesc},
@@ -6039,88 +6039,88 @@ end
 
 @checked function hipBindTextureToArray(tex, array, desc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipBindTextureToArray(tex::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipBindTextureToArray(tex::Ptr{textureReference},
                                                array::hipArray_const_t,
                                                desc::Ptr{hipChannelFormatDesc})::hipError_t)
 end
 
 @checked function hipGetTextureAlignmentOffset(offset, texref)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetTextureAlignmentOffset(offset::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipGetTextureAlignmentOffset(offset::Ptr{Csize_t},
                                                       texref::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipUnbindTexture(tex)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipUnbindTexture(tex::Ptr{textureReference})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipUnbindTexture(tex::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetAddress(dev_ptr, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetAddress(dev_ptr::Ptr{hipDeviceptr_t},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetAddress(dev_ptr::Ptr{hipDeviceptr_t},
                                              texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetAddressMode(pam, texRef, dim)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetAddressMode(pam::Ptr{hipTextureAddressMode},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetAddressMode(pam::Ptr{hipTextureAddressMode},
                                                  texRef::Ptr{textureReference},
                                                  dim::Cint)::hipError_t)
 end
 
 @checked function hipTexRefGetFilterMode(pfm, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetFilterMode(pfm::Ptr{hipTextureFilterMode},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetFilterMode(pfm::Ptr{hipTextureFilterMode},
                                                 texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetFlags(pFlags, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetFlags(pFlags::Ptr{Cuint},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetFlags(pFlags::Ptr{Cuint},
                                            texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetFormat(pFormat, pNumChannels, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetFormat(pFormat::Ptr{hipArray_Format},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetFormat(pFormat::Ptr{hipArray_Format},
                                             pNumChannels::Ptr{Cint},
                                             texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetMaxAnisotropy(pmaxAnsio, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetMaxAnisotropy(pmaxAnsio::Ptr{Cint},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetMaxAnisotropy(pmaxAnsio::Ptr{Cint},
                                                    texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetMipmapFilterMode(pfm, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetMipmapFilterMode(pfm::Ptr{hipTextureFilterMode},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetMipmapFilterMode(pfm::Ptr{hipTextureFilterMode},
                                                       texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetMipmapLevelBias(pbias, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetMipmapLevelBias(pbias::Ptr{Cfloat},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetMipmapLevelBias(pbias::Ptr{Cfloat},
                                                      texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetMipmapLevelClamp(pminMipmapLevelClamp, pmaxMipmapLevelClamp, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetMipmapLevelClamp(pminMipmapLevelClamp::Ptr{Cfloat},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetMipmapLevelClamp(pminMipmapLevelClamp::Ptr{Cfloat},
                                                       pmaxMipmapLevelClamp::Ptr{Cfloat},
                                                       texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefGetMipMappedArray(pArray, texRef)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefGetMipMappedArray(pArray::Ptr{hipMipmappedArray_t},
+    @gcsafe_ccall(libamdhip64.hipTexRefGetMipMappedArray(pArray::Ptr{hipMipmappedArray_t},
                                                     texRef::Ptr{textureReference})::hipError_t)
 end
 
 @checked function hipTexRefSetAddress(ByteOffset, texRef, dptr, bytes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetAddress(ByteOffset::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetAddress(ByteOffset::Ptr{Csize_t},
                                              texRef::Ptr{textureReference},
                                              dptr::hipDeviceptr_t,
                                              bytes::Csize_t)::hipError_t)
@@ -6128,7 +6128,7 @@ end
 
 @checked function hipTexRefSetAddress2D(texRef, desc, dptr, Pitch)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetAddress2D(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetAddress2D(texRef::Ptr{textureReference},
                                                desc::Ptr{HIP_ARRAY_DESCRIPTOR},
                                                dptr::hipDeviceptr_t,
                                                Pitch::Csize_t)::hipError_t)
@@ -6136,73 +6136,73 @@ end
 
 @checked function hipTexRefSetMaxAnisotropy(texRef, maxAniso)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetMaxAnisotropy(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetMaxAnisotropy(texRef::Ptr{textureReference},
                                                    maxAniso::Cuint)::hipError_t)
 end
 
 @checked function hipTexRefSetBorderColor(texRef, pBorderColor)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetBorderColor(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetBorderColor(texRef::Ptr{textureReference},
                                                  pBorderColor::Ptr{Cfloat})::hipError_t)
 end
 
 @checked function hipTexRefSetMipmapFilterMode(texRef, fm)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetMipmapFilterMode(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetMipmapFilterMode(texRef::Ptr{textureReference},
                                                       fm::hipTextureFilterMode)::hipError_t)
 end
 
 @checked function hipTexRefSetMipmapLevelBias(texRef, bias)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetMipmapLevelBias(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetMipmapLevelBias(texRef::Ptr{textureReference},
                                                      bias::Cfloat)::hipError_t)
 end
 
 @checked function hipTexRefSetMipmapLevelClamp(texRef, minMipMapLevelClamp, maxMipMapLevelClamp)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetMipmapLevelClamp(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetMipmapLevelClamp(texRef::Ptr{textureReference},
                                                       minMipMapLevelClamp::Cfloat,
                                                       maxMipMapLevelClamp::Cfloat)::hipError_t)
 end
 
 @checked function hipTexRefSetMipmappedArray(texRef, mipmappedArray, Flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipTexRefSetMipmappedArray(texRef::Ptr{textureReference},
+    @gcsafe_ccall(libamdhip64.hipTexRefSetMipmappedArray(texRef::Ptr{textureReference},
                                                     mipmappedArray::Ptr{hipMipmappedArray},
                                                     Flags::Cuint)::hipError_t)
 end
 
 @checked function hipApiName(id)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipApiName(id::UInt32)::Cstring)
+    @gcsafe_ccall(libamdhip64.hipApiName(id::UInt32)::Cstring)
 end
 
 @checked function hipKernelNameRef(f)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipKernelNameRef(f::hipFunction_t)::Cstring)
+    @gcsafe_ccall(libamdhip64.hipKernelNameRef(f::hipFunction_t)::Cstring)
 end
 
 @checked function hipKernelNameRefByPtr(hostFunction, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipKernelNameRefByPtr(hostFunction::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipKernelNameRefByPtr(hostFunction::Ptr{Cvoid},
                                                stream::hipStream_t)::Cstring)
 end
 
 @checked function hipGetStreamDeviceId(stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetStreamDeviceId(stream::hipStream_t)::Cint)
+    @gcsafe_ccall(libamdhip64.hipGetStreamDeviceId(stream::hipStream_t)::Cint)
 end
 
 @checked function hipStreamBeginCapture(stream, mode)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamBeginCapture(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamBeginCapture(stream::hipStream_t,
                                                mode::hipStreamCaptureMode)::hipError_t)
 end
 
 @checked function hipStreamBeginCaptureToGraph(stream, graph, dependencies, dependencyData,
                                                numDependencies, mode)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamBeginCaptureToGraph(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamBeginCaptureToGraph(stream::hipStream_t,
                                                       graph::hipGraph_t,
                                                       dependencies::Ptr{hipGraphNode_t},
                                                       dependencyData::Ptr{hipGraphEdgeData},
@@ -6212,13 +6212,13 @@ end
 
 @checked function hipStreamEndCapture(stream, pGraph)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamEndCapture(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamEndCapture(stream::hipStream_t,
                                              pGraph::Ptr{hipGraph_t})::hipError_t)
 end
 
 @checked function hipStreamGetCaptureInfo(stream, pCaptureStatus, pId)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetCaptureInfo(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetCaptureInfo(stream::hipStream_t,
                                                  pCaptureStatus::Ptr{hipStreamCaptureStatus},
                                                  pId::Ptr{Culonglong})::hipError_t)
 end
@@ -6226,7 +6226,7 @@ end
 @checked function hipStreamGetCaptureInfo_v2(stream, captureStatus_out, id_out, graph_out,
                                              dependencies_out, numDependencies_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetCaptureInfo_v2(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetCaptureInfo_v2(stream::hipStream_t,
                                                     captureStatus_out::Ptr{hipStreamCaptureStatus},
                                                     id_out::Ptr{Culonglong},
                                                     graph_out::Ptr{hipGraph_t},
@@ -6236,13 +6236,13 @@ end
 
 @checked function hipStreamIsCapturing(stream, pCaptureStatus)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamIsCapturing(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamIsCapturing(stream::hipStream_t,
                                               pCaptureStatus::Ptr{hipStreamCaptureStatus})::hipError_t)
 end
 
 @checked function hipStreamUpdateCaptureDependencies(stream, dependencies, numDependencies, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamUpdateCaptureDependencies(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamUpdateCaptureDependencies(stream::hipStream_t,
                                                             dependencies::Ptr{hipGraphNode_t},
                                                             numDependencies::Csize_t,
                                                             flags::Cuint)::hipError_t)
@@ -6250,23 +6250,23 @@ end
 
 @checked function hipThreadExchangeStreamCaptureMode(mode)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipThreadExchangeStreamCaptureMode(mode::Ptr{hipStreamCaptureMode})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipThreadExchangeStreamCaptureMode(mode::Ptr{hipStreamCaptureMode})::hipError_t)
 end
 
 @checked function hipGraphCreate(pGraph, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphCreate(pGraph::Ptr{hipGraph_t},
+    @gcsafe_ccall(libamdhip64.hipGraphCreate(pGraph::Ptr{hipGraph_t},
                                         flags::Cuint)::hipError_t)
 end
 
 @checked function hipGraphDestroy(graph)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphDestroy(graph::hipGraph_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipGraphDestroy(graph::hipGraph_t)::hipError_t)
 end
 
 @checked function hipGraphAddDependencies(graph, from, to, numDependencies)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddDependencies(graph::hipGraph_t,
+    @gcsafe_ccall(libamdhip64.hipGraphAddDependencies(graph::hipGraph_t,
                                                  from::Ptr{hipGraphNode_t},
                                                  to::Ptr{hipGraphNode_t},
                                                  numDependencies::Csize_t)::hipError_t)
@@ -6274,7 +6274,7 @@ end
 
 @checked function hipGraphRemoveDependencies(graph, from, to, numDependencies)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphRemoveDependencies(graph::hipGraph_t,
+    @gcsafe_ccall(libamdhip64.hipGraphRemoveDependencies(graph::hipGraph_t,
                                                     from::Ptr{hipGraphNode_t},
                                                     to::Ptr{hipGraphNode_t},
                                                     numDependencies::Csize_t)::hipError_t)
@@ -6282,7 +6282,7 @@ end
 
 @checked function hipGraphGetEdges(graph, from, to, numEdges)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphGetEdges(graph::hipGraph_t,
+    @gcsafe_ccall(libamdhip64.hipGraphGetEdges(graph::hipGraph_t,
                                           from::Ptr{hipGraphNode_t},
                                           to::Ptr{hipGraphNode_t},
                                           numEdges::Ptr{Csize_t})::hipError_t)
@@ -6290,59 +6290,59 @@ end
 
 @checked function hipGraphGetNodes(graph, nodes, numNodes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphGetNodes(graph::hipGraph_t,
+    @gcsafe_ccall(libamdhip64.hipGraphGetNodes(graph::hipGraph_t,
                                           nodes::Ptr{hipGraphNode_t},
                                           numNodes::Ptr{Csize_t})::hipError_t)
 end
 
 @checked function hipGraphGetRootNodes(graph, pRootNodes, pNumRootNodes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphGetRootNodes(graph::hipGraph_t,
+    @gcsafe_ccall(libamdhip64.hipGraphGetRootNodes(graph::hipGraph_t,
                                               pRootNodes::Ptr{hipGraphNode_t},
                                               pNumRootNodes::Ptr{Csize_t})::hipError_t)
 end
 
 @checked function hipGraphNodeGetDependencies(node, pDependencies, pNumDependencies)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphNodeGetDependencies(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphNodeGetDependencies(node::hipGraphNode_t,
                                                      pDependencies::Ptr{hipGraphNode_t},
                                                      pNumDependencies::Ptr{Csize_t})::hipError_t)
 end
 
 @checked function hipGraphNodeGetDependentNodes(node, pDependentNodes, pNumDependentNodes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphNodeGetDependentNodes(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphNodeGetDependentNodes(node::hipGraphNode_t,
                                                        pDependentNodes::Ptr{hipGraphNode_t},
                                                        pNumDependentNodes::Ptr{Csize_t})::hipError_t)
 end
 
 @checked function hipGraphNodeGetType(node, pType)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphNodeGetType(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphNodeGetType(node::hipGraphNode_t,
                                              pType::Ptr{hipGraphNodeType})::hipError_t)
 end
 
 @checked function hipGraphDestroyNode(node)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphDestroyNode(node::hipGraphNode_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipGraphDestroyNode(node::hipGraphNode_t)::hipError_t)
 end
 
 @checked function hipGraphClone(pGraphClone, originalGraph)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphClone(pGraphClone::Ptr{hipGraph_t},
+    @gcsafe_ccall(libamdhip64.hipGraphClone(pGraphClone::Ptr{hipGraph_t},
                                        originalGraph::hipGraph_t)::hipError_t)
 end
 
 @checked function hipGraphNodeFindInClone(pNode, originalNode, clonedGraph)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphNodeFindInClone(pNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphNodeFindInClone(pNode::Ptr{hipGraphNode_t},
                                                  originalNode::hipGraphNode_t,
                                                  clonedGraph::hipGraph_t)::hipError_t)
 end
 
 @checked function hipGraphInstantiate(pGraphExec, graph, pErrorNode, pLogBuffer, bufferSize)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphInstantiate(pGraphExec::Ptr{hipGraphExec_t},
+    @gcsafe_ccall(libamdhip64.hipGraphInstantiate(pGraphExec::Ptr{hipGraphExec_t},
                                              graph::hipGraph_t,
                                              pErrorNode::Ptr{hipGraphNode_t},
                                              pLogBuffer::Cstring,
@@ -6351,33 +6351,33 @@ end
 
 @checked function hipGraphInstantiateWithFlags(pGraphExec, graph, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphInstantiateWithFlags(pGraphExec::Ptr{hipGraphExec_t},
+    @gcsafe_ccall(libamdhip64.hipGraphInstantiateWithFlags(pGraphExec::Ptr{hipGraphExec_t},
                                                       graph::hipGraph_t,
                                                       flags::Culonglong)::hipError_t)
 end
 
 @checked function hipGraphInstantiateWithParams(pGraphExec, graph, instantiateParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphInstantiateWithParams(pGraphExec::Ptr{hipGraphExec_t},
+    @gcsafe_ccall(libamdhip64.hipGraphInstantiateWithParams(pGraphExec::Ptr{hipGraphExec_t},
                                                        graph::hipGraph_t,
                                                        instantiateParams::Ptr{hipGraphInstantiateParams})::hipError_t)
 end
 
 @checked function hipGraphLaunch(graphExec, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphLaunch(graphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphLaunch(graphExec::hipGraphExec_t,
                                         stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipGraphUpload(graphExec, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphUpload(graphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphUpload(graphExec::hipGraphExec_t,
                                         stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipGraphAddNode(pGraphNode, graph, pDependencies, numDependencies, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddNode(pGraphNode::Ptr{hipGraphNode_t},
                                          graph::hipGraph_t,
                                          pDependencies::Ptr{hipGraphNode_t},
                                          numDependencies::Csize_t,
@@ -6386,31 +6386,31 @@ end
 
 @checked function hipGraphExecGetFlags(graphExec, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecGetFlags(graphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecGetFlags(graphExec::hipGraphExec_t,
                                               flags::Ptr{Culonglong})::hipError_t)
 end
 
 @checked function hipGraphNodeSetParams(node, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphNodeSetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphNodeSetParams(node::hipGraphNode_t,
                                                nodeParams::Ptr{hipGraphNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExecNodeSetParams(graphExec, node, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecNodeSetParams(graphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecNodeSetParams(graphExec::hipGraphExec_t,
                                                    node::hipGraphNode_t,
                                                    nodeParams::Ptr{hipGraphNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExecDestroy(graphExec)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecDestroy(graphExec::hipGraphExec_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipGraphExecDestroy(graphExec::hipGraphExec_t)::hipError_t)
 end
 
 @checked function hipGraphExecUpdate(hGraphExec, hGraph, hErrorNode_out, updateResult_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecUpdate(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecUpdate(hGraphExec::hipGraphExec_t,
                                             hGraph::hipGraph_t,
                                             hErrorNode_out::Ptr{hipGraphNode_t},
                                             updateResult_out::Ptr{hipGraphExecUpdateResult})::hipError_t)
@@ -6419,7 +6419,7 @@ end
 @checked function hipGraphAddKernelNode(pGraphNode, graph, pDependencies, numDependencies,
                                         pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddKernelNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddKernelNode(pGraphNode::Ptr{hipGraphNode_t},
                                                graph::hipGraph_t,
                                                pDependencies::Ptr{hipGraphNode_t},
                                                numDependencies::Csize_t,
@@ -6428,19 +6428,19 @@ end
 
 @checked function hipGraphKernelNodeGetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphKernelNodeGetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphKernelNodeGetParams(node::hipGraphNode_t,
                                                      pNodeParams::Ptr{hipKernelNodeParams})::hipError_t)
 end
 
 @checked function hipGraphKernelNodeSetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphKernelNodeSetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphKernelNodeSetParams(node::hipGraphNode_t,
                                                      pNodeParams::Ptr{hipKernelNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExecKernelNodeSetParams(hGraphExec, node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecKernelNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecKernelNodeSetParams(hGraphExec::hipGraphExec_t,
                                                          node::hipGraphNode_t,
                                                          pNodeParams::Ptr{hipKernelNodeParams})::hipError_t)
 end
@@ -6448,7 +6448,7 @@ end
 @checked function hipDrvGraphAddMemcpyNode(phGraphNode, hGraph, dependencies, numDependencies,
                                            copyParams, ctx)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGraphAddMemcpyNode(phGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipDrvGraphAddMemcpyNode(phGraphNode::Ptr{hipGraphNode_t},
                                                   hGraph::hipGraph_t,
                                                   dependencies::Ptr{hipGraphNode_t},
                                                   numDependencies::Csize_t,
@@ -6459,7 +6459,7 @@ end
 @checked function hipGraphAddMemcpyNode(pGraphNode, graph, pDependencies, numDependencies,
                                         pCopyParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddMemcpyNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddMemcpyNode(pGraphNode::Ptr{hipGraphNode_t},
                                                graph::hipGraph_t,
                                                pDependencies::Ptr{hipGraphNode_t},
                                                numDependencies::Csize_t,
@@ -6468,33 +6468,33 @@ end
 
 @checked function hipGraphMemcpyNodeGetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemcpyNodeGetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemcpyNodeGetParams(node::hipGraphNode_t,
                                                      pNodeParams::Ptr{hipMemcpy3DParms})::hipError_t)
 end
 
 @checked function hipGraphMemcpyNodeSetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemcpyNodeSetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemcpyNodeSetParams(node::hipGraphNode_t,
                                                      pNodeParams::Ptr{hipMemcpy3DParms})::hipError_t)
 end
 
 @checked function hipGraphKernelNodeSetAttribute(hNode, attr, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphKernelNodeSetAttribute(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphKernelNodeSetAttribute(hNode::hipGraphNode_t,
                                                         attr::hipLaunchAttributeID,
                                                         value::Ptr{hipLaunchAttributeValue})::hipError_t)
 end
 
 @checked function hipGraphKernelNodeGetAttribute(hNode, attr, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphKernelNodeGetAttribute(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphKernelNodeGetAttribute(hNode::hipGraphNode_t,
                                                         attr::hipLaunchAttributeID,
                                                         value::Ptr{hipLaunchAttributeValue})::hipError_t)
 end
 
 @checked function hipGraphExecMemcpyNodeSetParams(hGraphExec, node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecMemcpyNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecMemcpyNodeSetParams(hGraphExec::hipGraphExec_t,
                                                          node::hipGraphNode_t,
                                                          pNodeParams::Ptr{hipMemcpy3DParms})::hipError_t)
 end
@@ -6502,7 +6502,7 @@ end
 @checked function hipGraphAddMemcpyNode1D(pGraphNode, graph, pDependencies, numDependencies, dst,
                                           src, count, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddMemcpyNode1D(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddMemcpyNode1D(pGraphNode::Ptr{hipGraphNode_t},
                                                  graph::hipGraph_t,
                                                  pDependencies::Ptr{hipGraphNode_t},
                                                  numDependencies::Csize_t,
@@ -6513,7 +6513,7 @@ end
 
 @checked function hipGraphMemcpyNodeSetParams1D(node, dst, src, count, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemcpyNodeSetParams1D(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemcpyNodeSetParams1D(node::hipGraphNode_t,
                                                        dst::Ptr{Cvoid},
                                                        src::Ptr{Cvoid},
                                                        count::Csize_t,
@@ -6522,7 +6522,7 @@ end
 
 @checked function hipGraphExecMemcpyNodeSetParams1D(hGraphExec, node, dst, src, count, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecMemcpyNodeSetParams1D(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecMemcpyNodeSetParams1D(hGraphExec::hipGraphExec_t,
                                                            node::hipGraphNode_t,
                                                            dst::Ptr{Cvoid},
                                                            src::Ptr{Cvoid},
@@ -6533,7 +6533,7 @@ end
 @checked function hipGraphAddMemcpyNodeFromSymbol(pGraphNode, graph, pDependencies, numDependencies,
                                                   dst, symbol, count, offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddMemcpyNodeFromSymbol(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddMemcpyNodeFromSymbol(pGraphNode::Ptr{hipGraphNode_t},
                                                          graph::hipGraph_t,
                                                          pDependencies::Ptr{hipGraphNode_t},
                                                          numDependencies::Csize_t,
@@ -6546,7 +6546,7 @@ end
 
 @checked function hipGraphMemcpyNodeSetParamsFromSymbol(node, dst, symbol, count, offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemcpyNodeSetParamsFromSymbol(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemcpyNodeSetParamsFromSymbol(node::hipGraphNode_t,
                                                                dst::Ptr{Cvoid},
                                                                symbol::Ptr{Cvoid},
                                                                count::Csize_t,
@@ -6557,7 +6557,7 @@ end
 @checked function hipGraphExecMemcpyNodeSetParamsFromSymbol(hGraphExec, node, dst, symbol, count,
                                                             offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecMemcpyNodeSetParamsFromSymbol(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecMemcpyNodeSetParamsFromSymbol(hGraphExec::hipGraphExec_t,
                                                                    node::hipGraphNode_t,
                                                                    dst::Ptr{Cvoid},
                                                                    symbol::Ptr{Cvoid},
@@ -6569,7 +6569,7 @@ end
 @checked function hipGraphAddMemcpyNodeToSymbol(pGraphNode, graph, pDependencies, numDependencies,
                                                 symbol, src, count, offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddMemcpyNodeToSymbol(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddMemcpyNodeToSymbol(pGraphNode::Ptr{hipGraphNode_t},
                                                        graph::hipGraph_t,
                                                        pDependencies::Ptr{hipGraphNode_t},
                                                        numDependencies::Csize_t,
@@ -6582,7 +6582,7 @@ end
 
 @checked function hipGraphMemcpyNodeSetParamsToSymbol(node, symbol, src, count, offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemcpyNodeSetParamsToSymbol(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemcpyNodeSetParamsToSymbol(node::hipGraphNode_t,
                                                              symbol::Ptr{Cvoid},
                                                              src::Ptr{Cvoid},
                                                              count::Csize_t,
@@ -6593,7 +6593,7 @@ end
 @checked function hipGraphExecMemcpyNodeSetParamsToSymbol(hGraphExec, node, symbol, src, count,
                                                           offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecMemcpyNodeSetParamsToSymbol(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecMemcpyNodeSetParamsToSymbol(hGraphExec::hipGraphExec_t,
                                                                  node::hipGraphNode_t,
                                                                  symbol::Ptr{Cvoid},
                                                                  src::Ptr{Cvoid},
@@ -6605,7 +6605,7 @@ end
 @checked function hipGraphAddMemsetNode(pGraphNode, graph, pDependencies, numDependencies,
                                         pMemsetParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddMemsetNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddMemsetNode(pGraphNode::Ptr{hipGraphNode_t},
                                                graph::hipGraph_t,
                                                pDependencies::Ptr{hipGraphNode_t},
                                                numDependencies::Csize_t,
@@ -6614,26 +6614,26 @@ end
 
 @checked function hipGraphMemsetNodeGetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemsetNodeGetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemsetNodeGetParams(node::hipGraphNode_t,
                                                      pNodeParams::Ptr{hipMemsetParams})::hipError_t)
 end
 
 @checked function hipGraphMemsetNodeSetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemsetNodeSetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemsetNodeSetParams(node::hipGraphNode_t,
                                                      pNodeParams::Ptr{hipMemsetParams})::hipError_t)
 end
 
 @checked function hipGraphExecMemsetNodeSetParams(hGraphExec, node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecMemsetNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecMemsetNodeSetParams(hGraphExec::hipGraphExec_t,
                                                          node::hipGraphNode_t,
                                                          pNodeParams::Ptr{hipMemsetParams})::hipError_t)
 end
 
 @checked function hipGraphAddHostNode(pGraphNode, graph, pDependencies, numDependencies, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddHostNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddHostNode(pGraphNode::Ptr{hipGraphNode_t},
                                              graph::hipGraph_t,
                                              pDependencies::Ptr{hipGraphNode_t},
                                              numDependencies::Csize_t,
@@ -6642,19 +6642,19 @@ end
 
 @checked function hipGraphHostNodeGetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphHostNodeGetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphHostNodeGetParams(node::hipGraphNode_t,
                                                    pNodeParams::Ptr{hipHostNodeParams})::hipError_t)
 end
 
 @checked function hipGraphHostNodeSetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphHostNodeSetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphHostNodeSetParams(node::hipGraphNode_t,
                                                    pNodeParams::Ptr{hipHostNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExecHostNodeSetParams(hGraphExec, node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecHostNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecHostNodeSetParams(hGraphExec::hipGraphExec_t,
                                                        node::hipGraphNode_t,
                                                        pNodeParams::Ptr{hipHostNodeParams})::hipError_t)
 end
@@ -6662,7 +6662,7 @@ end
 @checked function hipGraphAddChildGraphNode(pGraphNode, graph, pDependencies, numDependencies,
                                             childGraph)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddChildGraphNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddChildGraphNode(pGraphNode::Ptr{hipGraphNode_t},
                                                    graph::hipGraph_t,
                                                    pDependencies::Ptr{hipGraphNode_t},
                                                    numDependencies::Csize_t,
@@ -6671,20 +6671,20 @@ end
 
 @checked function hipGraphChildGraphNodeGetGraph(node, pGraph)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphChildGraphNodeGetGraph(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphChildGraphNodeGetGraph(node::hipGraphNode_t,
                                                         pGraph::Ptr{hipGraph_t})::hipError_t)
 end
 
 @checked function hipGraphExecChildGraphNodeSetParams(hGraphExec, node, childGraph)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecChildGraphNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecChildGraphNodeSetParams(hGraphExec::hipGraphExec_t,
                                                              node::hipGraphNode_t,
                                                              childGraph::hipGraph_t)::hipError_t)
 end
 
 @checked function hipGraphAddEmptyNode(pGraphNode, graph, pDependencies, numDependencies)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddEmptyNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddEmptyNode(pGraphNode::Ptr{hipGraphNode_t},
                                               graph::hipGraph_t,
                                               pDependencies::Ptr{hipGraphNode_t},
                                               numDependencies::Csize_t)::hipError_t)
@@ -6693,7 +6693,7 @@ end
 @checked function hipGraphAddEventRecordNode(pGraphNode, graph, pDependencies, numDependencies,
                                              event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddEventRecordNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddEventRecordNode(pGraphNode::Ptr{hipGraphNode_t},
                                                     graph::hipGraph_t,
                                                     pDependencies::Ptr{hipGraphNode_t},
                                                     numDependencies::Csize_t,
@@ -6702,26 +6702,26 @@ end
 
 @checked function hipGraphEventRecordNodeGetEvent(node, event_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphEventRecordNodeGetEvent(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphEventRecordNodeGetEvent(node::hipGraphNode_t,
                                                          event_out::Ptr{hipEvent_t})::hipError_t)
 end
 
 @checked function hipGraphEventRecordNodeSetEvent(node, event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphEventRecordNodeSetEvent(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphEventRecordNodeSetEvent(node::hipGraphNode_t,
                                                          event::hipEvent_t)::hipError_t)
 end
 
 @checked function hipGraphExecEventRecordNodeSetEvent(hGraphExec, hNode, event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecEventRecordNodeSetEvent(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecEventRecordNodeSetEvent(hGraphExec::hipGraphExec_t,
                                                              hNode::hipGraphNode_t,
                                                              event::hipEvent_t)::hipError_t)
 end
 
 @checked function hipGraphAddEventWaitNode(pGraphNode, graph, pDependencies, numDependencies, event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddEventWaitNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddEventWaitNode(pGraphNode::Ptr{hipGraphNode_t},
                                                   graph::hipGraph_t,
                                                   pDependencies::Ptr{hipGraphNode_t},
                                                   numDependencies::Csize_t,
@@ -6730,19 +6730,19 @@ end
 
 @checked function hipGraphEventWaitNodeGetEvent(node, event_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphEventWaitNodeGetEvent(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphEventWaitNodeGetEvent(node::hipGraphNode_t,
                                                        event_out::Ptr{hipEvent_t})::hipError_t)
 end
 
 @checked function hipGraphEventWaitNodeSetEvent(node, event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphEventWaitNodeSetEvent(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphEventWaitNodeSetEvent(node::hipGraphNode_t,
                                                        event::hipEvent_t)::hipError_t)
 end
 
 @checked function hipGraphExecEventWaitNodeSetEvent(hGraphExec, hNode, event)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecEventWaitNodeSetEvent(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecEventWaitNodeSetEvent(hGraphExec::hipGraphExec_t,
                                                            hNode::hipGraphNode_t,
                                                            event::hipEvent_t)::hipError_t)
 end
@@ -6750,7 +6750,7 @@ end
 @checked function hipGraphAddMemAllocNode(pGraphNode, graph, pDependencies, numDependencies,
                                           pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddMemAllocNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddMemAllocNode(pGraphNode::Ptr{hipGraphNode_t},
                                                  graph::hipGraph_t,
                                                  pDependencies::Ptr{hipGraphNode_t},
                                                  numDependencies::Csize_t,
@@ -6759,13 +6759,13 @@ end
 
 @checked function hipGraphMemAllocNodeGetParams(node, pNodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemAllocNodeGetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemAllocNodeGetParams(node::hipGraphNode_t,
                                                        pNodeParams::Ptr{hipMemAllocNodeParams})::hipError_t)
 end
 
 @checked function hipGraphAddMemFreeNode(pGraphNode, graph, pDependencies, numDependencies, dev_ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddMemFreeNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddMemFreeNode(pGraphNode::Ptr{hipGraphNode_t},
                                                 graph::hipGraph_t,
                                                 pDependencies::Ptr{hipGraphNode_t},
                                                 numDependencies::Csize_t,
@@ -6774,32 +6774,32 @@ end
 
 @checked function hipGraphMemFreeNodeGetParams(node, dev_ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphMemFreeNodeGetParams(node::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphMemFreeNodeGetParams(node::hipGraphNode_t,
                                                       dev_ptr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipDeviceGetGraphMemAttribute(device, attr, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGetGraphMemAttribute(device::Cint,
+    @gcsafe_ccall(libamdhip64.hipDeviceGetGraphMemAttribute(device::Cint,
                                                        attr::hipGraphMemAttributeType,
                                                        value::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipDeviceSetGraphMemAttribute(device, attr, value)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceSetGraphMemAttribute(device::Cint,
+    @gcsafe_ccall(libamdhip64.hipDeviceSetGraphMemAttribute(device::Cint,
                                                        attr::hipGraphMemAttributeType,
                                                        value::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipDeviceGraphMemTrim(device)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDeviceGraphMemTrim(device::Cint)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceGraphMemTrim(device::Cint)::hipError_t)
 end
 
 @checked function hipUserObjectCreate(object_out, ptr, destroy, initialRefcount, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipUserObjectCreate(object_out::Ptr{hipUserObject_t},
+    @gcsafe_ccall(libamdhip64.hipUserObjectCreate(object_out::Ptr{hipUserObject_t},
                                              ptr::Ptr{Cvoid}, destroy::hipHostFn_t,
                                              initialRefcount::Cuint,
                                              flags::Cuint)::hipError_t)
@@ -6807,19 +6807,19 @@ end
 
 @checked function hipUserObjectRelease(object, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipUserObjectRelease(object::hipUserObject_t,
+    @gcsafe_ccall(libamdhip64.hipUserObjectRelease(object::hipUserObject_t,
                                               count::Cuint)::hipError_t)
 end
 
 @checked function hipUserObjectRetain(object, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipUserObjectRetain(object::hipUserObject_t,
+    @gcsafe_ccall(libamdhip64.hipUserObjectRetain(object::hipUserObject_t,
                                              count::Cuint)::hipError_t)
 end
 
 @checked function hipGraphRetainUserObject(graph, object, count, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphRetainUserObject(graph::hipGraph_t,
+    @gcsafe_ccall(libamdhip64.hipGraphRetainUserObject(graph::hipGraph_t,
                                                   object::hipUserObject_t,
                                                   count::Cuint,
                                                   flags::Cuint)::hipError_t)
@@ -6827,33 +6827,33 @@ end
 
 @checked function hipGraphReleaseUserObject(graph, object, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphReleaseUserObject(graph::hipGraph_t,
+    @gcsafe_ccall(libamdhip64.hipGraphReleaseUserObject(graph::hipGraph_t,
                                                    object::hipUserObject_t,
                                                    count::Cuint)::hipError_t)
 end
 
 @checked function hipGraphDebugDotPrint(graph, path, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphDebugDotPrint(graph::hipGraph_t, path::Cstring,
+    @gcsafe_ccall(libamdhip64.hipGraphDebugDotPrint(graph::hipGraph_t, path::Cstring,
                                                flags::Cuint)::hipError_t)
 end
 
 @checked function hipGraphKernelNodeCopyAttributes(hSrc, hDst)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphKernelNodeCopyAttributes(hSrc::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphKernelNodeCopyAttributes(hSrc::hipGraphNode_t,
                                                           hDst::hipGraphNode_t)::hipError_t)
 end
 
 @checked function hipGraphNodeSetEnabled(hGraphExec, hNode, isEnabled)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphNodeSetEnabled(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphNodeSetEnabled(hGraphExec::hipGraphExec_t,
                                                 hNode::hipGraphNode_t,
                                                 isEnabled::Cuint)::hipError_t)
 end
 
 @checked function hipGraphNodeGetEnabled(hGraphExec, hNode, isEnabled)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphNodeGetEnabled(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphNodeGetEnabled(hGraphExec::hipGraphExec_t,
                                                 hNode::hipGraphNode_t,
                                                 isEnabled::Ptr{Cuint})::hipError_t)
 end
@@ -6861,7 +6861,7 @@ end
 @checked function hipGraphAddExternalSemaphoresWaitNode(pGraphNode, graph, pDependencies,
                                                         numDependencies, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddExternalSemaphoresWaitNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddExternalSemaphoresWaitNode(pGraphNode::Ptr{hipGraphNode_t},
                                                                graph::hipGraph_t,
                                                                pDependencies::Ptr{hipGraphNode_t},
                                                                numDependencies::Csize_t,
@@ -6871,7 +6871,7 @@ end
 @checked function hipGraphAddExternalSemaphoresSignalNode(pGraphNode, graph, pDependencies,
                                                           numDependencies, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphAddExternalSemaphoresSignalNode(pGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipGraphAddExternalSemaphoresSignalNode(pGraphNode::Ptr{hipGraphNode_t},
                                                                  graph::hipGraph_t,
                                                                  pDependencies::Ptr{hipGraphNode_t},
                                                                  numDependencies::Csize_t,
@@ -6880,58 +6880,58 @@ end
 
 @checked function hipGraphExternalSemaphoresSignalNodeSetParams(hNode, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExternalSemaphoresSignalNodeSetParams(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExternalSemaphoresSignalNodeSetParams(hNode::hipGraphNode_t,
                                                                        nodeParams::Ptr{hipExternalSemaphoreSignalNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExternalSemaphoresWaitNodeSetParams(hNode, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExternalSemaphoresWaitNodeSetParams(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExternalSemaphoresWaitNodeSetParams(hNode::hipGraphNode_t,
                                                                      nodeParams::Ptr{hipExternalSemaphoreWaitNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExternalSemaphoresSignalNodeGetParams(hNode, params_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExternalSemaphoresSignalNodeGetParams(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExternalSemaphoresSignalNodeGetParams(hNode::hipGraphNode_t,
                                                                        params_out::Ptr{hipExternalSemaphoreSignalNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExternalSemaphoresWaitNodeGetParams(hNode, params_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExternalSemaphoresWaitNodeGetParams(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExternalSemaphoresWaitNodeGetParams(hNode::hipGraphNode_t,
                                                                      params_out::Ptr{hipExternalSemaphoreWaitNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExecExternalSemaphoresSignalNodeSetParams(hGraphExec, hNode, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecExternalSemaphoresSignalNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecExternalSemaphoresSignalNodeSetParams(hGraphExec::hipGraphExec_t,
                                                                            hNode::hipGraphNode_t,
                                                                            nodeParams::Ptr{hipExternalSemaphoreSignalNodeParams})::hipError_t)
 end
 
 @checked function hipGraphExecExternalSemaphoresWaitNodeSetParams(hGraphExec, hNode, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphExecExternalSemaphoresWaitNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphExecExternalSemaphoresWaitNodeSetParams(hGraphExec::hipGraphExec_t,
                                                                          hNode::hipGraphNode_t,
                                                                          nodeParams::Ptr{hipExternalSemaphoreWaitNodeParams})::hipError_t)
 end
 
 @checked function hipDrvGraphMemcpyNodeGetParams(hNode, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGraphMemcpyNodeGetParams(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipDrvGraphMemcpyNodeGetParams(hNode::hipGraphNode_t,
                                                         nodeParams::Ptr{HIP_MEMCPY3D})::hipError_t)
 end
 
 @checked function hipDrvGraphMemcpyNodeSetParams(hNode, nodeParams)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGraphMemcpyNodeSetParams(hNode::hipGraphNode_t,
+    @gcsafe_ccall(libamdhip64.hipDrvGraphMemcpyNodeSetParams(hNode::hipGraphNode_t,
                                                         nodeParams::Ptr{HIP_MEMCPY3D})::hipError_t)
 end
 
 @checked function hipDrvGraphAddMemsetNode(phGraphNode, hGraph, dependencies, numDependencies,
                                            memsetParams, ctx)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGraphAddMemsetNode(phGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipDrvGraphAddMemsetNode(phGraphNode::Ptr{hipGraphNode_t},
                                                   hGraph::hipGraph_t,
                                                   dependencies::Ptr{hipGraphNode_t},
                                                   numDependencies::Csize_t,
@@ -6941,7 +6941,7 @@ end
 
 @checked function hipDrvGraphAddMemFreeNode(phGraphNode, hGraph, dependencies, numDependencies, dptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGraphAddMemFreeNode(phGraphNode::Ptr{hipGraphNode_t},
+    @gcsafe_ccall(libamdhip64.hipDrvGraphAddMemFreeNode(phGraphNode::Ptr{hipGraphNode_t},
                                                    hGraph::hipGraph_t,
                                                    dependencies::Ptr{hipGraphNode_t},
                                                    numDependencies::Csize_t,
@@ -6950,7 +6950,7 @@ end
 
 @checked function hipDrvGraphExecMemcpyNodeSetParams(hGraphExec, hNode, copyParams, ctx)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGraphExecMemcpyNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipDrvGraphExecMemcpyNodeSetParams(hGraphExec::hipGraphExec_t,
                                                             hNode::hipGraphNode_t,
                                                             copyParams::Ptr{HIP_MEMCPY3D},
                                                             ctx::hipCtx_t)::hipError_t)
@@ -6958,7 +6958,7 @@ end
 
 @checked function hipDrvGraphExecMemsetNodeSetParams(hGraphExec, hNode, memsetParams, ctx)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDrvGraphExecMemsetNodeSetParams(hGraphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipDrvGraphExecMemsetNodeSetParams(hGraphExec::hipGraphExec_t,
                                                             hNode::hipGraphNode_t,
                                                             memsetParams::Ptr{hipMemsetParams},
                                                             ctx::hipCtx_t)::hipError_t)
@@ -6966,27 +6966,27 @@ end
 
 @checked function hipMemAddressFree(devPtr, size)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemAddressFree(devPtr::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemAddressFree(devPtr::Ptr{Cvoid},
                                            size::Csize_t)::hipError_t)
 end
 
 @checked function hipMemAddressReserve(ptr, size, alignment, addr, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemAddressReserve(ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemAddressReserve(ptr::Ptr{Ptr{Cvoid}}, size::Csize_t,
                                               alignment::Csize_t, addr::Ptr{Cvoid},
                                               flags::Culonglong)::hipError_t)
 end
 
 @checked function hipMemCreate(handle, size, prop, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemCreate(handle::Ptr{hipMemGenericAllocationHandle_t},
+    @gcsafe_ccall(libamdhip64.hipMemCreate(handle::Ptr{hipMemGenericAllocationHandle_t},
                                       size::Csize_t, prop::Ptr{hipMemAllocationProp},
                                       flags::Culonglong)::hipError_t)
 end
 
 @checked function hipMemExportToShareableHandle(shareableHandle, handle, handleType, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemExportToShareableHandle(shareableHandle::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemExportToShareableHandle(shareableHandle::Ptr{Cvoid},
                                                        handle::hipMemGenericAllocationHandle_t,
                                                        handleType::hipMemAllocationHandleType,
                                                        flags::Culonglong)::hipError_t)
@@ -6994,78 +6994,78 @@ end
 
 @checked function hipMemGetAccess(flags, location, ptr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemGetAccess(flags::Ptr{Culonglong},
+    @gcsafe_ccall(libamdhip64.hipMemGetAccess(flags::Ptr{Culonglong},
                                          location::Ptr{hipMemLocation},
                                          ptr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipMemGetAllocationGranularity(granularity, prop, option)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemGetAllocationGranularity(granularity::Ptr{Csize_t},
+    @gcsafe_ccall(libamdhip64.hipMemGetAllocationGranularity(granularity::Ptr{Csize_t},
                                                         prop::Ptr{hipMemAllocationProp},
                                                         option::hipMemAllocationGranularity_flags)::hipError_t)
 end
 
 @checked function hipMemGetAllocationPropertiesFromHandle(prop, handle)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemGetAllocationPropertiesFromHandle(prop::Ptr{hipMemAllocationProp},
+    @gcsafe_ccall(libamdhip64.hipMemGetAllocationPropertiesFromHandle(prop::Ptr{hipMemAllocationProp},
                                                                  handle::hipMemGenericAllocationHandle_t)::hipError_t)
 end
 
 @checked function hipMemImportFromShareableHandle(handle, osHandle, shHandleType)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemImportFromShareableHandle(handle::Ptr{hipMemGenericAllocationHandle_t},
+    @gcsafe_ccall(libamdhip64.hipMemImportFromShareableHandle(handle::Ptr{hipMemGenericAllocationHandle_t},
                                                          osHandle::Ptr{Cvoid},
                                                          shHandleType::hipMemAllocationHandleType)::hipError_t)
 end
 
 @checked function hipMemMap(ptr, size, offset, handle, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemMap(ptr::Ptr{Cvoid}, size::Csize_t, offset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemMap(ptr::Ptr{Cvoid}, size::Csize_t, offset::Csize_t,
                                    handle::hipMemGenericAllocationHandle_t,
                                    flags::Culonglong)::hipError_t)
 end
 
 @checked function hipMemMapArrayAsync(mapInfoList, count, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemMapArrayAsync(mapInfoList::Ptr{hipArrayMapInfo},
+    @gcsafe_ccall(libamdhip64.hipMemMapArrayAsync(mapInfoList::Ptr{hipArrayMapInfo},
                                              count::Cuint,
                                              stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemRelease(handle)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemRelease(handle::hipMemGenericAllocationHandle_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMemRelease(handle::hipMemGenericAllocationHandle_t)::hipError_t)
 end
 
 @checked function hipMemRetainAllocationHandle(handle, addr)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemRetainAllocationHandle(handle::Ptr{hipMemGenericAllocationHandle_t},
+    @gcsafe_ccall(libamdhip64.hipMemRetainAllocationHandle(handle::Ptr{hipMemGenericAllocationHandle_t},
                                                       addr::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipMemSetAccess(ptr, size, desc, count)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemSetAccess(ptr::Ptr{Cvoid}, size::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemSetAccess(ptr::Ptr{Cvoid}, size::Csize_t,
                                          desc::Ptr{hipMemAccessDesc},
                                          count::Csize_t)::hipError_t)
 end
 
 @checked function hipMemUnmap(ptr, size)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemUnmap(ptr::Ptr{Cvoid}, size::Csize_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMemUnmap(ptr::Ptr{Cvoid}, size::Csize_t)::hipError_t)
 end
 
 @checked function hipGraphicsMapResources(count, resources, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphicsMapResources(count::Cint,
+    @gcsafe_ccall(libamdhip64.hipGraphicsMapResources(count::Cint,
                                                  resources::Ptr{hipGraphicsResource_t},
                                                  stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipGraphicsSubResourceGetMappedArray(array, resource, arrayIndex, mipLevel)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphicsSubResourceGetMappedArray(array::Ptr{hipArray_t},
+    @gcsafe_ccall(libamdhip64.hipGraphicsSubResourceGetMappedArray(array::Ptr{hipArray_t},
                                                               resource::hipGraphicsResource_t,
                                                               arrayIndex::Cuint,
                                                               mipLevel::Cuint)::hipError_t)
@@ -7073,77 +7073,77 @@ end
 
 @checked function hipGraphicsResourceGetMappedPointer(devPtr, size, resource)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphicsResourceGetMappedPointer(devPtr::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipGraphicsResourceGetMappedPointer(devPtr::Ptr{Ptr{Cvoid}},
                                                              size::Ptr{Csize_t},
                                                              resource::hipGraphicsResource_t)::hipError_t)
 end
 
 @checked function hipGraphicsUnmapResources(count, resources, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphicsUnmapResources(count::Cint,
+    @gcsafe_ccall(libamdhip64.hipGraphicsUnmapResources(count::Cint,
                                                    resources::Ptr{hipGraphicsResource_t},
                                                    stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipGraphicsUnregisterResource(resource)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphicsUnregisterResource(resource::hipGraphicsResource_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipGraphicsUnregisterResource(resource::hipGraphicsResource_t)::hipError_t)
 end
 
 @checked function hipCreateSurfaceObject(pSurfObject, pResDesc)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipCreateSurfaceObject(pSurfObject::Ptr{hipSurfaceObject_t},
+    @gcsafe_ccall(libamdhip64.hipCreateSurfaceObject(pSurfObject::Ptr{hipSurfaceObject_t},
                                                 pResDesc::Ptr{hipResourceDesc})::hipError_t)
 end
 
 @checked function hipDestroySurfaceObject(surfaceObject)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipDestroySurfaceObject(surfaceObject::hipSurfaceObject_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDestroySurfaceObject(surfaceObject::hipSurfaceObject_t)::hipError_t)
 end
 
 # no prototype is found for this function at hip_runtime_api.h:9827:12, please use with caution
 @checked function hipExtEnableLogging()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtEnableLogging()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipExtEnableLogging()::hipError_t)
 end
 
 # no prototype is found for this function at hip_runtime_api.h:9838:12, please use with caution
 @checked function hipExtDisableLogging()
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtDisableLogging()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipExtDisableLogging()::hipError_t)
 end
 
 @checked function hipExtSetLoggingParams(log_level, log_size, log_mask)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipExtSetLoggingParams(log_level::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipExtSetLoggingParams(log_level::Csize_t,
                                                 log_size::Csize_t,
                                                 log_mask::Csize_t)::hipError_t)
 end
 
 @checked function hipMemcpy_spt(dst, src, sizeBytes, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy_spt(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpy_spt(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
                                        sizeBytes::Csize_t,
                                        kind::hipMemcpyKind)::hipError_t)
 end
 
 @checked function hipMemcpyToSymbol_spt(symbol, src, sizeBytes, offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyToSymbol_spt(symbol::Ptr{Cvoid}, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyToSymbol_spt(symbol::Ptr{Cvoid}, src::Ptr{Cvoid},
                                                sizeBytes::Csize_t, offset::Csize_t,
                                                kind::hipMemcpyKind)::hipError_t)
 end
 
 @checked function hipMemcpyFromSymbol_spt(dst, symbol, sizeBytes, offset, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyFromSymbol_spt(dst::Ptr{Cvoid}, symbol::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyFromSymbol_spt(dst::Ptr{Cvoid}, symbol::Ptr{Cvoid},
                                                  sizeBytes::Csize_t, offset::Csize_t,
                                                  kind::hipMemcpyKind)::hipError_t)
 end
 
 @checked function hipMemcpy2D_spt(dst, dpitch, src, spitch, width, height, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2D_spt(dst::Ptr{Cvoid}, dpitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2D_spt(dst::Ptr{Cvoid}, dpitch::Csize_t,
                                          src::Ptr{Cvoid}, spitch::Csize_t,
                                          width::Csize_t, height::Csize_t,
                                          kind::hipMemcpyKind)::hipError_t)
@@ -7151,7 +7151,7 @@ end
 
 @checked function hipMemcpy2DFromArray_spt(dst, dpitch, src, wOffset, hOffset, width, height, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DFromArray_spt(dst::Ptr{Cvoid}, dpitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DFromArray_spt(dst::Ptr{Cvoid}, dpitch::Csize_t,
                                                   src::hipArray_const_t,
                                                   wOffset::Csize_t, hOffset::Csize_t,
                                                   width::Csize_t, height::Csize_t,
@@ -7160,32 +7160,32 @@ end
 
 @checked function hipMemcpy3D_spt(p)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy3D_spt(p::Ptr{hipMemcpy3DParms})::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipMemcpy3D_spt(p::Ptr{hipMemcpy3DParms})::hipError_t)
 end
 
 @checked function hipMemset_spt(dst, value, sizeBytes)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset_spt(dst::Ptr{Cvoid}, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemset_spt(dst::Ptr{Cvoid}, value::Cint,
                                        sizeBytes::Csize_t)::hipError_t)
 end
 
 @checked function hipMemsetAsync_spt(dst, value, sizeBytes, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemsetAsync_spt(dst::Ptr{Cvoid}, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemsetAsync_spt(dst::Ptr{Cvoid}, value::Cint,
                                             sizeBytes::Csize_t,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemset2D_spt(dst, pitch, value, width, height)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset2D_spt(dst::Ptr{Cvoid}, pitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemset2D_spt(dst::Ptr{Cvoid}, pitch::Csize_t,
                                          value::Cint, width::Csize_t,
                                          height::Csize_t)::hipError_t)
 end
 
 @checked function hipMemset2DAsync_spt(dst, pitch, value, width, height, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset2DAsync_spt(dst::Ptr{Cvoid}, pitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemset2DAsync_spt(dst::Ptr{Cvoid}, pitch::Csize_t,
                                               value::Cint, width::Csize_t,
                                               height::Csize_t,
                                               stream::hipStream_t)::hipError_t)
@@ -7193,33 +7193,33 @@ end
 
 @checked function hipMemset3DAsync_spt(pitchedDevPtr, value, extent, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset3DAsync_spt(pitchedDevPtr::hipPitchedPtr,
+    @gcsafe_ccall(libamdhip64.hipMemset3DAsync_spt(pitchedDevPtr::hipPitchedPtr,
                                               value::Cint, extent::hipExtent,
                                               stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemset3D_spt(pitchedDevPtr, value, extent)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemset3D_spt(pitchedDevPtr::hipPitchedPtr, value::Cint,
+    @gcsafe_ccall(libamdhip64.hipMemset3D_spt(pitchedDevPtr::hipPitchedPtr, value::Cint,
                                          extent::hipExtent)::hipError_t)
 end
 
 @checked function hipMemcpyAsync_spt(dst, src, sizeBytes, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyAsync_spt(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyAsync_spt(dst::Ptr{Cvoid}, src::Ptr{Cvoid},
                                             sizeBytes::Csize_t, kind::hipMemcpyKind,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemcpy3DAsync_spt(p, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy3DAsync_spt(p::Ptr{hipMemcpy3DParms},
+    @gcsafe_ccall(libamdhip64.hipMemcpy3DAsync_spt(p::Ptr{hipMemcpy3DParms},
                                               stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipMemcpy2DAsync_spt(dst, dpitch, src, spitch, width, height, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DAsync_spt(dst::Ptr{Cvoid}, dpitch::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DAsync_spt(dst::Ptr{Cvoid}, dpitch::Csize_t,
                                               src::Ptr{Cvoid}, spitch::Csize_t,
                                               width::Csize_t, height::Csize_t,
                                               kind::hipMemcpyKind,
@@ -7228,7 +7228,7 @@ end
 
 @checked function hipMemcpyFromSymbolAsync_spt(dst, symbol, sizeBytes, offset, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyFromSymbolAsync_spt(dst::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyFromSymbolAsync_spt(dst::Ptr{Cvoid},
                                                       symbol::Ptr{Cvoid},
                                                       sizeBytes::Csize_t,
                                                       offset::Csize_t,
@@ -7238,7 +7238,7 @@ end
 
 @checked function hipMemcpyToSymbolAsync_spt(symbol, src, sizeBytes, offset, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyToSymbolAsync_spt(symbol::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyToSymbolAsync_spt(symbol::Ptr{Cvoid},
                                                     src::Ptr{Cvoid},
                                                     sizeBytes::Csize_t,
                                                     offset::Csize_t,
@@ -7248,7 +7248,7 @@ end
 
 @checked function hipMemcpyFromArray_spt(dst, src, wOffsetSrc, hOffset, count, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpyFromArray_spt(dst::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpyFromArray_spt(dst::Ptr{Cvoid},
                                                 src::hipArray_const_t,
                                                 wOffsetSrc::Csize_t,
                                                 hOffset::Csize_t, count::Csize_t,
@@ -7257,7 +7257,7 @@ end
 
 @checked function hipMemcpy2DToArray_spt(dst, wOffset, hOffset, src, spitch, width, height, kind)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DToArray_spt(dst::hipArray_t, wOffset::Csize_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DToArray_spt(dst::hipArray_t, wOffset::Csize_t,
                                                 hOffset::Csize_t, src::Ptr{Cvoid},
                                                 spitch::Csize_t, width::Csize_t,
                                                 height::Csize_t,
@@ -7267,7 +7267,7 @@ end
 @checked function hipMemcpy2DFromArrayAsync_spt(dst, dpitch, src, wOffsetSrc, hOffsetSrc, width,
                                                 height, kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DFromArrayAsync_spt(dst::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DFromArrayAsync_spt(dst::Ptr{Cvoid},
                                                        dpitch::Csize_t,
                                                        src::hipArray_const_t,
                                                        wOffsetSrc::Csize_t,
@@ -7281,7 +7281,7 @@ end
 @checked function hipMemcpy2DToArrayAsync_spt(dst, wOffset, hOffset, src, spitch, width, height,
                                               kind, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipMemcpy2DToArrayAsync_spt(dst::hipArray_t,
+    @gcsafe_ccall(libamdhip64.hipMemcpy2DToArrayAsync_spt(dst::hipArray_t,
                                                      wOffset::Csize_t,
                                                      hOffset::Csize_t,
                                                      src::Ptr{Cvoid},
@@ -7293,36 +7293,36 @@ end
 
 @checked function hipStreamQuery_spt(stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamQuery_spt(stream::hipStream_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipStreamQuery_spt(stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipStreamSynchronize_spt(stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamSynchronize_spt(stream::hipStream_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipStreamSynchronize_spt(stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipStreamGetPriority_spt(stream, priority)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetPriority_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetPriority_spt(stream::hipStream_t,
                                                   priority::Ptr{Cint})::hipError_t)
 end
 
 @checked function hipStreamWaitEvent_spt(stream, event, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamWaitEvent_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamWaitEvent_spt(stream::hipStream_t,
                                                 event::hipEvent_t,
                                                 flags::Cuint)::hipError_t)
 end
 
 @checked function hipStreamGetFlags_spt(stream, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetFlags_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetFlags_spt(stream::hipStream_t,
                                                flags::Ptr{Cuint})::hipError_t)
 end
 
 @checked function hipStreamAddCallback_spt(stream, callback, userData, flags)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamAddCallback_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamAddCallback_spt(stream::hipStream_t,
                                                   callback::hipStreamCallback_t,
                                                   userData::Ptr{Cvoid},
                                                   flags::Cuint)::hipError_t)
@@ -7330,14 +7330,14 @@ end
 
 @checked function hipEventRecord_spt(event, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipEventRecord_spt(event::hipEvent_t,
+    @gcsafe_ccall(libamdhip64.hipEventRecord_spt(event::hipEvent_t,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipLaunchCooperativeKernel_spt(f, gridDim, blockDim, kernelParams, sharedMemBytes,
                                                  hStream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchCooperativeKernel_spt(f::Ptr{Cvoid}, gridDim::dim3,
+    @gcsafe_ccall(libamdhip64.hipLaunchCooperativeKernel_spt(f::Ptr{Cvoid}, gridDim::dim3,
                                                         blockDim::dim3,
                                                         kernelParams::Ptr{Ptr{Cvoid}},
                                                         sharedMemBytes::UInt32,
@@ -7347,7 +7347,7 @@ end
 @checked function hipLaunchKernel_spt(function_address, numBlocks, dimBlocks, args, sharedMemBytes,
                                       stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchKernel_spt(function_address::Ptr{Cvoid},
+    @gcsafe_ccall(libamdhip64.hipLaunchKernel_spt(function_address::Ptr{Cvoid},
                                              numBlocks::dim3, dimBlocks::dim3,
                                              args::Ptr{Ptr{Cvoid}},
                                              sharedMemBytes::Csize_t,
@@ -7356,31 +7356,31 @@ end
 
 @checked function hipGraphLaunch_spt(graphExec, stream)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGraphLaunch_spt(graphExec::hipGraphExec_t,
+    @gcsafe_ccall(libamdhip64.hipGraphLaunch_spt(graphExec::hipGraphExec_t,
                                             stream::hipStream_t)::hipError_t)
 end
 
 @checked function hipStreamBeginCapture_spt(stream, mode)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamBeginCapture_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamBeginCapture_spt(stream::hipStream_t,
                                                    mode::hipStreamCaptureMode)::hipError_t)
 end
 
 @checked function hipStreamEndCapture_spt(stream, pGraph)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamEndCapture_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamEndCapture_spt(stream::hipStream_t,
                                                  pGraph::Ptr{hipGraph_t})::hipError_t)
 end
 
 @checked function hipStreamIsCapturing_spt(stream, pCaptureStatus)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamIsCapturing_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamIsCapturing_spt(stream::hipStream_t,
                                                   pCaptureStatus::Ptr{hipStreamCaptureStatus})::hipError_t)
 end
 
 @checked function hipStreamGetCaptureInfo_spt(stream, pCaptureStatus, pId)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetCaptureInfo_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetCaptureInfo_spt(stream::hipStream_t,
                                                      pCaptureStatus::Ptr{hipStreamCaptureStatus},
                                                      pId::Ptr{Culonglong})::hipError_t)
 end
@@ -7388,7 +7388,7 @@ end
 @checked function hipStreamGetCaptureInfo_v2_spt(stream, captureStatus_out, id_out, graph_out,
                                                  dependencies_out, numDependencies_out)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipStreamGetCaptureInfo_v2_spt(stream::hipStream_t,
+    @gcsafe_ccall(libamdhip64.hipStreamGetCaptureInfo_v2_spt(stream::hipStream_t,
                                                         captureStatus_out::Ptr{hipStreamCaptureStatus},
                                                         id_out::Ptr{Culonglong},
                                                         graph_out::Ptr{hipGraph_t},
@@ -7398,13 +7398,13 @@ end
 
 @checked function hipLaunchHostFunc_spt(stream, fn, userData)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipLaunchHostFunc_spt(stream::hipStream_t, fn::hipHostFn_t,
+    @gcsafe_ccall(libamdhip64.hipLaunchHostFunc_spt(stream::hipStream_t, fn::hipHostFn_t,
                                                userData::Ptr{Cvoid})::hipError_t)
 end
 
 @checked function hipGetDriverEntryPoint_spt(symbol, funcPtr, flags, status)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetDriverEntryPoint_spt(symbol::Cstring,
+    @gcsafe_ccall(libamdhip64.hipGetDriverEntryPoint_spt(symbol::Cstring,
                                                     funcPtr::Ptr{Ptr{Cvoid}},
                                                     flags::Culonglong,
                                                     status::Ptr{hipDriverEntryPointQueryResult})::hipError_t)
@@ -7412,7 +7412,7 @@ end
 
 @checked function hipGetProcAddress_spt(symbol, pfn, hipVersion, flags, symbolStatus)
     AMDGPU.prepare_state()
-    @gcsafe_ccall(libhip.hipGetProcAddress_spt(symbol::Cstring, pfn::Ptr{Ptr{Cvoid}},
+    @gcsafe_ccall(libamdhip64.hipGetProcAddress_spt(symbol::Cstring, pfn::Ptr{Ptr{Cvoid}},
                                                hipVersion::Cint, flags::UInt64,
                                                symbolStatus::Ptr{hipDriverProcAddressQueryResult})::hipError_t)
 end

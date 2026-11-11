@@ -175,7 +175,7 @@ function worker_synchronize(stream::HIPStream, dev::HIPDevice)
     isvalid(stream) || return hipSuccess
     res = unchecked_hipSetDevice(device_id(dev))
     res == hipSuccess || return res
-    @gcsafe_ccall(libhip.hipStreamSynchronize(stream::hipStream_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipStreamSynchronize(stream::hipStream_t)::hipError_t)
 end
 
 function synchronize(stream::HIPStream; blocking::Bool = false, spin::Bool = true)

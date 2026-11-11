@@ -373,32 +373,9 @@ end
     return res
 end
 
-# Path of an `ld.lld` to link with, or "" to fall back to the in-process linker. Discovery
-# has not run while generating package output, so look one up directly there: `AMDGPULink`
-# deadlocks in a precompilation worker on Windows (#1083).
-function external_lld()::String
-    isempty(AMDGPU.lld_path) || return AMDGPU.lld_path
-    ccall(:jl_generating_output, Cint, ()) == 1 || return ""
-    return AMDGPU.ROCmDiscovery.find_ld_lld(AMDGPU.ROCmDiscovery.find_roc_path())
-end
-
 function create_executable(obj)
-    lld = external_lld()
-    if isempty(lld)
-        @assert AMDGPU.lld_artifact || AMDGPU_LLVM_Backend_jll.is_available() "ld.lld was not found; cannot link kernel"
-        return link_in_process(obj)
-    end
-
-    path_o = tempname(;cleanup=false) * ".obj"
-    path_exe = tempname(;cleanup=false) * ".exe"
-
-    write(path_o, obj)
-    run(`$lld -shared -o $path_exe $path_o`)
-    bin = read(path_exe)
-
-    rm(path_o)
-    rm(path_exe)
-    return bin
+    @assert AMDGPU_LLVM_Backend_jll.is_available() "libamdgpu was not found; cannot link kernel"
+    return link_in_process(obj)
 end
 
 # link a relocatable object into an HSA code object through `libamdgpu`, i.e.

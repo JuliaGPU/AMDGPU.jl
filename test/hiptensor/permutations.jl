@@ -1,11 +1,10 @@
 using Test, AMDGPU
 using LinearAlgebra, Random
+using AMDGPU.hipTENSOR: permute!
 
 if AMDGPU.hipTENSOR.has_hiptensor()
 
     @testset "permutations" begin
-
-    using AMDGPU.hipTENSOR: permute!
 
     # hipTENSOR 2.2 only implements permutations between tensors of the same real element
     # type, see `AMDGPU.hipTENSOR.permutation_compute_types`

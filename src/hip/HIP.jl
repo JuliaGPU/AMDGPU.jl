@@ -8,7 +8,7 @@ import Preferences
 import PrettyTables
 
 import ..AMDGPU
-import ..AMDGPU.libhip
+import ..AMDGPU.libamdhip64
 import .AMDGPU: @check, check
 
 import GPUToolbox: @gcsafe_ccall, @checked, cooperative_wait
@@ -98,7 +98,7 @@ include("graph.jl")
 function worker_device_synchronize(dev::HIPDevice)
     res = unchecked_hipSetDevice(device_id(dev))
     res == hipSuccess || return res
-    @gcsafe_ccall(libhip.hipDeviceSynchronize()::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipDeviceSynchronize()::hipError_t)
 end
 
 """

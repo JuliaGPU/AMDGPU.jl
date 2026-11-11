@@ -26,7 +26,7 @@ wait(event::HIPEvent) = hipEventSynchronize(event)
 
 # same, but callable from any thread (events know their device)
 worker_synchronize(event::HIPEvent) =
-    @gcsafe_ccall(libhip.hipEventSynchronize(event::hipEvent_t)::hipError_t)
+    @gcsafe_ccall(libamdhip64.hipEventSynchronize(event::hipEvent_t)::hipError_t)
 
 function synchronize(event::HIPEvent; blocking::Bool = false, spin::Bool = true)
     if use_nonblocking_synchronize && !blocking

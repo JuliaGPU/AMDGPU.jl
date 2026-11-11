@@ -68,11 +68,11 @@ Pull requests are tested on [Buildkite](https://buildkite.com/julialang/amdgpu-d
 
 ### Pull requests
 
-To save CI time on the shared GPU runners, pull requests are only tested on the oldest and the newest supported Julia release. The intermediate releases and nightly are tested on branch builds (e.g. after merging), or can be requested explicitly with `[only julia]` or `[only nightly]` (see below).
+To save CI time on the shared GPU runners, pull requests are only tested on the oldest and the newest supported Julia release, plus one release with a local ROCm installation instead of the artifacts. The intermediate releases and nightly are tested on branch builds (e.g. after merging), or can be requested explicitly with `[only julia]` or `[only nightly]` (see below).
 
 ### Draft pull requests
 
-Draft pull requests are only tested on the newest Julia release. The other steps (the oldest Julia release, Enzyme, the GPU-less environment, the documentation and the benchmarks) run once the pull request is marked ready for review.
+Draft pull requests are only tested on the newest Julia release. The other steps (the oldest Julia release, the local ROCm installation, Enzyme, the GPU-less environment, the documentation and the benchmarks) run once the pull request is marked ready for review.
 
 !!! warning "Marking a pull request ready does not start a build"
     Buildkite does not start a new build when a draft is marked ready for review. Push a new commit afterwards to run the remaining steps, otherwise the pull request can show a green status with only the newest release tested. An empty commit is enough:

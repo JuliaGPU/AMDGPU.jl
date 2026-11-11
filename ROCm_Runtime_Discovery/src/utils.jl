@@ -172,31 +172,3 @@ function find_rocm_library(lib::String; rocm_path::String, ext::String = dlext):
     return ""
 end
 
-function find_ld_lld(rocm_path::String)::String
-    lld_name = "ld.lld" * (Sys.iswindows() ? ".exe" : "")
-
-    dirs = (joinpath(rocm_path,"llvm", "bin"), joinpath(rocm_path,"bin"))
-    hipconfig = Sys.which("hipconfig")
-    if !isnothing(hipconfig)
-        clang_path = read(`$hipconfig --hipclangpath`, String)
-        dirs = (dirs ..., clang_path)
-    end
-    for dir in dirs
-        exp_ld_path = joinpath(dir, lld_name)
-        ispath(exp_ld_path) || continue
-        try
-            tmpfile = tempname(;cleanup=false)
-            run(pipeline(`$exp_ld_path -v`; stdout=tmpfile))
-            vstr = read(tmpfile, String)
-            rm(tmpfile)
-            # Match first version number in the output, e.g. "AMD LLD 15.0.0 ..." or "Ubuntu LLD 21.0.0 ..."
-            m = match(r"(\d+\.\d+(?:\.\d+)?)", vstr)
-            if m !== nothing && VersionNumber(m.captures[1]) >= v"6.0.0"
-                return exp_ld_path
-            end
-        catch
-            @warn "bindeps: Failed running ld.lld in $exp_ld_path"
-        end
-    end
-    return ""
-end

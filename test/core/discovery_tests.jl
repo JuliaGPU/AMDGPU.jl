@@ -1,5 +1,6 @@
 using Test
-using AMDGPU
+import AMDGPU
+import ROCm_Runtime_Discovery
 
 # Pure-filesystem tests for ROCm library discovery against synthetic trees
 # (no real ROCm install or GPU needed). Two kinds of test live here:
@@ -12,7 +13,7 @@ using AMDGPU
 #                    generation. When a future ROCm moves these, ADD the new
 #                    path (keep the old for back-compat) rather than editing
 #                    in place.
-const Disc = AMDGPU.ROCmDiscovery
+const Disc = ROCm_Runtime_Discovery
 
 # The `core-*` fallback and the `libamdhip64` naming are Linux-specific.
 if Sys.islinux()
@@ -107,6 +108,8 @@ end
     end
 end
 
+# GPU visibility and system-scope fences are configured by AMDGPU itself, for
+# either ROCm provider.
 @testset "behaviour: KFD GPU nodes" begin
     mktempdir() do dir
         root = joinpath(dir, "nodes")
@@ -125,19 +128,19 @@ end
         mkpath(joinpath(root, "3"))
         node("4", "simd_count 8\ngfx_target_version 110000\ndrm_render_minor 130\n")
 
-        nodes = Disc.kfd_gpu_nodes(root; dri)
+        nodes = AMDGPU.kfd_gpu_nodes(root; dri)
         @test [node["gfx_target_version"] for node in nodes] == [110000, 100306]
         @test nodes[1]["location_id"] == 3584
         @test nodes[2]["unique_id"] == typemax(UInt64)
     end
-    @test isempty(Disc.kfd_gpu_nodes(joinpath(tempdir(), "no-such-dir-xyz")))
+    @test isempty(AMDGPU.kfd_gpu_nodes(joinpath(tempdir(), "no-such-dir-xyz")))
 end
 
 @testset "behaviour: visible GPUs" begin
     gpus = [Dict("location_id" => 1, "unique_id" => 0x1111222233334444),
             Dict("location_id" => 2, "unique_id" => 0x111199990000abcd),
             Dict("location_id" => 3)]
-    visible(env...) = [gpu["location_id"] for gpu in Disc.visible_gpus(gpus, Dict(env...))]
+    visible(env...) = [gpu["location_id"] for gpu in AMDGPU.visible_gpus(gpus, Dict(env...))]
 
     @test visible() == [1, 2, 3]
 
@@ -173,7 +176,7 @@ end
     dgpu = Dict("simd_count" => 48, "gfx_target_version" => 110000,
                 "domain" => 1, "location_id" => 0x0c11)
     config(gpus; env=Dict(), preference="auto") =
-        Disc.system_scope_fences_config(gpus; env, preference)
+        AMDGPU.system_scope_fences_config(gpus; env, preference)
 
     # "auto" only uses them when every GPU needs them
     @test config([igpu]) == ([(0, 0x0e, 0)], true, :auto)

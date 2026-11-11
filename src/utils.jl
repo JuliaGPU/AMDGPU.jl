@@ -1,57 +1,5 @@
-# Run `code` in a subprocess and return its stdout, or `nothing` on crash,
-# timeout, or nonzero exit. The empty `JULIA_LOAD_PATH` keeps the child out of
-# the active project, so `code` must only use `Base`.
-function _version_subprocess(code::String; timeout::Real = 20)::Union{String, Nothing}
-    cmd = `$(Base.julia_cmd()) --startup-file=no -O0 --compile=min -e $code`
-    cmd = addenv(cmd, "JULIA_LOAD_PATH" => "")
-    out = IOBuffer()
-    try
-        proc = run(pipeline(ignorestatus(cmd); stdout = out, stderr = devnull); wait = false)
-        timedout = Ref(false)
-        timer = Timer(timeout) do _
-            if process_running(proc)
-                timedout[] = true
-                kill(proc)
-            end
-        end
-        wait(proc)
-        close(timer)
-        (timedout[] || !success(proc)) && return nothing
-        v = strip(String(take!(out)))
-        return isempty(v) ? nothing : v
-    catch
-        return nothing
-    end
-end
-
-# Empty until probed, then the version string or `"err"`.
-global _ROCSPARSE_VERSION::String = ""
-
-# rocSPARSE's version query needs a handle, and creating one can segfault on
-# broken ROCm installs (issue #920), so run it out-of-process.
-function _rocsparse_version_isolated(; timeout::Real = 20)
-    global _ROCSPARSE_VERSION
-    isempty(_ROCSPARSE_VERSION) || return _ROCSPARSE_VERSION
-
-    lib = repr(librocsparse)  # `repr` so Windows separators survive the parser
-    out = _version_subprocess("""
-        handle = Ref{Ptr{Cvoid}}(C_NULL)
-        ccall((:rocsparse_create_handle, $lib), Cint,
-            (Ptr{Ptr{Cvoid}},), handle) == 0 || exit(2)
-        version = Ref{Cint}(0)
-        ccall((:rocsparse_get_version, $lib), Cint,
-            (Ptr{Cvoid}, Ptr{Cint}), handle[], version) == 0 || exit(2)
-        print(version[])
-        """; timeout)
-    packed = out === nothing ? nothing : tryparse(Int, out)
-    return _ROCSPARSE_VERSION =
-        packed === nothing ? "err" : string(rocSPARSE.decode_version(packed))
-end
-
-# `"err"` = present but the version query threw. Guards against a
-# broken/mismatched install crashing `versioninfo()` itself (same class of
-# bug as rocSPARSE's #920; these queries run in-process rather than isolated
-# since they've only been observed to throw, not segfault).
+# `"err"` = present but the version query threw, so a broken or mismatched
+# install cannot crash `versioninfo()` itself.
 function _ver(is_functional::Bool, ver_fn; on_error = Returns(nothing))
     is_functional || return "-"
     try
@@ -73,41 +21,62 @@ diagnostic when something is missing or not working.
 """
 function versioninfo(io::IO=stdout)
     println(io, "AMDGPU versioninfo")
+    println(io, "ROCm provider: ", local_rocm ?
+        "local ROCm installation" : "downloaded artifacts")
     _status(st::Bool) = st ? "+" : "-"
     _libpath(p::String) = isempty(p) ? "-" : p
 
-    rocsparse_ver = functional(:rocsparse) ? _rocsparse_version_isolated() : "-"
     errs = Pair{Symbol, String}[]
 
     data = String[
-        _status(functional(:lld))         "LLD"              "-"                                       _libpath(lld_artifact ? AMDGPU_LLVM_Backend_jll.libamdgpu : lld_path);
+        _status(functional(:lld))         "LLD"              "-"                                       _libpath(functional(:lld) ? AMDGPU_LLVM_Backend_jll.libamdgpu : "");
         _status(functional(:device_libs)) "Device Libraries" "-"                                       _libpath(libdevice_libs);
-        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version, errs)     _libpath(libhip);
+        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version, errs)     _libpath(libamdhip64);
         _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version, errs)     _libpath(librocblas);
         _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version, errs) _libpath(librocsolver);
-        _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_ver                             _libpath(librocsparse);
+        _status(functional(:rocsparse))   "rocSPARSE"        _ver(:rocsparse, rocSPARSE.version, errs) _libpath(librocsparse);
         _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version, errs)     _libpath(librocrand);
         _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version, errs)       _libpath(librocfft);
         _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version, errs) _libpath(libhiptensor);
-        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version, errs)       _libpath(libMIOpen_path);
+        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version, errs)       _libpath(libMIOpen);
     ]
 
     PrettyTables.pretty_table(io, data; column_labels=[
         "Available", "Name", "Version", "Path"],
         alignment=[:c, :l, :l, :l])
 
-    if rocsparse_ver == "err"
-        @warn """rocSPARSE is installed but its version query failed (it ran in an \
-            isolated subprocess and crashed or timed out). This usually indicates a \
-            broken or mismatched ROCm install. See \
-            https://github.com/JuliaGPU/AMDGPU.jl/issues/920."""
+    if !isempty(errs)
+        @warn """Some installed libraries failed their version query. Check the \
+            foreign-library report below: a ROCm from the environment mixed into \
+            this process is the usual cause. See \
+            https://github.com/JuliaGPU/AMDGPU.jl/issues/920.
+            $(join(("  $lib: $msg" for (lib, msg) in errs), "\n"))"""
     end
 
-    # rocSPARSE never lands in `errs`: it has its own warning above.
-    if !isempty(errs)
-        @warn """Some installed libraries failed their version query. This usually \
-            indicates a broken or mismatched ROCm install:
-            $(join(("  $lib: $msg" for (lib, msg) in errs), "\n"))"""
+    # Artifact-mode hygiene: what a ROCm elsewhere in the environment is doing
+    # to this process.
+    if !local_rocm
+        println(io)
+        redirects = ROCm_Runtime.redirect_env()
+        if isempty(redirects)
+            println(io, "Device-library redirects: none")
+        else
+            println(io, "Device-library redirects (override the artifact's own):")
+            for (name, value) in redirects
+                println(io, "  $name = $value")
+            end
+        end
+
+        foreign = ROCm_Runtime.foreign_libraries()
+        if isempty(foreign)
+            println(io, "Foreign ROCm libraries loaded: none")
+        else
+            println(io, "Foreign ROCm libraries loaded (two ROCm versions at once):")
+            for path in foreign
+                println(io, "  $path")
+            end
+        end
+        println(io)
     end
 
     get_module(name::Symbol) = (name, getfield(AMDGPU, name))
@@ -170,7 +139,7 @@ Returns `true` if the ROCm component `component` is configured and expected to
 function correctly. Available `component` values are:
 
 - `:hip`         - Queries HIP library availability
-- `:lld`         - Queries `ld.lld` tool availability
+- `:lld`         - Queries kernel linker (`libamdgpu`) availability
 - `:device_libs` - Queries ROCm device libraries availability
 - `:rocblas`     - Queries rocBLAS library availability
 - `:rocsolver`   - Queries rocSOLVER library availability
@@ -188,9 +157,9 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hip
-        return !isempty(libhip)
+        return !isempty(libamdhip64)
     elseif component == :lld
-        return !isempty(lld_path) || lld_artifact
+        return AMDGPU_LLVM_Backend_jll.is_available()
     elseif component == :device_libs
         return !isempty(libdevice_libs)
     elseif component == :rocblas
@@ -221,7 +190,7 @@ function functional(component::Symbol)
         # unsupported device hipTENSOR's init calls `exit()`, killing Julia.
         return _hiptensor_api_compatible()
     elseif component == :MIOpen
-        return !isempty(libMIOpen_path)
+        return !isempty(libMIOpen)
     elseif component == :all
         for component in (
             :hip, :lld, :device_libs, :rocblas, :rocsolver,

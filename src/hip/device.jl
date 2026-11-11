@@ -64,17 +64,16 @@ gcn_arch(d::HIPDevice)::String = d.gcn_arch
 
 # Warn when using a GPU that needs system-scope fences while HIP doesn't use them.
 function check_system_scope_fences(dev::HIPDevice)
-    discovery = AMDGPU.ROCmDiscovery
-    discovery.system_scope_fences && return
-    affected = discovery.system_scope_fence_devices
+    AMDGPU.system_scope_fences && return
+    affected = AMDGPU.system_scope_fence_devices
     isempty(affected) && return
     props = properties(dev)
     (props.pciDomainID, props.pciBusID, props.pciDeviceID) in affected || return
 
-    reason, fix = if discovery.system_scope_fences_source == :environment
-        "the `AMD_OPT_FLUSH` environment variable is set to $(repr(discovery.amd_opt_flush))",
+    reason, fix = if AMDGPU.system_scope_fences_source == :environment
+        "the `AMD_OPT_FLUSH` environment variable is set to $(repr(AMDGPU.amd_opt_flush))",
         "unset it or set it to 0"
-    elseif discovery.system_scope_fences_source == :preference
+    elseif AMDGPU.system_scope_fences_source == :preference
         return  # explicitly disabled
     else
         "other AMD GPUs in this system don't need them, and would be slowed down",
