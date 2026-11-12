@@ -5,7 +5,7 @@ using CEnum: @cenum
 using LinearAlgebra
 using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ
 using LinearAlgebra: BlasInt, BlasReal, BlasComplex, checksquare
-using LinearAlgebra.LAPACK: chkargsok, chklapackerror, chktrans, chkside, chkdiag, chkuplo
+using LinearAlgebra.LAPACK: chkargsok, chklapackerror, chkposdef, chktrans, chkside, chkdiag, chkuplo
 
 using ..AMDGPU
 import AMDGPU: librocsolver, HIP, rocBLAS
