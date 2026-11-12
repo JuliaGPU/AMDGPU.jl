@@ -654,4 +654,56 @@ end
     end
 end
 
+@testset "check" begin
+    using AMDGPU.rocSOLVER: QRAlgorithm
+    using LinearAlgebra: LAPACKException, PosDefException
+
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        A = rand(elty, m, n)
+        J = randn(elty, 64, 64)   # needs about 10 Jacobi sweeps; small matrices converge within one or two
+        H = rand(elty, m, m); H = H * H' + m * I
+        B = rand(elty, m, m); B = B * B' + m * I
+        nanA = fill(elty(NaN), m, n)
+        nanH = fill(elty(NaN), m, m)
+        notposdef = -Matrix{elty}(I, m, m)
+        evd! = elty <: Real ? rocSOLVER.syevd! : rocSOLVER.heevd!
+        gvd! = elty <: Real ? rocSOLVER.sygvd! : rocSOLVER.hegvd!
+
+        # Failures are reported as LinearAlgebra's LAPACK wrappers report them: the QR iteration and the tridiagonal eigensolver do not converge on NaN input, the Jacobi iteration not within one sweep, and the generalized eigensolver needs a positive definite B.
+        @test_throws LAPACKException rocSOLVER.gesvd!('S', 'S', ROCMatrix(nanA))
+        @test_throws LAPACKException svdvals(ROCMatrix(nanA); alg = QRAlgorithm())
+        @test_throws LAPACKException evd!('U', ROCMatrix(nanH))
+        @test_throws LAPACKException eigen(Hermitian(ROCMatrix(nanH)))
+        @test_throws LAPACKException rocSOLVER.gesvdj!(ROCMatrix(J); max_sweeps = 1)
+        @test_throws PosDefException gvd!('U', ROCMatrix(H), ROCMatrix(notposdef))
+        @test_throws PosDefException eigen(Hermitian(ROCMatrix(H)), Hermitian(ROCMatrix(notposdef)))
+
+        # `check = false` does not read the status back and never throws; a successful call gives the same results.
+        U, S, Vt = rocSOLVER.gesvd!('S', 'S', ROCMatrix(A); check = false)
+        @test collect(U * Diagonal(S) * Vt) ≈ A
+        U, S, Vt, residual, n_sweeps, info = rocSOLVER.gesvdj!(ROCMatrix(A); check = false)
+        @test residual isa ROCVector{real(elty)} && n_sweeps isa ROCVector{Cint} && info isa ROCVector{Cint}
+        @test collect(U * Diagonal(S) * Vt) ≈ A
+        @test @allowscalar info[1] == 0
+        D, V = evd!('U', ROCMatrix(H); check = false)
+        @test collect(D) ≈ eigvals(Hermitian(H))
+        D, V = gvd!('U', ROCMatrix(H), ROCMatrix(B); check = false)
+        @test collect(D) ≈ eigvals(Hermitian(H), Hermitian(B))
+        # Failed calls return as well; the status says what happened.
+        S = rocSOLVER.gesvd!('N', 'N', ROCMatrix(nanA); check = false)[2]
+        @test S isa ROCVector{real(elty)}
+        _, _, _, residual, n_sweeps, info = rocSOLVER.gesvdj!(ROCMatrix(J); max_sweeps = 1, check = false)
+        @test @allowscalar (n_sweeps[1], info[1]) == (1, 1)
+        D, V = gvd!('U', ROCMatrix(H), ROCMatrix(notposdef); check = false)
+        @test D isa ROCVector{real(elty)}
+    end
+
+    @testset "gesvdj! abstol::Real" begin
+        A = rand(Float32, m, n)
+        # The tolerance may be of another type than the matrix (a `TypeError` before).
+        U, S, Vt, residual, n_sweeps, info = rocSOLVER.gesvdj!(ROCMatrix(A); abstol = 1e-6)
+        @test info == 0 && Vector(S) ≈ svdvals(A)
+    end
+end
+
 end
