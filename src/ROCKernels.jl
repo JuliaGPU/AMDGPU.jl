@@ -124,7 +124,7 @@ function KI.kernel_function(backend::ROCBackend, f::F, tt::TT=Tuple{}; name=noth
     # kernels have to execute with the device's wavefront size, which is what `hipfunction`
     # compiles for by default
     ws = HIP.wavefrontsize(AMDGPU.device())
-    if haskey(kwargs, :wavefrontsize64) && kwargs[:wavefrontsize64] != (ws == 64)
+    if haskey(kwargs, :wavefrontsize64) && kwargs[:wavefrontsize64]::Bool != (ws == 64)
         throw(ArgumentError("`wavefrontsize64=$(kwargs[:wavefrontsize64])` conflicts with the wavefront size of the device, $ws"))
     end
     kernel = hipfunction(rocconvert(f), tt; name, kwargs...)
