@@ -35,7 +35,7 @@ Base.unsafe_convert(::Type{hipMemPool_t}, pool::HIPMemoryPool) = pool.handle
 Base.:(==)(a::HIPMemoryPool, b::HIPMemoryPool) = a.handle == b.handle
 Base.hash(pool::HIPMemoryPool, h::UInt) = hash(pool.handle, h)
 
-function attribute(X::Type, pool::HIPMemoryPool, attr::hipMemPoolAttr)
+function attribute(::Type{X}, pool::HIPMemoryPool, attr::hipMemPoolAttr) where X
     value = Ref{X}()
     hipMemPoolGetAttribute(pool, attr, value)
     value[]
