@@ -943,35 +943,41 @@ end
     SVDAlgorithm
 
 Abstract supertype selecting which rocSOLVER routine backs `svd`/`svdvals` on a
-`ROCArray`: [`QRAlgorithm`](@ref) or [`JacobiAlgorithm`](@ref).
+`ROCArray`: [`QRAlgorithm`](@ref) (the default) or [`JacobiAlgorithm`](@ref).
 """
 abstract type SVDAlgorithm end
 
 """
     QRAlgorithm <: SVDAlgorithm
 
-Compute the SVD with rocSOLVER's QR iteration (`gesvd!`).
+Compute the SVD by bidiagonalization and QR iteration (rocSOLVER's `gesvd!`). The
+default for `ROCMatrix`: accurate for every singular value, like LAPACK's `gesvd`.
 """
 struct QRAlgorithm <: SVDAlgorithm end
 
 """
     JacobiAlgorithm <: SVDAlgorithm
 
-Compute the SVD with rocSOLVER's one-sided Jacobi method (`gesvdj!`). This is
-the default for `ROCArray`, as it is typically faster than [`QRAlgorithm`](@ref)
-on AMD GPUs.
+Compute the SVD with rocSOLVER's Jacobi method (`gesvdj!`). Several times faster than
+[`QRAlgorithm`](@ref), but it works on `A'A`, so singular values below `sqrt(eps) * σ₁`
+and their singular vectors are inaccurate without any indication. Use it for
+well-conditioned matrices when speed matters; it was the default in earlier versions.
 """
 struct JacobiAlgorithm <: SVDAlgorithm end
+
+# QR iteration is accurate for every singular value; rocSOLVER's Jacobi method is faster but
+# loses those below sqrt(eps)·σ₁ without reporting it (see `JacobiAlgorithm`).
+default_svd_algorithm(::ROCMatrix) = QRAlgorithm()
 
 # NOTE: LinearAlgebra's default SVD path calls `LAPACK.gesdd!`, which rocSOLVER does not implement, so we own the whole `svd`/`svdvals` family for ROCMatrix and dispatch to `gesvd!`/`gesvdj!` (see JuliaGPU/AMDGPU.jl#837).
 
 function LinearAlgebra.svd!(
-    A::ROCMatrix{T}; full::Bool = false, alg = JacobiAlgorithm(),
+    A::ROCMatrix{T}; full::Bool = false, alg = default_svd_algorithm(A),
 ) where T <: rocBLAS.ROCBLASFloat
     return _svd!(A, full, alg)
 end
 
-LinearAlgebra.svd(A::ROCMatrix; full::Bool = false, alg = JacobiAlgorithm()) =
+LinearAlgebra.svd(A::ROCMatrix; full::Bool = false, alg = default_svd_algorithm(A)) =
     svd!(copy_rocblasfloat(A); full, alg)
 
 function _svd!(A::ROCMatrix{T}, full::Bool, ::QRAlgorithm) where T <: rocBLAS.ROCBLASFloat
@@ -986,17 +992,17 @@ function _svd!(A::ROCMatrix{T}, full::Bool, ::JacobiAlgorithm) where T <: rocBLA
     return LinearAlgebra.SVD(U, S, Vt)
 end
 
-# Accept LinearAlgebra's own algorithm singletons: `QRIteration` maps to our QR path (keeps the old `svd(A; alg=QRIteration())` workaround working), and `DivideAndConquer` (whose `gesdd!` is unavailable) maps to Jacobi.
+# Accept LinearAlgebra's own algorithm singletons: `QRIteration` maps to our QR path (keeps the old `svd(A; alg=QRIteration())` workaround working), and `DivideAndConquer` (whose `gesdd!` is unavailable) maps to the default.
 _svd!(A::ROCMatrix, full::Bool, ::LinearAlgebra.QRIteration) = _svd!(A, full, QRAlgorithm())
-_svd!(A::ROCMatrix, full::Bool, ::LinearAlgebra.DivideAndConquer) = _svd!(A, full, JacobiAlgorithm())
+_svd!(A::ROCMatrix, full::Bool, ::LinearAlgebra.DivideAndConquer) = _svd!(A, full, default_svd_algorithm(A))
 _svd!(A::ROCMatrix, full::Bool, alg) =
     throw(ArgumentError("Unsupported SVD algorithm `$alg` for ROCArray."))
 
-function LinearAlgebra.svdvals!(A::ROCMatrix{T}; alg = JacobiAlgorithm()) where T <: rocBLAS.ROCBLASFloat
+function LinearAlgebra.svdvals!(A::ROCMatrix{T}; alg = default_svd_algorithm(A)) where T <: rocBLAS.ROCBLASFloat
     return _svdvals!(A, alg)
 end
 
-LinearAlgebra.svdvals(A::ROCMatrix; alg = JacobiAlgorithm()) =
+LinearAlgebra.svdvals(A::ROCMatrix; alg = default_svd_algorithm(A)) =
     svdvals!(copy_rocblasfloat(A); alg)
 
 _svdvals!(A::ROCMatrix{T}, ::QRAlgorithm) where T <: rocBLAS.ROCBLASFloat =
@@ -1004,7 +1010,7 @@ _svdvals!(A::ROCMatrix{T}, ::QRAlgorithm) where T <: rocBLAS.ROCBLASFloat =
 _svdvals!(A::ROCMatrix{T}, ::JacobiAlgorithm) where T <: rocBLAS.ROCBLASFloat =
     gesvdj!(A; jobu = 'N', jobvt = 'N')[2]
 _svdvals!(A::ROCMatrix, ::LinearAlgebra.QRIteration) = _svdvals!(A, QRAlgorithm())
-_svdvals!(A::ROCMatrix, ::LinearAlgebra.DivideAndConquer) = _svdvals!(A, JacobiAlgorithm())
+_svdvals!(A::ROCMatrix, ::LinearAlgebra.DivideAndConquer) = _svdvals!(A, default_svd_algorithm(A))
 _svdvals!(A::ROCMatrix, alg) =
     throw(ArgumentError("Unsupported SVD algorithm `$alg` for ROCArray."))
 
