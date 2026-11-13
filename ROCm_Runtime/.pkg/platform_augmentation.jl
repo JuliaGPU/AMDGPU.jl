@@ -149,7 +149,9 @@ function rocm_arch_comparison_strategy(a::String, b::String, a_requested::Bool, 
 end
 
 function rocm_arch_core(arch::AbstractString)
-    return match(r"gfx(.*)", first(split(arch, r"[_-]", limit = 2)))[1]
+    # the capture group always takes part in a match, so this is never `nothing`. inference
+    # cannot know, and comparing the characters of a `Union{Nothing, SubString}` is dynamic.
+    return match(r"gfx(.*)", first(split(arch, r"[_-]", limit = 2)))[1]::AbstractString
 end
 
 function rocm_arch_matches(pattern::AbstractString, arch::AbstractString)
