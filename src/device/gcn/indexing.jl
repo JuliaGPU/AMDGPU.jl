@@ -42,7 +42,7 @@ const _hidden_group_size_offset  = 12   # u16 × 3
     idx_ptr_T = bitcast!(builder, idx_ptr_i8, T_ptr_T)
     # the hidden block is at least 4-byte aligned; tell LLVM so the
     # backend keeps merged accesses SMEM-selectable
-    idx_T = load!(builder, T_T, idx_ptr_T; align=gcd(4, offset))
+    idx_T = load!(builder, T_T, idx_ptr_T; align=gcd(4, offset::Int))
     idx = zext!(builder, idx_T, T_int32)
 
     # attach range metadata; the hidden arguments never change during
