@@ -419,19 +419,25 @@ function hipcompile(@nospecialize(job::CompilerJob))
     # the IR in `meta` is ours: inspect it in here, and dispose of it so that it does not leak
     obj, entry, late_hostcalls, extinit_globals, relocations = JuliaContext() do ctx
         image, meta = GPUCompiler.compile(:obj, job)
-        @dispose ir=meta.ir begin
+        # `job` is not specialized on, so what `compile` returns is not inferred. Assert the
+        # types here, which keeps the rest of the compile and link path concretely inferred
+        # (and thus out of reach of invalidations by methods that other packages define).
+        image = image::String
+        kernel = meta.entry::LLVM.Function
+        relocs = meta.relocations::GPUCompiler.Relocations
+        @dispose ir=meta.ir::LLVM.Module begin
             # Filter out extinit global from `relocations` that :patch strategy emits.
-            relocated = Set(rec.name for rec in meta.relocations.records)
+            relocated = Set(rec.name for rec in relocs.records)
             extinit = [gv.name for gv in ir.globals
                        if gv.externally_initialized && gv.name ∉ relocated]
 
-            image, meta.entry.name, find_global_hostcalls(ir), extinit, meta.relocations
+            image, kernel.name, find_global_hostcalls(ir), extinit, relocs
         end
     end
 
     # Collect early-detected hostcalls written by link_libraries! on this task.
     # Falls back gracefully to empty if link_libraries! was not called.
-    global_hostcalls = pop!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])
+    global_hostcalls = pop!(task_local_storage(), :amdgpu_early_hostcalls, Symbol[])::Vector{Symbol}
     # Late global hostcalls detection.
     append!(global_hostcalls, late_hostcalls)
 
