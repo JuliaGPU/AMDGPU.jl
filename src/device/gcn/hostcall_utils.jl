@@ -85,7 +85,7 @@ end
     # Copy arguments into buffer
     # Modified from CUDAnative src/device/cuda/dynamic_parallelism.jl
     off = 1
-    for i in 1:length(args)
+    for i in 1:length(args)::Int
         T = args[i]
         sz = aligned_sizeof(T)
         # FIXME: Use proper alignment
@@ -202,7 +202,11 @@ function named_perdevice_hostcall(func, dev::HIP.HIPDevice, name::Symbol)
         hcs = get!(
             () -> Dict{Symbol, Tuple{HostCallHolder, Mem.HostBuffer}}(),
             NAMED_PERDEVICE_HOSTCALLS, dev)
-        get!(func, hcs, name)
+        get!(hcs, name) do
+            # `func` is not specialized on: assert what it returns, instead of
+            # leaving it to a dynamically dispatched `convert` to the value type.
+            func()::Tuple{HostCallHolder, Mem.HostBuffer}
+        end
     end
 end
 
