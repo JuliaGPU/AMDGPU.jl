@@ -584,6 +584,44 @@ end
         @test cond(dA) ≈ cond(A)
     end
 
+    @testset "default = QR, elty = $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+        # tall, wide, square and rank-deficient
+        rankdef = rand(elty, n, n); rankdef[:, 2:2:end] .= rankdef[:, 1:2:end]
+        for A in (rand(elty, m, n), rand(elty, n, m), rand(elty, n, n), rankdef)
+            dA = ROCMatrix(A)
+            F = svd(dA)
+            @test Vector(F.S) ≈ svdvals(A)
+            # rocSOLVER's cgesvd returns a non-unit singular vector for a zero singular value of a rank-deficient ComplexF32 matrix (reported upstream; the singular values and the reconstruction are fine): check the vectors of the non-zero singular values only there.
+            r = (elty == ComplexF32 && A === rankdef) ? n ÷ 2 : length(F.S)
+            @test collect(F.U[:, 1:r]' * F.U[:, 1:r]) ≈ I
+            @test collect(F.Vt[1:r, :] * F.Vt[1:r, :]') ≈ I
+            @test collect(F.U * Diagonal(F.S) * F.Vt) ≈ A
+            @test Vector(svdvals(dA)) ≈ svdvals(A)
+            # the default is QR iteration, also for LinearAlgebra's default singleton
+            @test svdvals(dA) == svdvals(dA; alg = QRAlgorithm())
+            @test svdvals!(copy(dA)) == svdvals(dA)
+            @test svd(dA).U ≈ svd(dA; alg = QRAlgorithm()).U
+            @test svd(dA; alg = LinearAlgebra.DivideAndConquer()).U ≈ svd(dA; alg = QRAlgorithm()).U
+        end
+        Z = ROCMatrix(zeros(elty, m, n))
+        F = svd(Z)
+        @test all(iszero, Array(F.S)) && all(iszero, Array(svdvals(Z)))
+        @test collect(F.U' * F.U) ≈ I && collect(F.Vt * F.Vt') ≈ I
+    end
+
+    # The default resolves the small singular values of a graded matrix; rocSOLVER's Jacobi method works on A'A and loses those below sqrt(eps)·σ₁ (relative error ~1e-8 here, with info = 0).
+    @testset "graded matrix, elty = $elty" for elty in (Float64, ComplexF64)
+        k = 64
+        Q = Matrix(qr(randn(elty, k, k)).Q); W = Matrix(qr(randn(elty, k, k)).Q)
+        A = Q * Diagonal(10.0 .^ range(0, -20; length = k)) * W'
+        dA = ROCMatrix(A)
+        ref = svdvals(A)
+        @test Vector(svdvals(dA)) ≈ ref rtol = 1e-12
+        F = svd(dA)
+        @test Vector(F.S) ≈ ref rtol = 1e-12
+        @test norm(collect(F.U * Diagonal(F.S) * F.Vt) - A) < 1e-12 * norm(A)
+    end
+
     # LinearAlgebra's algorithm singletons remain accepted
     @testset "alg-singleton compat" begin
         A = randn(Float64, 8, 8); dA = ROCMatrix(A); refS = svdvals(A)

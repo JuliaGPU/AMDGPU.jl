@@ -36,14 +36,14 @@ Element types follow rocBLAS/rocSOLVER: `Float32`, `Float64`, `ComplexF32`, and 
 
 ## Singular value decomposition
 
-`svd`, `svd!`, and `svdvals` run on `ROCMatrix` via rocSOLVER. The `alg` keyword selects the backend — `JacobiAlgorithm()` (the default, usually fastest on AMD GPUs) or `QRAlgorithm()`:
+`svd`, `svd!`, and `svdvals` run on `ROCMatrix` via rocSOLVER. The `alg` keyword selects the backend. `QRAlgorithm()`, the default, is bidiagonalization and QR iteration (`gesvd`) and is accurate for every singular value, like LAPACK on the CPU. `JacobiAlgorithm()` is rocSOLVER's Jacobi method (`gesvdj`): several times faster, but it works on `A'A`, so singular values below `sqrt(eps)·σ₁` and their vectors are inaccurate without any indication; use it for well-conditioned matrices when speed matters. Known rocSOLVER issue ([rocm-libraries#15788](https://github.com/ROCm/rocm-libraries/issues/15788)): for a rank-deficient `ComplexF32` matrix, `gesvd` may return an unnormalized singular vector for a zero singular value.
 
 ```julia
 using AMDGPU.rocSOLVER: JacobiAlgorithm, QRAlgorithm
 
-F = svd(A)                              # Jacobi by default; F.U, F.S, F.Vt
+F = svd(A)                              # QR iteration by default; F.U, F.S, F.Vt
 s = svdvals(A)                          # singular values only
-Ff = svd(A; full = true, alg = QRAlgorithm())
+Ff = svd(A; full = true, alg = JacobiAlgorithm())
 ```
 
 Because `svdvals` is supported, so is `cond`. (`opnorm(A, 2)` is not yet available — it relies on scalar indexing internal to `LinearAlgebra`.)
