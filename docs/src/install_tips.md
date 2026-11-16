@@ -2,7 +2,7 @@
 
 ## ROCm libraries
 
-By default, AMDGPU.jl downloads the ROCm runtime (HIP and HSA) and libraries (rocBLAS, rocSOLVER, rocSPARSE, rocFFT, rocRAND, MIOpen and hipTensor) as artifacts, taken from AMD's [TheRock](https://github.com/ROCm/TheRock) distribution for the GPUs detected on the host. No ROCm installation is needed, only the GPU driver. The kernel linker and the device libraries always come from `AMDGPU_LLVM_Backend_jll`; the device libraries are converted to the LLVM version of the running Julia on first use and cached in the depot.
+By default, AMDGPU.jl downloads the ROCm runtime (HIP and HSA) and libraries (rocBLAS, rocSOLVER, rocSPARSE, rocFFT, rocRAND, MIOpen and hipTensor) as artifacts, taken from AMD's [TheRock](https://github.com/ROCm/TheRock) distribution for the GPUs detected on the host. No ROCm installation is needed, only the [GPU driver](@ref). The kernel linker and the device libraries always come from `AMDGPU_LLVM_Backend_jll`; the device libraries are converted to the LLVM version of the running Julia on first use and cached in the depot.
 
 To use a local ROCm installation instead, set the `local` preference and restart Julia:
 
@@ -11,6 +11,24 @@ AMDGPU.set_rocm_version!(local_rocm=true)
 ```
 
 Its libraries are then found as described in [Local ROCm discovery](@ref). `AMDGPU.reset_rocm_version!()` goes back to the artifacts.
+
+### GPU driver
+
+The driver has to be one that AMD supports with the ROCm release in use: with the artifacts, the release of the bundles. AMD's compatibility matrix lists the drivers of a release for each GPU family and platform:
+
+```@eval
+using AMDGPU, Downloads, Markdown
+links = map(AMDGPU.ROCm_Runtime.rocm_toolkits) do version
+    url = "https://rocm.docs.amd.com/en/docs-$version/compatibility/compatibility-matrix.html"
+    # fail the build when AMD has no such page, but not when its server cannot be reached
+    response = Downloads.request(url; method="HEAD", throw=false, timeout=30)
+    response isa Downloads.Response && response.status == 404 && error("no compatibility matrix at $url")
+    "- [ROCm $version]($url)"
+end
+Markdown.parse(join(links, "\n"))
+```
+
+Other driver versions may work, but AMD does not support the combination.
 
 ### Selecting the provider before installing
 
