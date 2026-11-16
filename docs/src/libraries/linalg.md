@@ -52,6 +52,18 @@ Because `svdvals` is supported, so is `cond`. (`opnorm(A, 2)` is not yet availab
 
 Lower-level routines are available in the `AMDGPU.rocBLAS` and `AMDGPU.rocSOLVER` submodules for cases the generic interface does not cover — for example batched factorizations, or the raw `gesvd!` (QR) and `gesvdj!` (Jacobi) SVD kernels.
 
+### Checking solver results
+
+rocSOLVER writes the status of a routine (LAPACK's `info`) to device memory. `gesvd!`, `gesvdj!`, `syevd!`/`heevd!`, `sygvd!`/`hegvd!` and `geblttrf!` read it after the call, which synchronizes the stream, and throw as LinearAlgebra's LAPACK wrappers do: an `ArgumentError` for an invalid argument, a `LAPACKException` when the routine did not converge, a `PosDefException` when the `B` of a generalized eigenproblem is not positive definite.
+
+With `check = false` the status is not read: the wrapper does not synchronize, a failure goes unreported, and the results are then garbage (`gesvdj!` returns `residual`, `n_sweeps` and `info` as device arrays). rocSOLVER routines also synchronize internally (in ROCm 7.2.3 `gesvd` and `syevd` always, `gesvdj` beyond a few dozen rows), so only small Jacobi SVDs actually run ahead of the host. The wrappers that return `info` (`potrf!`, `getrf!`, `sytrf!`, the batched factorizations) always read it.
+
+```@docs
+AMDGPU.rocSOLVER.check_info
+AMDGPU.rocSOLVER.gesvd!
+AMDGPU.rocSOLVER.gesvdj!
+```
+
 ### Device-side scalars
 
 The scalar arguments of the `rocBLAS` wrappers (e.g. `alpha` and `beta`) can reside on the device, so that they don't need to be known on the host when an operation is enqueued — for example because a previous operation computed them. Pass an [`AMDGPU.ROCRef`](@ref), or a one-element `ROCArray`; scalars on the host can still be passed as numbers, and the two can be mixed (host-side scalars are then written to the device, which is ordered on the stream without synchronizing). Routines that return a scalar (`dot`, `dotc`, `dotu`, `nrm2`, `asum`) accept an extra argument to write the result into, which avoids synchronizing with the host when it is a device-side scalar:

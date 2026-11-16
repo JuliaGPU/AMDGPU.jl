@@ -1,3 +1,29 @@
+"""
+    check_info(devinfo::ROCVector{Cint}, chk = chklapackerror; check::Bool = true)
+
+Consume the status (LAPACK's `info`) that a rocSOLVER routine wrote to the device array
+`devinfo`. With `check = true`, copy it to the host (which synchronizes the stream), free
+`devinfo` and pass the value to `chk`: `chklapackerror` throws an `ArgumentError` for
+`info < 0` and a `LAPACKException` for `info > 0` (no convergence), `chkargsok` only the
+former. With `check = false`, only free `devinfo`: no synchronization, and a failure of
+the routine goes unreported.
+"""
+function check_info(devinfo::ROCVector{Cint}, chk = chklapackerror; check::Bool = true)
+    if check
+        info = AMDGPU.@allowscalar devinfo[1]
+        AMDGPU.unsafe_free!(devinfo)
+        chk(BlasInt(info))
+    else
+        AMDGPU.unsafe_free!(devinfo)
+    end
+    return
+end
+
+# `info > 0` of the generalized eigensolvers (`sygvd!`/`hegvd!`): the eigensolver failed
+# (`info ≤ n`), or the leading minor `info - n` of `B` is not positive definite.
+# LinearAlgebra reports both as `PosDefException`.
+chkargsposdef(info::BlasInt) = (chkargsok(info); chkposdef(info))
+
 for (fname, elty) in (
     (:rocsolver_spotrf, :Float32),
     (:rocsolver_dpotrf, :Float64),
@@ -397,7 +423,7 @@ for (fname, elty) in (
     (:rocsolver_zgeblttrf_npvt, :ComplexF64),
 )
     @eval begin
-        function geblttrf!(A::StridedROCArray{$elty,3}, B::StridedROCArray{$elty,3}, C::StridedROCArray{$elty,3})
+        function geblttrf!(A::StridedROCArray{$elty,3}, B::StridedROCArray{$elty,3}, C::StridedROCArray{$elty,3}; check::Bool = true)
             mA, nA, nblocksA = size(A)
             mB, nB, nblocksB = size(B)
             mC, nC, nblocksC = size(C)
@@ -410,9 +436,7 @@ for (fname, elty) in (
 
             devinfo = ROCArray{Cint}(undef, 1)
             $fname(rocBLAS.handle(), mB, nblocksB, A, lda, B, ldb, C, ldc, devinfo)
-            info = AMDGPU.@allowscalar devinfo[1]
-            AMDGPU.unsafe_free!(devinfo)
-            chkargsok(BlasInt(info))
+            check_info(devinfo, chkargsok; check)
             B, C
         end
     end
@@ -472,7 +496,8 @@ for (fname, elty, relty) in ((:rocsolver_sgesvd, :Float32, :Float32),
     @eval begin
         function gesvd!(jobu::Char,
                         jobvt::Char,
-                        A::StridedROCMatrix{$elty})
+                        A::StridedROCMatrix{$elty};
+                        check::Bool = true)
             m, n = size(A)
             k = min(m, n)
             lda = max(1, stride(A, 2))
@@ -505,14 +530,26 @@ for (fname, elty, relty) in ((:rocsolver_sgesvd, :Float32, :Float32),
             devinfo = ROCArray{Cint}(undef, 1)
             $fname(rocBLAS.handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt, E, 'I', devinfo)
 
-            info = AMDGPU.@allowscalar devinfo[1]
-            AMDGPU.unsafe_free!(devinfo)
-            chkargsok(BlasInt(info))
+            # `info = i > 0`: the bidiagonal QR iteration did not converge.
+            check_info(devinfo, chklapackerror; check)
 
             return U, S, Vt
         end
     end
 end
+
+"""
+    gesvd!(jobu, jobvt, A; check = true) -> (U, S, Vt)
+
+Singular value decomposition of `A` by bidiagonalization and QR iteration
+(`rocsolver_Xgesvd`), destroying `A`. `jobu` and `jobvt` are LAPACK's: all (`'A'`), the
+first `min(m, n)` (`'S'`), overwriting `A` (`'O'`) or no (`'N'`) singular vectors; a factor
+that is not returned separately is `C_NULL`.
+
+Throws a `LAPACKException` when the iteration did not converge; `check = false` skips
+reading the status (no synchronization, failures unreported), see [`check_info`](@ref).
+"""
+gesvd!
 
 for (jname, fname, elty, relty) in (
     (:syevd!, :rocsolver_dsyevd, :Float64   , :Float64),
@@ -521,7 +558,7 @@ for (jname, fname, elty, relty) in (
     (:heevd!, :rocsolver_cheevd, :ComplexF32, :Float32),
 )
     @eval begin
-        function $jname(uplo::Char, A::StridedROCMatrix{$elty})
+        function $jname(uplo::Char, A::StridedROCMatrix{$elty}; check::Bool = true)
             chkuplo(uplo)
 
             n = size(A, 2)
@@ -541,10 +578,10 @@ for (jname, fname, elty, relty) in (
                 dev_info
             )
 
-            info = AMDGPU.@allowscalar dev_info[1]
-            AMDGPU.unsafe_free!(dev_info)
-
             AMDGPU.unsafe_free!(E)
+
+            # `info > 0`: the tridiagonal eigensolver did not converge.
+            check_info(dev_info, chklapackerror; check)
 
             D, A
         end
@@ -558,7 +595,7 @@ for (jname, fname, elty, relty) in (
     (:hegvd!, :rocsolver_chegvd, :ComplexF32, :Float32),
 )
     @eval begin
-        function $jname(uplo::Char, A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty})
+        function $jname(uplo::Char, A::StridedROCMatrix{$elty}, B::StridedROCMatrix{$elty}; check::Bool = true)
             chkuplo(uplo)
 
             n = checksquare(A)
@@ -582,13 +619,9 @@ for (jname, fname, elty, relty) in (
                 dev_info
             )
 
-            info = AMDGPU.@allowscalar dev_info[1]
-            AMDGPU.unsafe_free!(dev_info)
-
             AMDGPU.unsafe_free!(E)
 
-            chkargsok(BlasInt(info))
-            info > 0 && throw(LinearAlgebra.PosDefException(BlasInt(info)))
+            check_info(dev_info, chkargsposdef; check)
 
             D, A
         end
@@ -605,7 +638,8 @@ for (fname, matrix_elty, vector_elty) in (
         function gesvdj!(
             A::StridedROCMatrix{$matrix_elty};
             jobu::Char='S', jobvt::Char='S',
-            abstol::$vector_elty=eps($vector_elty), max_sweeps::Integer=100,
+            abstol::Real=eps($vector_elty), max_sweeps::Integer=100,
+            check::Bool=true,
         )
             m, n = size(A)
             k = min(m, n)
@@ -647,7 +681,7 @@ for (fname, matrix_elty, vector_elty) in (
                 rocBLAS.handle(),
                 jobu, jobvt,
                 m, n, A, lda,
-                abstol,
+                $vector_elty(abstol),
                 dev_residual,
                 Cint(max_sweeps),
                 dev_n_sweeps,
@@ -656,6 +690,10 @@ for (fname, matrix_elty, vector_elty) in (
                 Vt, ldvt,
                 dev_info
             )
+
+            # Without `check`, the diagnostics stay on the device: reading them would synchronize.
+            check || return U, S, Vt, dev_residual, dev_n_sweeps, dev_info
+
             residual = AMDGPU.@allowscalar dev_residual[1]
             AMDGPU.unsafe_free!(dev_residual)
 
@@ -664,11 +702,30 @@ for (fname, matrix_elty, vector_elty) in (
 
             info = AMDGPU.@allowscalar dev_info[1]
             AMDGPU.unsafe_free!(dev_info)
+            # `info = 1`: not converged within `max_sweeps`; the result is not accurate to `abstol`.
+            chklapackerror(BlasInt(info))
 
             return U, S, Vt, residual, n_sweeps, info
         end
     end
 end
+
+"""
+    gesvdj!(A; jobu = 'S', jobvt = 'S', abstol = eps(real(eltype(A))), max_sweeps = 100,
+            check = true) -> (U, S, Vt, residual, n_sweeps, info)
+
+Singular value decomposition of `A` by rocSOLVER's Jacobi method (`rocsolver_Xgesvdj`),
+destroying `A`. `jobu` and `jobvt` select all (`'A'`), the first `min(m, n)` (`'S'`) or no
+(`'N'`, returned as `C_NULL`) singular vectors; `Vt` holds the adjoint of the right
+singular vectors, as for `gesvd!`. The iteration stops when the off-diagonal part of the
+implicit `A'A` is below `abstol` relative to its norm (`abstol ≤ 0`: machine precision) or
+after `max_sweeps` sweeps; `residual` and `n_sweeps` report where it stopped.
+
+Throws a `LAPACKException` when `max_sweeps` was exhausted (`info = 1`); `check = false`
+skips reading the status (no synchronization, failures unreported) and returns `residual`,
+`n_sweeps` and `info` as one-element device arrays, see [`check_info`](@ref).
+"""
+gesvdj!
 
 for (fname, elty) in
         ((:rocsolver_dgetrf_batched,:Float64),
