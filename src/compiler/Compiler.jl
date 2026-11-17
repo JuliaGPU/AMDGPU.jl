@@ -21,7 +21,6 @@ import ..Mem
 
 include("zeroinit_lds.jl")
 include("device_libs.jl")
-include("exceptions.jl")
 include("output_context.jl")
 include("dynamic_memory.jl")
 include("codegen.jl")

@@ -53,24 +53,18 @@ end
     return ptr
 end
 
+# reports an exception thrown at `site`, see `GPUCompiler.uses_exception_sites`
+@device_function function exception_site(site::Int32)
+    signal_exception!(site)
+    return
+end
+
+# for failures outside of throw sites, e.g. of hostcalls
 @device_function function signal_exception()
-    ei = kernel_state().exception_info
-    signal_exception!(ei, ExceptionCode.UNKNOWN)
+    signal_exception!(0 % Int32)
     return
 end
 
 function report_oom(sz::Csize_t)
-    return
-end
-
-function report_exception(ex::Ptr{Cchar})
-    return
-end
-
-function report_exception_name(ex::Ptr{Cchar})
-    return
-end
-
-function report_exception_frame(idx::Cint, func::Ptr{Cchar}, file::Ptr{Cchar}, line::Cint)
     return
 end

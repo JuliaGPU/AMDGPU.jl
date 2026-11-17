@@ -70,7 +70,8 @@ let HIPCompilerJob = Compiler.HIPCompilerJob
     precompile(Tuple{typeof(Compiler.hipfunction_link), Core.MethodInstance, HIPDevice,
                      NamedTuple{(:name,), Tuple{Nothing}}})
     precompile(Tuple{typeof(Compiler.hiplink), HIPCompilerJob,
-        Vector{UInt8}, String, Vector{Symbol}, GPUCompiler.Relocations})
+        Vector{UInt8}, String, Vector{Symbol}, GPUCompiler.Relocations,
+        Vector{GPUCompiler.ExceptionSite}})
 
     # GPUCompiler 2.0 caching pipeline (specialized for AMDGPU's results struct)
     precompile(Tuple{typeof(Compiler.compile_or_lookup), HIPCompilerJob})

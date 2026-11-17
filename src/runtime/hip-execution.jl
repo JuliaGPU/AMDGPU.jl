@@ -38,7 +38,7 @@ function call_arguments(@nospecialize(F), @nospecialize(TT), nargs::Int)
     params = Any[F, TT.parameters...]   # Base.signature_type with a function type
     exprs = Any[:(kernel.f); Any[:(args[$i]) for i in 1:nargs]]
     call_t = Type[AMDGPU.KernelState]
-    call_args = Any[:(AMDGPU.KernelState(stream.device, kernel.fun.global_hostcalls))]
+    call_args = Any[:(AMDGPU.KernelState(stream.device, kernel.fun))]
     for (dt, ex) in zip(params, exprs)
         # filter out ghost arguments that shouldn't be passed
         (GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)) && continue

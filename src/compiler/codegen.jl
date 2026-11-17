@@ -25,9 +25,10 @@ const HIPCompilerJob = CompilerJob{GCNCompilerTarget, HIPCompilerParams}
 Cached compilation results for a HIP kernel job, managed by `GPUCompiler.cached_results`.
 
 Session-portable artifacts (the lld-linked shared object `obj`, the entry-point name `entry`,
-the detected `global_hostcalls`, and the `relocations` manifest describing the host addresses
-the loader must patch into the loaded image) are populated after codegen and
-persist across sessions (e.g. through package precompilation).
+the detected `global_hostcalls`, the `relocations` manifest describing the host addresses
+the loader must patch into the loaded image, and the `exception_sites` that exceptions
+reported by the kernel refer to) are populated after codegen and persist across sessions
+(e.g. through package precompilation).
 
 The session-local `functions` are `HIPFunction` handles linked onto a specific device,
 they are device-specific and never populated during precompilation.
@@ -43,14 +44,17 @@ mutable struct HIPResults
     entry::Union{Nothing,String}
     global_hostcalls::Vector{Symbol}
     relocations::GPUCompiler.Relocations
+    exception_sites::Vector{GPUCompiler.ExceptionSite}
     # session-local handles (never populated during precompilation)
     functions::Vector{Tuple{HIP.HIPDevice,HIP.HIPFunction}}
     HIPResults() = new(
         nothing, nothing, Symbol[], GPUCompiler.Relocations(),
-        Tuple{HIP.HIPDevice,HIP.HIPFunction}[])
+        GPUCompiler.ExceptionSite[], Tuple{HIP.HIPDevice,HIP.HIPFunction}[])
 end
 
 GPUCompiler.runtime_module(@nospecialize(::HIPCompilerJob)) = AMDGPU
+
+GPUCompiler.uses_exception_sites(@nospecialize(::HIPCompilerJob)) = true
 
 GPUCompiler.method_table(@nospecialize(::HIPCompilerJob)) = AMDGPU.method_table
 
@@ -137,7 +141,7 @@ function GPUCompiler.finish_module!(
     # causing huge scratch memory usage.
     # And GPUCompiler fails to inline all functions without forcing
     # always-inline attributes on them. Add them here.
-    target_fns = ("signal_exception", "report_exception", "malloc", "__throw_")
+    target_fns = ("signal_exception", "malloc", "__throw_", "throw_boundserror")
 
     for fn in mod.functions
         do_inline = any(occursin.(target_fns, fn.name))
@@ -340,7 +344,8 @@ function hipfunction_lookup(
         cached_dev == dev && return cached_fun
     end
 
-    fun = hiplink(job, res.obj::Vector{UInt8}, res.entry::String, res.global_hostcalls, res.relocations)
+    fun = hiplink(job, res.obj::Vector{UInt8}, res.entry::String, res.global_hostcalls,
+                  res.relocations, res.exception_sites)
     # Don't cache session-local handles while generating output: the results
     # struct is serialized into the package image along with its CodeInstance,
     # and the handles would come back dangling.
@@ -369,6 +374,7 @@ end
         res.entry = compiled.entry
         res.global_hostcalls = compiled.global_hostcalls
         res.relocations = compiled.relocations
+        res.exception_sites = compiled.exception_sites
     end
     return res
 end
@@ -417,7 +423,7 @@ end
 
 function hipcompile(@nospecialize(job::CompilerJob))
     # the IR in `meta` is ours: inspect it in here, and dispose of it so that it does not leak
-    obj, entry, late_hostcalls, extinit_globals, relocations = JuliaContext() do ctx
+    obj, entry, late_hostcalls, extinit_globals, relocations, exception_sites = JuliaContext() do ctx
         image, meta = GPUCompiler.compile(:obj, job)
         @dispose ir=meta.ir begin
             # Filter out extinit global from `relocations` that :patch strategy emits.
@@ -425,7 +431,8 @@ function hipcompile(@nospecialize(job::CompilerJob))
             extinit = [gv.name for gv in ir.globals
                        if gv.externally_initialized && gv.name ∉ relocated]
 
-            image, meta.entry.name, find_global_hostcalls(ir), extinit, meta.relocations
+            image, meta.entry.name, find_global_hostcalls(ir), extinit, meta.relocations,
+                meta.exception_sites
         end
     end
 
@@ -454,7 +461,8 @@ function hipcompile(@nospecialize(job::CompilerJob))
         Compilation will likely fail.
         """
     end
-    (; obj=create_executable(codeunits(obj)), entry, global_hostcalls, relocations)
+    (; obj=create_executable(codeunits(obj)), entry, global_hostcalls, relocations,
+       exception_sites)
 end
 
 # Fill in the host addresses the loaded object was left waiting for:
@@ -483,10 +491,13 @@ end
 
 # link a compiled shared object into a session-local `HIPFunction` on the active device,
 # filling in the host addresses the object was compiled to expect.
-function hiplink(@nospecialize(job::CompilerJob), obj, entry, global_hostcalls, relocations)
+function hiplink(@nospecialize(job::CompilerJob), obj, entry, global_hostcalls, relocations,
+                 exception_sites)
     mod = HIP.HIPModule(obj)
     patch_relocations!(mod, relocations)
-    HIP.HIPFunction(mod, entry, global_hostcalls)
+    fun = HIP.HIPFunction(mod, entry, global_hostcalls)
+    AMDGPU.register_exception_sites!(fun, exception_sites)
+    return fun
 end
 
 function run_and_collect(cmd)
