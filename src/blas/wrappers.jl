@@ -1250,9 +1250,9 @@ for (fname, elty) in
             end
             for (As,Bs) in zip(A,B)
                 mA, nA = size(As)
-                m,n = size(Bs)
+                mB, nB = size(Bs)
                 if mA != nA throw(DimensionMismatch("A must be square")) end
-                if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm_batched!")) end
+                if nA != (side == 'L' ? mB : nB) throw(DimensionMismatch("trsm_batched!")) end
             end
             m,n = size(B[1])
             lda = max(1,stride(A[1],2))
