@@ -329,6 +329,14 @@ end
 
 ## uniform scaling
 
+# Dimensions of the identity added to or subtracted from `A`. Like SparseArrays of the running
+# Julia: since 1.14 it rejects `A ± I` for a non-square `A`, as for dense matrices.
+@static if VERSION >= v"1.14.0-"
+    _identity_dims(A) = (LinearAlgebra.checksquare(A); size(A))
+else
+    _identity_dims(A) = size(A)
+end
+
 # TODO: use a broadcast singleton for I instead of materialising the full sparse identity.
 function _sparse_identity(
     ::Type{<:ROCSparseMatrixCSR{<:Any,Ti}}, I::UniformScaling{Tv}, dims::Dims,
@@ -410,13 +418,13 @@ for (wrapa, unwrapa) in adjtrans_wrappers
             # CSR/CSC: identity is the same format; broadcasting works for .*
             @eval begin
                 Base.:(+)(A::$TypeA, J::UniformScaling) where {T} =
-                    let A′ = $(unwrapa(:A)); A′ + _sparse_identity(typeof(A′), J, size(A)) end
+                    let A′ = $(unwrapa(:A)); A′ + _sparse_identity(typeof(A′), J, _identity_dims(A)) end
                 Base.:(+)(J::UniformScaling, A::$TypeA) where {T} =
-                    let A′ = $(unwrapa(:A)); _sparse_identity(typeof(A′), J, size(A)) + A′ end
+                    let A′ = $(unwrapa(:A)); _sparse_identity(typeof(A′), J, _identity_dims(A)) + A′ end
                 Base.:(-)(A::$TypeA, J::UniformScaling) where {T} =
-                    let A′ = $(unwrapa(:A)); A′ - _sparse_identity(typeof(A′), J, size(A)) end
+                    let A′ = $(unwrapa(:A)); A′ - _sparse_identity(typeof(A′), J, _identity_dims(A)) end
                 Base.:(-)(J::UniformScaling, A::$TypeA) where {T} =
-                    let A′ = $(unwrapa(:A)); _sparse_identity(typeof(A′), J, size(A)) - A′ end
+                    let A′ = $(unwrapa(:A)); _sparse_identity(typeof(A′), J, _identity_dims(A)) - A′ end
                 Base.:(*)(A::$TypeA, J::UniformScaling) where {T} = $(unwrapa(:A)) .* J.λ
                 Base.:(*)(J::UniformScaling, A::$TypeA) where {T} = J.λ .* $(unwrapa(:A))
             end
@@ -425,16 +433,16 @@ for (wrapa, unwrapa) in adjtrans_wrappers
             @eval begin
                 Base.:(+)(A::$TypeA, J::UniformScaling) where {T} =
                     let A′ = $(unwrapa(:A)); csr = ROCSparseMatrixCSR(A′)
-                        ROCSparseMatrixCOO(csr + _sparse_identity(typeof(csr), J, size(A))) end
+                        ROCSparseMatrixCOO(csr + _sparse_identity(typeof(csr), J, _identity_dims(A))) end
                 Base.:(+)(J::UniformScaling, A::$TypeA) where {T} =
                     let A′ = $(unwrapa(:A)); csr = ROCSparseMatrixCSR(A′)
-                        ROCSparseMatrixCOO(_sparse_identity(typeof(csr), J, size(A)) + csr) end
+                        ROCSparseMatrixCOO(_sparse_identity(typeof(csr), J, _identity_dims(A)) + csr) end
                 Base.:(-)(A::$TypeA, J::UniformScaling) where {T} =
                     let A′ = $(unwrapa(:A)); csr = ROCSparseMatrixCSR(A′)
-                        ROCSparseMatrixCOO(csr - _sparse_identity(typeof(csr), J, size(A))) end
+                        ROCSparseMatrixCOO(csr - _sparse_identity(typeof(csr), J, _identity_dims(A))) end
                 Base.:(-)(J::UniformScaling, A::$TypeA) where {T} =
                     let A′ = $(unwrapa(:A)); csr = ROCSparseMatrixCSR(A′)
-                        ROCSparseMatrixCOO(_sparse_identity(typeof(csr), J, size(A)) - csr) end
+                        ROCSparseMatrixCOO(_sparse_identity(typeof(csr), J, _identity_dims(A)) - csr) end
                 Base.:(*)(A::$TypeA, J::UniformScaling) where {T} = _coo_scale($(unwrapa(:A)), J.λ)
                 Base.:(*)(J::UniformScaling, A::$TypeA) where {T} = _coo_scale($(unwrapa(:A)), J.λ)
             end

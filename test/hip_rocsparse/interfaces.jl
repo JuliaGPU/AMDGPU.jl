@@ -246,16 +246,28 @@ using Adapt
         @test SparseMatrixCSC(ROCSparseMatrixCOO(dAt)) ≈ wrap(S)
     end
 
+    # SparseArrays rejects `A ± I` for a non-square `A` since Julia 1.14, and the GPU methods
+    # follow it; `A * I` works for any shape.
+    plusminus_throws(dims) = VERSION >= v"1.14.0-" && dims[1] != dims[2]
+
     @testset "UniformScaling with $typ($dims)" for typ in (
         ROCSparseMatrixCSR, ROCSparseMatrixCSC,
     ), dims in ((10, 10), (5, 10), (10, 5))
         S = sprand(Float32, dims..., 0.1)
         dA = typ(S)
 
-        @test Array(dA + I) ≈ (S + I)
-        @test Array(I + dA) ≈ (I + S)
-        @test Array(dA - I) ≈ (S - I)
-        @test Array(I - dA) ≈ (I - S)
+        if plusminus_throws(dims)
+            @test_throws DimensionMismatch S + I
+            @test_throws DimensionMismatch dA + I
+            @test_throws DimensionMismatch I + dA
+            @test_throws DimensionMismatch dA - I
+            @test_throws DimensionMismatch I - dA
+        else
+            @test Array(dA + I) ≈ (S + I)
+            @test Array(I + dA) ≈ (I + S)
+            @test Array(dA - I) ≈ (S - I)
+            @test Array(I - dA) ≈ (I - S)
+        end
         @test Array(dA * I) ≈ Array(S)
         @test Array(I * dA) ≈ Array(S)
     end
@@ -263,10 +275,18 @@ using Adapt
     @testset "UniformScaling with ROCSparseMatrixCOO($dims)" for dims in ((10, 10), (5, 10), (10, 5))
         S  = sprand(Float32, dims..., 0.1)
         dA = ROCSparseMatrixCOO(S)
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(dA + I)) ≈ S + I
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(I + dA)) ≈ I + S
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(dA - I)) ≈ S - I
-        @test SparseMatrixCSC(ROCSparseMatrixCSC(I - dA)) ≈ I - S
+        if plusminus_throws(dims)
+            @test_throws DimensionMismatch S + I
+            @test_throws DimensionMismatch dA + I
+            @test_throws DimensionMismatch I + dA
+            @test_throws DimensionMismatch dA - I
+            @test_throws DimensionMismatch I - dA
+        else
+            @test SparseMatrixCSC(ROCSparseMatrixCSC(dA + I)) ≈ S + I
+            @test SparseMatrixCSC(ROCSparseMatrixCSC(I + dA)) ≈ I + S
+            @test SparseMatrixCSC(ROCSparseMatrixCSC(dA - I)) ≈ S - I
+            @test SparseMatrixCSC(ROCSparseMatrixCSC(I - dA)) ≈ I - S
+        end
         @test SparseMatrixCSC(ROCSparseMatrixCSC(dA * I)) ≈ S
         @test SparseMatrixCSC(ROCSparseMatrixCSC(I * dA)) ≈ S
     end
