@@ -68,7 +68,7 @@ Pull requests are tested on [Buildkite](https://buildkite.com/julialang/amdgpu-d
 
 ### Pull requests
 
-To save CI time on the shared GPU runners, pull requests are only tested on the oldest and the newest supported Julia release, plus one release with a local ROCm installation instead of the artifacts. The intermediate releases and nightly are tested on branch builds (e.g. after merging), or can be requested explicitly with `[only julia]` or `[only nightly]` (see below).
+To save CI time on the shared GPU runners, pull requests are only tested on the oldest and the newest supported Julia release, plus one release with a local ROCm installation instead of the artifacts. An intermediate release, the upcoming release and nightly are tested on branch builds (e.g. after merging), or can be requested explicitly with `[only julia]` or `[only nightly]` (see below).
 
 ### Draft pull requests
 

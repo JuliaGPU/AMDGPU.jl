@@ -133,13 +133,14 @@ steps:
       julia --project -e 'using AMDGPU; AMDGPU.local_rocm || error("this step selected a local ROCm, but AMDGPU resolved to the ROCm artifacts")'
       julia --project -e 'using Pkg; Pkg.test(; coverage=true, test_args=["--verbose"])'
 
-  # intermediate releases, not tested on pull requests
+  # an intermediate release and the upcoming one (its latest prerelease), not tested on
+  # pull requests
   - <<: *julia
     matrix:
       setup:
         version:
-          - "1.11"
           - "1.12"
+          - "1.14"
         test_args:
           - "--verbose"
     if: |
