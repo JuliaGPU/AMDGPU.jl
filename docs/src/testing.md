@@ -89,7 +89,7 @@ Tags in the message of the most recently pushed commit select which steps run: `
 | Tag          | Steps                                                      |
 |:-------------|:-----------------------------------------------------------|
 | `tests`      | all tests, i.e. `julia`, `nightly`, `enzyme` and `special` |
-| `julia`      | tests on released Julia versions                           |
+| `julia`      | tests on Julia releases and the upcoming release           |
 | `nightly`    | tests on Julia nightly                                     |
 | `enzyme`     | Enzyme tests                                               |
 | `special`    | tests in a GPU-less environment                            |
@@ -97,5 +97,7 @@ Tags in the message of the most recently pushed commit select which steps run: `
 | `benchmarks` | benchmarks                                                 |
 
 For example, `[only nightly]` runs only the nightly tests, and `[skip enzyme, docs]` runs everything but Enzyme and the documentation. Selecting steps with `[only X]` also lifts the draft restriction, so `[only tests, docs]` tests a draft pull request like a ready one, minus the benchmarks.
+
+The build that starts when a pull request is opened reads the tags from the pull request title, not from the commit message. Builds for later pushes read them from the pushed commit.
 
 Tags are matched anywhere in the message, so quoting one, e.g. when describing a CI change, applies it too. Squash and merge commits on `main` carry the pull request title, so a tag in the title also applies to the build on `main`. [GPUCompiler.jl](https://github.com/JuliaGPU/GPUCompiler.jl) uses the same tags.
