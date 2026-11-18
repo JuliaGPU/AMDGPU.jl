@@ -32,18 +32,17 @@ function main()
         ),
         pages=[
             "Home" => "index.md",
-            "Tutorials" => [
+            "Getting Started" => [
                 "Quick Start" => "tutorials/quickstart.md",
-                "Custom Structs in Kernels" => "tutorials/custom_structs.md",
-                "Performance Tips" => "tutorials/perf.md",
-                "Profiling" => "tutorials/profiling.md",
-                "Installation Tips" => "install_tips.md",
-                "Testing" => "testing.md",
+                "Installation" => "install_tips.md",
             ],
             "Usage" => [
                 "Array Programming" => "usage/arrays.md",
                 "Tasks and Streams" => "usage/multitasking.md",
                 "KernelAbstractions" => "usage/kernelabstractions.md",
+                "Custom Structs in Kernels" => "tutorials/custom_structs.md",
+                "Performance Tips" => "tutorials/perf.md",
+                "Profiling" => "tutorials/profiling.md",
             ],
             "API" => [
                 "Devices" => "api/devices.md",
@@ -67,6 +66,7 @@ function main()
                 "Tensor Operations" => "libraries/tensor.md",
             ],
             "FAQ" => "faq.md",
+            "Testing" => "testing.md",
         ],
         doctest=true,
         warnonly=[:missing_docs],

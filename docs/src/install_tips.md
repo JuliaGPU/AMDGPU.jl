@@ -1,4 +1,4 @@
-# Installation Info
+# Installation
 
 ## ROCm libraries
 

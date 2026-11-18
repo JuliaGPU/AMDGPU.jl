@@ -11,4 +11,4 @@ using AMDGPU
 AMDGPU.functional(:MIOpen)
 ```
 
-If it reports `false`, see [Installation Info](@ref): the downloaded artifacts include MIOpen, a local ROCm needs its MIOpen package installed.
+If it reports `false`, see [Installation](@ref): the downloaded artifacts include MIOpen, a local ROCm needs its MIOpen package installed.
