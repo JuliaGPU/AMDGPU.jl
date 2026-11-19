@@ -173,6 +173,12 @@ function __init__()
         end
     end
 
+    # ROCm only exists for Linux and Windows: if notfunctional, stay quiet.
+    if !Sys.islinux() && !Sys.iswindows()
+        @debug "ROCm does not support this platform, skipping initialization"
+        return
+    end
+
     # Only worth reporting where a GPU is actually present: without GPU, not
     # resolving an artifact is the expected outcome rather than a problem.
     if !local_rocm && !ROCm_Runtime.is_available() &&
