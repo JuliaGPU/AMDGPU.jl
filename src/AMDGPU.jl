@@ -173,7 +173,7 @@ function __init__()
         end
     end
 
-    # ROCm only exists for Linux and Windows: if notfunctional, stay quiet.
+    # ROCm only exists for Linux and Windows: stay quiet elsewhere.
     if !Sys.islinux() && !Sys.iswindows()
         @debug "ROCm does not support this platform, skipping initialization"
         return
