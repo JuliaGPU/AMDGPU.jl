@@ -85,6 +85,10 @@
   variables:
     ROCM_LOCAL: "false"
 
+# Job matrix. The Julia version exercises the compiler (its LLVM) and the ROCm provider
+# the runtime libraries; code generation and linking are the same with both providers.
+# So not every combination runs: the current release with both providers, the oldest
+# version here with the system ROCm and the newest one with the artifacts.
 UnitTest julia 1.12 (system ROCm):
   extends: [.amdgpu_runner, .amdgpu_unit_test, .amdgpu_system_rocm]
   variables:
@@ -95,12 +99,12 @@ UnitTest julia 1.13 (system ROCm):
   variables:
     JULIA: /users/lraess/julia_amd/julia_amd-1.13
 
-UnitTest julia 1.12 (ROCm artifacts):
-  extends: [.amdgpu_runner, .amdgpu_unit_test, .amdgpu_rocm_artifacts]
-  variables:
-    JULIA: /users/lraess/julia_amd/julia_amd-1.12
-
 UnitTest julia 1.13 (ROCm artifacts):
   extends: [.amdgpu_runner, .amdgpu_unit_test, .amdgpu_rocm_artifacts]
   variables:
     JULIA: /users/lraess/julia_amd/julia_amd-1.13
+
+UnitTest julia 1.14 (ROCm artifacts):
+  extends: [.amdgpu_runner, .amdgpu_unit_test, .amdgpu_rocm_artifacts]
+  variables:
+    JULIA: /users/lraess/julia_amd/julia_amd-1.14
