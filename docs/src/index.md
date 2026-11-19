@@ -91,7 +91,7 @@ Pkg.add("AMDGPU")
 - 64-bit Linux or Windows
 - An AMD GPU driver: the `amdgpu` kernel driver on Linux, [AMD Software: Adrenalin Edition](https://www.amd.com/en/technologies/software) on Windows
 
-The ROCm runtime and libraries are downloaded automatically, matching the GPUs detected on the host, so no ROCm installation is needed. To use a ROCm installed on the system instead, or when no GPU is visible at install time, see [Installation Info](@ref).
+The ROCm runtime and libraries are downloaded automatically, matching the GPUs detected on the host, so no ROCm installation is needed. To use a ROCm installed on the system instead, or when no GPU is visible at install time, see [Installation](@ref).
 
 ## Test
 

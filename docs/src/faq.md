@@ -42,7 +42,7 @@ AMDGPU.functional(:all)         # true only if every component is available
 
 ## My GPU is not detected or a library is missing
 
-Run `AMDGPU.versioninfo()`: its first line names the ROCm provider, and the table shows which components are functional. With the downloaded artifacts (the default), every component being unavailable means that no bundle was resolved for the GPUs detected on the host, which AMDGPU.jl also warns about when it loads: check that the GPU driver is loaded and the device accessible (on Linux, `/dev/kfd`), or pin the architecture with `AMDGPU.set_rocm_version!(arch="gfx942")`. With a local ROCm, a missing component means that its package is not installed or that `ROCM_PATH` does not point at the installation. See [Installation Info](@ref) for both.
+Run `AMDGPU.versioninfo()`: its first line names the ROCm provider, and the table shows which components are functional. With the downloaded artifacts (the default), every component being unavailable means that no bundle was resolved for the GPUs detected on the host, which AMDGPU.jl also warns about when it loads: check that the GPU driver is loaded and the device accessible (on Linux, `/dev/kfd`), or pin the architecture with `AMDGPU.set_rocm_version!(arch="gfx942")`. With a local ROCm, a missing component means that its package is not installed or that `ROCM_PATH` does not point at the installation. See [Installation](@ref) for both.
 
 ## AMDGPU.jl warns about libraries or variables from another ROCm
 
@@ -50,7 +50,7 @@ With the downloaded artifacts, a ROCm reachable through `LD_LIBRARY_PATH` (an en
 
 ## I installed ROCm 7.14 or newer but it isn't detected
 
-This applies to a local ROCm installation. ROCm 7.14 changed its on-disk layout, installing libraries under a versioned `core-<version>` subdirectory (for example `/opt/rocm/core-7.14/lib`). AMDGPU.jl discovers this automatically, but if detection fails on a minimal or custom install, make sure `ROCM_PATH` points at the ROCm root (e.g. `/opt/rocm`) rather than at the versioned subdirectory. See [Installation Info](@ref) for details.
+This applies to a local ROCm installation. ROCm 7.14 changed its on-disk layout, installing libraries under a versioned `core-<version>` subdirectory (for example `/opt/rocm/core-7.14/lib`). AMDGPU.jl discovers this automatically, but if detection fails on a minimal or custom install, make sure `ROCM_PATH` points at the ROCm root (e.g. `/opt/rocm`) rather than at the versioned subdirectory. See [Installation](@ref) for details.
 
 ## Can I use the integrated GPU of my Ryzen CPU?
 
@@ -63,7 +63,7 @@ On this GPU, kernel results can be silently lost when the host does not synchron
 
 Change it with `AMDGPU.system_scope_fences!(true)` (or `false`, `"auto"`) and restart Julia. Setting the `AMD_OPT_FLUSH` environment variable overrides the preference: `AMD_OPT_FLUSH=0` enables the workaround, other numbers disable it. The workaround is implemented by setting `AMD_OPT_FLUSH=0` when AMDGPU.jl is loaded, so it is inherited by subprocesses, and it has no effect if another library initialized HIP before AMDGPU.jl was loaded.
 
-If you also have a dedicated AMD GPU, see [Installation Info](@ref) on selecting a device with `HIP_VISIBLE_DEVICES`.
+If you also have a dedicated AMD GPU, see [Installation](@ref) on selecting a device with `HIP_VISIBLE_DEVICES`.
 
 ## I'm on Arch Linux and ROCm isn't working
 
