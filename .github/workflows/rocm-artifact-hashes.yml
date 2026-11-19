@@ -2,6 +2,15 @@ name: ROCm artifact hashes
 
 on:
   workflow_dispatch:
+    inputs:
+      rocm_version:
+        description: "e.g. 10.1.0"
+        required: true
+        type: string
+      rocm_tag:
+        description: "e.g. 10.1"
+        required: true
+        type: string
 
 jobs:
   hash-rocm-artifacts:
@@ -16,8 +25,8 @@ jobs:
           import Pkg
           Pkg.add("ArtifactUtils")
           using ArtifactUtils, Base.BinaryPlatforms
-          const rocm_version = "10.1.0"
-          const rocm_tag = "10.1"
+          const rocm_version = "${{ inputs.rocm_version }}"
+          const rocm_tag = "${{ inputs.rocm_tag }}"
 
           # Every family TheRock publishes for this release; see the listing at
           # https://stable.repo.amd.com/rocm/core/tarball/ and
