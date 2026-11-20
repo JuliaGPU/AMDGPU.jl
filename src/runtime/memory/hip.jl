@@ -228,14 +228,9 @@ end
 Unified (managed) memory, allocated by `hipMallocManaged`: a single address that is valid
 on both the host and the device, with the pages migrating to where they are accessed.
 
-    UnifiedBuffer(bytesize; coarse_grained=true)
-
-Allocate `bytesize` bytes of unified memory. By default it is made coarse-grained, like
-device memory: changes that a kernel makes are only guaranteed to be visible to the host
-once that kernel has finished. Pass `coarse_grained=false` (or use
-`advise(buf, HIP.hipMemAdviseUnsetCoarseGrain)`) for memory that the host and a running
-kernel access concurrently; kernels that use atomics on such memory need the
-`atomic_memory_assumptions=false` compiler option.
+Like host memory it is fine-grained (see `is_fine_grained`), so kernels that are
+launched with arrays in unified memory don't assume that their atomics can use the
+hardware instructions for coarse-grained memory.
 """
 struct UnifiedBuffer <: AbstractAMDBuffer
     device::HIPDevice
@@ -252,7 +247,7 @@ end
 
 function UnifiedBuffer(
     bytesize::Integer, flags = HIP.hipMemAttachGlobal;
-    stream::HIP.HIPStream = AMDGPU.stream(), coarse_grained::Bool = true,
+    stream::HIP.HIPStream = AMDGPU.stream(),
 )
     dev, ctx = stream.device, stream.ctx
     bytesize == 0 && return UnifiedBuffer(dev, ctx, C_NULL, 0, true)
@@ -277,15 +272,7 @@ function UnifiedBuffer(
     end
 
     AMDGPU.account!(AMDGPU.host_stats(), bytesize)
-    buf = UnifiedBuffer(dev, ctx, ptr, Int(bytesize), true)
-
-    # HIP allocates unified memory as fine-grained, where the hardware atomic instructions
-    # that kernels use by default can silently have no effect (see the
-    # `atomic_memory_assumptions` compiler option). Make it coarse-grained like device
-    # memory: changes by a kernel are then only guaranteed to be visible to the host once
-    # the kernel has finished, which host accesses wait for anyway.
-    coarse_grained && advise(buf, HIP.hipMemAdviseSetCoarseGrain; device=dev)
-    return buf
+    UnifiedBuffer(dev, ctx, ptr, Int(bytesize), true)
 end
 
 # wrap existing unified memory
@@ -364,6 +351,16 @@ function is_managed(ptr::Ptr)
     ptr == C_NULL && return false
     return is_managed(pointer_attributes(Ptr{Cvoid}(ptr)))
 end
+
+"""
+    is_fine_grained(B::Type{<:AbstractAMDBuffer}) -> Bool
+
+Whether memory of type `B` is fine-grained: memory that the host and a running kernel can
+access coherently, on which the hardware instructions for some atomic operations have no
+effect. Host and unified memory are; memory from the pool of a device is coarse-grained.
+"""
+is_fine_grained(::Type{<:AbstractAMDBuffer}) = true
+is_fine_grained(::Type{HIPBuffer}) = false
 
 function get_device_ptr(ptr::Ptr{Cvoid})
     ptr == C_NULL && return C_NULL

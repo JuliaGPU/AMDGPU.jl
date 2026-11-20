@@ -381,7 +381,9 @@ end
 end
 
 @testset "atomics" begin
-    # unified memory is coarse-grained, so kernels can use hardware atomics on it
+    # unified memory is fine-grained, which kernels using it are compiled for
+    @test Mem.is_fine_grained(UnifiedBuffer)
+    @test AMDGPU.uses_fine_grained_memory(ROCVector{Int, UnifiedBuffer}(undef, 1))
     function atomic_add!(hist)
         i = workitemIdx().x + (workgroupIdx().x - 1) * workgroupDim().x
         AMDGPU.@atomic hist[(i - 1) % 32 + 1] += one(eltype(hist))

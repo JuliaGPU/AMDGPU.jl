@@ -141,7 +141,9 @@ function KI.launch(obj::KI.Kernel{ROCBackend}, groups::Dims{3}, items::Dims{3},
         throw(ArgumentError("KernelInterface kernels take `numgroups`, `workgroupsize` or `ndrange`, not `groupsize` or `gridsize`"))
     end
     f = obj.kern.f
-    kernel = obj.kern.kernel
+    # the kernel was compiled for the types of the arguments, which don't tell whether
+    # their memory is fine-grained
+    kernel = AMDGPU.Compiler.kernel_for_memory(obj.kern.kernel, (f, args))
     stream = get(kwargs, :stream, AMDGPU.stream())
     GC.@preserve f begin
         # convert the callable again, like the arguments, which makes the arrays it captures

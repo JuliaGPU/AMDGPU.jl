@@ -74,11 +74,9 @@ keep a reference to the `ROCArray` for as long as the `Array` is in use.
 and `pointer(y; type=AMDGPU.Mem.HostBuffer)` the address to use on the CPU.
 For device memory, the latter throws an error.
 
-Unified memory is made coarse-grained, like device memory: what a kernel writes is only
-guaranteed to be visible to the CPU once the kernel has finished, which the accesses above
-wait for. For memory that the CPU and a running kernel access at the same time, use
-`AMDGPU.Mem.advise(buf, AMDGPU.HIP.hipMemAdviseUnsetCoarseGrain)` on the buffer; kernels
-that use atomics on such memory need `atomic_memory_assumptions=false`
+Unified memory is fine-grained, like host memory: the CPU and a running kernel can access
+it at the same time. Some hardware atomic instructions don't work on such memory, so
+kernels that are launched with arrays backed by it use slower atomics
 (see [Kernel Programming](@ref)).
 
 !!! note

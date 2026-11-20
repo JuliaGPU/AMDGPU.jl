@@ -6,14 +6,16 @@ struct HIPCompilerParams <: AbstractCompilerParams
     unsafe_fp_atomics::Bool
     # Whether atomic RMW operations with a scope narrower than system scope may assume
     # that they access neither fine-grained nor remote memory, which lets the back-end
-    # use native instructions instead of CAS loops.
-    atomic_memory_assumptions::Bool
+    # use native instructions instead of CAS loops. `nothing` if the option wasn't given:
+    # they may, but the kernel is not to be launched with fine-grained memory (see
+    # `kernel_for_memory`).
+    atomic_memory_assumptions::Union{Nothing, Bool}
     # Minimum number of waves per execution unit (SIMD) the kernel should allow
     # (`amdgpu-waves-per-eu`); `0` leaves it unset.
     waves_per_eu::Int
 end
 
-HIPCompilerParams(wavefrontsize64::Bool, unsafe_fp_atomics::Bool, atomic_memory_assumptions::Bool) =
+HIPCompilerParams(wavefrontsize64::Bool, unsafe_fp_atomics::Bool, atomic_memory_assumptions::Union{Nothing, Bool}) =
     HIPCompilerParams(wavefrontsize64, unsafe_fp_atomics, atomic_memory_assumptions, 0)
 
 const HIPCompilerConfig = CompilerConfig{GCNCompilerTarget, HIPCompilerParams}
@@ -179,7 +181,7 @@ function annotate_atomics!(mod::LLVM.Module, job::HIPCompilerJob)
     for fn in mod.functions, bb in fn.blocks, inst in bb.instructions
         inst isa LLVM.AtomicRMWInst || continue
         md = inst.metadata
-        if params.atomic_memory_assumptions && inst.syncscope.name in NARROW_SYNCSCOPES
+        if params.atomic_memory_assumptions !== false && inst.syncscope.name in NARROW_SYNCSCOPES
             md["amdgpu.no.fine.grained.memory"] = empty_md
             md["amdgpu.no.remote.memory"] = empty_md
         end
@@ -237,7 +239,8 @@ end
 
 function _compiler_config(dev::HIP.HIPDevice;
     name::Union{String, Nothing} = nothing, kernel::Bool = true,
-    unsafe_fp_atomics::Bool = true, atomic_memory_assumptions::Bool = true,
+    unsafe_fp_atomics::Bool = true,
+    atomic_memory_assumptions::Union{Nothing, Bool} = nothing,
     wavefrontsize64::Bool = HIP.wavefrontsize(dev) == 64,
     minthreads::Union{Nothing, Int, Dims} = nothing,
     maxthreads::Union{Nothing, Int, Dims} = nothing,
@@ -276,13 +279,15 @@ The following kwargs are supported:
     Whether floating-point atomic read-modify-write operations may ignore the
     floating-point denormal mode, so that targets whose hardware atomics flush
     denormals can use them instead of a compare-and-swap (CAS) loop.
-- `atomic_memory_assumptions::Bool = true`:
+- `atomic_memory_assumptions::Union{Nothing, Bool} = nothing`:
     Whether atomic read-modify-write operations with a scope narrower than the
     system scope may assume that they access memory that is neither fine-grained
     nor remote (on another device). This lets them use hardware instructions
-    instead of CAS loops. Disable it for kernels that use such atomics on
-    fine-grained memory, e.g. host or unified memory; see the
-    "Atomics" section of the kernel programming documentation.
+    instead of CAS loops. By default they may, and `@roc` and KernelAbstractions
+    launch a kernel compiled with `false` instead when the arguments use
+    fine-grained memory, e.g. host or unified memory. Pass `true` or `false` to
+    decide for all launches; see the "Atomics" section of the kernel programming
+    documentation.
 - `maxthreads::Union{Nothing, Int, Dims} = nothing`:
     An upper bound on the workgroup size the kernel will be launched with
     (`__launch_bounds__` equivalent); lets the backend size its register
@@ -330,6 +335,46 @@ end
     end
 end
 
+# How each function was compiled, for `kernel_for_memory`: a kernel doesn't know the options
+# it was compiled with. Protected by `hipfunction_lock`.
+const function_jobs = IdDict{HIP.HIPFunction, Tuple{HIPCompilerJob, HIP.HIPDevice}}()
+
+"""
+    kernel_for_memory(kernel::HIPKernel, xs) -> HIPKernel
+
+The kernel to launch when `xs`, the callable and the arguments before their conversion,
+is what the kernel uses. Hardware atomics may not work on fine-grained memory, which the
+types that a kernel is compiled for don't tell. So if `xs` uses such memory
+([`AMDGPU.uses_fine_grained_memory`](@ref)), and the `atomic_memory_assumptions` option
+was not given when compiling `kernel`, this is the kernel compiled likewise but with
+`atomic_memory_assumptions=false`, which is compiled when it is first needed.
+"""
+@inline kernel_for_memory(kernel::Runtime.HIPKernel, xs) =
+    AMDGPU.uses_fine_grained_memory(xs) ? without_memory_assumptions(kernel) : kernel
+
+# cached like the kernel itself, with the function it is a variant of for a key
+function without_memory_assumptions(kernel::Runtime.HIPKernel{F, TT}) where {F, TT}
+    fun = GPUCompiler.cached_lookup(MemoryAssumptionsRemover(kernel.fun), HIP.HIPFunction,
+                                    F, TT, kernel.fun)
+    return Runtime.HIPKernel{F, TT}(kernel.f, fun)
+end
+
+# what `without_memory_assumptions` calls when the variant isn't cached, see `KernelLinker`
+struct MemoryAssumptionsRemover
+    fun::HIP.HIPFunction
+end
+function (r::MemoryAssumptionsRemover)()
+    Base.@lock hipfunction_lock begin
+        job, dev = function_jobs[r.fun]
+        params = job.config.params
+        # the option was given
+        params.atomic_memory_assumptions === nothing || return r.fun
+        params = HIPCompilerParams(params.wavefrontsize64, params.unsafe_fp_atomics,
+                                   false, params.waves_per_eu)
+        return hipfunction_lookup(job.source, CompilerConfig(job.config; params), dev)
+    end
+end
+
 # Resolve the `HIPFunction` for `source`/`config` on the active device. This is a
 # session-local handle, so it lives in the results struct's linear cache rather than
 # being persisted; the scan is almost always over a single entry, matching the old
@@ -346,6 +391,7 @@ function hipfunction_lookup(
 
     fun = hiplink(job, res.obj::Vector{UInt8}, res.entry::String, res.global_hostcalls,
                   res.relocations, res.exception_sites)
+    function_jobs[fun] = (job, dev)
     # Don't cache session-local handles while generating output: the results
     # struct is serialized into the package image along with its CodeInstance,
     # and the handles would come back dangling.

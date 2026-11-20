@@ -958,3 +958,35 @@ end
 Adapt.adapt_storage(::Runtime.Adaptor, xs::Array) =
     throw(ArgumentError("""cannot use a CPU array ($(typeof(xs))) in an AMDGPU kernel.
                            Convert it to a GPU array first, e.g. using `ROCArray(x)`."""))
+
+## fine-grained memory
+
+"""
+    AMDGPU.uses_fine_grained_memory(x) -> Bool
+
+Whether `x` is, wraps or holds (in a field, or a variable that a closure captures) a
+`ROCArray` backed by fine-grained memory: unified memory, or host memory such as
+`unsafe_wrap` gives.
+Kernels that use such arrays are compiled without the `atomic_memory_assumptions`.
+
+Only immutable structs, tuples and `Ref`s are searched, like when converting kernel arguments.
+"""
+@inline uses_fine_grained_memory(::ROCArray{<:Any, <:Any, B}) where {B} = Mem.is_fine_grained(B)
+uses_fine_grained_memory(r::Base.RefValue) = isassigned(r) && uses_fine_grained_memory(r[])
+@generated function uses_fine_grained_memory(x::T) where {T}
+    # only fields that can hold an array are looked at, and the memory type of an array is
+    # part of its type, so that this folds to a constant for concretely typed arguments:
+    # it runs on every kernel launch
+    can_hold_arrays(T) || return false
+    ex = false
+    for i in 1:fieldcount(T)
+        FT = fieldtype(T, i)
+        isconcretetype(FT) && !(FT <: ROCArray) && !can_hold_arrays(FT) && continue
+        ex = :($ex || (isdefined(x, $i) && uses_fine_grained_memory(getfield(x, $i))))
+    end
+    return :(Base.@_inline_meta; $ex)
+end
+
+# immutable structs (which includes tuples and closures) with fields that aren't plain data
+can_hold_arrays(@nospecialize(T)) =
+    T isa DataType && isstructtype(T) && !ismutabletype(T) && !isbitstype(T)
