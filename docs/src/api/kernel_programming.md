@@ -72,7 +72,8 @@ By default, AMDGPU.jl assumes that atomic read-modify-write operations with a sc
 narrower than the system scope (such as the device scope that `AMDGPU.@atomic` uses)
 access memory that is neither fine-grained nor remote (on another GPU). This lets the
 compiler use hardware atomic instructions instead of compare-and-swap loops. Host memory
-(`HostBuffer`, e.g. from `unsafe_wrap`) and memory of other devices do not satisfy this
+(`HostBuffer`, e.g. from `unsafe_wrap`), unified memory that was made fine-grained
+(AMDGPU.jl allocates `UnifiedBuffer`s as coarse-grained) and memory of other devices do not satisfy this
 assumption: on some systems, hardware atomics on them silently have no effect. For
 atomics on such memory, pass `atomic_memory_assumptions=false` to `@roc` or
 `hipfunction`, or use the system scope (`UnsafeAtomics.system`). Doing so only removes

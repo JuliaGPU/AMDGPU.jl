@@ -7,6 +7,107 @@ end
 
 # Memory Allocation and Intrinsics
 
+## Memory Types
+
+A [`ROCArray`](@ref) can be backed by one of three types of memory, which is its third
+type parameter:
+
+- `Mem.HIPBuffer`: device memory, allocated from the memory pool of the device.
+  Only the GPU can access it, so the CPU has to copy data to and from it.
+  This is the default.
+- `Mem.UnifiedBuffer`: unified memory, allocated with `hipMallocManaged`.
+  Both the CPU and the GPU can access it, at the same address;
+  the pages are migrated to where they are accessed.
+- `Mem.HostBuffer`: page-locked host memory that is mapped into the address space of the GPU.
+  This is the type of memory that [wrapping a host array](@ref "Wrapping in `ROCArray`") gives.
+
+The memory type can be given to the array constructors, or to [`roc`](@ref):
+
+```jldoctest unified
+julia> x = ROCArray{Float32, 1, AMDGPU.Mem.UnifiedBuffer}(undef, 4);
+
+julia> y = roc([1, 2, 3, 4]; unified=true)
+4-element ROCArray{Int64, 1, AMDGPU.Runtime.Mem.UnifiedBuffer}:
+ 1
+ 2
+ 3
+ 4
+
+julia> is_unified(y), is_device(y), is_host(y)
+(true, false, false)
+```
+
+Arrays derived from such an array (`similar`, `copy`, views, the result of broadcasting, ...)
+are backed by the same type of memory. Operations that mix memory types give unified memory.
+
+### Accessing unified memory from the CPU
+
+Arrays backed by unified (or host) memory can be used by code that runs on the CPU.
+Indexing them does not copy from the device, so it is allowed without `AMDGPU.@allowscalar`,
+and `unsafe_wrap` gives an `Array` that shares their memory:
+
+```jldoctest unified
+julia> y .*= 2;      # runs on the GPU
+
+julia> y[2]          # read on the CPU
+4
+
+julia> y[1] = 0;
+
+julia> h = unsafe_wrap(Array, y)   # no copy
+4-element Vector{Int64}:
+ 0
+ 4
+ 6
+ 8
+
+julia> sum(y) == sum(h)
+true
+```
+
+Operations on the GPU execute asynchronously. Accessing a `ROCArray` from the CPU waits
+for the operations that use it, but an `Array` wrapped around it does not: after using
+the `ROCArray` again, call `AMDGPU.synchronize(y)` before accessing that `Array`, and
+keep a reference to the `ROCArray` for as long as the `Array` is in use.
+
+`pointer(y)` gives the address to use on the GPU, e.g. with HIP libraries,
+and `pointer(y; type=AMDGPU.Mem.HostBuffer)` the address to use on the CPU.
+For device memory, the latter throws an error.
+
+Unified memory is made coarse-grained, like device memory: what a kernel writes is only
+guaranteed to be visible to the CPU once the kernel has finished, which the accesses above
+wait for. For memory that the CPU and a running kernel access at the same time, use
+`AMDGPU.Mem.advise(buf, AMDGPU.HIP.hipMemAdviseUnsetCoarseGrain)` on the buffer; kernels
+that use atomics on such memory need `atomic_memory_assumptions=false`
+(see [Kernel Programming](@ref)).
+
+!!! note
+    Each access from the CPU waits for the GPU and may migrate pages, so loops over
+    the elements of a large array are still much slower than for an `Array`.
+    Unified memory is most useful to hand data to CPU code without copying it,
+    or when data does not fit in the memory of the GPU.
+    Allocating it is also slower than device memory, as it does not come from a memory pool,
+    and it cannot be allocated while [capturing a graph](@ref "Graphs"): that invalidates the capture.
+
+### Default memory type
+
+The type of memory that is used when none is specified can be changed with the
+`default_memory` preference, which can be `"device"` (the default), `"unified"` or `"host"`.
+It takes effect after restarting Julia:
+
+```julia
+using Preferences, AMDGPU
+set_preferences!(AMDGPU, "default_memory" => "unified")
+```
+
+```@docs
+AMDGPU.default_memory
+AMDGPU.memory_type
+AMDGPU.is_device
+AMDGPU.is_unified
+AMDGPU.is_host
+```
+
 ## Memory Varieties
 
 GPUs contain various kinds of memory, just like CPUs:

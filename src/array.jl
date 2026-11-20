@@ -1,15 +1,22 @@
 """
     ROCArray{T,N,B} <: AbstractGPUArray{T,N}
 
-`N`-dimensional dense array of element type `T` stored in GPU memory (backed by
-buffer type `B`). `ROCArray` implements Julia's `AbstractArray` interface, so
+`N`-dimensional dense array of element type `T` stored in GPU-accessible memory of
+type `B`. `ROCArray` implements Julia's `AbstractArray` interface, so
 broadcasting, reductions, and linear algebra run on the GPU.
+
+The memory type `B` is one of:
+
+- `Mem.HIPBuffer`: device memory (the default, see [`AMDGPU.default_memory`](@ref));
+- `Mem.UnifiedBuffer`: unified memory, accessible from both the CPU and the GPU;
+- `Mem.HostBuffer`: page-locked host memory that the GPU can access.
 
 Copy a host array to the device by wrapping it, or allocate directly:
 
 ```julia
 ROCArray([1, 2, 3])             # copy a host array to the device
 ROCArray{Float32}(undef, 4, 4)  # uninitialized 4×4 device matrix
+ROCArray{Float32, 2, AMDGPU.Mem.UnifiedBuffer}(undef, 4, 4)  # in unified memory
 ```
 
 Move data back to the host with `Array(x)`. See also [`roc`](@ref), which
@@ -176,8 +183,40 @@ Whether the implicit synchronization of the memory of `A` is enabled
 """
 synchronization_enabled(A::ROCArray) = A.buf[].synchronizing
 
-buftype(x::ROCArray) = buftype(typeof(x))
-buftype(::Type{<:ROCArray{<:Any, <:Any, B}}) where B = B # TODO check `@isdefined`?
+"""
+    AMDGPU.memory_type(A::ROCArray)
+    AMDGPU.memory_type(::Type{<:ROCArray})
+
+The type of memory that backs `A`: `Mem.HIPBuffer` (device memory), `Mem.UnifiedBuffer`
+or `Mem.HostBuffer`. See also [`is_device`](@ref), [`is_unified`](@ref), [`is_host`](@ref).
+"""
+memory_type(x::ROCArray) = memory_type(typeof(x))
+memory_type(::Type{<:ROCArray{<:Any, <:Any, B}}) where B = B
+memory_type(::Type{<:ROCArray}) = Any
+
+const buftype = memory_type
+
+"""
+    is_device(A::ROCArray) -> Bool
+
+Whether `A` is backed by device memory (`Mem.HIPBuffer`), which only the GPU can access.
+"""
+is_device(a::ROCArray) = memory_type(a) == Mem.HIPBuffer
+
+"""
+    is_unified(A::ROCArray) -> Bool
+
+Whether `A` is backed by unified memory (`Mem.UnifiedBuffer`), which both the CPU and the
+GPU can access.
+"""
+is_unified(a::ROCArray) = memory_type(a) == Mem.UnifiedBuffer
+
+"""
+    is_host(A::ROCArray) -> Bool
+
+Whether `A` is backed by page-locked host memory (`Mem.HostBuffer`) that the GPU can access.
+"""
+is_host(a::ROCArray) = memory_type(a) == Mem.HostBuffer
 
 ## aliases
 
@@ -206,9 +245,34 @@ AnyROCVecOrMat{T} = Union{AnyROCVector{T}, AnyROCMatrix{T}}
 
 ## constructors
 
-# type and dimensionality specified, accepting dims as tuples of Ints
+"""
+    AMDGPU.default_memory
+
+The type of memory that backs a `ROCArray` when none is specified, as in
+`ROCArray{Float32}(undef, 4)` or `ROCArray([1, 2, 3])`: `Mem.HIPBuffer` (device memory)
+unless changed with the `default_memory` preference, which can be set to `"device"`,
+`"unified"` or `"host"`:
+
+```julia
+using Preferences, AMDGPU
+set_preferences!(AMDGPU, "default_memory" => "unified")  # takes effect after a restart
+```
+"""
+const default_memory = let str = @load_preference("default_memory", "device")
+    if str == "device"
+        Mem.HIPBuffer
+    elseif str == "unified"
+        Mem.UnifiedBuffer
+    elseif str == "host"
+        Mem.HostBuffer
+    else
+        error("unknown default memory type: $str")
+    end
+end
+
+# unspecified memory type
 function ROCArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-    ROCArray{T, N, Mem.HIPBuffer}(undef, dims)
+    ROCArray{T, N, default_memory}(undef, dims)
 end
 
 # buffer, type and dimensionality specified
@@ -250,8 +314,7 @@ Base.sizeof(x::ROCArray) = Base.elsize(x) * length(x)
 # GPUArrays implements `Base.dataids` and `Base.mightalias` from where an array lives. Not
 # using `pointer(x)`, which takes ownership of the memory for the current stream.
 function GPUArrays.memory_location(x::ROCArray)
-    mem = x.buf[].mem
-    return (UInt(mem isa Mem.HostBuffer ? mem.dev_ptr : mem.ptr), x.offset)
+    return (UInt(Mem.device_ptr(x.buf[].mem)), x.offset)
 end
 
 Base.unaliascopy(x::ROCArray) = copy(x)
@@ -264,14 +327,19 @@ function ROCArray{T,N,B}(x::AbstractArray{<:Any,N}) where {T,N,B}
     return r
 end
 
-ROCArray{T,N}(x::AbstractArray{<:Any,N}) where {T,N} = ROCArray{T,N,Mem.HIPBuffer}(x)
+ROCArray{T,N}(x::AbstractArray{<:Any,N}) where {T,N} = ROCArray{T,N,default_memory}(x)
+
+# keep the memory type of the source
+ROCArray{T,N}(xs::ROCArray{<:Any,N,B}) where {T,N,B} = ROCArray{T,N,B}(xs)
 
 # underspecified constructors
 ROCArray(A::AbstractArray{T,N}) where {T,N} = ROCArray{T,N}(A)
 ROCArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = ROCArray{T,N}(xs)
 (::Type{ROCArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = ROCArray{S,N}(x)
 
-ROCArray{T,N}(xs::ROCArray{T,N}) where {T,N} = copy(xs)
+# copy xs to match Array behavior
+ROCArray{T,N,B}(xs::ROCArray{T,N,B}) where {T,N,B} = copy(xs)
+ROCArray{T,N}(xs::ROCArray{T,N,B}) where {T,N,B} = copy(xs)
 
 Base.convert(::Type{T}, x::T) where T <: ROCArray = x
 
@@ -291,8 +359,85 @@ else
 typetagdata(a::Array, i=1) = ccall(:jl_array_typetagdata, Ptr{UInt8}, (Any,), a) + i - 1
 end
 
-# the (device-visible) address of the selector byte of element `i`
-typetagdata(a::ROCArray, i=1) = convert(Ptr{UInt8}, a.buf[]) + a.maxsize + i - 1
+# the address of the selector byte of element `i`, to use on the device (`Mem.HIPBuffer`)
+# or on the host (`Mem.HostBuffer`), see `pointer`
+function typetagdata(a::ROCArray, i=1; type=Mem.HIPBuffer)
+    ptr = if type == Mem.HIPBuffer
+        convert(Ptr{UInt8}, a.buf[])
+    elseif type == Mem.HostBuffer
+        host_pointer(Ptr{UInt8}, a.buf[])
+    else
+        throw_pointer_type(type)
+    end
+    return ptr + a.maxsize + i - 1
+end
+
+# `type` says where a pointer is going to be used, not what kind of memory backs the array:
+# an array in unified memory has a device pointer and a host pointer too (which are equal)
+@noinline throw_pointer_type(type) = throw(ArgumentError(
+    """invalid pointer type `$type`. The `type` keyword says where the pointer is used:        `Mem.HIPBuffer` for a pointer to use on the GPU, or `Mem.HostBuffer` for a pointer        to use on the CPU (only available for arrays in unified or host memory)."""))
+
+## pointers
+
+"""
+    pointer(::ROCArray, [index=1]; [type=Mem.HIPBuffer])
+
+Get the native address of a `ROCArray`, optionally at a given location `index`.
+
+The `type` argument indicates where the pointer will be used: `type=Mem.HIPBuffer` (the
+default) gives a pointer for use on the GPU, e.g. by HIP library functions, and
+`type=Mem.HostBuffer` gives a pointer for use on the CPU, after waiting for the GPU to
+finish the operations that use the array. The latter is only possible for arrays that are
+backed by unified or host memory, and throws an `ArgumentError` otherwise.
+
+!!! note
+
+    The `type` argument says where the pointer is used, which is separate from the type of
+    memory that backs the array. Arrays backed by `Mem.UnifiedBuffer` or `Mem.HostBuffer`
+    can be accessed from both the CPU and GPU, so both types are valid for them (for
+    unified memory they give the same address, for host memory different ones). That also
+    implies it is not valid to pass `type=Mem.UnifiedBuffer`, as this does not indicate
+    where the pointer is used.
+"""
+@inline function Base.pointer(x::StridedROCArray{T}, i::Integer=1; type=Mem.HIPBuffer) where T
+    ptr = if type == Mem.HIPBuffer
+        Base.unsafe_convert(Ptr{T}, x)
+    elseif type == Mem.HostBuffer
+        host_pointer(x)
+    else
+        throw_pointer_type(type)
+    end
+    return ptr + Base._memory_offset(x, i)
+end
+
+host_pointer(x::ROCArray{T}) where T = host_pointer(Ptr{T}, x.buf[]) + x.offset
+host_pointer(V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P<:ROCArray} =
+    host_pointer(parent(V)) + Base._memory_offset(parent(V), map(first, V.indices)...)
+host_pointer(V::StridedSubROCArray{T}) where T =
+    host_pointer(parent(V)) + (Base.first_index(V) - 1) * aligned_sizeof(T)
+
+## indexing
+
+# Unified and host memory can be accessed from the CPU, so indexing scalars does not
+# need to copy from the device (and thus isn't subject to `allowscalar`).
+const HostAccessibleBuffer = Union{Mem.UnifiedBuffer, Mem.HostBuffer}
+
+function Base.getindex(x::ROCArray{T, <:Any, <:HostAccessibleBuffer}, I::Int) where T
+    @boundscheck checkbounds(x, I)
+    # the selector bytes of isbits unions are stored separately, so let `copyto!` handle them
+    Base.isbitsunion(T) && return @inbounds copyto!(Array{T}(undef, 1), 1, x, I, 1)[1]
+    GC.@preserve x unsafe_load(pointer(x, I; type=Mem.HostBuffer))
+end
+
+function Base.setindex!(x::ROCArray{T, <:Any, <:HostAccessibleBuffer}, v, I::Int) where T
+    @boundscheck checkbounds(x, I)
+    if Base.isbitsunion(T)
+        @inbounds copyto!(x, I, T[v], 1, 1)
+    else
+        GC.@preserve x unsafe_store!(pointer(x, I; type=Mem.HostBuffer), v)
+    end
+    return x
+end
 
 ## memory operations
 
@@ -349,6 +494,46 @@ function Base.copyto!(
     return dest
 end
 
+# optimization: memcpy on the CPU for Array <-> unified or host arrays, which saves a
+# round trip through the HIP runtime. taking the host pointer waits for the device.
+
+function Base.copyto!(
+    dest::Array{T}, d_offset::Integer,
+    source::ROCArray{T, <:Any, <:HostAccessibleBuffer}, s_offset::Integer, amount::Integer;
+    async::Bool = false,
+) where T
+    amount == 0 && return dest
+    @boundscheck checkbounds(dest, d_offset + amount - 1)
+    @boundscheck checkbounds(source, s_offset + amount - 1)
+    GC.@preserve dest source begin
+        unsafe_copyto!(pointer(dest, d_offset),
+                       pointer(source, s_offset; type=Mem.HostBuffer), amount)
+        if Base.isbitsunion(T)
+            unsafe_copyto!(typetagdata(dest, d_offset),
+                           typetagdata(source, s_offset; type=Mem.HostBuffer), amount)
+        end
+    end
+    return dest
+end
+
+function Base.copyto!(
+    dest::ROCArray{T, <:Any, <:HostAccessibleBuffer}, d_offset::Integer,
+    source::Array{T}, s_offset::Integer, amount::Integer,
+) where T
+    amount == 0 && return dest
+    @boundscheck checkbounds(dest, d_offset + amount - 1)
+    @boundscheck checkbounds(source, s_offset + amount - 1)
+    GC.@preserve dest source begin
+        unsafe_copyto!(pointer(dest, d_offset; type=Mem.HostBuffer),
+                       pointer(source, s_offset), amount)
+        if Base.isbitsunion(T)
+            unsafe_copyto!(typetagdata(dest, d_offset; type=Mem.HostBuffer),
+                           typetagdata(source, s_offset), amount)
+        end
+    end
+    return dest
+end
+
 # Element types whose bit pattern a HIP memset can replicate directly,
 # letting `fill!` skip kernel compilation entirely.
 const MemsetTypes = Union{
@@ -378,10 +563,18 @@ end
 """
     unsafe_wrap(ROCArray, ptr::Ptr{T}, dims; own=false)
     unsafe_wrap(ROCArray, a::Array)
+    unsafe_wrap(ROCArray{T,N,B}, ptr::Ptr{T}, dims; own=false)
+    unsafe_wrap(ROCArray{T,N,B}, a::Array)
 
 Wrap a `ROCArray` around existing memory, without copying it. `ptr` can point to device
-memory or to host memory; host memory that is not yet page-locked is registered with
-`hipHostRegister` for as long as the wrapper exists, which can be slow.
+memory, to unified memory or to host memory; host memory that is not yet page-locked is
+registered with `hipHostRegister` for as long as the wrapper exists, which can be slow.
+
+The memory type `B` of the wrapper is that of the memory (`Mem.HostBuffer` for host
+memory), and an `ArgumentError` is thrown if another one is asked for. The exception is
+`B = Mem.UnifiedBuffer` for host memory that HIP does not manage, which wraps it as unified
+memory without registering it. This needs a device that can access pageable host memory
+(`hipDeviceAttributePageableMemoryAccess`) and throws an `ArgumentError` on others.
 
 When wrapping an `Array`, the returned `ROCArray` keeps it alive. When wrapping a pointer,
 the caller has to keep the memory valid for as long as the `ROCArray` is used. If `own` is
@@ -392,22 +585,30 @@ Device operations execute asynchronously, so synchronize (e.g., using
 `AMDGPU.synchronize()`) before accessing wrapped host memory on the host.
 """
 function Base.unsafe_wrap(
-    ::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
+    AT::Type{<:ROCArray}, ptr::Ptr{T}, dims::NTuple{N, <:Integer};
     own::Bool = false,
 ) where {T,N}
-    return wrap_memory(ptr, dims, own)
+    return wrap_memory(ptr, dims, own, nothing, memory_type(AT))
 end
 
+# whether kernels can access host memory that HIP does not know about
+supports_hmm(dev::HIPDevice) =
+    HIP.attribute(dev, HIP.hipDeviceAttributePageableMemoryAccess) == 1
+
 # `owner` is kept alive for as long as the wrapper
+# `requested` is the memory type that was asked for, or `Any`
 function wrap_memory(ptr::Ptr{T}, dims::NTuple{N, <:Integer}, own::Bool,
-                     owner = nothing) where {T,N}
+                     owner = nothing, requested = Any) where {T,N}
     check_eltype("unsafe_wrap(ROCArray, ...)", T)
     # the selector bytes of such arrays live past the data, outside of the wrapped memory
     Base.isbitsunion(T) && throw(ArgumentError(
         "unsafe_wrap(ROCArray, ...) does not support isbits-union element types like $T"))
 
-    memtype = Mem.memory_type(Ptr{Cvoid}(ptr))
-    B = if memtype == HIP.hipMemoryTypeUnregistered
+    attrs = Mem.pointer_attributes(Ptr{Cvoid}(ptr))
+    memtype = attrs.type
+    B = if Mem.is_managed(attrs)
+        Mem.UnifiedBuffer
+    elseif memtype == HIP.hipMemoryTypeUnregistered
         Mem.HostBuffer
     elseif memtype == HIP.hipMemoryTypeHost
         Mem.HostBuffer
@@ -415,6 +616,17 @@ function wrap_memory(ptr::Ptr{T}, dims::NTuple{N, <:Integer}, own::Bool,
         Mem.HIPBuffer
     else
         error("Unsupported memory type `$memtype` for pointer.")
+    end
+    if requested !== Any && requested != B
+        if requested == Mem.UnifiedBuffer && memtype == HIP.hipMemoryTypeUnregistered
+            # devices that can access pageable memory treat host memory as unified memory
+            supports_hmm(AMDGPU.device()) || throw(ArgumentError(
+                "Cannot wrap system memory as unified memory on your system"))
+            B = Mem.UnifiedBuffer
+        else
+            kind = B == Mem.HIPBuffer ? "device" : B == Mem.UnifiedBuffer ? "unified" : "host"
+            throw(ArgumentError("Cannot wrap $kind memory as $requested"))
+        end
     end
 
     sz = prod(dims) * aligned_sizeof(T)
@@ -536,8 +748,8 @@ function release_host_memory(managed::Managed{Mem.HostBuffer}, own::Bool)
     return
 end
 
-Base.unsafe_wrap(::Type{<:ROCArray}, ptr::Ptr, dim::Integer; own::Bool=false) =
-    unsafe_wrap(ROCArray, ptr, (dim,); own)
+Base.unsafe_wrap(AT::Type{<:ROCArray}, ptr::Ptr, dim::Integer; own::Bool=false) =
+    unsafe_wrap(AT, ptr, (dim,); own)
 
 Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims::NTuple{N, <:Integer}; kwargs...) where {T, N} =
     unsafe_wrap(ROCArray, Base.unsafe_convert(Ptr{T}, ptr), dims; kwargs...)
@@ -546,29 +758,37 @@ Base.unsafe_wrap(::Type{ROCArray{T}}, ptr::Ptr, dims::NTuple{N, <:Integer}; kwar
 Base.unsafe_wrap(::Union{Type{ROCArray}, Type{ROCArray{T}}, Type{ROCArray{T, N}}},
                  a::Array{T, N}) where {T, N} =
     wrap_memory(pointer(a), size(a), false, a)
+Base.unsafe_wrap(::Type{ROCArray{T, N, B}}, a::Array{T, N}) where {T, N, B} =
+    wrap_memory(pointer(a), size(a), false, a, B)
 
 """
     unsafe_wrap(Array, a::ROCArray)
 
 Wrap an `Array` around the memory of a `ROCArray`, without copying it. This is only
-possible for arrays backed by host memory, i.e., with buffer type `Mem.HostBuffer`.
+possible for arrays backed by unified or host memory, i.e., with memory type
+`Mem.UnifiedBuffer` or `Mem.HostBuffer`.
 
 !!! warning
 
     The returned `Array` does **not** keep the `ROCArray` alive. The caller has to keep a
     reference to the `ROCArray` for as long as the `Array`, or anything derived from it,
     is used; otherwise the `Array` may end up referring to freed memory. Device operations
-    execute asynchronously, so synchronize before accessing the returned array.
+    execute asynchronously: wrapping waits for the ones that have been launched, but
+    after using the `ROCArray` again, synchronize (e.g., using `AMDGPU.synchronize(a)`)
+    before accessing the returned array.
 """
-function Base.unsafe_wrap(::Type{Array}, a::ROCArray{T, N, Mem.HostBuffer}) where {T, N}
+function Base.unsafe_wrap(
+    ::Union{Type{Array}, Type{Array{T}}, Type{Array{T, N}}},
+    a::ROCArray{T, N, <:HostAccessibleBuffer},
+) where {T, N}
     # an `Array` keeps its selector bytes elsewhere than the `ROCArray` does
     Base.isbitsunion(T) && throw(ArgumentError(
         "unsafe_wrap(Array, ...) does not support isbits-union element types like $T"))
-    ptr = convert(Ptr{T}, a.buf[].mem.ptr) + a.offset
-    return unsafe_wrap(Array, ptr, size(a))
+    return unsafe_wrap(Array, pointer(a; type=Mem.HostBuffer), size(a))
 end
-Base.unsafe_wrap(::Type{Array}, a::ROCArray) =
-    throw(ArgumentError("Can only wrap an Array around a ROCArray backed by host memory"))
+Base.unsafe_wrap(::Union{Type{Array}, Type{Array{T}}, Type{Array{T, N}}},
+                 a::ROCArray{T, N}) where {T, N} =
+    throw(ArgumentError("Can only create a CPU array object from a unified or host ROCArray"))
 
 ## interop with CPU arrays
 
@@ -582,7 +802,7 @@ adapt_eltype(::Type{<:ROCArray}, xs) = eltype(xs)
 adapt_ndims(::Type{<:ROCArray{<:Any,N}}, xs) where {N} = N
 adapt_ndims(::Type{<:ROCArray}, xs) = ndims(xs)
 adapt_buftype(::Type{<:ROCArray{<:Any,<:Any,B}}, xs) where {B} = B
-adapt_buftype(::Type{<:ROCArray}, xs) = xs isa ROCArray ? buftype(xs) : Mem.HIPBuffer
+adapt_buftype(::Type{<:ROCArray}, xs) = xs isa ROCArray ? memory_type(xs) : default_memory
 
 function Adapt.adapt_storage(::Type{A}, xs::AT) where {A<:ROCArray,AT<:AbstractArray}
     isbitstype(AT) && return xs
@@ -597,21 +817,31 @@ Adapt.adapt_storage(::Type{Array}, xs::ROCArray) = convert(Array, xs)
 
 ## Float32-preferring conversion
 
-struct Float32Adaptor end
+# `B` is the type of memory that backs the converted arrays. If it is `Nothing`, arrays
+# that are already `ROCArray`s keep their memory, and other arrays use the default one.
+struct Float32Adaptor{B} end
+Float32Adaptor() = Float32Adaptor{Nothing}()
 
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray) =
-    isbits(xs) ? xs : convert(ROCArray, xs)
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
-    isbits(xs) ? xs : convert(ROCArray{Float32}, xs)
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
-    isbits(xs) ? xs : convert(ROCArray{ComplexF32}, xs)
+adapt_buftype(::Float32Adaptor{Nothing}, xs) = adapt_buftype(ROCArray, xs)
+adapt_buftype(::Float32Adaptor{B}, xs) where {B} = B
+
+# like the constructors, but without copying arrays that already have the right type
+float32_adapt(to::Float32Adaptor, ::Type{T}, xs::AbstractArray{<:Any,N}) where {T,N} =
+    isbits(xs) ? xs : convert(ROCArray{T,N,adapt_buftype(to, xs)}, xs)
+
+Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{T}) where {T} =
+    float32_adapt(to, T, xs)
+Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
+    float32_adapt(to, Float32, xs)
+Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
+    float32_adapt(to, ComplexF32, xs)
 
 # not for Float16
-Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
-    isbits(xs) ? xs : convert(ROCArray, xs)
+Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{Float16}) =
+    float32_adapt(to, Float16, xs)
 
 """
-    roc(x)
+    roc(x; device=false, unified=false, host=false)
 
 Adapt `x` for the GPU: convert arrays to [`ROCArray`](@ref) while **narrowing
 floating-point element types to 32-bit** (`Float64`→`Float32`,
@@ -619,16 +849,37 @@ floating-point element types to 32-bit** (`Float64`→`Float32`,
 preserved). Like `Adapt.adapt`, it recurses into custom structs and converts
 their array fields.
 
+The keyword arguments select the type of memory that backs the arrays: `device`
+for device memory, `unified` for unified memory that both the CPU and the GPU can
+access, and `host` for page-locked host memory. At most one of them can be set;
+by default, arrays use the [`AMDGPU.default_memory`](@ref), and arrays that are
+already `ROCArray`s keep their memory.
+
 This mirrors CUDA.jl's `cu`. Reach for it when single precision is preferred
 (e.g. for performance); use the [`ROCArray`](@ref) constructor directly to keep
 the original element type.
 
 ```julia
-roc([1.0, 2.0])    # 2-element ROCArray{Float32}
-roc(1:3)           # non-float eltype preserved: ROCArray{Int64}
+roc([1.0, 2.0])                # 2-element ROCArray{Float32}
+roc(1:3)                       # non-float eltype preserved: ROCArray{Int64}
+roc([1.0, 2.0]; unified=true)  # backed by unified memory
 ```
 """
-roc(xs) = adapt(Float32Adaptor(), xs)
+@inline function roc(xs; device::Bool=false, unified::Bool=false, host::Bool=false)
+    if device + unified + host > 1
+        throw(ArgumentError("Can only specify one of `device`, `unified`, or `host`"))
+    end
+    memory = if device
+        Mem.HIPBuffer
+    elseif unified
+        Mem.UnifiedBuffer
+    elseif host
+        Mem.HostBuffer
+    else
+        Nothing
+    end
+    adapt(Float32Adaptor{memory}(), xs)
+end
 
 Base.unsafe_convert(typ::Type{Ptr{T}}, x::ROCArray{T}) where T =
     convert(typ, x.buf[]) + x.offset
@@ -649,8 +900,8 @@ Resize `a` to contain `n` elements. If `n` is smaller than the current
 collection length, the first `n` elements will be retained. If `n` is larger,
 the new elements are not guaranteed to be initialized.
 
-The new storage has the same buffer type as `a`, so an array in host memory
-(`Mem.HostBuffer`) stays in host memory. Resizing always allocates new memory,
+The new storage has the same memory type as `a`, so an array in unified or host memory
+stays in that kind of memory. Resizing always allocates new memory,
 which detaches `a` from memory it was wrapped around with `unsafe_wrap`.
 """
 function Base.resize!(A::ROCVector{T, B}, n::Integer) where {T, B}
@@ -687,10 +938,8 @@ device_maxsize(a::ROCArray) = a.maxsize - a.offset
 function Base.convert(
     ::Type{ROCDeviceArray{T, N, AS.Global}}, a::ROCArray{T, N},
 ) where {T, N}
-    # If HostBuffer, use device pointer.
     buf = convert(Mem.AbstractAMDBuffer, a.buf[])
-    ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ?
-        buf : buf.dev_ptr)
+    ptr = convert(Ptr{T}, Mem.device_ptr(buf))
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + a.offset)
     ROCDeviceArray{T, N, AS.Global}(a.dims, llvm_ptr, device_maxsize(a))
 end
@@ -699,7 +948,7 @@ function Adapt.adapt_storage(to::Runtime.Adaptor, x::ROCArray{T,N}) where {T,N}
     managed = x.buf[]
     to.stream === nothing || take_ownership_fast!(managed, to.stream)
     buf = managed.mem
-    ptr = convert(Ptr{T}, typeof(buf) <: Mem.HIPBuffer ? buf : buf.dev_ptr)
+    ptr = convert(Ptr{T}, Mem.device_ptr(buf))
     llvm_ptr = AMDGPU.LLVMPtr{T,AS.Global}(ptr + x.offset)
     return ROCDeviceArray{T, N, AS.Global}(x.dims, llvm_ptr, device_maxsize(x))
 end

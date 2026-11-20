@@ -192,7 +192,7 @@ mutable struct hipTensorPlan
         # allocate the actual workspace
         actualWorkspaceSize = Ref{UInt64}(0)
         hiptensorPlanGetAttribute(handle(), plan_ref[], HIPTENSOR_PLAN_REQUIRED_WORKSPACE, actualWorkspaceSize, sizeof(actualWorkspaceSize))
-        workspace = ROCVector{UInt8}(undef, actualWorkspaceSize[])
+        workspace = ROCVector{UInt8,Mem.HIPBuffer}(undef, actualWorkspaceSize[])
 
         obj = new(plan_ref[], workspace, scalar_type, desc, pref, refs)
         finalizer(AMDGPU.unsafe_free!, obj)

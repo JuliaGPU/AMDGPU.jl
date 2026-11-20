@@ -77,7 +77,10 @@ end
 ## memory operations
 
 KI.unsafe_free!(x::AMDGPU.ROCArray) = AMDGPU.unsafe_free!(x)
-KI.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
+@inline KI.allocate(::ROCBackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T =
+    AMDGPU.ROCArray{T, length(dims), unified ? AMDGPU.Mem.UnifiedBuffer : AMDGPU.default_memory}(undef, dims)
+
+KI.supports_unified(::ROCBackend) = true
 
 # dense arrays, and contiguous views of them
 const ContiguousArray{T} = Union{DenseArray{T}, Base.FastContiguousSubArray{T, <:Any, <:DenseArray}}
