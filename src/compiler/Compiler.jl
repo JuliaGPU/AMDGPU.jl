@@ -10,7 +10,10 @@ import GPUToolbox
 import GPUToolbox: @gcsafe_ccall
 
 import AMDGPU_LLVM_Backend_jll # used for linking; GPUCompiler uses the in-tree backend otherwise
-using AMDGPU_LLVM_Backend_jll: libamdgpu
+# `libamdgpu` only exists on platforms the JLL has an artifact for (not macOS)
+if AMDGPU_LLVM_Backend_jll.is_available()
+    using AMDGPU_LLVM_Backend_jll: libamdgpu
+end
 
 import ..AMDGPU
 import ..AMDGPU: AS

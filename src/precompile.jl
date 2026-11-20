@@ -1,14 +1,15 @@
 using PrecompileTools: @compile_workload
 
 # Compiling a GCN kernel requires being able to initialize the AMDGPU LLVM
-# backend, so we only run the precompile workload when that's supported, to be
-# able to load this package also on systems where the backend isn't available.
+# backend, and AMDGPU_LLVM_Backend_jll for code generation, so we only run the
+# precompile workload when both are available, to be able to load this package
+# also on systems where they aren't.
 #
 # This mirrors CUDA.jl's precompile workload: it warms up the GPUCompiler ->
 # AMDGPU codegen pipeline during precompilation so that the first kernel launch
 # at runtime doesn't have to JIT-compile the entire compiler. It does NOT need a
 # GPU (or even the ROCm runtime to be discovered) -- it only uses LLVM.
-if :AMDGPU in LLVM.backends()
+if :AMDGPU in LLVM.backends() && AMDGPU_LLVM_Backend_jll.is_available()
     @compile_workload begin
         let
             function _precompile_kernel(a)
