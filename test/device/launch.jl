@@ -255,3 +255,19 @@ if VERSION >= v"1.12-" && !iszero(AMDGPU.HIP.properties(AMDGPU.device()).coopera
         @test Array(x) == [1 1 2 6; 1 2 6 24; 2 6 24 72; 6 24 72 144]
     end
 end
+
+# a struct that isn't converted, here for lack of `Adapt.@adapt_structure`
+struct UnadaptedHolder{A}
+    a::A
+end
+
+@testset "Arguments that are not bitstypes" begin
+    function kernel(h)
+        @inbounds h.a[1] = 1
+        return
+    end
+    holder = UnadaptedHolder(AMDGPU.zeros(Float32, 4))
+    # reported before compiling, which could take forever for such arguments
+    t = @elapsed @test_throws "passing non-bitstype argument" @roc kernel(holder)
+    @test t < 60
+end
