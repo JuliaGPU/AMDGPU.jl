@@ -15,7 +15,15 @@ on:
 jobs:
   hash-rocm-artifacts:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
+      # always start from (and open the pull request against) the default branch,
+      # whichever ref the workflow was dispatched from
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
       - uses: julia-actions/setup-julia@v2
         with:
           version: "1.12"
@@ -27,6 +35,10 @@ jobs:
           using ArtifactUtils, Base.BinaryPlatforms
           const rocm_version = "${{ inputs.rocm_version }}"
           const rocm_tag = "${{ inputs.rocm_tag }}"
+          # Entries are keyed by platform, which includes the `rocm` tag: other
+          # releases already in the file are kept, and `force` replaces the
+          # entries of this one (a re-run, or a newer patch release).
+          const artifacts_toml = joinpath("ROCm_Runtime", "Artifacts.toml")
 
           # Every family TheRock publishes for this release; see the listing at
           # https://stable.repo.amd.com/rocm/core/tarball/ and
@@ -51,17 +63,63 @@ jobs:
             platform = Platform("x86_64", "linux", Dict(
                 "libc" => "glibc", "rocm" => rocm_tag,
                 "rocm_arch" => replace(rocm_arch, "-" => "_")))
-            add_artifact!("Artifacts.toml", "ROCm_Runtime", "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-$rocm_arch-$rocm_version.tar.gz"; lazy = true, platform)
+            add_artifact!(artifacts_toml, "ROCm_Runtime", "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-$rocm_arch-$rocm_version.tar.gz"; lazy = true, force = true, platform)
 
             endswith(rocm_arch, "-dcgpu") && continue
             @info "Windows, $rocm_arch"
             platform = Platform("x86_64", "windows", Dict(
                 "rocm" => rocm_tag,
                 "rocm_arch" => replace(rocm_arch, "-" => "_")))
-            add_artifact!("Artifacts.toml", "ROCm_Runtime", "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-$rocm_arch-$rocm_version.tar.gz"; lazy = true, platform)
+            add_artifact!(artifacts_toml, "ROCm_Runtime", "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-$rocm_arch-$rocm_version.tar.gz"; lazy = true, force = true, platform)
           end
-      - name: Upload hash report
+
+          # Register the release with the artifact selection, replacing an earlier
+          # patch release of the same minor version.
+          augmentation_jl = joinpath("ROCm_Runtime", ".pkg", "platform_augmentation.jl")
+          augmentation = read(augmentation_jl, String)
+          toolkits_line = r"^const rocm_toolkits = VersionNumber\[(.*)\]$"m
+          toolkits = [VersionNumber(m[1]) for m in eachmatch(r"v\"([^\"]*)\"", match(toolkits_line, augmentation)[1])]
+          filter!(v -> Base.thisminor(v) != Base.thisminor(VersionNumber(rocm_version)), toolkits)
+          sort!(push!(toolkits, VersionNumber(rocm_version)))
+          @info "rocm_toolkits = $toolkits"
+          write(augmentation_jl, replace(augmentation, toolkits_line =>
+              "const rocm_toolkits = VersionNumber[" * join(("v\"$v\"" for v in toolkits), ", ") * "]"))
+
+          # Bump the package version: to the new ROCm release if it is newer than
+          # what the package version tracks, by a patch level otherwise.
+          project_toml = joinpath("ROCm_Runtime", "Project.toml")
+          project = read(project_toml, String)
+          version_line = r"^version = \"(.*)\"$"m
+          old_version = VersionNumber(match(version_line, project)[1])
+          rocm_release = Base.thisminor(VersionNumber(rocm_version))
+          new_version = rocm_release > old_version ? rocm_release : Base.nextpatch(old_version)
+          @info "ROCm_Runtime $old_version => $new_version"
+          write(project_toml, replace(project, version_line => "version = \"$new_version\""))
+
+          # Restrict AMDGPU.jl to this minor release of the package.
+          amdgpu_toml = "Project.toml"
+          amdgpu = read(amdgpu_toml, String)
+          compat_line = r"(\[compat\]\n(?:(?!\[).*\n)*?ROCm_Runtime = )\".*\""
+          occursin(compat_line, amdgpu) || error("no ROCm_Runtime compat entry in $amdgpu_toml")
+          write(amdgpu_toml, replace(amdgpu, compat_line => SubstitutionString("\\1\"~$new_version\"")))
+      - name: Upload updated Artifacts.toml
         uses: actions/upload-artifact@v4
         with:
           name: Artifacts.toml
-          path: Artifacts.toml
+          path: ROCm_Runtime/Artifacts.toml
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          add-paths: |
+            ROCm_Runtime/Artifacts.toml
+            ROCm_Runtime/Project.toml
+            ROCm_Runtime/.pkg/platform_augmentation.jl
+            Project.toml
+          base: ${{ github.event.repository.default_branch }}
+          branch: rocm-artifacts/${{ inputs.rocm_version }}
+          commit-message: Add ROCm ${{ inputs.rocm_version }} artifacts
+          title: Add ROCm ${{ inputs.rocm_version }} artifacts
+          body: |
+            Adds the TheRock ${{ inputs.rocm_version }} tarballs to `ROCm_Runtime/Artifacts.toml` under the `rocm = "${{ inputs.rocm_tag }}"` tag, generated by the [ROCm artifact hashes workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+            Also adds the release to `rocm_toolkits` and bumps the version of `ROCm_Runtime`. In AMDGPU.jl, the `ROCm_Runtime` compat entry is set to that version (`~`, so only this minor release); its own version is not bumped.
