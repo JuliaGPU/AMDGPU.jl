@@ -88,6 +88,8 @@ const syncscope_wavefront = UnsafeAtomics.subgroup
 # defined in, so this has to precede the device code.
 struct KernelState
     exception_info::Ptr{UInt64}
+    # the handle of the launched kernel, which identifies it in the exception info
+    kernel::Ptr{Cvoid}
     malloc_hc::Ptr{Cvoid}
     free_hc::Ptr{Cvoid}
     output_context::Ptr{Cvoid}
@@ -97,8 +99,7 @@ end
 # Device sources must load _before_ the compiler infrastructure,
 # because of generated functions.
 include("device/Device.jl")
-import .Device: malloc, signal_exception, report_exception, report_oom
-import .Device: report_exception_frame, report_exception_name
+import .Device: malloc, exception_site, report_oom
 import .Device: ROCDeviceArray, AS, HostCall, HostCallHolder, hostcall!
 import .Device: @ROCDynamicLocalArray, @ROCStaticLocalArray
 import .Device: workitemIdx, workgroupIdx, workgroupDim, gridItemDim, gridGroupDim

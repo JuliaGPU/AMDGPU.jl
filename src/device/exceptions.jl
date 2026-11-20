@@ -1,100 +1,50 @@
-# Exception reason codes — encoded in bits [7:0] of the packed exception UInt64
-# 0 means no exception
-module ExceptionCode
-    const NONE          = UInt8(0)
-    const UNKNOWN       = UInt8(1)
-    const BOUNDS_ERROR  = UInt8(2)
-    const DOMAIN_ERROR  = UInt8(3)
-    const OVERFLOW_ERROR = UInt8(4)
-    const INEXACT_ERROR = UInt8(5)
-    const ARGUMENT_ERROR = UInt8(6)
-    const DIVIDE_ERROR  = UInt8(7)
-    const DIM_MISMATCH  = UInt8(8)
+# The record of a kernel exception, in host memory shared by the kernels on a device. The
+# first work-item to throw claims it by storing the kernel it belongs to, and then records
+# where it threw; the host looks up what was thrown there (see `AMDGPU.throw_if_exception`).
+struct ExceptionInfo
+    # the handle of the kernel that threw, or 0 if none did
+    kernel::UInt64
+    # the throw site, see `GPUCompiler.uses_exception_sites`
+    site::Int32
+    workgroup::NTuple{3, Int32}
+    workitem::NTuple{3, Int32}
 end
-
-const EXCEPTION_REASON_STRINGS = Dict{UInt8, String}(
-    ExceptionCode.NONE          => "No exception",
-    ExceptionCode.UNKNOWN       => "Unknown exception",
-    ExceptionCode.BOUNDS_ERROR  => "BoundsError: Out-of-bounds array access",
-    ExceptionCode.DOMAIN_ERROR  => "DomainError",
-    ExceptionCode.OVERFLOW_ERROR => "OverflowError",
-    ExceptionCode.INEXACT_ERROR => "InexactError: Inexact conversion",
-    ExceptionCode.ARGUMENT_ERROR => "ArgumentError",
-    ExceptionCode.DIVIDE_ERROR  => "DivideError: Integer division error",
-    ExceptionCode.DIM_MISMATCH  => "DimensionMismatch",
-)
-
-# Packed exception format (UInt64):
-#   [63:48] workgroup_x (16 bits)
-#   [47:32] workgroup_y (16 bits)
-#   [31:16] workgroup_z (16 bits)
-#   [15:8]  reserved
-#   [7:0]   error code (non-zero = exception occurred)
-
-@inline function pack_exception(code::UInt8)
-    wg = workgroupIdx()
-    wg_x = UInt64(wg.x % UInt16) << 48
-    wg_y = UInt64(wg.y % UInt16) << 32
-    wg_z = UInt64(wg.z % UInt16) << 16
-    return wg_x | wg_y | wg_z | UInt64(code)
-end
-
-@inline function unpack_exception(packed::UInt64)
-    wg_x = UInt16((packed >> 48) & 0xFFFF)
-    wg_y = UInt16((packed >> 32) & 0xFFFF)
-    wg_z = UInt16((packed >> 16) & 0xFFFF)
-    code  = UInt8(packed & 0xFF)
-    return (; wg_x, wg_y, wg_z, code)
-end
-
-# Legacy compat — ExceptionInfo is now just a UInt64
-const ExceptionInfo = UInt64
+ExceptionInfo() = ExceptionInfo(0, 0, (0, 0, 0), (0, 0, 0))
 
 function alloc_exception_info()
-    ei_ptr = Mem.HostBuffer(sizeof(UInt64), HIP.hipHostAllocDefault)
-    unsafe_store!(convert(Ptr{UInt64}, ei_ptr), UInt64(0))
+    ei_ptr = Mem.HostBuffer(sizeof(ExceptionInfo), HIP.hipHostAllocDefault)
+    unsafe_store!(convert(Ptr{ExceptionInfo}, ei_ptr), ExceptionInfo())
     return ei_ptr
 end
 
+# a pointer to a field of the exception record at `ei`
+@inline @generated function exception_field(ei::Ptr{UInt64}, ::Val{field}) where {field}
+    i = Base.fieldindex(ExceptionInfo, field)
+    T = fieldtype(ExceptionInfo, i)
+    return :(reinterpret(Ptr{$T}, ei + $(fieldoffset(ExceptionInfo, i))))
+end
+
+# the calling work-item has thrown at `site`, and its wavefront stops executing.
+#
 # nothing reachable from the throw overlays may throw, not even a checked conversion like
 # `UInt64(0)`: the resulting inference cycle taints Base on Julia 1.12+ (#808)
-@inline function signal_exception!(ei::Ptr{UInt64}, code::UInt8)
-    packed = pack_exception(code)
-    # First writer wins via atomic CAS; losers are no-ops.
-    ei_llvm = reinterpret(LLVMPtr{UInt64, AS.Generic}, ei)
-    llvm_atomic_cas(ei_llvm, 0 % UInt64, packed)
+@inline function signal_exception!(site::Int32)
+    state = kernel_state()
+    ei = state.exception_info
+    claim = reinterpret(LLVMPtr{UInt64, AS.Generic}, exception_field(ei, Val(:kernel)))
+    # the first writer wins; it is the only one to store the rest of the record
+    if llvm_atomic_cas(claim, 0 % UInt64, reinterpret(UInt64, state.kernel)) == 0 % UInt64
+        unsafe_store!(exception_field(ei, Val(:site)), site)
+        wg = workgroupIdx()
+        unsafe_store!(exception_field(ei, Val(:workgroup)),
+                      (wg.x % Int32, wg.y % Int32, wg.z % Int32))
+        wi = workitemIdx()
+        unsafe_store!(exception_field(ei, Val(:workitem)),
+                      (wi.x % Int32, wi.y % Int32, wi.z % Int32))
+    end
     endpgm()
     return
 end
 
-# throw a device-side exception of type `name`. only the type is reported: the exception
-# info only has room for an error code, so `reason` is dropped.
-macro gputhrow(name::String, reason::String)
-    code = _name_to_code(name)
-    quote
-        ei = kernel_state().exception_info
-        signal_exception!(ei, $code)
-        throw(nothing) # unreachable, but keeps Julia's type system happy
-    end
-end
-
-# Map exception type names to error codes at macro expansion time
-function _name_to_code(name::String)
-    if name == "BoundsError"
-        ExceptionCode.BOUNDS_ERROR
-    elseif name == "DomainError"
-        ExceptionCode.DOMAIN_ERROR
-    elseif name == "OverflowError"
-        ExceptionCode.OVERFLOW_ERROR
-    elseif name == "InexactError"
-        ExceptionCode.INEXACT_ERROR
-    elseif name == "ArgumentError"
-        ExceptionCode.ARGUMENT_ERROR
-    elseif name == "DivideError"
-        ExceptionCode.DIVIDE_ERROR
-    elseif name == "DimensionMismatch"
-        ExceptionCode.DIM_MISMATCH
-    else
-        ExceptionCode.UNKNOWN
-    end
-end
+# throw a device-side exception of type `name`, reported with `reason`
+using GPUCompiler: @gputhrow

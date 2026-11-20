@@ -80,7 +80,7 @@ end
         end
 
         @roc kernel(RA, RB, hc)
-        @test_throws ErrorException AMDGPU.synchronize(; stop_hostcalls=true)
+        @test_throws AMDGPU.KernelException AMDGPU.synchronize(; stop_hostcalls=true)
 
         @test Array(RB)[1] == 0f0
         @test dref[] == false

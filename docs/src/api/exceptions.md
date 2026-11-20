@@ -13,28 +13,31 @@ ker! (generic function with 1 method)
 
 julia> x = ROCArray([1]);
 
-julia> @roc kerr(x);
+julia> @roc ker!(x);
 
 julia> AMDGPU.synchronize()
-ERROR: GPU Kernel Exception
+ERROR: KernelException: BoundsError during kernel execution on work-item (1, 1, 1) of work-group (1, 1, 1): Out-of-bounds array access
+Run Julia on debug level 2 for a device stack trace.
 Stacktrace:
- [1] error(s::String)
-   @ Base ./error.jl:35
- [2] throw_if_exception(dev::HIPDevice)
-   @ AMDGPU ~/.julia/dev/AMDGPU/src/exception_handler.jl:115
- [3] synchronize(stm::HIPStream)
-   @ AMDGPU ~/.julia/dev/AMDGPU/src/highlevel.jl:154
- [4] synchronize()
-   @ AMDGPU ~/.julia/dev/AMDGPU/src/highlevel.jl:154
- [5] top-level scope
-   @ REPL[5]:1
+ [1] throw_if_exception(dev::HIPDevice)
+   @ AMDGPU ~/.julia/dev/AMDGPU/src/exception_handler.jl:77
+ [2] synchronize(stm::HIPStream; blocking::Bool, stop_hostcalls::Bool)
+   @ AMDGPU ~/.julia/dev/AMDGPU/src/highlevel.jl:40
+ [3] top-level scope
+   @ REPL[4]:1
 ```
 
-Kernel-thrown exceptions are thrown during the
+Kernel-thrown exceptions are thrown as an [`AMDGPU.KernelException`](@ref) during the
 host synchronization [`AMDGPU.synchronize`](@ref) or on the next kernel launch.
+Which exception was thrown, and why, is reported at the default debug level; with
+`julia -g2` the exception also has a device stack trace, and with `-g0` only the
+work-item that threw is known.
 
-Kernels that hit an exception will write its information into a pre-allocated
-host buffer.
-Once complete, the wavefront throwing the exception will lock the buffer
-to prevent other wavefronts from overwriting the exception and stop itself,
+The first work-item to throw records where it threw, and on which work-item, into a
+pre-allocated host buffer; others that throw don't overwrite it.
+The wavefront throwing the exception stops,
 but other wavefronts will continue executing.
+
+```@docs
+AMDGPU.KernelException
+```
