@@ -264,3 +264,269 @@ rocm_arch = "gfx120x_all"
     [[ROCm_Runtime.download]]
     sha256 = "e8d5acd522aa106d685485707e5085d491ead7d0d84a79ef74dc5995941403b2"
     url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx120X-all-10.1.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "ea0fc325b1899d55ae627fd8888dfd11681afef5"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx908"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "e80a7fe384b8a5fd48958bfd0ada888390bdd2502120e053d421aacfedb14298"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx908-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "11a4d7abda5117ca661f21647ba1341869cbc340"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx908"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "5c3e2091fa2881b95ac18f4ae62ad5f8ed3fcc343e9156d968c390bec12fbcf2"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx908-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "0011d39f4eb892ef0e30ba95987ac2c3b4123de1"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx90a"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "725ead201ccc63986aeeac758d0695194235308856b7ba8da69fbd02147c3c40"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx90a-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "bff423e24d762aff608b7aa57686e3c081051215"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx90a"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "4da46a936d6328f5cb85b41c36215bd19463bae0b979e09c47bfa638c5ca732f"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx90a-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "a94a5c46223a5681186ea91ca3b4f35d343cba70"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx94x_dcgpu"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "b1bb673ca6c539167f8f0c698087cea06ab8765717a640eb9ca15be15ae7693d"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx94X-dcgpu-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "3c6caec26aad220f99668de1a91eaac09f86bc5a"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx950_dcgpu"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "e3f7968372ad99d35f0924aa72964e5380a263e723937197b3505cd3e43c8bde"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx950-dcgpu-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "47b449ea2aacb3208f851fd3eaaf8505d904b9dd"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx125x_dcgpu"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "162d1d70d1d92a388546d2287f292f6d6681acf2e2b9927c07088a4028020764"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx125X-dcgpu-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "16a439350e9a6ae91c39ac377bc9427a0699b70a"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx101x_dgpu"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "7d795208c5e80569eb6dd3d3be9f76f8097e877e6ec195852882c729e75b6352"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx101X-dgpu-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "24ac97b56317b243af1fb653de2a906f279f7e55"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx101x_dgpu"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "9975d24dbb0c3f80b34052ea1a1089fe4dfa0ab90115755a7c919d1f9008dacf"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx101X-dgpu-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "89a1b4ca1e37c7b7d01eca2e0df4c51ef6f054c3"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx103x_all"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "e4464ed2161ff9e506fca5b090e93d0602b488866c94f292858aace34d9ba6ee"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx103X-all-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "40603bfee955da0dedf15d1bb9a5e438c0071284"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx103x_all"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "c24043260f4890bbab3dbd922dc9f7e0910f05d359d293dfbfaf9d2cdbf789a5"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx103X-all-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "17e79e99511882ab8a633fdb50fe808944c7d118"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx110x_all"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "b44d68543cd33d4fa85ecbb386c1ef56177508f7fb3e9feb63857db37e4f4fca"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx110X-all-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "ab0a796a522a0431168307a026caf774d417b857"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx110x_all"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "c83ed503b77ab8aa72116d5c9236cdec387d2c7ebf4dbde8bcd90676f7e458e1"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx110X-all-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "17fa0b031496cfadcbebce0f1d6c7fac10658e03"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx1150"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "13e429764fd07729c6752444481cbff2b19f0ce97c07b814b138f7f68775edc5"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx1150-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "37a6d09116e139908bd9695201d8bda75e3c1f6d"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx1150"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "56b063a660383c638937cbe13ece5ba1c9858a19d10f10e21aa028b7755a08e3"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx1150-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "3201021f9158d01ce96348d58195b69ba02ae670"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx1151"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "3bc04f04dd07a1efe06ede8f52432000f3558b02f5195d980392d2c44bfc8572"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx1151-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "3eaf80ef0823b908ccf553c9b1278cd9323e567d"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx1151"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "aced4ff1733a08992140de463276512b27fb4ec0d4602a5e50e91fabd36df109"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx1151-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "dd68230380f1b3267517d6d25cef5af8d0065f35"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx1152"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "035060549c23d85480f2a1e5f675e4f4b4aa92fbb7359cb974cef2ae04c5097d"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx1152-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "4fa4c747702093aa9439159c57978db41f16c32d"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx1152"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "3d63c978a875d5020150e08e61debbf5197470cb234bc168ca6859f4b5e1aa0f"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx1152-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "a86abd47cdcb4ca3e4ca980bafb5d527bc7437f0"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx1153"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "6bd9cc39306a43efcc8a541d8cce943f56675e8165dd0265b95970bd7def39c9"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx1153-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "d993bfb700bb1b0b968fadb0176fa681c622ee9b"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx1153"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "1768bc5e0fd594e570f1867edccd642fc0084de8073d5a218cbded9bff240b4a"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx1153-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "2ec94ccb07ce2142dcc1208201a53697f0bdd7df"
+lazy = true
+libc = "glibc"
+os = "linux"
+rocm = "10.2"
+rocm_arch = "gfx120x_all"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "cf75ca37886dcd9004fa6b37da41cff34e1b0c865a477ccb76a35c553c48f31d"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-linux-gfx120X-all-10.2.0.tar.gz"
+[[ROCm_Runtime]]
+arch = "x86_64"
+git-tree-sha1 = "b029fea617f4c499acf6a9bb2c1a4fef274db069"
+lazy = true
+os = "windows"
+rocm = "10.2"
+rocm_arch = "gfx120x_all"
+
+    [[ROCm_Runtime.download]]
+    sha256 = "59a4485e6800656e2d4f964c1e043d7ddeb53a49418fbfdae70d216af151361c"
+    url = "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx120X-all-10.2.0.tar.gz"
