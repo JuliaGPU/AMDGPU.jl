@@ -815,30 +815,32 @@ end
 Adapt.adapt_storage(::Type{Array}, xs::ROCArray) = convert(Array, xs)
 
 
-## Float32-preferring conversion
+## opinionated gpu array adaptor
+
+# eagerly converts Float64 to Float32, for performance reasons
 
 # `B` is the type of memory that backs the converted arrays. If it is `Nothing`, arrays
 # that are already `ROCArray`s keep their memory, and other arrays use the default one.
-struct Float32Adaptor{B} end
-Float32Adaptor() = Float32Adaptor{Nothing}()
+struct ROCArrayKernelAdaptor{B} end
+ROCArrayKernelAdaptor() = ROCArrayKernelAdaptor{Nothing}()
 
-adapt_buftype(::Float32Adaptor{Nothing}, xs) = adapt_buftype(ROCArray, xs)
-adapt_buftype(::Float32Adaptor{B}, xs) where {B} = B
+adapt_buftype(::ROCArrayKernelAdaptor{Nothing}, xs) = adapt_buftype(ROCArray, xs)
+adapt_buftype(::ROCArrayKernelAdaptor{B}, xs) where {B} = B
 
 # like the constructors, but without copying arrays that already have the right type
-float32_adapt(to::Float32Adaptor, ::Type{T}, xs::AbstractArray{<:Any,N}) where {T,N} =
+kernel_adapt(to::ROCArrayKernelAdaptor, ::Type{T}, xs::AbstractArray{<:Any,N}) where {T,N} =
     isbits(xs) ? xs : convert(ROCArray{T,N,adapt_buftype(to, xs)}, xs)
 
-Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{T}) where {T} =
-    float32_adapt(to, T, xs)
-Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
-    float32_adapt(to, Float32, xs)
-Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
-    float32_adapt(to, ComplexF32, xs)
+Adapt.adapt_storage(to::ROCArrayKernelAdaptor, xs::AbstractArray{T}) where {T} =
+    kernel_adapt(to, T, xs)
+Adapt.adapt_storage(to::ROCArrayKernelAdaptor, xs::AbstractArray{<:AbstractFloat}) =
+    kernel_adapt(to, Float32, xs)
+Adapt.adapt_storage(to::ROCArrayKernelAdaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
+    kernel_adapt(to, ComplexF32, xs)
 
 # not for Float16
-Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{Float16}) =
-    float32_adapt(to, Float16, xs)
+Adapt.adapt_storage(to::ROCArrayKernelAdaptor, xs::AbstractArray{Float16}) =
+    kernel_adapt(to, Float16, xs)
 
 """
     roc(x; device=false, unified=false, host=false)
@@ -878,7 +880,7 @@ roc([1.0, 2.0]; unified=true)  # backed by unified memory
     else
         Nothing
     end
-    adapt(Float32Adaptor{memory}(), xs)
+    adapt(ROCArrayKernelAdaptor{memory}(), xs)
 end
 
 Base.unsafe_convert(typ::Type{Ptr{T}}, x::ROCArray{T}) where T =
