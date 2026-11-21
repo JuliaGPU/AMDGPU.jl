@@ -42,6 +42,22 @@ function ki_wavefront_size_kernel(ws)
     return
 end
 
+function ki_dynamic_localmem_size_kernel(out)
+    @inbounds out[1] = KI.dynamic_localmemory_size()
+    return
+end
+
+# static local memory, next to the dynamic block
+function ki_static_localmem_kernel(out)
+    s = KI.localmemory(Int64, 16)
+    i = KI.get_local_id().x
+    n = KI.get_local_size().x
+    @inbounds s[i] = i
+    KI.barrier()
+    @inbounds out[i] = s[i == n ? 1 : i + 1] + KI.dynamic_localmemory_size()
+    return
+end
+
 @testset "kernelinterface" begin
 
 backend = ROCBackend()
@@ -78,6 +94,42 @@ end
     # but not ones that would override the launch geometry
     @test_throws ArgumentError kernel(A; ndrange=4, groupsize=8)
     @test_throws ArgumentError kernel(A; ndrange=4, gridsize=2)
+end
+
+@testset "dynamic local memory" begin
+    out = AMDGPU.zeros(Int, 1)
+    kernel = KI.@launch backend launch=false ki_dynamic_localmem_size_kernel(out)
+
+    # it is HIP's dynamic shared memory, whose size isn't rounded
+    kernel(out; localmem=24)
+    @test Array(out) == [24]
+    kernel(out; localmem=5)
+    @test Array(out) == [5]
+    kernel(out; localmem=n -> 8n, workgroupsize=5)
+    @test Array(out) == [40]
+    kernel(out; shmem=16)
+    @test Array(out) == [16]
+    kernel(out)
+    @test Array(out) == [0]
+    @test_throws ArgumentError kernel(out; localmem=24, shmem=16)
+
+    # the limit is what HIP reports for the function, and can be asked for
+    fun = kernel.kern.kernel.fun
+    limit = KI.max_dynamic_localmemory(kernel)
+    limit_ref = Ref{Cint}()
+    AMDGPU.HIP.hipFuncGetAttribute(
+        limit_ref, AMDGPU.HIP.HIP_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, fun.handle)
+    @test limit == limit_ref[]
+    @test limit > 0
+    kernel(out; localmem=limit)
+    @test Array(out) == [limit]
+
+    # the local memory that a kernel allocates statically isn't available
+    out = AMDGPU.zeros(Int, 4)
+    static_kernel = KI.@launch backend launch=false ki_static_localmem_kernel(out)
+    @test KI.max_dynamic_localmemory(static_kernel) <= limit - 16 * sizeof(Int64)
+    static_kernel(out; workgroupsize=4, localmem=8)
+    @test Array(out) == [2, 3, 4, 1] .+ 8
 end
 
 @testset "wavefront size" begin

@@ -88,6 +88,17 @@ macro ROCDynamicLocalArray(T, dims, zeroinit=true, offset=0)
     end
 end
 
+# The dynamically sized local memory of the workgroup, i.e. the `shmem` bytes of the launch,
+# as a pointer to `T`. A zero-length external global in the local address space is what the
+# LLVM back-end takes for it: every such global gets the address right behind the
+# statically allocated local memory, aligned like the most aligned of them. All callers
+# use the same global here, whatever `T` is, which `alloc_special` aligns to 32 bytes.
+@inline dynamic_local_pointer(::Type{T}) where {T} = reinterpret(LLVMPtr{T, AS.Local},
+    alloc_special(Val{:dynamic_local}(), UInt8, Val{AS.Local}(), Val{0}(), Val{false}()))
+
+# The size of that memory in bytes: the `shmem` the kernel was launched with.
+@inline dynamic_local_size() = kernel_state().shmem
+
 # TODO: Support various types of len
 # NOTE: these shadow LLVM.Build's `memcpy!` and `memset!`, so use those qualified.
 @llvmgenerated builder function memcpy!(dest_ptr::LLVMPtr{UInt8,DestAS}, src_ptr::LLVMPtr{UInt8,SrcAS}, len::LT)::Nothing where {DestAS,SrcAS,LT<:Union{Int64,UInt64}}

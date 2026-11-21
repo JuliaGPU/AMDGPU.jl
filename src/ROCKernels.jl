@@ -54,6 +54,7 @@ end
 KI.supports_float64(::ROCBackend) = true
 KI.supports_atomics(::ROCBackend) = true
 KI.supports_subgroups(::ROCBackend) = true
+KI.supports_dynamic_localmemory(::ROCBackend) = true
 # wavefronts are formed from consecutive linear work-item indices, and execute independently
 KI.supports_linear_subgroups(::ROCBackend) = true
 KI.supports_independent_subgroups(::ROCBackend) = true
@@ -131,11 +132,16 @@ function KI.kernel_function(backend::ROCBackend, f::F, tt::TT=Tuple{}; name=noth
     return KI.Kernel(backend, ROCKernel(f, kernel))
 end
 
+# `localmem` is only passed by launches that ask for dynamic local memory, which is HIP's
+# dynamic shared memory.
 function KI.launch(obj::KI.Kernel{ROCBackend}, groups::Dims{3}, items::Dims{3},
-                   args::Tuple; kwargs...)
+                   args::Tuple; localmem::Int=0, kwargs...)
     # KernelInterface has validated the launch geometry
     if haskey(kwargs, :groupsize) || haskey(kwargs, :gridsize)
         throw(ArgumentError("KernelInterface kernels take `numgroups`, `workgroupsize` or `ndrange`, not `groupsize` or `gridsize`"))
+    end
+    if localmem != 0 && haskey(kwargs, :shmem)
+        throw(ArgumentError("KernelInterface kernels take either `localmem` or `shmem`, not both"))
     end
     f = obj.kern.f
     kernel = obj.kern.kernel
@@ -144,7 +150,12 @@ function KI.launch(obj::KI.Kernel{ROCBackend}, groups::Dims{3}, items::Dims{3},
         # convert the callable again, like the arguments, which makes the arrays it captures
         # available to the stream
         kernel = typeof(kernel)(rocconvert(f, stream), kernel.fun)
-        AMDGPU.Runtime.launch_tuple(kernel, args; groupsize=items, gridsize=groups, kwargs..., stream)
+        if localmem == 0
+            AMDGPU.Runtime.launch_tuple(kernel, args; groupsize=items, gridsize=groups, kwargs..., stream)
+        else
+            AMDGPU.Runtime.launch_tuple(kernel, args; groupsize=items, gridsize=groups,
+                                        shmem=localmem, kwargs..., stream)
+        end
     end
     return
 end
@@ -153,14 +164,43 @@ end
 # `HIPFunction` that are compiled only once
 KI.max_work_group_size(kernel::KI.Kernel{ROCBackend})::Int =
     HIP.max_threads_per_block(kernel.kern.kernel.fun)
+# what a workgroup can use besides the local memory the kernel allocates statically
+KI.max_dynamic_localmemory(kernel::KI.Kernel{ROCBackend})::Int =
+    HIP.max_dynamic_shmem(kernel.kern.kernel.fun)
+# `localmem` is the bytes of dynamic shared memory per workgroup, or a function of the
+# number of work-items that returns them
 KI.launch_configuration(kernel::KI.Kernel{ROCBackend}; nitems::Union{Integer,Nothing}=nothing,
-                        max_work_group_size::Integer=typemax(Int)) =
-    (; workgroupsize=launch_threads(kernel.kern.kernel.fun, nitems, max_work_group_size))
+                        max_work_group_size::Integer=typemax(Int), localmem=nothing) =
+    (; workgroupsize=launch_threads(kernel.kern.kernel.fun, nitems, max_work_group_size, localmem))
 
-@noinline function launch_threads(fun::HIP.HIPFunction, nitems, max_work_group_size)
+@noinline function launch_threads(fun::HIP.HIPFunction, nitems, max_work_group_size,
+                                  localmem=nothing)
     max_items = min(max_work_group_size, something(nitems, typemax(Int)),
                     HIP.max_threads_per_block(fun))
-    (; groupsize) = HIP.launch_configuration(fun; max_block_size=max_items)
+    localmem === nothing && return occupancy_threads(fun, max_items, 0)
+    # HIP's occupancy query takes a number of bytes. For a function of the workgroup size,
+    # start from the largest workgroup, and query again with the memory of the size HIP
+    # picks until it picks the size it was asked about. Sizes whose memory doesn't fit are
+    # halved. KernelInterface validates `localmem` after this, for the size returned here,
+    # so memory that is invalid (or doesn't fit with a single work-item) isn't an error yet.
+    limit = HIP.max_dynamic_shmem(fun)
+    items = Int(max_items)
+    while true
+        bytes = localmem isa Integer ? localmem : localmem(items)
+        if bytes isa Integer && 0 <= bytes <= limit
+            best = max(occupancy_threads(fun, items, Int(bytes)), 1)
+            (localmem isa Integer || best >= items) && return min(best, items)
+            items = best
+        elseif localmem isa Integer || items <= 1
+            return items
+        else
+            items ÷= 2
+        end
+    end
+end
+
+function occupancy_threads(fun::HIP.HIPFunction, max_items::Integer, shmem::Integer)
+    (; groupsize) = HIP.launch_configuration(fun; shmem, max_block_size=max_items)
     return Int(min(groupsize, max_items))
 end
 # queried on every launch, so use the limits cached in the device
@@ -273,6 +313,16 @@ end
     ptr = Device.alloc_special(Val(:localmemory), T, Val(AMDGPU.AS.Local), Val(prod(Dims)))
     AMDGPU.ROCDeviceArray(Dims, ptr)
 end
+
+# the block of a work-group is the dynamic shared memory of the workgroup. every call uses
+# the same global, see `Device.dynamic_local_pointer`
+@device_override Base.@propagate_inbounds function KI.dynamic_localmemory(
+        ::Type{T}, dims::Dims{N}, offset::Int) where {T, N}
+    KI.check_dynamic_localmemory(T, dims, offset)
+    AMDGPU.ROCDeviceArray(dims, Device.dynamic_local_pointer(T) + offset)
+end
+
+@device_override @inline KI.dynamic_localmemory_size() = Device.dynamic_local_size()
 
 ## synchronization and printing
 

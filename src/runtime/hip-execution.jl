@@ -38,7 +38,7 @@ function call_arguments(@nospecialize(F), @nospecialize(TT), nargs::Int)
     params = Any[F, TT.parameters...]   # Base.signature_type with a function type
     exprs = Any[:(kernel.f); Any[:(args[$i]) for i in 1:nargs]]
     call_t = Type[AMDGPU.KernelState]
-    call_args = Any[:(AMDGPU.KernelState(stream.device, kernel.fun))]
+    call_args = Any[:(AMDGPU.KernelState(stream.device, kernel.fun, shmem))]
     for (dt, ex) in zip(params, exprs)
         # filter out ghost arguments that shouldn't be passed
         (GPUCompiler.isghosttype(dt) || Core.Compiler.isconstType(dt)) && continue
@@ -48,13 +48,14 @@ function call_arguments(@nospecialize(F), @nospecialize(TT), nargs::Int)
     return Base.to_tuple_type(call_t), call_args
 end
 
+# `shmem` is also passed to the kernel in its state, see `Device.dynamic_local_size`
 @inline @generated function call(
     kernel::HIPKernel{F, TT}, args::Tuple;
-    stream::HIP.HIPStream, call_kwargs...,
+    stream::HIP.HIPStream, shmem::Integer = 0, call_kwargs...,
 ) where {F, TT}
     call_tt, call_args = call_arguments(F, TT, fieldcount(args))
     quote
-        roccall_tuple(kernel.fun, $call_tt, ($(call_args...),); stream, call_kwargs...)
+        roccall_tuple(kernel.fun, $call_tt, ($(call_args...),); stream, shmem, call_kwargs...)
     end
 end
 
