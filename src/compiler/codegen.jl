@@ -422,9 +422,7 @@ function find_global_hostcalls(mod::LLVM.Module)
 end
 
 function hipcompile(@nospecialize(job::CompilerJob))
-    # GPUCompiler only validates the arguments after inferring the kernel, which can take
-    # forever when it got e.g. a `ROCArray` that wasn't converted (in a struct without
-    # `Adapt.@adapt_structure`), as that infers the host implementation of each operation
+    # check the arguments before GPUCompiler infers the kernel (slow with unconverted ones)
     job.config.validate && GPUCompiler.check_invocation(job)
 
     # the IR in `meta` is ours: inspect it in here, and dispose of it so that it does not leak
