@@ -78,7 +78,7 @@ function throw_if_exception(dev::HIPDevice)
                           Int.(info.workgroup), Int.(info.workitem)))
 end
 
-function KernelState(dev::HIPDevice, fun::HIP.HIPFunction)
+function KernelState(dev::HIPDevice, fun::HIP.HIPFunction, shmem::Integer = 0)
     global_hostcalls = fun.global_hostcalls
     malloc_ptr = :malloc_hostcall in global_hostcalls ?
         Compiler.create_malloc_hostcall!() : C_NULL
@@ -89,5 +89,6 @@ function KernelState(dev::HIPDevice, fun::HIP.HIPFunction)
     printf_ptr = :printf_hostcall in global_hostcalls ?
         Compiler.create_printf_output_context!() : C_NULL
 
-    return KernelState(exception_info(dev), fun.handle, malloc_ptr, free_ptr, print_ptr, printf_ptr)
+    return KernelState(exception_info(dev), fun.handle, malloc_ptr, free_ptr, print_ptr, printf_ptr,
+                       Int(shmem))
 end

@@ -29,4 +29,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 AMDGPU = {path = ".."}
+KernelAbstractions = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "ccr-c54f0813-yayzye"}
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "ccr-c54f0813-yayzye", subdir = "lib/KernelInterface"}
 ROCm_Runtime_Discovery = {path = "../ROCm_Runtime_Discovery"}
