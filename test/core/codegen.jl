@@ -46,6 +46,39 @@ end
     @test count("fence syncscope(\"workgroup\") seq_cst", String(take!(iob))) == 2
 end
 
+@testset "Barriers with memory fence flags" begin
+    import KernelInterface as KI
+
+    function barrier_ker(a, flags)
+        @inbounds a[1] = 1f0
+        KI.barrier(flags)
+        return
+    end
+    local_ker(a) = barrier_ker(a, KI.LOCAL_MEM_FENCE)
+    global_ker(a) = barrier_ker(a, KI.GLOBAL_MEM_FENCE)
+    both_ker(a) = barrier_ker(a, KI.LOCAL_MEM_FENCE | KI.GLOBAL_MEM_FENCE)
+    tt = Tuple{AMDGPU.Device.ROCDeviceVector{Float32, AMDGPU.Device.AS.Global}}
+
+    # a single flag narrows the fences to that memory, with an annotation
+    for (ker, as) in ((local_ker, "local"), (global_ker, "global"))
+        ir = compile_offline(ker, tt, :llvm)
+        @test occursin(r"fence syncscope\(\"workgroup\"\) release, .*!mmra", ir)
+        @test occursin(r"fence syncscope\(\"workgroup\"\) acquire, .*!mmra", ir)
+        @test occursin("!{!\"amdgpu-as\", !\"$as\"}", ir)
+        @test occursin("!{!\"amdgpu-synchronize-as\", !\"$as\"}", ir)
+    end
+    ir = compile_offline(both_ker, tt, :llvm)
+    @test count("fence syncscope(\"workgroup\") seq_cst", ir) == 2
+    @test !occursin("!mmra", ir)
+
+    # on RDNA, a barrier that only orders local memory doesn't wait for the global store
+    for dev_isa in ("gfx1030", "gfx1100")
+        @test !occursin("s_waitcnt_vscnt", compile_offline(local_ker, tt, :asm; dev_isa))
+        @test occursin("s_waitcnt_vscnt", compile_offline(global_ker, tt, :asm; dev_isa))
+        @test occursin("s_waitcnt_vscnt", compile_offline(both_ker, tt, :asm; dev_isa))
+    end
+end
+
 @testset "Synchronization scopes" begin
     # UnsafeAtomics' `device` scope has to reach LLVM as AMDGPU's `agent`
     function atomic_add_ker!(x)

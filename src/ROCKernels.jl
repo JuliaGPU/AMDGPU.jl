@@ -280,6 +280,18 @@ end
     Device.sync_workgroup()
 end
 
+# a barrier that only has to order one kind of memory uses narrower fences. KernelInterface's
+# flags are a minimum, so the other combinations order both.
+@device_override @inline function KI.barrier(flags::KI.MemFenceFlags)
+    if flags.bits == KI.LOCAL_MEM_FENCE.bits
+        Device.sync_workgroup(Val(:local))
+    elseif flags.bits == KI.GLOBAL_MEM_FENCE.bits
+        Device.sync_workgroup(Val(:global))
+    else
+        Device.sync_workgroup()
+    end
+end
+
 @device_override @inline function KI.sub_group_barrier()
     Device.sync_wavefront()
 end
