@@ -77,7 +77,18 @@ For device memory, the latter throws an error.
 Unified memory is fine-grained, like host memory: the CPU and a running kernel can access
 it at the same time. Some hardware atomic instructions don't work on such memory, so
 kernels that are launched with arrays backed by it use slower atomics
-(see [Kernel Programming](@ref)).
+(see [Kernel Programming](@ref)). If the CPU only accesses an array between kernels, its
+memory can be made coarse-grained like device memory, which avoids that:
+
+```julia
+hist = ROCArray{Float32, 1, AMDGPU.Mem.UnifiedBuffer}(undef, 32)
+AMDGPU.coarse_grained!(hist)
+```
+
+```@docs
+AMDGPU.coarse_grained!
+AMDGPU.is_coarse_grained
+```
 
 !!! note
     Each access from the CPU waits for the GPU and may migrate pages, so loops over

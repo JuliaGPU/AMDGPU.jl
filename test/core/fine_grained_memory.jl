@@ -1,6 +1,6 @@
 using Test
 using AMDGPU
-using AMDGPU: Mem, rocconvert
+using AMDGPU: HIP, Mem, rocconvert
 using AMDGPU.Compiler: hipfunction
 using LinearAlgebra
 import Adapt
@@ -123,6 +123,79 @@ end
                 @test all(==(T(32)), Array(hist))
             end
         end
+    end
+
+    @testset "coarse-grained unified memory" begin
+        U = Mem.UnifiedBuffer
+        tt = Tuple{typeof(rocconvert(device))}
+        default = hipfunction(atomic_add!, tt)
+        safe = hipfunction(atomic_add!, tt; atomic_memory_assumptions=false)
+
+        x = ROCArray{Float32, 1, U}(undef, 32)
+        @test fine(x) && !AMDGPU.is_coarse_grained(x)
+        @test (@roc launch=false atomic_add!(x)).fun === safe.fun
+
+        @test AMDGPU.coarse_grained!(x) === x
+        @test !fine(x) && AMDGPU.is_coarse_grained(x)
+        @test !fine((1, view(x, 2:3))) && !fine(reshape(x, 4, 8))
+        @test (@roc launch=false atomic_add!(x)).fun === default.fun
+        # still accessible from the host, and atomics work
+        for T in (Int32, Float32, Float64)
+            hist = AMDGPU.coarse_grained!(ROCArray{T, 1, U}(zeros(T, 32)))
+            @roc groupsize=256 gridsize=4 atomic_add!(hist)
+            @test hist[1] == 32
+            @test all(==(T(32)), Array(hist))
+            hist[2] = 0
+            ka_atomic_add!(ROCBackend())(hist; ndrange=1024)
+            @test hist[2] == 32
+        end
+
+        # and back, which the views of the memory follow
+        v = view(x, 2:3)
+        AMDGPU.coarse_grained!(x, false)
+        @test fine(x) && fine(v)
+        AMDGPU.coarse_grained!(v)
+        @test !fine(x)
+
+        # `Mem.advise` keeps track of it, for all of the buffer
+        buf = x.buf[].mem
+        Mem.advise(buf, HIP.hipMemAdviseUnsetCoarseGrain)
+        @test fine(x)
+        Mem.advise(buf, HIP.hipMemAdviseSetCoarseGrain, sizeof(buf) ÷ 2)
+        @test fine(x)
+        Mem.advise(buf, HIP.hipMemAdviseSetCoarseGrain)
+        @test !fine(x)
+        Mem.advise(buf, HIP.hipMemAdviseSetReadMostly)
+        @test !fine(x)
+
+        # at allocation
+        buf = Mem.UnifiedBuffer(1024; coarse_grained=true)
+        @test !Mem.is_fine_grained(buf)
+        @test !Mem.is_fine_grained(Mem.view(buf, 512))
+        Mem.free(buf)
+        @test Mem.is_fine_grained(Mem.UnifiedBuffer(0))
+        @test !fine(AMDGPU.coarse_grained!(ROCArray{Float32, 1, U}(undef, 0)))
+
+        # other memory is what it is
+        @test AMDGPU.is_coarse_grained(device) && !AMDGPU.is_coarse_grained(host)
+        @test_throws ArgumentError AMDGPU.coarse_grained!(device)
+        @test_throws ArgumentError AMDGPU.coarse_grained!(host, false)
+        # wrappers of the same memory find out how it is when wrapping it
+        w = unsafe_wrap(ROCArray, pointer(x), size(x))
+        @test !fine(w)
+        @test (@roc launch=false atomic_add!(w)).fun === default.fun
+        AMDGPU.coarse_grained!(x, false)
+        @test fine(unsafe_wrap(ROCArray, pointer(x), size(x)))
+        # and for the part that is wrapped
+        page = 4096
+        big = ROCArray{UInt8, 1, U}(undef, 4page)
+        Mem.advise(big.buf[].mem, HIP.hipMemAdviseSetCoarseGrain, 2page)
+        @test fine(big)
+        @test !fine(unsafe_wrap(ROCArray, pointer(big), 2page))
+        @test fine(unsafe_wrap(ROCArray, pointer(big), 3page))
+        @test fine(unsafe_wrap(ROCArray, pointer(big, 2page + 1), 2page))
+        @test !Mem.is_fine_grained(Ptr{Cvoid}(pointer(big)), page)
+        @test Mem.is_fine_grained(C_NULL, 0)
     end
 
     @testset "KernelAbstractions" begin

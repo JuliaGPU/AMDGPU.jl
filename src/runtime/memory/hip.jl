@@ -228,9 +228,14 @@ end
 Unified (managed) memory, allocated by `hipMallocManaged`: a single address that is valid
 on both the host and the device, with the pages migrating to where they are accessed.
 
-Like host memory it is fine-grained (see `is_fine_grained`), so kernels that are
-launched with arrays in unified memory don't assume that their atomics can use the
+Like host memory it is fine-grained by default (see `is_fine_grained`), so kernels that
+are launched with arrays in unified memory don't assume that their atomics can use the
 hardware instructions for coarse-grained memory.
+
+    UnifiedBuffer(bytesize; coarse_grained=false)
+
+Allocate `bytesize` bytes of unified memory, optionally making it coarse-grained like
+device memory (see [`AMDGPU.coarse_grained!`](@ref)).
 """
 struct UnifiedBuffer <: AbstractAMDBuffer
     device::HIPDevice
@@ -238,7 +243,14 @@ struct UnifiedBuffer <: AbstractAMDBuffer
     ptr::Ptr{Cvoid}
     bytesize::Int
     own::Bool
+    # whether the memory was made coarse-grained (`hipMemAdviseSetCoarseGrain`), which
+    # `advise` keeps track of. shared with the views of the buffer. asking HIP instead
+    # takes long enough to notice when launching kernels.
+    coarse_grained::Base.RefValue{Bool}
 end
+
+UnifiedBuffer(device, ctx, ptr, bytesize, own) =
+    UnifiedBuffer(device, ctx, ptr, bytesize, own, Ref(false))
 
 function UnifiedBuffer()
     s = AMDGPU.stream()
@@ -247,10 +259,10 @@ end
 
 function UnifiedBuffer(
     bytesize::Integer, flags = HIP.hipMemAttachGlobal;
-    stream::HIP.HIPStream = AMDGPU.stream(),
+    stream::HIP.HIPStream = AMDGPU.stream(), coarse_grained::Bool = false,
 )
     dev, ctx = stream.device, stream.ctx
-    bytesize == 0 && return UnifiedBuffer(dev, ctx, C_NULL, 0, true)
+    bytesize == 0 && return UnifiedBuffer(dev, ctx, C_NULL, 0, true, Ref(coarse_grained))
 
     # NOTE: unlike allocations from the memory pool of the device, these can't be part of a
     #       graph: HIP fails them while capturing, which invalidates the capture.
@@ -272,13 +284,16 @@ function UnifiedBuffer(
     end
 
     AMDGPU.account!(AMDGPU.host_stats(), bytesize)
-    UnifiedBuffer(dev, ctx, ptr, Int(bytesize), true)
+    buf = UnifiedBuffer(dev, ctx, ptr, Int(bytesize), true)
+    coarse_grained && advise(buf, HIP.hipMemAdviseSetCoarseGrain; device=dev)
+    return buf
 end
 
-# wrap existing unified memory
+# wrap existing unified memory, which may have been made coarse-grained
 function UnifiedBuffer(ptr::Ptr{Cvoid}, bytesize::Integer; own::Bool = false)
     s = AMDGPU.stream()
-    UnifiedBuffer(s.device, s.ctx, ptr, Int(bytesize), own)
+    UnifiedBuffer(s.device, s.ctx, ptr, Int(bytesize), own,
+                  Ref(!is_fine_grained(ptr, bytesize)))
 end
 
 Base.sizeof(b::UnifiedBuffer) = UInt64(b.bytesize)
@@ -291,7 +306,8 @@ Base.convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where T = convert(Ptr{T}, buf.p
 
 function view(buf::UnifiedBuffer, bytesize::Int)
     bytesize > buf.bytesize && throw(BoundsError(buf, bytesize))
-    UnifiedBuffer(buf.device, buf.ctx, buf.ptr + bytesize, buf.bytesize - bytesize, buf.own)
+    UnifiedBuffer(buf.device, buf.ctx, buf.ptr + bytesize, buf.bytesize - bytesize, buf.own,
+                  buf.coarse_grained)
 end
 
 function free(buf::UnifiedBuffer; kwargs...)
@@ -325,14 +341,24 @@ end
 Advise the runtime about the usage pattern of the first `bytes` of unified memory, e.g.
 `HIP.hipMemAdviseSetReadMostly` or `HIP.hipMemAdviseSetPreferredLocation`. `device` is the
 device the advice applies to, or `nothing` for the host.
+
+`HIP.hipMemAdviseSetCoarseGrain` and `HIP.hipMemAdviseUnsetCoarseGrain` change whether the
+memory is fine-grained (see [`AMDGPU.coarse_grained!`](@ref)), which is kept track of.
 """
 function advise(
     buf::UnifiedBuffer, advice::HIP.hipMemoryAdvise, bytes::Integer = sizeof(buf);
     device::Union{HIPDevice, Nothing} = AMDGPU.device(),
 )
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
-    (bytes == 0 || buf.ptr == C_NULL) && return
-    HIP.hipMemAdvise(buf, bytes, advice, device_ordinal(device))
+    if bytes != 0 && buf.ptr != C_NULL
+        HIP.hipMemAdvise(buf, bytes, advice, device_ordinal(device))
+    end
+    # the buffer only counts as coarse-grained when all of it is
+    if advice == HIP.hipMemAdviseSetCoarseGrain
+        bytes == sizeof(buf) && (buf.coarse_grained[] = true)
+    elseif advice == HIP.hipMemAdviseUnsetCoarseGrain
+        buf.coarse_grained[] = false
+    end
     return
 end
 
@@ -357,10 +383,30 @@ end
 
 Whether memory of type `B` is fine-grained: memory that the host and a running kernel can
 access coherently, on which the hardware instructions for some atomic operations have no
-effect. Host and unified memory are; memory from the pool of a device is coarse-grained.
+effect. Host and unified memory are (unified memory unless it was made coarse-grained,
+which `is_fine_grained(buf)` takes into account); memory from the pool of a device is
+coarse-grained.
 """
 is_fine_grained(::Type{<:AbstractAMDBuffer}) = true
 is_fine_grained(::Type{HIPBuffer}) = false
+
+# unified memory can be made coarse-grained
+is_fine_grained(buf::AbstractAMDBuffer) = is_fine_grained(typeof(buf))
+is_fine_grained(buf::UnifiedBuffer) = !buf.coarse_grained[]
+
+"""
+    is_fine_grained(ptr::Ptr, bytes::Integer) -> Bool
+
+Whether any of the `bytes` of memory at `ptr` are fine-grained, as reported by HIP.
+"""
+function is_fine_grained(ptr::Ptr, bytes::Integer)
+    (ptr == C_NULL || bytes == 0) && return true
+    mode = Ref{HIP.hipMemRangeCoherencyMode}(HIP.hipMemRangeCoherencyModeFineGrain)
+    HIP.hipMemRangeGetAttribute(mode, sizeof(HIP.hipMemRangeCoherencyMode),
+                                HIP.hipMemRangeAttributeCoherencyMode, ptr, bytes)
+    # a range that is partly coarse-grained is reported as indeterminate
+    return mode[] != HIP.hipMemRangeCoherencyModeCoarseGrain
+end
 
 function get_device_ptr(ptr::Ptr{Cvoid})
     ptr == C_NULL && return C_NULL

@@ -965,13 +965,63 @@ Adapt.adapt_storage(::Runtime.Adaptor, xs::Array) =
     AMDGPU.uses_fine_grained_memory(x) -> Bool
 
 Whether `x` is, wraps or holds (in a field, or a variable that a closure captures) a
-`ROCArray` backed by fine-grained memory: unified memory, or host memory such as
-`unsafe_wrap` gives.
+`ROCArray` backed by fine-grained memory: host memory such as `unsafe_wrap` gives, or
+unified memory that wasn't made coarse-grained with [`AMDGPU.coarse_grained!`](@ref).
 Kernels that use such arrays are compiled without the `atomic_memory_assumptions`.
 
 Only immutable structs, tuples and `Ref`s are searched, like when converting kernel arguments.
 """
 @inline uses_fine_grained_memory(::ROCArray{<:Any, <:Any, B}) where {B} = Mem.is_fine_grained(B)
+uses_fine_grained_memory(x::ROCArray{<:Any, <:Any, Mem.UnifiedBuffer}) =
+    Mem.is_fine_grained(x.buf[].mem)
+
+"""
+    AMDGPU.coarse_grained!(A::ROCArray, enable::Bool=true) -> A
+
+Make the unified memory of `A` coarse-grained, like device memory, or fine-grained again
+(`enable=false`), which is how it is allocated.
+
+The CPU and a running kernel can access fine-grained memory at the same time, but some
+hardware atomic instructions have no effect on it, so that kernels launched with arrays
+in such memory use slower atomics (see `atomic_memory_assumptions` in
+[`AMDGPU.Compiler.hipfunction`](@ref)). Kernels launched with coarse-grained memory use
+the same atomics as for device memory. In return, what a kernel writes to it is only
+guaranteed to be visible to the CPU once the kernel has finished, and the other way
+around, which accessing the array from the CPU waits for anyway.
+
+This waits for the operations that use `A`, and affects all arrays that refer to the same
+memory (e.g. views and reshapes). See also [`AMDGPU.is_coarse_grained`](@ref).
+
+!!! warning
+
+    Arrays that `unsafe_wrap` wraps around the memory find out how it is at that time, but
+    not about later changes, nor does `A` about changes made through them. Change it
+    before wrapping the memory, or for each of the arrays.
+
+```julia
+hist = AMDGPU.coarse_grained!(ROCArray{Float32, 1, AMDGPU.Mem.UnifiedBuffer}(undef, 32))
+```
+"""
+function coarse_grained!(A::ROCArray{<:Any, <:Any, Mem.UnifiedBuffer}, enable::Bool=true)
+    managed = A.buf[]
+    Base.@lock managed.lock begin
+        managed.synchronizing && synchronize(managed)
+        mem = managed.mem
+        advice = enable ? HIP.hipMemAdviseSetCoarseGrain : HIP.hipMemAdviseUnsetCoarseGrain
+        AMDGPU.context!(() -> Mem.advise(mem, advice; device=mem.device), mem.ctx)
+    end
+    return A
+end
+coarse_grained!(A::ROCArray, enable::Bool=true) =
+    throw(ArgumentError("only unified memory can be made coarse- or fine-grained, and this array is backed by $(memory_type(A))"))
+
+"""
+    AMDGPU.is_coarse_grained(A::ROCArray) -> Bool
+
+Whether the memory of `A` is coarse-grained: device memory, or unified memory that was made
+so with [`AMDGPU.coarse_grained!`](@ref).
+"""
+is_coarse_grained(A::ROCArray) = !uses_fine_grained_memory(A)
 uses_fine_grained_memory(r::Base.RefValue) = isassigned(r) && uses_fine_grained_memory(r[])
 @generated function uses_fine_grained_memory(x::T) where {T}
     # only fields that can hold an array are looked at, and the memory type of an array is

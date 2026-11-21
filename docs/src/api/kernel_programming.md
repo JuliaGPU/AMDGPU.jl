@@ -83,9 +83,10 @@ kernel. This only looks at the arrays that are passed to the kernel: for memory 
 reaches it in another way (a raw pointer, memory of another device), or when compiling
 with `hipfunction`, pass `atomic_memory_assumptions=false` yourself, or use the system
 scope (`UnsafeAtomics.system`). Passing `atomic_memory_assumptions=true` keeps the
-assumption, e.g. for host memory that was allocated as non-coherent, or unified memory
-that was made coarse-grained with `Mem.advise`. Removing the assumption does not make
-atomics work over an interconnect that lacks support for them.
+assumption, e.g. for host memory that was allocated as non-coherent. Unified memory that
+was made coarse-grained with [`AMDGPU.coarse_grained!`](@ref) is recognized as such.
+Removing the assumption does not make atomics work over an interconnect that lacks
+support for them.
 Synchronizing with the host or another GPU also requires the system scope.
 
 ```@docs
