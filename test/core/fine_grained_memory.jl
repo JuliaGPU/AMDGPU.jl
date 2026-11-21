@@ -34,6 +34,13 @@ KA.@kernel function ka_atomic_add!(hist)
     KA.@atomic hist[j] += one(eltype(hist))
 end
 
+# measured in a function, after compiling it: `@allocated` at top level counts both on
+# Julia 1.10
+function detection_allocations(x)
+    AMDGPU.uses_fine_grained_memory(x)
+    return @allocated AMDGPU.uses_fine_grained_memory(x)
+end
+
 @testset "fine-grained memory" begin
     fine = AMDGPU.uses_fine_grained_memory
     device = ROCArray{Float32, 1, Mem.HIPBuffer}(undef, 4)
@@ -73,9 +80,9 @@ end
         @test fine(Base.Fix1(+, host))
 
         # decided at compile time for arguments without arrays, and for typed ones
-        @test (@allocated fine((1, 2f0, nothing))) == 0
-        @test (@allocated fine((device, device))) == 0
-        @test (@allocated fine((device, host))) == 0
+        @test detection_allocations((1, 2f0, nothing)) == 0
+        @test detection_allocations((device, device)) == 0
+        @test detection_allocations((device, host)) == 0
     end
 
     @testset "@roc" begin
