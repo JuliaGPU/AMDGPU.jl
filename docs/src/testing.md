@@ -100,4 +100,10 @@ For example, `[only nightly]` runs only the nightly tests, and `[skip enzyme, do
 
 The build that starts when a pull request is opened reads the tags from the pull request title, not from the commit message. Builds for later pushes read them from the pushed commit.
 
-Tags are matched anywhere in the message, so quoting one, e.g. when describing a CI change, applies it too. Squash and merge commits on `main` carry the pull request title, so a tag in the title also applies to the build on `main`. [GPUCompiler.jl](https://github.com/JuliaGPU/GPUCompiler.jl) uses the same tags.
+Tags are matched anywhere in the message, so quoting one, e.g. when describing a CI change, applies it too. Squash and merge commits on `main` carry the pull request title, and a squash commit also lists the titles of the commits it combines, so a tag in any of these also applies to the build on `main`, and to the build of a release tagged on that commit. Remove such tags from the commit message when merging. [GPUCompiler.jl](https://github.com/JuliaGPU/GPUCompiler.jl) uses the same tags.
+
+## Releasing
+
+AMDGPU.jl and its subpackages, `ROCm_Runtime` and `ROCm_Runtime_Discovery`, are registered separately with Registrator, the subpackages with `subdir=<name>`. When several are bumped together, register the subpackages first, and AMDGPU once they are in the General registry. TagBot creates the tags.
+
+AMDGPU.jl is bound to one ROCm minor release of `ROCm_Runtime`, which uses the newest ROCm release it ships. A pull request that adds a ROCm minor release therefore also raises that bound and bumps the version of AMDGPU.jl, and both packages are registered.
