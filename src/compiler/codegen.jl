@@ -422,6 +422,9 @@ function find_global_hostcalls(mod::LLVM.Module)
 end
 
 function hipcompile(@nospecialize(job::CompilerJob))
+    # check the arguments before GPUCompiler infers the kernel (slow with unconverted ones)
+    job.config.validate && GPUCompiler.check_invocation(job)
+
     # the IR in `meta` is ours: inspect it in here, and dispose of it so that it does not leak
     obj, entry, late_hostcalls, extinit_globals, relocations, exception_sites = JuliaContext() do ctx
         image, meta = GPUCompiler.compile(:obj, job)
