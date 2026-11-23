@@ -106,4 +106,4 @@ Tags are matched anywhere in the message, so quoting one, e.g. when describing a
 
 AMDGPU.jl and its subpackages, `ROCm_Runtime` and `ROCm_Runtime_Discovery`, are registered separately with Registrator, the subpackages with `subdir=<name>`. When several are bumped together, register the subpackages first, and AMDGPU once they are in the General registry. TagBot creates the tags.
 
-AMDGPU.jl is bound to one ROCm minor release of `ROCm_Runtime`, which uses the newest ROCm release it ships. A pull request that adds a ROCm minor release therefore also raises that bound and bumps the version of AMDGPU.jl, and both packages are registered.
+AMDGPU.jl is bound to one ROCm minor release of `ROCm_Runtime`, which uses the newest ROCm release it ships. A pull request that adds a ROCm minor release therefore also raises that bound and bumps the version of AMDGPU.jl, and both packages are registered. For the same reason AMDGPU.jl is bound to exactly one version of `AMDGPU_LLVM_Backend_jll`, whose version is the LLVM version: a new one is adopted by a pull request that changes that bound.

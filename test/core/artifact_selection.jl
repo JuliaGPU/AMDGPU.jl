@@ -28,3 +28,15 @@ end
     @test version in bound
     @test Base.nextminor(version) ∉ bound
 end
+
+# The version of the back-end JLL is the LLVM version it is built from, so any looser bound
+# would let a new LLVM, and the device libraries built with it, reach released versions.
+@testset "AMDGPU_LLVM_Backend_jll is pinned" begin
+    version = Base.thispatch(pkgversion(AMDGPU.AMDGPU_LLVM_Backend_jll))
+    compat = Pkg.TOML.parsefile(joinpath(pkgdir(AMDGPU), "Project.toml"))["compat"]["AMDGPU_LLVM_Backend_jll"]
+    bound = Pkg.Types.semver_spec(compat)
+    @test version in bound
+    @test Base.nextpatch(version) ∉ bound
+    # the LLVM version comes from the library, not from the version of the JLL
+    @test AMDGPU.Compiler.external_llvm_version() >= v"23"
+end
