@@ -33,4 +33,6 @@ Y = dS * B                        # SpMM
 
 rocSPARSE has no symmetric or Hermitian products, so a product with a `Symmetric` or `Hermitian` wrapper first materializes the full matrix on the device. That copy is made on every product; code that multiplies by the same wrapped matrix repeatedly should build it once with `sparse(Symmetric(dS))` and reuse the result.
 
+The first product with a CSR, CSC or COO matrix analyzes its sparsity pattern, and the matrix keeps the result, so later products with the same matrix skip that step. Assigning to a field of the matrix or calling `copyto!` on it discards the stored analyses. Code that writes new indices into the existing index arrays, such as `dS.colVal .= ...`, has to call `rocSPARSE.reset_analysis_cache!(dS)` afterwards; changing only the values in `nonzeros(dS)` needs nothing.
+
 Incomplete-factorization preconditioners (`ic0`, `ilu0`) and further sparse routines (conversions between formats, triangular solves, gather/scatter) are available in the `AMDGPU.rocSPARSE` submodule for building iterative solvers on the GPU.

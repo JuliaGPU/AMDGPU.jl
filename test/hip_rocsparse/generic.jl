@@ -116,6 +116,183 @@ end
     @test Array(dy) ≈ A * x
 end
 
+@testset "mv! reuses the analysis: $SparseMatrixType" for SparseMatrixType in (
+    ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrixCOO,
+)
+    T = Float32
+    m, n = 300, 200
+    # one row far longer than the others
+    A = sprand(T, m, n, 0.02)
+    A[7, :] .= rand(T, n)
+    dA = SparseMatrixType(A)
+    plans = dA.analysis_cache.plans
+    @test isempty(plans)
+
+    for _ in 1:3
+        x, y = rand(T, n), rand(T, m)
+        dy = ROCArray(y)
+        mv!('N', T(2), dA, ROCArray(x), T(3), dy, 'O')
+        @test Array(dy) ≈ 2 * A * x + 3 * y
+        @test length(plans) == 1
+    end
+
+    # another operation gets an analysis of its own, and both stay available
+    x, y = rand(T, m), rand(T, n)
+    dy = ROCArray(y)
+    mv!('T', T(2), dA, ROCArray(x), T(3), dy, 'O')
+    @test Array(dy) ≈ 2 * transpose(A) * x + 3 * y
+    @test length(plans) == 2
+    x = rand(T, n)
+    dy = ROCArray(zeros(T, m))
+    mv!('N', T(1), dA, ROCArray(x), T(0), dy, 'O')
+    @test Array(dy) ≈ A * x
+    @test length(plans) == 2
+
+    # the values are read at each product
+    nonzeros(dA) .*= 2
+    mv!('N', T(1), dA, ROCArray(x), T(0), dy, 'O')
+    @test Array(dy) ≈ 2 * A * x
+    @test length(plans) == 2
+
+    # a new sparsity pattern is analyzed again
+    B = A[m:-1:1, :]
+    if SparseMatrixType != ROCSparseMatrixCSC
+        copyto!(dA, SparseMatrixType(B))
+        @test isempty(plans)
+        mv!('N', T(1), dA, ROCArray(x), T(0), dy, 'O')
+        @test Array(dy) ≈ B * x
+        @test length(plans) == 1
+    end
+    B = sprand(T, m, n, 0.02)
+    B[11, :] .= rand(T, n)
+    dB = SparseMatrixType(B)
+    for name in fieldnames(SparseMatrixType)
+        name == :analysis_cache && continue
+        setproperty!(dA, name, getproperty(dB, name))
+        @test isempty(plans)
+    end
+    mv!('N', T(1), dA, ROCArray(x), T(0), dy, 'O')
+    @test Array(dy) ≈ B * x
+    @test length(plans) == 1
+
+    @test rocSPARSE.reset_analysis_cache!(dA) === dA
+    @test isempty(plans)
+    mv!('N', T(1), dA, ROCArray(x), T(0), dy, 'O')
+    @test Array(dy) ≈ B * x
+end
+
+@testset "mv! with beta = 0 ignores Y: $SparseMatrixType, transa = $transa" for SparseMatrixType in (
+        ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrixCOO,
+    ), (transa, opa) in (('N', identity), ('T', transpose))
+    T = Float32
+    m, n = 20_000, 20_000
+    # a row and a column long enough for rocSPARSE to split their sums over several threads
+    A = sprand(T, m, n, 1e-3)
+    A[7, :] .= rand(T, n)
+    A[:, 11] .= rand(T, m)
+    dA = SparseMatrixType(A)
+    x = transa == 'N' ? rand(T, n) : rand(T, m)
+    expected = opa(A) * x
+    for y in (T(NaN), T(Inf), T(1e12))
+        dy = AMDGPU.fill(y, length(expected))
+        mv!(transa, T(1), dA, ROCArray(x), T(0), dy, 'O')
+        @test Array(dy) ≈ expected
+    end
+end
+
+@testset "mm! reuses the analysis: $SparseMatrixType" for SparseMatrixType in (
+    ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrixCOO,
+)
+    T = Float32
+    m, n = 300, 200
+    # one row far longer than the others
+    A = sprand(T, m, n, 0.02)
+    A[7, :] .= rand(T, n)
+    dA = SparseMatrixType(A)
+    plans = dA.analysis_cache.plans
+
+    for _ in 1:3
+        B, C = rand(T, n, 4), rand(T, m, 4)
+        dC = ROCArray(C)
+        mm!('N', 'N', T(2), dA, ROCArray(B), T(3), dC, 'O')
+        @test Array(dC) ≈ 2 * A * B + 3 * C
+        @test length(plans) == 1
+    end
+
+    # dense matrices of another size get an analysis of their own
+    B, C = rand(T, n, 6), rand(T, m, 6)
+    dC = ROCArray(C)
+    mm!('N', 'N', T(2), dA, ROCArray(B), T(3), dC, 'O')
+    @test Array(dC) ≈ 2 * A * B + 3 * C
+    @test length(plans) == 2
+
+    # so does the product with a vector
+    x = rand(T, n)
+    dy = ROCArray(zeros(T, m))
+    mv!('N', T(1), dA, ROCArray(x), T(0), dy, 'O')
+    @test Array(dy) ≈ A * x
+    @test length(plans) == 3
+
+    # dense times sparse keeps its analysis on the sparse matrix
+    if SparseMatrixType != ROCSparseMatrixCOO
+        D, C = rand(T, 5, m), rand(T, 5, n)
+        for _ in 1:2
+            dC = ROCArray(C)
+            mm!('N', 'N', T(2), ROCArray(D), dA, T(3), dC, 'O')
+            @test Array(dC) ≈ 2 * D * A + 3 * C
+            @test length(plans) == 4
+        end
+    end
+
+    # only the analyses of the most recent sizes are kept
+    empty!(plans)
+    x, y = rand(T, n), rand(T, m)
+    for k in 1:(rocSPARSE.MAX_ANALYSIS_PLANS + 3)
+        B = rand(T, n, k)
+        dC = ROCArray(zeros(T, m, k))
+        mm!('N', 'N', T(1), dA, ROCArray(B), T(0), dC, 'O')
+        @test Array(dC) ≈ A * B
+        # a plan in use is not the one that is dropped
+        dy = ROCArray(y)
+        mv!('N', T(2), dA, ROCArray(x), T(3), dy, 'O')
+        @test Array(dy) ≈ 2 * A * x + 3 * y
+    end
+    @test length(plans) == rocSPARSE.MAX_ANALYSIS_PLANS
+    @test count(plan -> plan.key isa rocSPARSE.SpMVKey, plans) == 1
+
+    # a new sparsity pattern is analyzed again
+    B = rand(T, n, 4)
+    dC = ROCArray(zeros(T, m, 4))
+    A2 = sprand(T, m, n, 0.02)
+    dA2 = SparseMatrixType(A2)
+    for name in fieldnames(SparseMatrixType)
+        name == :analysis_cache && continue
+        setproperty!(dA, name, getproperty(dA2, name))
+    end
+    @test isempty(plans)
+    mm!('N', 'N', T(1), dA, ROCArray(B), T(0), dC, 'O')
+    @test Array(dC) ≈ A2 * B
+end
+
+@testset "mm! with beta = 0 ignores C: $SparseMatrixType, transa = $transa" for SparseMatrixType in (
+        ROCSparseMatrixCSR, ROCSparseMatrixCSC, ROCSparseMatrixCOO,
+    ), (transa, opa) in (('N', identity), ('T', transpose))
+    SparseMatrixType == ROCSparseMatrixCOO && transa != 'N' && continue
+    T = Float32
+    m, n = 2_000, 200_000
+    # a row long enough for rocSPARSE to split its sum over several threads
+    A = sprand(T, m, n, 1e-4)
+    A[7, :] .= rand(T, n)
+    dA = SparseMatrixType(A)
+    B = transa == 'N' ? rand(T, n, 3) : rand(T, m, 3)
+    expected = opa(A) * B
+    for c in (T(NaN), T(Inf), T(1e12))
+        dC = AMDGPU.fill(c, size(expected))
+        mm!(transa, 'N', T(1), dA, ROCArray(B), T(0), dC, 'O')
+        @test Array(dC) ≈ expected
+    end
+end
+
 @testset "mm algo=$algo" for algo in (
     rocSPARSE.rocsparse_spmm_alg_default,
     rocSPARSE.rocsparse_spmm_alg_csr,

@@ -23,18 +23,36 @@ function AMDGPU.unsafe_free!(xs::ROCSparseVector)
     return
 end
 
+"""
+    AnalysisCache
+
+Analyses that [`mv!`](@ref) and [`mm!`](@ref) have run on one sparse matrix, kept so that
+repeated products do not repeat the analysis. `lock` guards `plans` and the descriptors they
+hold.
+
+The analyses describe the sparsity pattern, not the values: assigning to a field of the matrix
+or calling `copyto!` on it discards them, and so does [`reset_analysis_cache!`](@ref), which
+has to be called after writing new indices into the existing index arrays.
+"""
+struct AnalysisCache
+    lock::ReentrantLock
+    plans::Vector{Any}
+end
+AnalysisCache() = AnalysisCache(ReentrantLock(), [])
+
 mutable struct ROCSparseMatrixCSC{Tv,Ti} <: GPUArrays.AbstractGPUSparseMatrixCSC{Tv,Ti}
     colPtr::ROCVector{Ti}
     rowVal::ROCVector{Ti}
     nzVal::ROCVector{Tv}
     dims::NTuple{2,Int}
     nnz::Ti
+    const analysis_cache::AnalysisCache
 
     function ROCSparseMatrixCSC{Tv,Ti}(
         colPtr::ROCVector{<:Integer}, rowVal::ROCVector{<:Integer},
         nzVal::ROCVector, dims::NTuple{2,<:Integer},
     ) where {Tv,Ti<:Integer}
-        new{Tv,Ti}(colPtr, rowVal, nzVal, dims, length(nzVal))
+        new{Tv,Ti}(colPtr, rowVal, nzVal, dims, length(nzVal), AnalysisCache())
     end
 end
 ROCSparseMatrixCSC{Tv,Ti}(x::ROCSparseMatrixCSC{Tv,Ti}) where {Tv,Ti} = x
@@ -45,6 +63,7 @@ SparseArrays.rowvals(x::ROCSparseMatrixCSC) = x.rowVal
 SparseArrays.getcolptr(x::ROCSparseMatrixCSC) = x.colPtr
 
 function AMDGPU.unsafe_free!(x::ROCSparseMatrixCSC)
+    reset_analysis_cache!(x)
     unsafe_free!(x.colPtr)
     unsafe_free!(rowvals(x))
     unsafe_free!(nonzeros(x))
@@ -67,12 +86,13 @@ mutable struct ROCSparseMatrixCSR{Tv,Ti} <: GPUArrays.AbstractGPUSparseMatrixCSR
     nzVal::ROCVector{Tv}
     dims::NTuple{2,Int}
     nnz::Ti
+    const analysis_cache::AnalysisCache
 
     function ROCSparseMatrixCSR{Tv,Ti}(
         rowPtr::ROCVector{<:Integer}, colVal::ROCVector{<:Integer},
         nzVal::ROCVector, dims::NTuple{2,<:Integer},
     ) where {Tv,Ti<:Integer}
-        new{Tv,Ti}(rowPtr, colVal, nzVal, dims, length(nzVal))
+        new{Tv,Ti}(rowPtr, colVal, nzVal, dims, length(nzVal), AnalysisCache())
     end
 end
 
@@ -80,6 +100,7 @@ ROCSparseMatrixCSR{Tv,Ti}(x::ROCSparseMatrixCSR{Tv,Ti}) where {Tv,Ti} = x
 ROCSparseMatrixCSR(x::ROCSparseMatrixCSR) = x
 
 function AMDGPU.unsafe_free!(xs::ROCSparseMatrixCSR)
+    reset_analysis_cache!(xs)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
     unsafe_free!(nonzeros(xs))
@@ -150,13 +171,14 @@ mutable struct ROCSparseMatrixCOO{Tv,Ti} <: AbstractROCSparseMatrix{Tv,Ti}
     nzVal::ROCVector{Tv}
     dims::NTuple{2,Int}
     nnz::Ti
+    const analysis_cache::AnalysisCache
 
     function ROCSparseMatrixCOO{Tv,Ti}(
         rowInd::ROCVector{<:Integer}, colInd::ROCVector{<:Integer},
         nzVal::ROCVector, dims::NTuple{2,<:Integer}=(dimlub(rowInd), dimlub(colInd)),
         nnz::Integer=length(nzVal),
     ) where {Tv,Ti}
-        new{Tv,Ti}(rowInd, colInd, nzVal, dims, nnz)
+        new{Tv,Ti}(rowInd, colInd, nzVal, dims, nnz, AnalysisCache())
     end
 end
 
@@ -173,6 +195,28 @@ const ROCSparseMatrix{Tv,Ti} = Union{
     ROCSparseMatrixCOO{Tv,Ti}}
 
 const ROCSparseVecOrMat = Union{ROCSparseVector,ROCSparseMatrix}
+
+const AnalyzedMatrix = Union{ROCSparseMatrixCSC,ROCSparseMatrixCSR,ROCSparseMatrixCOO}
+
+"""
+    reset_analysis_cache!(A)
+
+Discard the analyses that [`mv!`](@ref) and [`mm!`](@ref) keep for the sparse matrix `A`, so
+that the next product analyzes its sparsity pattern again.
+
+Assigning to a field of `A` and `copyto!(A, B)` do this already. Call it after changing the
+sparsity pattern in any other way, such as writing into `A.rowPtr` in place.
+"""
+function reset_analysis_cache!(A::AnalyzedMatrix)
+    cache = A.analysis_cache
+    @lock cache.lock empty!(cache.plans)
+    return A
+end
+
+function Base.setproperty!(A::AnalyzedMatrix, name::Symbol, value)
+    reset_analysis_cache!(A)
+    return setfield!(A, name, convert(fieldtype(typeof(A), name), value))
+end
 
 # NOTE: we use Cint as default Ti on ROCm instead of Int to provide
 # maximum compatibility to old ROCSparse APIs
@@ -468,6 +512,7 @@ function Base.copyto!(dst::ROCSparseMatrixCSR, src::ROCSparseMatrixCSR)
     if size(dst) != size(src)
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
+    reset_analysis_cache!(dst)
     copyto!(dst.rowPtr, src.rowPtr)
     copyto!(dst.colVal, src.colVal)
     copyto!(nonzeros(dst), nonzeros(src))
@@ -491,6 +536,7 @@ function Base.copyto!(dst::ROCSparseMatrixCOO, src::ROCSparseMatrixCOO)
     if size(dst) != size(src)
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
+    reset_analysis_cache!(dst)
     copyto!(dst.rowInd, src.rowInd)
     copyto!(dst.colInd, src.colInd)
     copyto!(nonzeros(dst), nonzeros(src))
