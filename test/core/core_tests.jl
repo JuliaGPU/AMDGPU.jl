@@ -20,6 +20,25 @@ end
     @test isempty(AMDGPU.ROCm_Runtime.foreign_libraries())
 end
 
+@testset "versioninfo path shortening" begin
+    depot = first(Base.DEPOT_PATH)
+    hash = "0123456789abcdef0123456789abcdef01234567"
+    @test AMDGPU._shortpath(joinpath(depot, "artifacts", hash, "lib", "libfoo.so")) ==
+        "@artifacts/01234567…/lib/libfoo.so"
+    @test AMDGPU._shortpath(joinpath(depot, "artifacts", hash)) == "@artifacts/01234567…"
+    uuid = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+    @test AMDGPU._shortpath(joinpath(depot, "scratchspaces", uuid, "device_libs")) ==
+        "@scratchspaces/21141c5a…/device_libs"
+    outside = joinpath(depot, "packages", "Foo", "lib", "libfoo.so")
+    @test AMDGPU._shortpath(outside) == outside
+    @test AMDGPU._shortpath("/opt/rocm/lib/libamdhip64.so") == "/opt/rocm/lib/libamdhip64.so"
+
+    out = sprint(AMDGPU.versioninfo)
+    @test occursin("- ROCm_Runtime: ", out)
+    @test occursin("- ROCm_Runtime_Discovery: ", out)
+    @test AMDGPU.local_rocm || occursin(r"Artifact platform tags: rocm = \S+, rocm_arch = \S+", out)
+end
+
 @testset "versioninfo `_ver` crash guard" begin
     # A library whose version query throws on a broken/mismatched install
     # (e.g. a missing symbol in an ABI-mismatched .so) must not take down
