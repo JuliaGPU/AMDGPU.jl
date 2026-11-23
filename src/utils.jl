@@ -12,6 +12,21 @@ end
 _ver(lib::Symbol, ver_fn, errors::Vector{Pair{Symbol, String}}) = _ver(
     functional(lib), ver_fn; on_error = e -> push!(errors, lib => sprint(showerror, e)))
 
+# Abbreviate a path inside a depot's artifact or scratchspace store to
+# `@artifacts/12345678…/lib/libfoo.so`: the depot location and the full
+# hash/UUID only widen the table. Other paths are returned unchanged.
+function _shortpath(path::AbstractString)
+    for depot in Base.DEPOT_PATH, store in ("artifacts", "scratchspaces")
+        prefix = joinpath(depot, store, "")
+        startswith(path, prefix) || continue
+        parts = splitpath(path[nextind(path, lastindex(prefix)):end])
+        isempty(parts) && continue
+        length(parts[1]) > 8 && (parts[1] = first(parts[1], 8) * "…")
+        return join(("@" * store, parts...), '/')
+    end
+    return String(path)
+end
+
 """
     versioninfo(io::IO=stdout)
 
@@ -23,8 +38,14 @@ function versioninfo(io::IO=stdout)
     println(io, "AMDGPU versioninfo")
     println(io, "ROCm provider: ", local_rocm ?
         "local ROCm installation" : "downloaded artifacts")
+    if !local_rocm
+        # the tags the ROCm_Runtime artifact is selected with
+        platform = ROCm_Runtime.augment_platform!(Base.BinaryPlatforms.HostPlatform())
+        println(io, "Artifact platform tags: rocm = ", platform["rocm"],
+            ", rocm_arch = ", platform["rocm_arch"])
+    end
     _status(st::Bool) = st ? "+" : "-"
-    _libpath(p::String) = isempty(p) ? "-" : p
+    _libpath(p::String) = isempty(p) ? "-" : _shortpath(p)
 
     errs = Pair{Symbol, String}[]
 
@@ -89,10 +110,13 @@ function versioninfo(io::IO=stdout)
     println(io, "- AMDGPU.jl: $(Base.pkgversion(AMDGPU))")
     for pkg in [:GPUArrays, :GPUCompiler, :KernelInterface,
                  ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
-                 :LLVM, :AMDGPU_LLVM_Backend_jll, :LLVMDowngrader_jll]
+                 :LLVM, :AMDGPU_LLVM_Backend_jll, :LLVMDowngrader_jll, :ROCm_Runtime]
         name, mod = get_module(pkg)
         isnothing(mod) || println(io, "- $(name): $(Base.pkgversion(mod))")
     end
+    # only loaded when a local ROCm installation is used
+    println(io, "- ROCm_Runtime_Discovery: ", local_rocm ?
+        Base.pkgversion(ROCm_Runtime_Discovery) : "not loaded")
     println(io)
 
     println(io, "Toolchain:")
