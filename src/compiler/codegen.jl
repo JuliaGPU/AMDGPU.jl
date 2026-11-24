@@ -190,11 +190,19 @@ function annotate_atomics!(mod::LLVM.Module, job::HIPCompilerJob)
     end
 end
 
+# LLVM version of the external back-end, as `libamdgpu` reports it. Asking the library
+# keeps this independent of how AMDGPU_LLVM_Backend_jll is versioned.
+function external_llvm_version()
+    major, minor, patch = Ref{Cuint}(), Ref{Cuint}(), Ref{Cuint}()
+    @ccall libamdgpu.AMDGPUGetLLVMVersion(major::Ref{Cuint}, minor::Ref{Cuint},
+                                          patch::Ref{Cuint})::Cvoid
+    return VersionNumber(major[], minor[], patch[])
+end
+
 # LLVM 24 renamed the metadata (llvm/llvm-project#217585) and only upgrades the old name
 # when reading IR, which the in-process back-end doesn't do.
 function denormal_metadata_name(target::GCNCompilerTarget)
-    llvm = target.backend === :external ? pkgversion(AMDGPU_LLVM_Backend_jll) :
-                                          Base.libllvm_version
+    llvm = target.backend === :external ? external_llvm_version() : Base.libllvm_version
     llvm >= v"24" ? "atomic.ignore.denormal.mode" : "amdgpu.ignore.denormal.mode"
 end
 
