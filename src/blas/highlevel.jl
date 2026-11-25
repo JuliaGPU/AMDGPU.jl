@@ -1,97 +1,5 @@
 rocblas_size(t::Char, M::ROCVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
 
-@static if VERSION ≥ v"1.12.0-rc"
-    # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
-    using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
-end
-
-#
-# BLAS 1
-#
-
-LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASFloat}, k::Number) =
-  scal!(length(x), convert(eltype(x), k), x, 1)
-
-LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASComplex}, k::Real) =
-  scal!(length(x), convert(real(eltype(x)), k), x, 1)
-
-LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASComplex}, k::Number) =
-  scal!(length(x), convert(eltype(x), k), x, 1)
-
-# Work around ambiguity with GPUArrays wrapper
-LinearAlgebra.rmul!(x::ROCArray{<:ROCBLASFloat}, k::Real) =
-  invoke(rmul!, Tuple{typeof(x), Number}, x, k)
-
-function LinearAlgebra.dot(
-    DX::StridedROCArray{T}, DY::StridedROCArray{T},
-) where T <: Union{Float16, Float32, Float64}
-    n = length(DX)
-    n == length(DY) || throw(DimensionMismatch(
-        "dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dot(n, DX, stride(DX, 1), DY, stride(DY, 1))
-end
-
-function LinearAlgebra.dot(
-    DX::StridedROCArray{T}, DY::StridedROCArray{T},
-) where T <: ROCBLASComplex
-    n = length(DX)
-    n == length(DY) || throw(DimensionMismatch(
-        "dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotc(n, DX, stride(DX, 1), DY, stride(DY, 1))
-end
-
-function LinearAlgebra.:(*)(
-    transx::Transpose{<:Any, <:StridedROCVector{T}}, y::StridedROCVector{T},
-) where T <: Union{ComplexF16, ROCBLASComplex}
-    x = transx.parent
-    n = length(x)
-    n == length(y) || throw(DimensionMismatch(
-        "dot product arguments have lengths $(length(x)) and $(length(y))"))
-    dotu(n, x, stride(x, 1), y, stride(y, 1))
-end
-
-LinearAlgebra.norm(x::Diagonal{T, <:StridedROCVector{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, ROCBLASFloat}} = norm(x.diag, p)
-LinearAlgebra.norm(x::ROCArray{T}) where T <: ROCBLASFloat = nrm2(length(x), x, stride(x, 1))
-LinearAlgebra.BLAS.asum(x::ROCArray{T}) where T <: ROCBLASFloat = asum(length(x), x, stride(x, 1))
-
-function LinearAlgebra.axpy!(
-    alpha::Number, x::ROCArray{T}, y::ROCArray{T},
-) where T <: ROCBLASFloatWithHalf
-    length(x) == length(y) || throw(DimensionMismatch(""))
-    axpy!(length(x), convert(T,alpha), x, 1, y, 1)
-end
-
-function LinearAlgebra.axpby!(
-    alpha::Number, x::ROCArray{T}, beta::Number, y::ROCArray{T},
-) where T <: Union{ROCBLASFloat, ROCBLASComplex}
-    lx, ly = length(x), length(y)
-    lx == ly || throw(DimensionMismatch(""))
-    beta = isa(beta, Real) ? convert(real(T), beta) : convert(T, beta)
-    scal!(ly, beta, y, 1)
-    axpy!(lx, convert(T,alpha), x, 1, y, 1)
-end
-
-function LinearAlgebra.rotate!(
-    x::ROCArray{T}, y::ROCArray{T}, c::Number, s::Number,
-) where T <: Union{ROCBLASFloat, ROCBLASComplex}
-    lx, ly = length(x), length(y)
-    lx == ly || throw(DimensionMismatch(
-        "rotate arguments have lengths $lx and $ly"))
-    rot!(lx, x, 1, y, 1, c, s)
-    x, y
-end
-
-function LinearAlgebra.reflect!(
-    x::ROCArray{T}, y::ROCArray{T}, c::Number, s::Number,
-) where T <: Union{ROCBLASFloat, ROCBLASComplex}
-    lx, ly = length(x), length(y)
-    lx == ly || throw(DimensionMismatch(
-        "reflect arguments have lengths $lx and $ly"))
-    rot!(lx, x, 1, y, 1, c, s)
-    scal!(ly, -real(one(T)), y, 1)
-    x, y
-end
-
 #
 # BLAS 2
 #
@@ -109,310 +17,102 @@ LinearAlgebra.istriu(::ROCLowerOrUnitLowerTriangular) = false
 LinearAlgebra.istril(::ROCLowerOrUnitLowerTriangular) = true
 end
 
-# multiplication
-LinearAlgebra.generic_trimatmul!(
-    c::StridedROCVector{T}, uploc, isunitc, tfun::Function,
-    A::StridedROCMatrix{T}, b::StridedROCVector{T},
-) where T <: ROCBLASFloat = trmv!(
-    uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-    isunitc, A, c === b ? c : copyto!(c, b))
-# division
-LinearAlgebra.generic_trimatdiv!(
-    C::StridedROCVector{T}, uploc, isunitc, tfun::Function,
-    A::StridedROCMatrix{T}, B::StridedROCVector{T},
-) where T <: ROCBLASFloat = trsv!(
-    uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-    isunitc, A, C === B ? C : copyto!(C, B))
+# GPUArrays implements LinearAlgebra's matrix products and triangular operations, and
+# calls these hooks for the operations that BLAS supports.
 
-# GEMV
-function LinearAlgebra.mul!(
-    Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
-    alpha::Number, beta::Number,
-)
-    mA, nA = tA == 'N' ? size(A) : reverse(size(A))
+GPUArrays.blas_gemv!(
+    tA::AbstractChar, α::Union{Bool,T}, A::StridedROCMatrix{T}, x::StridedROCVector{T},
+    β::Union{Bool,T}, y::StridedROCVector{T},
+) where T <: ROCBLASFloat = gemv!(tA, T(α), A, x, T(β), y)
+GPUArrays.blas_symv!(
+    uplo::AbstractChar, α::Union{Bool,T}, A::StridedROCMatrix{T}, x::StridedROCVector{T},
+    β::Union{Bool,T}, y::StridedROCVector{T},
+) where T <: ROCBLASFloat = symv!(uplo, T(α), A, x, T(β), y)
+GPUArrays.blas_hemv!(
+    uplo::AbstractChar, α::Union{Bool,T}, A::StridedROCMatrix{T}, x::StridedROCVector{T},
+    β::Union{Bool,T}, y::StridedROCVector{T},
+) where T <: ROCBLASComplex = hemv!(uplo, T(α), A, x, T(β), y)
+GPUArrays.blas_trmv!(
+    uplo::AbstractChar, trans::AbstractChar, diag::AbstractChar,
+    A::StridedROCMatrix{T}, x::StridedROCVector{T},
+) where T <: ROCBLASFloat = trmv!(uplo, trans, diag, A, x)
+GPUArrays.blas_trsv!(
+    uplo::AbstractChar, trans::AbstractChar, diag::AbstractChar,
+    A::StridedROCMatrix{T}, x::StridedROCVector{T},
+) where T <: ROCBLASFloat = trsv!(uplo, trans, diag, A, x)
 
-    nA != length(B) && throw(DimensionMismatch(
-        "second dimension of A, $nA, does not match length of B, $(length(B))"))
-    mA != length(Y) && throw(DimensionMismatch(
-        "first dimension of A, $mA, does not match length of Y, $(length(Y))"))
+GPUArrays.blas_gemm!(
+    tA::AbstractChar, tB::AbstractChar, α::Union{Bool,T}, A::StridedROCVecOrMat{T},
+    B::StridedROCVecOrMat{T}, β::Union{Bool,T}, C::StridedROCVecOrMat{T},
+) where T <: ROCBLASFloat = gemm!(tA, tB, T(α), A, B, T(β), C)
+# the non gemm_ex version is slower than the gemm_ex for 16 bit floats
+GPUArrays.blas_gemm!(
+    tA::AbstractChar, tB::AbstractChar, α::Real, A::StridedROCVecOrMat{T},
+    B::StridedROCVecOrMat{T}, β::Real, C::StridedROCVecOrMat{T},
+) where T <: Union{Float16, BFloat16} = gemm_ex!(tA, tB, α, A, B, β, C)
+GPUArrays.blas_symm!(
+    side::AbstractChar, uplo::AbstractChar, α::Union{Bool,T}, A::StridedROCMatrix{T},
+    B::StridedROCMatrix{T}, β::Union{Bool,T}, C::StridedROCMatrix{T},
+) where T <: ROCBLASFloat = symm!(side, uplo, T(α), A, B, T(β), C)
+GPUArrays.blas_hemm!(
+    side::AbstractChar, uplo::AbstractChar, α::Union{Bool,T}, A::StridedROCMatrix{T},
+    B::StridedROCMatrix{T}, β::Union{Bool,T}, C::StridedROCMatrix{T},
+) where T <: ROCBLASComplex = hemm!(side, uplo, T(α), A, B, T(β), C)
+GPUArrays.blas_trmm!(
+    side::AbstractChar, uplo::AbstractChar, trans::AbstractChar, diag::AbstractChar,
+    α::Union{Bool,T}, A::StridedROCMatrix{T}, B::StridedROCMatrix{T}, C::StridedROCMatrix{T},
+) where T <: ROCBLASFloat = trmm!(side, uplo, trans, diag, T(α), A, B, C)
+GPUArrays.blas_trsm!(
+    side::AbstractChar, uplo::AbstractChar, trans::AbstractChar, diag::AbstractChar,
+    α::Union{Bool,T}, A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
+) where T <: ROCBLASFloat = trsm!(side, uplo, trans, diag, T(α), A, B)
+GPUArrays.blas_syrk!(
+    uplo::AbstractChar, trans::AbstractChar, α::Union{Bool,T}, A::StridedROCMatrix{T},
+    β::Union{Bool,T}, C::StridedROCMatrix{T},
+) where T <: ROCBLASFloat = syrk!(uplo, trans, T(α), A, T(β), C)
+GPUArrays.blas_herk!(
+    uplo::AbstractChar, trans::AbstractChar, α::Real, A::ROCMatrix{T}, β::Real, C::ROCMatrix{T},
+) where T <: ROCBLASComplex = herk!(uplo, trans, real(T)(α), A, real(T)(β), C)
+GPUArrays.blas_geam!(
+    tA::AbstractChar, tB::AbstractChar, α::Union{Bool,T}, A::ROCMatrix{T},
+    β::Union{Bool,T}, B::ROCMatrix{T}, C::ROCMatrix{T},
+) where T <: ROCBLASFloat = geam!(tA, tB, T(α), A, T(β), B, C)
+GPUArrays.blas_dgmm!(
+    side::AbstractChar, A::StridedROCMatrix{T}, x::StridedROCVector{T}, C::StridedROCMatrix{T},
+) where T <: ROCBLASFloat = dgmm!(side, A, x, C)
 
-    mA == 0 && return Y
-    nA == 0 && return LinearAlgebra._rmul_or_fill!(Y, beta)
-
-    T = eltype(Y)
-    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        α, β = T(alpha), T(beta)
-        if T <: ROCBLASFloat && eltype(A) == eltype(B) == T
-            if tA in ('N', 'T', 'C')
-                return gemv!(tA, α, A, B, β, Y)
-            elseif tA in ('S', 's')
-                return symv!(tA == 'S' ? 'U' : 'L', α, A, B, β, Y)
-            elseif tA in ('H', 'h')
-                return hemv!(tA == 'H' ? 'U' : 'L', α, A, B, β, Y)
-            end
-        end
-    end
-    LinearAlgebra.mul!(Y, tA, 'N', A, B, alpha, beta)
+# the level 1 wrappers take dense arrays and an increment
+GPUArrays.blas_scal!(α::Number, x::ROCArray{T}) where T <: ROCBLASFloat =
+    scal!(length(x), convert(T, α), x, 1)
+GPUArrays.blas_scal!(α::Real, x::ROCArray{T}) where T <: ROCBLASComplex =
+    scal!(length(x), convert(real(T), α), x, 1)
+LinearAlgebra.dot(A::Symmetric{<:Union{Real,Complex},<:ROCMatrix}, B::Symmetric{<:Union{Real,Complex},<:ROCMatrix}) =
+    GPUArrays.gpu_dot(A, B)
+LinearAlgebra.dot(A::Hermitian{<:Union{Real,Complex},<:ROCMatrix}, B::Hermitian{<:Union{Real,Complex},<:ROCMatrix}) =
+    GPUArrays.gpu_dot(A, B)
+GPUArrays.blas_dot(x::ROCArray{T}, y::ROCArray{T}) where T <: Union{Float16, ROCBLASReal} =
+    dot(length(x), x, 1, y, 1)
+GPUArrays.blas_dot(x::ROCArray{T}, y::ROCArray{T}) where T <: ROCBLASComplex =
+    dotc(length(x), x, 1, y, 1)
+GPUArrays.blas_dotu(x::ROCArray{T}, y::ROCArray{T}) where T <: ROCBLASComplex =
+    dotu(length(x), x, 1, y, 1)
+GPUArrays.blas_asum(x::ROCArray{<:ROCBLASFloat}) = asum(length(x), x, 1)
+GPUArrays.blas_axpy!(α::Number, x::ROCArray{T}, y::ROCArray{T}) where T <: ROCBLASFloatWithHalf =
+    axpy!(length(x), convert(T, α), x, 1, y, 1)
+function GPUArrays.blas_axpby!(α::Number, x::ROCArray{T}, β::Number, y::ROCArray{T}) where T <: ROCBLASFloat
+    GPUArrays.blas_scal!(β, y)
+    axpy!(length(x), convert(T, α), x, 1, y, 1)
 end
-
-#
-# BLAS 3
-#
-
-@static if VERSION ≥ v"1.12.0-rc"
-    function LinearAlgebra.generic_matmatmul_wrapper!(
-        C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCVecOrMat{T}, B::StridedROCVecOrMat{T},
-        alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:ROCBLASFloatWithHalf}
-        LinearAlgebra.mul!(C, tA, tB, A, B, alpha, beta)
-    end
-    function LinearAlgebra._symm_hemm_generic!(
-        C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
-        alpha, beta, ::Val{BlasFlag.SYMM}) where {T}
-        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
-        if lrchar == 'L'
-            symm!(lrchar, ulchar, alpha, A, B, beta, C)
-        else
-            symm!(lrchar, ulchar, alpha, B, A, beta, C)
-        end
-    end
-    function LinearAlgebra._symm_hemm_generic!(
-        C::StridedROCMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
-        alpha, beta, ::Val{BlasFlag.HEMM}) where {T}
-        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
-        if lrchar == 'L'
-            hemm!(lrchar, ulchar, alpha, A, B, beta, C)
-        else
-            hemm!(lrchar, ulchar, alpha, B, A, beta, C)
-        end
-    end
-end
-
-function LinearAlgebra.mul!(
-    C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat,
-    B::StridedROCVecOrMat, alpha::Number, beta::Number,
-)
-    mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
-    mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
-
-    nA != mB && throw(DimensionMismatch(
-        "A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
-    (C === A || B === C) && throw(ArgumentError(
-        "output matrix must not be aliased with input matrix"))
-
-    if mA == 0 || nA == 0 || nB == 0
-        size(C) != (mA, nB) && throw(DimensionMismatch(
-            "C has dimensions $(size(C)), should have ($mA,$nB)"))
-        return LinearAlgebra._rmul_or_fill!(C, beta)
-    end
-
-    T = eltype(C)
-    if T <: ROCBLASFloat && alpha isa Union{Bool, T} && beta isa Union{Bool, T}
-        α, β = T(alpha), T(beta)
-
-        if (
-            all(in(('N', 'T', 'C')), (tA, tB)) && T <: ROCBLASFloat &&
-            A isa StridedROCArray{T} && B isa StridedROCArray{T}
-        )
-            return gemm!(tA, tB, α, A, B, β, C)
-        elseif (tA == 'S' || tA == 's') && tB == 'N'
-            return symm!('L', tA == 'S' ? 'U' : 'L', α, A, B, β, C)
-        elseif (tB == 'S' || tB == 's') && tA == 'N'
-            return symm!('R', tB == 'S' ? 'U' : 'L', α, B, A, β, C)
-        elseif (tA == 'H' || tA == 'h') && tB == 'N'
-            return hemm!('L', tA == 'H' ? 'U' : 'L', α, A, B, β, C)
-        elseif (tB == 'H' || tB == 'h') && tA == 'N'
-            return hemm!('R', tB == 'H' ? 'U' : 'L', α, B, A, β, C)
-        end
-    elseif (
-        T in (Float16, BFloat16) && alpha isa Real && beta isa Real &&
-        all(in(('N', 'T', 'C')), (tA, tB)) &&
-        A isa StridedROCArray{T} && B isa StridedROCArray{T}
-    )
-        # The non gemm_ex version is slower than the gemm_ex for 16 bit floats
-        return gemm_ex!(tA, tB, alpha, A, B, beta, C)
-    end
-
-    GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
-end
-
-# Julia < 1.13 dispatches on the non-public `generic_matvecmul!` and `generic_matmatmul!`,
-# which JuliaLang/LinearAlgebra.jl#1671 superseded by the `mul!` methods above. Forward from
-# the old names, both the alpha/beta variants (1.12) and the ones taking a final MulAddMul
-# (1.10 and 1.11).
-@static if VERSION < v"1.13.0-rc4"
-    LinearAlgebra.generic_matvecmul!(
-        Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
-        alpha::Number, beta::Number,
-    ) = LinearAlgebra.mul!(Y, tA, A, B, alpha, beta)
-    LinearAlgebra.generic_matvecmul!(
-        Y::ROCVector, tA::AbstractChar, A::StridedROCMatrix, B::StridedROCVector,
-        _add::MulAddMul,
-    ) = LinearAlgebra.mul!(Y, tA, A, B, _add.alpha, _add.beta)
-    LinearAlgebra.generic_matmatmul!(
-        C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat, B::StridedROCVecOrMat,
-        alpha::Number, beta::Number,
-    ) = LinearAlgebra.mul!(C, tA, tB, A, B, alpha, beta)
-    LinearAlgebra.generic_matmatmul!(
-        C::StridedROCVecOrMat, tA, tB, A::StridedROCVecOrMat, B::StridedROCVecOrMat,
-        _add::MulAddMul,
-    ) = LinearAlgebra.mul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-end
-
-LinearAlgebra.generic_trimatmul!(
-    C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-    A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
-) where T <: ROCBLASFloat = trmm!(
-    'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-    isunitc, one(T), A, B, C)
-
-LinearAlgebra.generic_mattrimul!(
-    C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-    A::StridedROCMatrix{T}, B::StridedROCMatrix{T},
-) where T <: ROCBLASFloat = trmm!(
-    'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-    isunitc, one(T), B, A, C)
-
-const AdjOrTransOrROCMatrix{T} = Union{
-    StridedROCMatrix{T},
-    AdjOrTrans{<: T, <: StridedROCMatrix}}
-
-function LinearAlgebra.generic_trimatmul!(
-    C::StridedROCMatrix{T}, uplocA, isunitcA,
-    tfunA::Function, A::StridedROCMatrix{T},
-    triB::UpperOrLowerTriangular{T, <: AdjOrTransOrROCMatrix{T}},
-) where T <: ROCBLASFloat
-    uplocB = LinearAlgebra.uplo_char(triB)
-    isunitcB = LinearAlgebra.isunit_char(triB)
-    B = parent(triB)
-    tfunB = LinearAlgebra.wrapperop(B)
-    transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
-    transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
-    if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
-        triu!(B)
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-    elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
-        tril!(B)
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-    elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
-        # operation is reversed to avoid executing the transpose
-        triu!(A)
-        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
-    elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
-        tril!(B)
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-    elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
-        triu!(B)
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-    elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
-        tril!(A)
-        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
-    else
-        throw("mixed triangular-triangular multiplication") # TODO: rethink
-    end
-    return C
-end
-
-LinearAlgebra.generic_trimatdiv!(
-    C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-    A::StridedROCMatrix{T}, B::AdjOrTransOrROCMatrix{T},
-) where T <: ROCBLASFloat = trsm!(
-    'L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-    isunitc, one(T), A, C === B ? C : copyto!(C, B))
-
-LinearAlgebra.generic_mattridiv!(
-    C::StridedROCMatrix{T}, uploc, isunitc, tfun::Function,
-    A::AdjOrTransOrROCMatrix{T}, B::StridedROCMatrix{T},
-) where T <: ROCBLASFloat = trsm!(
-    'R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C',
-    isunitc, one(T), B, C === A ? C : copyto!(C, A))
-
-# Matrix inversion.
-
-for (t, uploc, isunitc) in (
-    (:LowerTriangular, 'U', 'N'),
-    (:UnitLowerTriangular, 'U', 'U'),
-    (:UpperTriangular, 'L', 'N'),
-    (:UnitUpperTriangular, 'L', 'U'),
-)
-    @eval function LinearAlgebra.inv(x::$t{T, <: ROCMatrix{T}}) where T <: ROCBLASFloat
-        out = ROCArray{T}(I(size(x, 1)))
-        $t(LinearAlgebra.ldiv!(x, out))
-    end
-end
+GPUArrays.blas_rot!(x::ROCArray{T}, y::ROCArray{T}, c::Real, s::Number) where T <: ROCBLASFloat =
+    rot!(length(x), x, 1, y, 1, convert(real(T), c), s isa Real ? convert(real(T), s) : convert(T, s))
 
 # Diagonal matrix.
 
-Base.Array(D::Diagonal{T, <: ROCArray{T}}) where T = Diagonal(Array(D.diag))
-
 AMDGPU.ROCArray(D::Diagonal{T, <: Vector{T}}) where T = Diagonal(ROCArray(D.diag))
-
-function LinearAlgebra.inv(D::Diagonal{T, <: ROCArray{T}}) where T
-    Di = map(inv, D.diag)
-    any(isinf, Di) && error("Singular Exception $Di")
-    Diagonal(Di)
-end
-
-function Base.:/(A::ROCArray, D::Diagonal)
-    B = similar(A, typeof(oneunit(eltype(A)) / oneunit(eltype(D))))
-    _rdiv!(B, A, D)
-end
-
-function LinearAlgebra._rdiv!(B::ROCArray, A::ROCArray, D::Diagonal)
-    m, n = size(A, 1), size(A, 2)
-    (k = length(D.diag)) != n && throw(DimensionMismatch(
-        "left hand side has $n columns but D is $k by $k"))
-
-    B .= A * inv(D)
-    return B
-end
 
 if VERSION ≥ v"1.12-"
     # Otherwise, dispatches to:
     # https://github.com/JuliaLang/LinearAlgebra.jl/blob/4e7c3f40316a956119ac419a97c4b8aad7a17e6c/src/generic.jl#L2092
     LinearAlgebra.copytrito!(B::Matrix{T}, A::ROCMatrix{T}, uplo::AbstractChar) where {T <: ROCBLASFloat} =
         invoke(LinearAlgebra.copytrito!, Tuple{AbstractMatrix, AbstractMatrix, AbstractChar}, B, A, uplo)
-end
-
-function LinearAlgebra.lmul!(A::Diagonal{T,<:ROCVector{T}}, B::ROCMatrix{T}) where {T<:ROCBLASFloat}
-    return dgmm!('L', B, A.diag, B)
-end
-
-function LinearAlgebra.rmul!(A::ROCMatrix{T}, B::Diagonal{T,<:ROCVector{T}}) where {T<:ROCBLASFloat}
-    return dgmm!('R', A, B.diag, A)
-end
-
-function LinearAlgebra.mul!(C::Diagonal{T, <:ROCVector}, A::Union{<:ROCMatrix{T}, Adjoint{T, <:ROCMatrix}, Transpose{T, <:ROCMatrix}}, B::Union{<:ROCMatrix{T}, Adjoint{T, <:ROCMatrix}, Transpose{T, <:ROCMatrix}}) where {T<:ROCBLASFloat}
-    Cfull   = A*B
-    C.diag .= diag(Cfull)
-    return C
-end
-
-# eltypes do not match
-function LinearAlgebra.lmul!(A::Diagonal{T,<:ROCVector{T}}, B::ROCMatrix) where {T<:ROCBLASFloat}
-    @. B = A.diag * B
-    return B
-end
-function LinearAlgebra.lmul!(A::Diagonal{Td,<:ROCVector{Td}}, B::Transpose{Tt, <:ROCMatrix{Tt}}) where {Td<:ROCBLASFloat, Tt<:ROCBLASFloat}
-    @. B = A.diag * B
-    return B
-end
-function LinearAlgebra.lmul!(A::Diagonal{Td,<:ROCVector{Td}}, B::Adjoint{Tt, <:ROCMatrix{Tt}}) where {Td<:ROCBLASFloat, Tt<:ROCBLASFloat}
-    @. B = A.diag * B
-    return B
-end
-# eltypes do not match
-function LinearAlgebra.rmul!(A::ROCMatrix, B::Diagonal{T,<:ROCVector{T}}) where {T<:ROCBLASFloat}
-    At = transpose(A)
-    @. At = B.diag * At
-    return A
-end
-function LinearAlgebra.rmul!(A::Transpose{Tt, <:ROCMatrix{Tt}}, B::Diagonal{Td,<:ROCVector{Td}}) where {Td<:ROCBLASFloat, Tt<:ROCBLASFloat}
-    At = parent(A)
-    @. At = B.diag * At
-    return transpose(At)
-end
-function LinearAlgebra.rmul!(A::Adjoint{Tt, <:ROCMatrix{Tt}}, B::Diagonal{Td,<:ROCVector{Td}}) where {Td<:ROCBLASFloat, Tt<:ROCBLASFloat}
-    At = parent(A)
-    @. At = adjoint(B.diag) * At
-    return adjoint(At)
 end
