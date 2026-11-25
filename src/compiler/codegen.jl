@@ -433,10 +433,11 @@ function hipcompile(@nospecialize(job::CompilerJob))
     # check the arguments before GPUCompiler infers the kernel (slow with unconverted ones)
     job.config.validate && GPUCompiler.check_invocation(job)
 
-    # the IR in `meta` is ours: inspect it in here, and dispose of it so that it does not leak
-    obj, entry, late_hostcalls, extinit_globals, relocations, exception_sites = JuliaContext() do ctx
-        image, meta = GPUCompiler.compile(:obj, job)
-        @dispose ir=meta.ir begin
+    # the IR is freed when the block returns, and may belong to another LLVM library than
+    # Julia's (with GPUCompiler's llvmgpu toolchain), so inspect it only in here
+    obj, entry, late_hostcalls, extinit_globals, relocations, exception_sites =
+        GPUCompiler.compile(:obj, job) do image, meta
+            ir = meta.ir
             # Filter out extinit global from `relocations` that :patch strategy emits.
             relocated = Set(rec.name for rec in meta.relocations.records)
             extinit = [gv.name for gv in ir.globals
@@ -445,7 +446,6 @@ function hipcompile(@nospecialize(job::CompilerJob))
             image, meta.entry.name, find_global_hostcalls(ir), extinit, meta.relocations,
                 meta.exception_sites
         end
-    end
 
     # Collect early-detected hostcalls written by link_libraries! on this task.
     # Falls back gracefully to empty if link_libraries! was not called.
