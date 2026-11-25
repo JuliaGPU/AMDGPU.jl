@@ -12,6 +12,39 @@ import Pkg
     end
 end
 
+@testset "HSA_OVERRIDE_GFX_VERSION" begin
+    runtime = AMDGPU.ROCm_Runtime
+    mktempdir() do nodes
+        for (node, target) in ("0" => 0, "1" => 110501, "2" => 90010)
+            mkpath(joinpath(nodes, node))
+            write(joinpath(nodes, node, "properties"),
+                "simd_count 16\ngfx_target_version $target\nvendor_id 4098\n")
+        end
+        arch(env...) = runtime.rocm_arch_linux(nodes, Dict{String, String}(env...))
+
+        @test arch() == ["gfx1151", "gfx90a"]
+        @test arch("HSA_OVERRIDE_GFX_VERSION" => "") == ["gfx1151", "gfx90a"]
+        @test arch("HSA_OVERRIDE_GFX_VERSION_1" => "11.0.0") == ["gfx1100", "gfx90a"]
+        @test arch("HSA_OVERRIDE_GFX_VERSION_2" => "9.0.8") == ["gfx1151", "gfx908"]
+        @test arch("HSA_OVERRIDE_GFX_VERSION_2" => "9.0.12") == ["gfx1151", "gfx90c"]
+
+        # rejected by the runtime: other major version, or malformed
+        @test (@test_logs (:warn, r"major version") match_mode=:any arch(
+            "HSA_OVERRIDE_GFX_VERSION" => "11.0.0")) == ["gfx1100", "gfx90a"]
+        # the per-node variable takes precedence
+        @test (@test_logs (:warn, r"major version") match_mode=:any arch(
+            "HSA_OVERRIDE_GFX_VERSION" => "11.0.0",
+            "HSA_OVERRIDE_GFX_VERSION_1" => "11.0.3")) == ["gfx1103", "gfx90a"]
+        for invalid in ("11.0", "11.0.0.0", "11.0.0 ", "gfx1100", "11.0.256", "64.0.0")
+            @test (@test_logs (:warn, r"invalid") match_mode=:any arch(
+                "HSA_OVERRIDE_GFX_VERSION_1" => invalid)) == ["gfx1151", "gfx90a"]
+        end
+    end
+
+    @test runtime.rocm_arch_matches("gfx110X", "gfx1100")
+    @test !runtime.rocm_arch_matches("gfx110X", "gfx1151")
+end
+
 # The three descriptions of the shipped ROCm releases have to agree, and AMDGPU is bound to
 # one ROCm minor, so that a new one only reaches users together with an AMDGPU release.
 @testset "ROCm_Runtime release consistency" begin

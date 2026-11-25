@@ -109,6 +109,10 @@ These also apply with the artifacts, as they are read by the ROCm runtime itself
 Depending on your GPU model and the functionality you want to use, you may have
 to force the GPU architecture by setting the `HSA_OVERRIDE_GFX_VERSION`
 variable to a compatible version.
+The artifacts are selected for the overridden architecture as well, so for example
+`HSA_OVERRIDE_GFX_VERSION=11.0.0` makes AMDGPU.jl use the `gfx110X` bundle.
+As the ROCm runtime does, AMDGPU.jl ignores overrides that change the major version;
+set the `arch` preference of ROCm_Runtime to select a bundle regardless of the detected devices.
 
 You may also have more than one type of GPU, for example a dedicated AMD GPU and an integrated one.
 In that case use `AMDGPU.devices()` to find which device they are and set `HIP_VISIBLE_DEVICES` to the specific device you want to use.
