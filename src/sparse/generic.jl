@@ -259,6 +259,7 @@ function mv!(
             # The row-wise CSR kernel accumulates long rows onto `beta * Y`, which leaves
             # non-finite entries of `Y` in place and loses the digits of the result that
             # large entries of `Y` push out. It runs for CSR and for transposed CSC.
+            # TODO: remove once https://github.com/ROCm/rocm-libraries/issues/16633 is fixed
             row_wise = A isa ROCSparseMatrixCSR ? transa == 'N' :
                 A isa ROCSparseMatrixCSC && transa != 'N'
             row_wise && iszero(beta) && fill!(Y, zero(T))
