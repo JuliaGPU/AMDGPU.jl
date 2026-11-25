@@ -201,6 +201,28 @@ end
     end
 end
 
+# Base's `power_by_squaring` throws a `DomainError` with a formatted message for a negative
+# power; GPUToolbox overrides `Base.throw_domerr_powbysq` to throw it with a constant one.
+# Integer bases don't get there (AMDGPU overrides `^(::Integer, ::Integer)`), complex ones do.
+@testset "Integer power" begin
+    function pow_kernel(Y, X, P)
+        i = workitemIdx().x
+        Y[i] = X[i] ^ P[i]
+        return
+    end
+
+    X = ROCArray([2 + 1im, 1 + 0im, -1 + 0im])
+    Y = ROCArray(zeros(Complex{Int}, 3))
+    @roc groupsize=3 pow_kernel(Y, X, ROCArray([3, -2, -3]))
+    @test Array(Y) == [2 + 11im, 1 + 0im, -1 + 0im]
+
+    @roc groupsize=3 pow_kernel(Y, X, ROCArray([-1, 1, 1]))
+    err = kernel_exception()
+    @test err isa AMDGPU.KernelException
+    @test err.site.name == "DomainError"
+    @test err.site.reason == "Cannot raise an integer to a negative power"
+end
+
 # GPUToolbox's shared overrides report their exceptions like AMDGPU's own
 @testset "Shared override exceptions" begin
     function shared_throw_kernel()
