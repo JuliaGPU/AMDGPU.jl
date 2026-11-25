@@ -28,8 +28,8 @@
   # The uenv provides the system ROCm (and MIOpen) and is mounted only where UENV
   # is set. The artifact variant runs on the bare node, without it: anything of the
   # uenv's ROCm that reaches the process (LD_LIBRARY_PATH, LLVM_PATH, a tool
-  # library with an RPATH into it) mixes it into the artifact's, which fails at
-  # the first stream with hipErrorOutOfMemory (ROCm/TheRock#7426). The bundle
+  # library with an RPATH into it) mixes it into the artifact's, which keeps HIP
+  # from starting: its comgr is too old (ROCm/TheRock#7426). The bundle
   # needs nothing but the host's libstdc++ and the driver, and $JULIA is a
   # self-contained install. The core tests assert that no foreign ROCm library is
   # loaded.

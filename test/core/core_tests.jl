@@ -55,6 +55,53 @@ end
     @test errs == [:lib => "boom"]
 end
 
+@testset "HIP initialization failure" begin
+    # a failed HIP start flags HIP as not functional, the package still loads (#1249)
+    failing() = throw(HIP.HIPError(HIP.hipErrorNoDevice))
+    try
+        @test (@test_logs (:warn, r"HIP could not be initialized") match_mode=:any AMDGPU.init_hip!(failing)) == false
+        @test !AMDGPU.functional(:hip)
+        @test !AMDGPU.functional()
+        @test !AMDGPU.has_rocm_gpu()
+        out = sprint(AMDGPU.versioninfo)
+        @test occursin("HIP initialization failed: HIPError(code hipErrorNoDevice", out)
+        @test !occursin("AMDGPU devices", out)
+    finally
+        AMDGPU.HIP_INIT_ERROR[] = nothing
+    end
+    @test AMDGPU.functional(:hip)
+
+    # for real: a fresh process without a visible GPU
+    if Sys.islinux()
+        function load(must_load)
+            code = """
+            using AMDGPU
+            print(AMDGPU.functional(:hip), " ", AMDGPU.functional(), " ", AMDGPU.has_rocm_gpu())
+            AMDGPU.versioninfo(devnull)
+            """
+            cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) -e $code`
+            cmd = addenv(cmd, "ROCR_VISIBLE_DEVICES" => "",
+                "JULIA_AMDGPU_HIP_MUST_LOAD" => must_load)
+            out, err = tempname(), tempname()
+            proc = run(pipeline(cmd; stdout=out, stderr=err); wait=false)
+            timer = Timer(_ -> kill(proc), 600)
+            wait(proc)
+            close(timer)
+            return success(proc), read(out, String), read(err, String)
+        end
+
+        ok, out, err = load("0")
+        @test ok
+        @test out == "false false false"
+        @test occursin("HIP could not be initialized", err)
+
+        # CI asks for the hard error
+        ok, out, err = load("1")
+        @test !ok
+        @test occursin("HIP must load", err)
+    end
+end
+
 @testset "HIPDevice" begin
     @testset "Device props" begin
         devices = AMDGPU.devices()
