@@ -77,7 +77,10 @@ end
 ## memory operations
 
 KI.unsafe_free!(x::AMDGPU.ROCArray) = AMDGPU.unsafe_free!(x)
-KI.allocate(::ROCBackend, ::Type{T}, dims::Tuple) where T = AMDGPU.ROCArray{T}(undef, dims)
+@inline KI.allocate(::ROCBackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T =
+    AMDGPU.ROCArray{T, length(dims), unified ? AMDGPU.Mem.UnifiedBuffer : AMDGPU.default_memory}(undef, dims)
+
+KI.supports_unified(::ROCBackend) = true
 
 # dense arrays, and contiguous views of them
 const ContiguousArray{T} = Union{DenseArray{T}, Base.FastContiguousSubArray{T, <:Any, <:DenseArray}}
@@ -138,7 +141,9 @@ function KI.launch(obj::KI.Kernel{ROCBackend}, groups::Dims{3}, items::Dims{3},
         throw(ArgumentError("KernelInterface kernels take `numgroups`, `workgroupsize` or `ndrange`, not `groupsize` or `gridsize`"))
     end
     f = obj.kern.f
-    kernel = obj.kern.kernel
+    # the kernel was compiled for the types of the arguments, which don't tell whether
+    # their memory is fine-grained
+    kernel = AMDGPU.Compiler.kernel_for_memory(obj.kern.kernel, (f, args))
     stream = get(kwargs, :stream, AMDGPU.stream())
     GC.@preserve f begin
         # convert the callable again, like the arguments, which makes the arrays it captures

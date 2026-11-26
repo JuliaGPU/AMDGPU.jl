@@ -200,6 +200,12 @@ function account!(stats::MemoryStats, bytes::Integer)
     Base.@atomic stats.live += bytes
 end
 
+# Unified and host memory is not part of any device pool: it lives in (or, on a discrete
+# GPU, can be migrated to) system memory, so track it globally and size it against the
+# system memory rather than that of a device.
+const HOST_STATS = MemoryStats()
+host_stats() = HOST_STATS
+
 const EAGER_GC::Ref{Bool} = Ref{Bool}(@load_preference("eager_gc", true))
 
 function eager_gc!(flag::Bool)
@@ -239,8 +245,19 @@ function maybe_collect(; blocking::Bool = false)
         Base.@atomic stats.last_updated = current_time
     end
 
-    # Check if we are under memory pressure.
-    pressure = stats.live / stats.size
+    # Similarly re-estimate the budget for unified and host memory.
+    # `Sys.total_memory()` takes cgroup limits into account.
+    host = host_stats()
+    if current_time - host.last_updated > 10
+        Base.@atomic host.size = Int(min(Sys.total_memory(), typemax(Int)))
+        Base.@atomic host.last_updated = current_time
+    end
+
+    # Check if we are under memory pressure, in whichever of the two is fuller.
+    device_pressure = stats.size > 0 ? stats.live / stats.size : 0.0
+    host_pressure = host.size > 0 ? host.live / host.size : 0.0
+    pressure, stats = device_pressure ≥ host_pressure ?
+        (device_pressure, stats) : (host_pressure, host)
     min_pressure = blocking ? 0.5 : 0.75
     pressure < min_pressure && return
 
@@ -262,17 +279,20 @@ function maybe_collect(; blocking::Bool = false)
     pressure > 0.95 && (max_gc_rate *= 2;)
     gc_rate > max_gc_rate && return
 
-    Base.@atomic stats.last_time = current_time
+    device_stats = memory_stats()
+    Base.@atomic device_stats.last_time = current_time
+    Base.@atomic host.last_time = current_time
 
-    # Call the GC.
-    pre_gc_live = stats.live
+    # Call the GC. Its finalizers may free memory of either kind.
+    pre_gc_device_live = device_stats.live
+    pre_gc_host_live = host.live
     gc_time = Base.@elapsed GC.gc(false)
-    post_gc_live = stats.live
 
     # Update stats.
-    freed = pre_gc_live - post_gc_live
-    Base.@atomic stats.last_freed = freed
-    Base.@atomic stats.last_gc_time = 0.75 * stats.last_gc_time + 0.25 * gc_time
+    Base.@atomic device_stats.last_freed = pre_gc_device_live - device_stats.live
+    Base.@atomic host.last_freed = pre_gc_host_live - host.live
+    Base.@atomic device_stats.last_gc_time = 0.75 * device_stats.last_gc_time + 0.25 * gc_time
+    Base.@atomic host.last_gc_time = 0.75 * host.last_gc_time + 0.25 * gc_time
     return
 end
 
@@ -477,7 +497,7 @@ end
 
 Base.sizeof(m::Managed) = sizeof(m.mem)
 
-function take_ownership!(managed::Managed; stream::HIPStream=AMDGPU.stream())
+function take_ownership!(managed::Managed{M}; stream::HIPStream=AMDGPU.stream()) where M
     # TODO handle stream capture
 
     # TODO handle access on another device
@@ -490,6 +510,10 @@ function take_ownership!(managed::Managed; stream::HIPStream=AMDGPU.stream())
         managed.stream = stream
     end
     managed.generation = HIP.generation(managed.stream)
+
+    # unified memory is likely to be used on the device next, so migrate it there now
+    # rather than by faulting in each page
+    M <: Mem.UnifiedBuffer && maybe_prefetch(managed.mem, stream)
 
     managed.dirty = true
     return managed
@@ -526,15 +550,66 @@ function with_managed(f::F, managed::AbstractVector{<:Managed};
     end
 end
 
-function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T, M}
+function maybe_prefetch(mem::Mem.UnifiedBuffer, stream::HIPStream)
+    # a prefetch would be recorded into the graph, and with multiple devices it is not
+    # known which one is going to access the memory
+    HIP.is_capturing(stream) && return
+    concurrent_managed_access(stream.device) || return
+    HIP.ndevices() == 1 || return
+    Mem.prefetch(mem; device=stream.device, stream)
+    return
+end
+
+const CONCURRENT_MANAGED_ACCESS = AMDGPU.LockedObject(Dict{Int, Bool}())
+
+function concurrent_managed_access(dev::HIPDevice)
+    did = HIP.device_id(dev)
+    supported = get(CONCURRENT_MANAGED_ACCESS.payload, did, nothing)
+    supported ≡ nothing || return supported
+    Base.@lock CONCURRENT_MANAGED_ACCESS.lock begin
+        get!(CONCURRENT_MANAGED_ACCESS.payload, did) do
+            HIP.attribute(dev, HIP.hipDeviceAttributeConcurrentManagedAccess) == 1
+        end
+    end
+end
+
+# NOTE: unlike CUDA.jl, there is no separate type for device pointers, so converting to a
+#       `Ptr` gives the address to use on the device. `host_pointer` gives the address to
+#       use on the host.
+function Base.convert(::Type{Ptr{T}}, managed::Managed) where T
     Base.@lock managed.lock begin
         take_ownership!(managed)
-        # TODO introduce HIPPtr to differentiate
-        if M <: Mem.HIPBuffer
-            convert(Ptr{T}, managed.mem)
-        else
-            convert(Ptr{T}, managed.mem.dev_ptr)
+        convert(Ptr{T}, Mem.device_ptr(managed.mem))
+    end
+end
+
+"""
+    host_pointer(::Type{Ptr{T}}, managed::Managed) -> Ptr{T}
+
+The address to access the memory at from the host, after waiting for the operations that
+use it on the device. Only unified and host memory can be accessed from the host.
+"""
+function host_pointer(::Type{Ptr{T}}, managed::Managed{M}) where {T, M}
+    Base.@lock managed.lock begin
+        if !(M <: Union{Mem.UnifiedBuffer, Mem.HostBuffer})
+            throw(ArgumentError(
+                """cannot take the CPU address of GPU memory.
+
+                   You are probably falling back to or otherwise calling CPU functionality
+                   with GPU array inputs. This is not supported by regular device memory;
+                   ensure this operation is supported by AMDGPU.jl, and if it isn't, try to
+                   avoid it or rephrase it in terms of supported operations. Alternatively,
+                   you can consider using GPU arrays backed by unified memory by
+                   allocating using `roc(...; unified=true)`."""))
         end
+
+        # let null pointers pass through as-is
+        ptr = convert(Ptr{T}, Mem.host_ptr(managed.mem))
+        ptr == C_NULL && return ptr
+
+        # make sure any work on the memory has finished
+        managed.synchronizing && synchronize(managed)
+        return ptr
     end
 end
 

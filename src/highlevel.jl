@@ -110,7 +110,10 @@ Several keyword arguments are supported:
     If `false`, then returns a compiled kernel which can be launched by
     calling it and passing arguments.
 - Arguments that influence kernel compilation, see
-    [`AMDGPU.Compiler.hipfunction`](@ref).
+    [`AMDGPU.Compiler.hipfunction`](@ref). Unless `atomic_memory_assumptions` is
+    given, the kernel is compiled without them if it or its arguments use fine-grained
+    memory (see [`AMDGPU.uses_fine_grained_memory`](@ref)), such as arrays in unified
+    memory or wrapped host arrays.
 - Arguments that influence kernel launch, see [`AMDGPU.Runtime.HIPKernel`](@ref).
 """
 macro roc(ex...)
@@ -147,14 +150,17 @@ macro roc(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym kernel_f kernel_args kernel_tt kernel
+    @gensym kernel_f kernel_args kernel_tt kernel orig_f
     push!(code.args,
         quote
+            local $orig_f = $f
             GC.@preserve $(vars...) begin
-                local $kernel_f = $rocconvert($f)
+                local $kernel_f = $rocconvert($orig_f)
                 local $kernel_args = $(Runtime._tmap)($rocconvert, ($(var_exprs...),))
                 local $kernel_tt = $(Runtime.argument_types)($kernel_args)
-                local $kernel = $hipfunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
+                local $kernel = $(Compiler.kernel_for_memory)(
+                    $hipfunction($kernel_f, $kernel_tt; $(compiler_kwargs...)),
+                    ($orig_f, $(var_exprs...)))
 
                 if $launch
                     $kernel($(var_exprs...); $(launch_kwargs...))

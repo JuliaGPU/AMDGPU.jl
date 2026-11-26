@@ -7,14 +7,14 @@ ROCArrayStyle{M, B}(::Val{N}) where {N, M, B} = ROCArrayStyle{N, B}()
 BroadcastStyle(::Type{<:ROCArray{T, N, B}}) where {T, N, B} =
     ROCArrayStyle{N, B}()
 BroadcastStyle(W::Type{<:AnyROCArray{T, N}}) where {T, N} =
-    ROCArrayStyle{N, buftype(Adapt.unwrap_type(W))}()
+    ROCArrayStyle{N, memory_type(Adapt.unwrap_type(W))}()
 
-# TODO use unified buffer once we support it.
-# Broadcast of two different buffers - choose `HIPBuffer`.
+# when we are dealing with different memory types, we cannot know
+# which one is better, so use unified memory
 BroadcastStyle(
     ::ROCArrayStyle{N1, B1},
     ::ROCArrayStyle{N2, B2},
-) where {N1,N2,B1,B2} = ROCArrayStyle{max(N1,N2), Mem.HIPBuffer}()
+) where {N1,N2,B1,B2} = ROCArrayStyle{max(N1,N2), Mem.UnifiedBuffer}()
 
 # Different N, same buffer type.
 BroadcastStyle(

@@ -14,7 +14,7 @@ using AMDGPU: HIP
     @testset "Exportable (IPC-capable) device memory" begin
         if AMDGPU.memory_pool_handle_type() == "posix_fd"
             @test AMDGPU.memory_pool_exportable(dev)
-            x = AMDGPU.zeros(UInt8, 1 << 20)
+            x = ROCVector{UInt8, AMDGPU.Mem.HIPBuffer}(undef, 1 << 20)
             handle = Ref{HIP.hipIpcMemHandle_t}()
             @test (HIP.hipIpcGetMemHandle(handle, pointer(x)); true)
             AMDGPU.unsafe_free!(x)

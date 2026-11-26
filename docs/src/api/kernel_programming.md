@@ -72,13 +72,26 @@ By default, AMDGPU.jl assumes that atomic read-modify-write operations with a sc
 narrower than the system scope (such as the device scope that `AMDGPU.@atomic` uses)
 access memory that is neither fine-grained nor remote (on another GPU). This lets the
 compiler use hardware atomic instructions instead of compare-and-swap loops. Host memory
-(`HostBuffer`, e.g. from `unsafe_wrap`) and memory of other devices do not satisfy this
-assumption: on some systems, hardware atomics on them silently have no effect. For
-atomics on such memory, pass `atomic_memory_assumptions=false` to `@roc` or
-`hipfunction`, or use the system scope (`UnsafeAtomics.system`). Doing so only removes
-the compiler's assumption; it does not make atomics work over an interconnect that lacks
-support for them. Synchronizing with the host or another GPU also requires the system
-scope.
+(`HostBuffer`, e.g. from `unsafe_wrap`), unified memory (`UnifiedBuffer`) and memory of
+other devices do not satisfy this assumption: on some systems, hardware atomics on them
+silently have no effect.
+
+`@roc` and KernelAbstractions kernels therefore don't make this assumption when the
+kernel or one of its arguments uses an array that is backed by fine-grained memory
+([`AMDGPU.uses_fine_grained_memory`](@ref)), at the cost of slower atomics for that
+kernel. This only looks at the arrays that are passed to the kernel: for memory that
+reaches it in another way (a raw pointer, memory of another device), or when compiling
+with `hipfunction`, pass `atomic_memory_assumptions=false` yourself, or use the system
+scope (`UnsafeAtomics.system`). Passing `atomic_memory_assumptions=true` keeps the
+assumption, e.g. for host memory that was allocated as non-coherent. Unified memory that
+was made coarse-grained with [`AMDGPU.coarse_grained!`](@ref) is recognized as such.
+Removing the assumption does not make atomics work over an interconnect that lacks
+support for them.
+Synchronizing with the host or another GPU also requires the system scope.
+
+```@docs
+AMDGPU.uses_fine_grained_memory
+```
 
 `unsafe_fp_atomics` (default `true`) independently allows floating-point atomic additions to
 ignore the floating-point denormal mode, which some GPUs need to use hardware instructions.

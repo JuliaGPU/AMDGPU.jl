@@ -31,6 +31,8 @@ KernelAbstractions.synchronize(backend)
 
 `ROCBackend()` selects AMDGPU as the execution backend. The `256` is the workgroup size, and `ndrange` is the total number of work items. `get_backend(::ROCArray)` returns a `ROCBackend`, so generic code can obtain the right backend directly from its arrays.
 
+The backend supports unified memory (`KernelAbstractions.supports_unified(backend)`): `KernelAbstractions.allocate(backend, Float32, 1024; unified=true)`, and `zeros`/`ones` likewise, give a `ROCArray` that the CPU can access too, see [Memory Types](@ref).
+
 For the kernel-authoring API (`@kernel`, `@index`, `@localmem`, `@synchronize`, …), see the [KernelAbstractions documentation](https://juliagpu.github.io/KernelAbstractions.jl/stable/). To write AMDGPU-specific kernels with the native intrinsics instead, see [Kernel Programming](@ref).
 
 ```@docs

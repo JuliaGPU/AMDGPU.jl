@@ -27,11 +27,12 @@ end
 @testset "Adapt" begin
     HIPBuffer = AMDGPU.Mem.HIPBuffer
     HostBuffer = AMDGPU.Mem.HostBuffer
-    @test adapt(ROCArray, [1, 2]) isa ROCArray{Int, 1, HIPBuffer}
-    @test adapt(ROCArray{Float32}, [1 2; 3 4]) isa ROCArray{Float32, 2, HIPBuffer}
+    DefaultBuffer = AMDGPU.default_memory
+    @test adapt(ROCArray, [1, 2]) isa ROCArray{Int, 1, DefaultBuffer}
+    @test adapt(ROCArray{Float32}, [1 2; 3 4]) isa ROCArray{Float32, 2, DefaultBuffer}
 
     # unspecified type parameters are taken from the source array (JuliaGPU/Metal.jl#363)
-    @test adapt(ROCMatrix, [1 2; 3 4]) isa ROCArray{Int, 2, HIPBuffer}
+    @test adapt(ROCMatrix, [1 2; 3 4]) isa ROCArray{Int, 2, DefaultBuffer}
     @test adapt(ROCArray{<:Any, <:Any, HostBuffer}, [1 2; 3 4]) isa ROCArray{Int, 2, HostBuffer}
     @test adapt(ROCVector{<:Any, HostBuffer}, [1, 2]) isa ROCArray{Int, 1, HostBuffer}
     @test adapt(ROCArray{Float32, <:Any, HostBuffer}, [1 2; 3 4]) isa ROCArray{Float32, 2, HostBuffer}
@@ -326,7 +327,7 @@ end
         a = Float32[1, 2, 3]
         b = unsafe_wrap(ROCArray, a)
         @test pointer(unsafe_wrap(Array, b)) == pointer(a)
-        @test_throws ArgumentError unsafe_wrap(Array, AMDGPU.zeros(Float32, 3))
+        @test_throws ArgumentError unsafe_wrap(Array, ROCVector{Float32, AMDGPU.Mem.HIPBuffer}(undef, 3))
     end
 
     @testset "Re-wrapping after freeing" begin

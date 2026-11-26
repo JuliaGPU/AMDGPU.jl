@@ -45,6 +45,7 @@ const LAUNCH_BLOCKING::Ref{Bool} = Ref{Bool}(false)
 export @roc, roc, rocconvert
 export HIPDevice, has_rocm_gpu
 export ROCArray, ROCVector, ROCMatrix, ROCVecOrMat, ROCRef
+export is_device, is_unified, is_host
 export DenseROCArray, DenseROCVector, DenseROCMatrix, DenseROCVecOrMat,
        StridedROCArray, StridedROCVector, StridedROCMatrix, StridedROCVecOrMat,
        AnyROCArray, AnyROCVector, AnyROCMatrix, AnyROCVecOrMat
