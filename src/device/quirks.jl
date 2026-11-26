@@ -13,12 +13,6 @@ end
     @gputhrow "DomainError" "This operation requires a complex input to return a complex result"
 
 # intfuncs.jl
-@device_override Base.throw_domerr_powbysq(::Any, p) =
-    @gputhrow "DomainError" "Cannot raise an integer to a negative power"
-@device_override Base.throw_domerr_powbysq(::Integer, p) =
-    @gputhrow "DomainError" "Cannot raise an integer to a negative power"
-@device_override Base.throw_domerr_powbysq(::AbstractMatrix, p) =
-    @gputhrow "DomainError" "Cannot raise an integer to a negative power"
 @device_override Base.__throw_gcd_overflow(a, b) =
     @gputhrow "OverflowError" "GCD overflow"
 
