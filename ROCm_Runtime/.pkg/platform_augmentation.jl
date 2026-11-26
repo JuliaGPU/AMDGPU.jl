@@ -33,9 +33,37 @@ const arch_preference = load_preference("arch", "a string (e.g. 'gfx1100')",
 
 ## device detection
 
-function rocm_arch_string(target::Integer)
-    patch = string(target % 100, base = 16)
-    return "gfx$(div(target, 10000))$(div(target, 100) % 100)$(patch)"
+rocm_arch_string(major::Integer, minor::Integer, stepping::Integer) =
+    "gfx$(major)$(minor)$(string(stepping, base = 16))"
+rocm_arch_string(target::Integer) =
+    rocm_arch_string(div(target, 10000), div(target, 100) % 100, target % 100)
+
+# Apply `HSA_OVERRIDE_GFX_VERSION=major.minor.stepping` (or the per-node
+# `HSA_OVERRIDE_GFX_VERSION_<node>`, which takes precedence) like libhsakmt does.
+# Overrides it would reject (malformed, or changing the major version) are ignored.
+#
+# XXX: the runtime numbers nodes after dropping inaccessible ones (e.g. device cgroups),
+#      so the per-node variable can refer to another node in that case.
+function rocm_arch_override(node::AbstractString, target::Integer, env = ENV)
+    for name in ("HSA_OVERRIDE_GFX_VERSION_$node", "HSA_OVERRIDE_GFX_VERSION")
+        value = get(env, name, "")
+        isempty(value) && continue
+
+        m = match(r"^\s*(\d+)\.(\d+)\.(\d+)\z", value)
+        version = m === nothing ? nothing : map(s -> tryparse(Int, s), m.captures)
+        if version === nothing || any(isnothing, version) ||
+                version[1] > 63 || version[2] > 255 || version[3] > 255
+            @warn "Ignoring invalid $name '$value'; expected 'major.minor.stepping'" maxlog=1
+            return nothing
+        end
+        major, minor, stepping = version
+        if major != div(target, 10000)
+            @warn "Ignoring $name '$value': the device is $(rocm_arch_string(target)), and the ROCm runtime does not allow overriding the major version" maxlog=1
+            return nothing
+        end
+        return rocm_arch_string(major, minor, stepping)
+    end
+    return nothing
 end
 
 # marketing-name substrings => gfx architecture family, for hosts where we cannot
@@ -66,8 +94,7 @@ function rocm_arch_from_device_name(device_name::AbstractString)
     return ""
 end
 
-function rocm_arch_linux()
-    topology_root = "/sys/class/kfd/kfd/topology/nodes/"
+function rocm_arch_linux(topology_root = "/sys/class/kfd/kfd/topology/nodes/", env = ENV)
     isdir(topology_root) || return String[]
 
     arch = String[]
@@ -82,7 +109,8 @@ function rocm_arch_linux()
             target = parse(Int, m[1])
             target == 0 && continue
 
-            push!(arch, rocm_arch_string(target))
+            override = rocm_arch_override(basename(dir), target, env)
+            push!(arch, something(override, rocm_arch_string(target)))
         end
     end
     return arch
