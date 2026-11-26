@@ -13,6 +13,44 @@ Waits until all wavefronts in a workgroup have reached this call and that their 
     UnsafeAtomics.fence(UnsafeAtomics.seq_cst, AMDGPU.syncscope_workgroup)
 end
 
+# A workgroup-scope fence that only orders the accesses to one kind of memory, which a
+# memory model relaxation annotation on the fence selects, like Clang's
+# `__builtin_amdgcn_fence`. LLVM 23 renamed the annotation from `amdgpu-as` to
+# `amdgpu-synchronize-as`. A back-end ignores the name it doesn't know, and one that knows
+# neither orders all memory, so the fence carries both.
+for as in (:local, :global), ord in (:release, :acquire)
+    @eval @device_function @inline function workgroup_fence(::Val{$(QuoteNode(as))},
+                                                            ::Val{$(QuoteNode(ord))})
+        Base.llvmcall(
+            ($("""
+            define void @entry() #0 {
+                fence syncscope("workgroup") $ord, !mmra !0
+                ret void
+            }
+            attributes #0 = { alwaysinline }
+            !0 = !{!1, !2}
+            !1 = !{!"amdgpu-as", !"$as"}
+            !2 = !{!"amdgpu-synchronize-as", !"$as"}
+            """), "entry"), Cvoid, Tuple{})
+    end
+end
+
+"""
+    sync_workgroup(::Val{:local})
+    sync_workgroup(::Val{:global})
+
+Like [`sync_workgroup()`](@ref sync_workgroup), but only the accesses to local (LDS) or
+to global memory are made visible to the other threads in the workgroup, which can be
+cheaper.
+"""
+@device_function @inline function sync_workgroup(as::Union{Val{:local}, Val{:global}})
+    # the fences ROCm's device library uses for a barrier with a single flag, see the link
+    # above
+    workgroup_fence(as, Val(:release))
+    ccall("llvm.amdgcn.s.barrier", llvmcall, Cvoid, ())
+    workgroup_fence(as, Val(:acquire))
+end
+
 """
     sync_wavefront()
 
