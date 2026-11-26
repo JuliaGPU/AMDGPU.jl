@@ -815,30 +815,24 @@ end
 Adapt.adapt_storage(::Type{Array}, xs::ROCArray) = convert(Array, xs)
 
 
-## Float32-preferring conversion
+## opinionated gpu array adaptor
 
-# `B` is the type of memory that backs the converted arrays. If it is `Nothing`, arrays
-# that are already `ROCArray`s keep their memory, and other arrays use the default one.
-struct Float32Adaptor{B} end
-Float32Adaptor() = Float32Adaptor{Nothing}()
+# eagerly converts Float64 to Float32, for performance reasons
 
-adapt_buftype(::Float32Adaptor{Nothing}, xs) = adapt_buftype(ROCArray, xs)
-adapt_buftype(::Float32Adaptor{B}, xs) where {B} = B
+struct ROCArrayKernelAdaptor{B} end
 
-# like the constructors, but without copying arrays that already have the right type
-float32_adapt(to::Float32Adaptor, ::Type{T}, xs::AbstractArray{<:Any,N}) where {T,N} =
-    isbits(xs) ? xs : convert(ROCArray{T,N,adapt_buftype(to, xs)}, xs)
+Adapt.adapt_storage(::ROCArrayKernelAdaptor{B}, xs::AbstractArray{T,N}) where {T,N,B} =
+    isbits(xs) ? xs : ROCArray{T,N,B}(xs)
 
-Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{T}) where {T} =
-    float32_adapt(to, T, xs)
-Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
-    float32_adapt(to, Float32, xs)
-Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{<:Complex{<:AbstractFloat}}) =
-    float32_adapt(to, ComplexF32, xs)
+Adapt.adapt_storage(::ROCArrayKernelAdaptor{B}, xs::AbstractArray{T,N}) where {T<:AbstractFloat,N,B} =
+    isbits(xs) ? xs : ROCArray{Float32,N,B}(xs)
+
+Adapt.adapt_storage(::ROCArrayKernelAdaptor{B}, xs::AbstractArray{T,N}) where {T<:Complex{<:AbstractFloat},N,B} =
+    isbits(xs) ? xs : ROCArray{ComplexF32,N,B}(xs)
 
 # not for Float16
-Adapt.adapt_storage(to::Float32Adaptor, xs::AbstractArray{Float16}) =
-    float32_adapt(to, Float16, xs)
+Adapt.adapt_storage(::ROCArrayKernelAdaptor{B}, xs::AbstractArray{Float16,N}) where {N,B} =
+    isbits(xs) ? xs : ROCArray{Float16,N,B}(xs)
 
 """
     roc(x; device=false, unified=false, host=false)
@@ -852,8 +846,11 @@ their array fields.
 The keyword arguments select the type of memory that backs the arrays: `device`
 for device memory, `unified` for unified memory that both the CPU and the GPU can
 access, and `host` for page-locked host memory. At most one of them can be set;
-by default, arrays use the [`AMDGPU.default_memory`](@ref), and arrays that are
-already `ROCArray`s keep their memory.
+by default, arrays use the [`AMDGPU.default_memory`](@ref).
+
+Like the `ROCArray` constructors, `roc` always gives a new array: a `ROCArray` is
+copied, to the selected type of memory, rather than returned as is. Use
+`Adapt.adapt(ROCArray, x)` to leave arrays that are on the GPU already untouched.
 
 This mirrors CUDA.jl's `cu`. Reach for it when single precision is preferred
 (e.g. for performance); use the [`ROCArray`](@ref) constructor directly to keep
@@ -876,9 +873,9 @@ roc([1.0, 2.0]; unified=true)  # backed by unified memory
     elseif host
         Mem.HostBuffer
     else
-        Nothing
+        default_memory
     end
-    adapt(Float32Adaptor{memory}(), xs)
+    adapt(ROCArrayKernelAdaptor{memory}(), xs)
 end
 
 Base.unsafe_convert(typ::Type{Ptr{T}}, x::ROCArray{T}) where T =

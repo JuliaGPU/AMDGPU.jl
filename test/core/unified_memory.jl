@@ -316,13 +316,22 @@ end
     @test roc([1]; unified=true) isa ROCVector{Int, UnifiedBuffer}
     @test roc(1:3; unified=true) === 1:3
     @test roc((a=[1.0], b=2); unified=true).a isa ROCVector{Float32, UnifiedBuffer}
-    # arrays that are on the device already are not copied, and keep their memory
+    # like the constructors, `roc` copies arrays that are on the device already,
+    # to the selected (or the default) type of memory
     for B in (HIPBuffer, UnifiedBuffer, HostBuffer)
-        a = ROCVector{Float32, B}(undef, 1)
-        @test roc(a) === a
-        @test roc(ROCVector{Float64, B}(undef, 1)) isa ROCVector{Float32, B}
-        @test roc(a; unified=true) isa ROCVector{Float32, UnifiedBuffer}
-        @test (roc(a; unified=true) === a) == (B == UnifiedBuffer)
+        a = ROCVector{Float32, B}(Float32[1, 2])
+        b = roc(a)
+        @test b isa ROCVector{Float32, AMDGPU.default_memory}
+        @test b !== a
+        @test !Base.mightalias(a, b)
+        @test Array(b) == Float32[1, 2]
+        @test roc(ROCVector{Float64, B}([1.0])) isa ROCVector{Float32, AMDGPU.default_memory}
+        for (kw, B2) in ((:device, HIPBuffer), (:unified, UnifiedBuffer), (:host, HostBuffer))
+            c = roc(a; kw => true)
+            @test c isa ROCVector{Float32, B2}
+            @test c !== a
+            @test Array(c) == Float32[1, 2]
+        end
     end
     @test_throws ArgumentError("Can only specify one of `device`, `unified`, or `host`") roc([1]; device=true, host=true)
     @test_throws ArgumentError roc([1]; unified=true, host=true)
