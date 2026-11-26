@@ -40,11 +40,12 @@ mutable struct HIPFunction
     # and `launch_configuration`
     @atomic max_threads::Int                 # 0 until queried
     @atomic launch_config::NTuple{2, Cint}  # (gridsize, groupsize), (0, 0) until queried
+    @atomic max_shmem::Int                   # -1 until queried, see `max_dynamic_shmem`
 
     function HIPFunction(mod::HIPModule, name::String, global_hostcalls::Vector{Symbol})
         fun_ref = Ref{hipFunction_t}()
         hipModuleGetFunction(fun_ref, mod, name)
-        new(fun_ref[], mod, global_hostcalls, 0, (Cint(0), Cint(0)))
+        new(fun_ref[], mod, global_hostcalls, 0, (Cint(0), Cint(0)), -1)
     end
 end
 
@@ -67,6 +68,25 @@ function max_threads_per_block(fun::HIPFunction)
         @atomic :monotonic fun.max_threads = threads
     end
     return threads
+end
+
+"""
+    max_dynamic_shmem(fun::HIPFunction)::Int
+
+The largest `shmem`, the bytes of dynamic shared memory, that `fun` can be launched with:
+the local memory of the device that a workgroup can use, less what `fun` allocates
+statically.
+"""
+function max_dynamic_shmem(fun::HIPFunction)
+    # fixed when the function is loaded
+    bytes = @atomic :monotonic fun.max_shmem
+    if bytes < 0
+        bytes_ref = Ref{Cint}()
+        hipFuncGetAttribute(bytes_ref, HIP_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, fun)
+        bytes = max(Int(bytes_ref[]), 0)
+        @atomic :monotonic fun.max_shmem = bytes
+    end
+    return bytes
 end
 
 """

@@ -33,6 +33,10 @@ KernelAbstractions.synchronize(backend)
 
 For the kernel-authoring API (`@kernel`, `@index`, `@localmem`, `@synchronize`, …), see the [KernelAbstractions documentation](https://juliagpu.github.io/KernelAbstractions.jl/stable/). To write AMDGPU-specific kernels with the native intrinsics instead, see [Kernel Programming](@ref).
 
+## Dynamic local memory
+
+`ROCBackend` supports KernelInterface's dynamic local memory, which is the dynamic shared memory of a workgroup: the `localmem` keyword of a KernelInterface launch is what `shmem` is for `@roc`, and `KernelInterface.dynamic_localmemory` returns arrays in that memory. Its size is not rounded, it is aligned to 32 bytes, and `KernelInterface.max_dynamic_localmemory` is the local memory a workgroup can use on the device less what the kernel allocates statically. Kernels should not use `@ROCDynamicLocalArray` together with it: both are placed at the start of the same memory, but the compiler assumes they don't overlap.
+
 ```@docs
 AMDGPU.ROCBackend
 ```

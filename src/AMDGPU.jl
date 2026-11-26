@@ -94,6 +94,9 @@ struct KernelState
     free_hc::Ptr{Cvoid}
     output_context::Ptr{Cvoid}
     printf_output_context::Ptr{Cvoid}
+    # the bytes of dynamic shared memory the kernel was launched with (`shmem`), which
+    # the device cannot query otherwise
+    shmem::Int
 end
 
 # Device sources must load _before_ the compiler infrastructure,
