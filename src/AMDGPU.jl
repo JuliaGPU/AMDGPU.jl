@@ -142,6 +142,67 @@ export ROCBackend
 
 include("precompile.jl")
 
+# Another ROCm in the environment keeps HIP from starting or breaks compilation far from
+# the cause, so name it up front. Returns whether foreign ROCm libraries are loaded.
+function warn_foreign_rocm(; quiet::Bool = false)
+    local_rocm && return false
+
+    redirects = ROCm_Runtime.redirect_env()
+    isempty(redirects) || quiet || @warn """These variables point at another ROCm's device \
+        libraries, which take precedence over the artifact's. Compilation may fail or \
+        give wrong results, often reported as an unrelated error. Unset them, or use \
+        that ROCm with `AMDGPU.set_rocm_version!(; local_rocm=true)`.""" redirects
+
+    foreign = ROCm_Runtime.foreign_libraries()
+    isempty(foreign) && return false
+    quiet && return true
+    # a tool library loaded by the HSA runtime brings its own ROCm along
+    tools = isempty(get(ENV, "HSA_TOOLS_LIB", "")) ? "" : " or HSA_TOOLS_LIB"
+    @warn """Libraries of another ROCm are loaded next to the artifact's. HIP may fail to \
+        start, and compilation may fail or give wrong results, often reported as an \
+        unrelated error. The usual cause is LD_LIBRARY_PATH$tools pointing at that ROCm \
+        (a module, a uenv, a container), to be unset before Julia starts. Otherwise, use \
+        that ROCm with `AMDGPU.set_rocm_version!(; local_rocm=true)`.
+        $(join(("  " * path for path in foreign), "\n"))"""
+    return true
+end
+
+# Start the HIP runtime (by enumerating the devices) and return whether that worked.
+# A failure flags HIP as not functional (see `functional`) instead of failing the load,
+# which would put `versioninfo()` out of reach and break precompiling dependents.
+function init_hip!(enumerate_devices = HIP.devices)
+    failure = try
+        enumerate_devices()
+        nothing
+    catch err
+        err
+    end
+    failure === nothing || (HIP_INIT_ERROR[] = sprint(showerror, failure))
+
+    # precompilation workers stay quiet: the session loading the dependent reports
+    quiet = ccall(:jl_generating_output, Cint, ()) != 0
+    # after the start attempt, failed or not: this reports what HIP pulled in
+    foreign = warn_foreign_rocm(; quiet)
+    failure === nothing && return true
+    quiet && return false
+
+    msg = "HIP could not be initialized: GPU functionality is disabled " *
+        "(`AMDGPU.functional()` returns `false`)."
+    if failure isa HIP.HIPError && failure.code == HIP.hipErrorNoDevice
+        msg *= " HIP reports any failed start as \"no device found\"."
+    end
+    if foreign
+        msg *= " The other ROCm reported above is the likely cause."
+    else
+        msg *= " Check that the GPUs are visible to this process (ROCR_VISIBLE_DEVICES, " *
+            "HIP_VISIBLE_DEVICES" *
+            (Sys.islinux() ? ", access to /dev/kfd and /dev/dri/renderD*" : "") * ")."
+    end
+    msg *= " Start Julia with AMD_LOG_LEVEL=3 for HIP's own log."
+    @warn msg exception=failure
+    return false
+end
+
 function __init__()
     force_emulated = parse(Bool, get(ENV, "JULIA_AMDGPU_FORCE_EMULATED_SIGNALS", "0"))
     Device.EMULATED_SIGNALS[] = force_emulated || isempty(libhsa_runtime64)
@@ -227,31 +288,16 @@ function __init__()
     end
 
     if functional(:hip)
-        HIP.devices()
+        if !init_hip!() && parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
+            Sys.islinux() && print_build_diagnostics()
+            error("Failed to initialize the HIP runtime, but HIP must load, bailing out")
+        end
     else
         @warn "HIP library is unavailable, HIP integration will be disabled."
         if parse(Bool, get(ENV, "JULIA_AMDGPU_HIP_MUST_LOAD", "0"))
             print_build_diagnostics()
             error("Failed to load HIP runtime, but HIP must load, bailing out")
         end
-    end
-
-    # Another ROCm in the environment breaks compilation in ways that surface far
-    # from the cause, so name it up front.
-    if !local_rocm && functional(:hip)
-        redirects = ROCm_Runtime.redirect_env()
-        isempty(redirects) || @warn """These variables point at another ROCm's device \
-            libraries, which will be used in preference to the ones this artifact ships. \
-            Compilation may fail or produce wrong results, and is often reported as an \
-            unrelated error. Unset them, or select the local ROCm with \
-            `AMDGPU.set_rocm_version!(; local_rocm=true)`.""" redirects
-
-        foreign = ROCm_Runtime.foreign_libraries()
-        isempty(foreign) || @warn """ROCm libraries from outside this artifact are loaded \
-            into the process, so two ROCm versions are live at once. Compilation may fail \
-            or produce wrong results, and is often reported as an unrelated error. This \
-            usually means LD_LIBRARY_PATH points at another ROCm (a module, a uenv, a \
-            container); it has to be unset before Julia starts.""" foreign
     end
 
     hiplibs = (

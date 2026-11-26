@@ -9,8 +9,10 @@ function _ver(is_functional::Bool, ver_fn; on_error = Returns(nothing))
         return "err"
     end
 end
+# No library can be queried without a HIP runtime.
 _ver(lib::Symbol, ver_fn, errors::Vector{Pair{Symbol, String}}) = _ver(
-    functional(lib), ver_fn; on_error = e -> push!(errors, lib => sprint(showerror, e)))
+    functional(:hip) && functional(lib), ver_fn;
+    on_error = e -> push!(errors, lib => sprint(showerror, e)))
 
 # Abbreviate a path inside a depot's artifact or scratchspace store to
 # `@artifacts/12345678…/lib/libfoo.so`: the depot location and the full
@@ -44,38 +46,13 @@ function versioninfo(io::IO=stdout)
         println(io, "Artifact platform tags: rocm = ", platform["rocm"],
             ", rocm_arch = ", platform["rocm_arch"])
     end
-    _status(st::Bool) = st ? "+" : "-"
-    _libpath(p::String) = isempty(p) ? "-" : _shortpath(p)
-
-    errs = Pair{Symbol, String}[]
-
-    data = String[
-        _status(functional(:lld))         "LLD"              "-"                                       _libpath(functional(:lld) ? AMDGPU_LLVM_Backend_jll.libamdgpu : "");
-        _status(functional(:device_libs)) "Device Libraries" "-"                                       _libpath(libdevice_libs);
-        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version, errs)     _libpath(libamdhip64);
-        _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version, errs)     _libpath(librocblas);
-        _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version, errs) _libpath(librocsolver);
-        _status(functional(:rocsparse))   "rocSPARSE"        _ver(:rocsparse, rocSPARSE.version, errs) _libpath(librocsparse);
-        _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version, errs)     _libpath(librocrand);
-        _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version, errs)       _libpath(librocfft);
-        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version, errs) _libpath(libhiptensor);
-        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version, errs)       _libpath(libMIOpen);
-    ]
-
-    PrettyTables.pretty_table(io, data; column_labels=[
-        "Available", "Name", "Version", "Path"],
-        alignment=[:c, :l, :l, :l])
-
-    if !isempty(errs)
-        @warn """Some installed libraries failed their version query. Check the \
-            foreign-library report below: a ROCm from the environment mixed into \
-            this process is the usual cause. See \
-            https://github.com/JuliaGPU/AMDGPU.jl/issues/920.
-            $(join(("  $lib: $msg" for (lib, msg) in errs), "\n"))"""
-    end
+    hip_error = HIP_INIT_ERROR[]
+    isnothing(hip_error) || println(io, "HIP initialization failed: ", hip_error)
 
     # Artifact-mode hygiene: what a ROCm elsewhere in the environment is doing
-    # to this process.
+    # to this process. Printed before the queries, which can crash in such a mix.
+    foreign = String[]
+    mixed = false
     if !local_rocm
         println(io)
         redirects = ROCm_Runtime.redirect_env()
@@ -88,12 +65,65 @@ function versioninfo(io::IO=stdout)
             end
         end
 
+        # loaded by the HSA runtime, they bring their own ROCm along
+        tools = get(ENV, "HSA_TOOLS_LIB", "")
+        isempty(tools) || println(io, "Tool libraries (HSA_TOOLS_LIB): ", tools)
+
         foreign = ROCm_Runtime.foreign_libraries()
         if isempty(foreign)
             println(io, "Foreign ROCm libraries loaded: none")
         else
             println(io, "Foreign ROCm libraries loaded (two ROCm versions at once):")
             for path in foreign
+                println(io, "  $path")
+            end
+        end
+        println(io)
+        flush(io)
+        mixed = !isempty(redirects) || !isempty(foreign)
+    end
+
+    _status(st::Bool) = st ? "+" : "-"
+    _libpath(p::String) = isempty(p) ? "-" : _shortpath(p)
+
+    errs = Pair{Symbol, String}[]
+    # rocSPARSE's version query creates a handle, which launches a kernel: a crash with
+    # another ROCm's device libraries
+    rocsparse_version = mixed && functional(:hip) && functional(:rocsparse) ?
+        "skipped" : _ver(:rocsparse, rocSPARSE.version, errs)
+
+    data = String[
+        _status(functional(:lld))         "LLD"              "-"                                       _libpath(functional(:lld) ? AMDGPU_LLVM_Backend_jll.libamdgpu : "");
+        _status(functional(:device_libs)) "Device Libraries" "-"                                       _libpath(libdevice_libs);
+        _status(functional(:hip))         "HIP"              _ver(:hip, HIP.runtime_version, errs)     _libpath(libamdhip64);
+        _status(functional(:rocblas))     "rocBLAS"          _ver(:rocblas, rocBLAS.version, errs)     _libpath(librocblas);
+        _status(functional(:rocsolver))   "rocSOLVER"        _ver(:rocsolver, rocSOLVER.version, errs) _libpath(librocsolver);
+        _status(functional(:rocsparse))   "rocSPARSE"        rocsparse_version                         _libpath(librocsparse);
+        _status(functional(:rocrand))     "rocRAND"          _ver(:rocrand, rocRAND.version, errs)     _libpath(librocrand);
+        _status(functional(:rocfft))      "rocFFT"           _ver(:rocfft, rocFFT.version, errs)       _libpath(librocfft);
+        _status(functional(:hiptensor))   "hipTENSOR"        _ver(:hiptensor, hipTENSOR.version, errs) _libpath(libhiptensor);
+        _status(functional(:MIOpen))      "MIOpen"           _ver(:MIOpen, MIOpen.version, errs)       _libpath(libMIOpen);
+    ]
+
+    PrettyTables.pretty_table(io, data; column_labels=[
+        "Available", "Name", "Version", "Path"],
+        alignment=[:c, :l, :l, :l])
+
+    if !isempty(errs)
+        @warn """Some installed libraries failed their version query. Check the \
+            foreign-library report above: a ROCm from the environment mixed into \
+            this process is the usual cause. See \
+            https://github.com/JuliaGPU/AMDGPU.jl/issues/920.
+            $(join(("  $lib: $msg" for (lib, msg) in errs), "\n"))"""
+    end
+
+    if !local_rocm
+        # a library loaded for its query may have pulled in more of them
+        late = setdiff(ROCm_Runtime.foreign_libraries(), foreign)
+        if !isempty(late)
+            println(io)
+            println(io, "Foreign ROCm libraries loaded by the queries above:")
+            for path in late
                 println(io, "  $path")
             end
         end
@@ -133,12 +163,16 @@ function versioninfo(io::IO=stdout)
     return
 end
 
+# The error of a failed HIP initialization at load time (see `init_hip!`), or `nothing`.
+const HIP_INIT_ERROR = Ref{Union{Nothing, String}}(nothing)
+
 """
     functional() -> Bool
 
 Returns `true` if AMDGPU is nominally functional; "functional" currently means
-that HSA, HIP, lld, and device libraries are available (although it does not
-imply that usages of these components will be successful).
+that HSA, HIP, lld, and device libraries are available and that HIP could be
+initialized (although it does not imply that usages of these components will be
+successful).
 
 Packages may use the result of this query to determine whether it is safe to:
 - Use AMDGPU to compile code
@@ -162,7 +196,8 @@ functional() = functional(:hip) && functional(:lld) && functional(:device_libs)
 Returns `true` if the ROCm component `component` is configured and expected to
 function correctly. Available `component` values are:
 
-- `:hip`         - Queries HIP library availability
+- `:hip`         - Queries HIP library availability, and whether the HIP
+                   runtime could be initialized when AMDGPU.jl was loaded
 - `:lld`         - Queries kernel linker (`libamdgpu`) availability
 - `:device_libs` - Queries ROCm device libraries availability
 - `:rocblas`     - Queries rocBLAS library availability
@@ -181,7 +216,7 @@ This query should never throw for valid `component` values.
 """
 function functional(component::Symbol)
     if component == :hip
-        return !isempty(libamdhip64)
+        return !isempty(libamdhip64) && isnothing(HIP_INIT_ERROR[])
     elseif component == :lld
         return AMDGPU_LLVM_Backend_jll.is_available()
     elseif component == :device_libs
