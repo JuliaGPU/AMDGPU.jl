@@ -102,9 +102,17 @@ steps:
        build.message !~ /\[only / && !build.pull_request.draft)
     command: |
       printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
+      # XXX: KernelInterface 0.5 isn't registered yet, so check out the branches that
+      #      [sources] points to, and develop them together with the workspace packages
+      git clone -q -b tb/sub-group-request https://github.com/JuliaGPU/KernelAbstractions.jl .ki05/KernelAbstractions
+      git clone -q -b tb/ki-0.5 https://github.com/JuliaGPU/GPUArrays.jl .ki05/GPUArrays
+      git clone -q -b tb/ki-0.5 https://github.com/JuliaGPU/AcceleratedKernels.jl .ki05/AcceleratedKernels
       julia --project -e '
         using Pkg
-        Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery")])
+        Pkg.develop([PackageSpec(path="ROCm_Runtime"), PackageSpec(path="ROCm_Runtime_Discovery"),
+                     PackageSpec(path=".ki05/KernelAbstractions"),
+                     PackageSpec(path=".ki05/KernelAbstractions/lib/KernelInterface"),
+                     PackageSpec(path=".ki05/GPUArrays"), PackageSpec(path=".ki05/AcceleratedKernels")])
         Pkg.update()'
       julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
       julia --project -e 'using Pkg; Pkg.test(; coverage=true, test_args=["--verbose"])'
