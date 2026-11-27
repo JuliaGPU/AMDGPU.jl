@@ -81,22 +81,38 @@ end
 end
 
 @testset "wavefront size" begin
-    # kernels are compiled for, and execute with, the device's wavefront size
+    # kernels are compiled for, and execute with, the device's wavefront size, the only one
+    # offered (RDNA's wave64 mode isn't, see `KI.sub_group_sizes`)
     ws = AMDGPU.HIP.wavefrontsize(AMDGPU.device())
-    @test KI.sub_group_size(backend) == ws
+    @test KI.sub_group_sizes(backend) == (ws,)
     out = AMDGPU.zeros(Int, 1)
     KI.@launch backend ki_wavefront_size_kernel(out)
     @test Array(out)[1] == ws
+    out .= 0
+    KI.@launch backend sub_group_size=ws ki_wavefront_size_kernel(out)
+    @test Array(out)[1] == ws
+
     A = AMDGPU.zeros(Int, 4)
     tt = Tuple{typeof(KI.argconvert(backend, A))}
+    # requesting the device's width compiles the same kernel as not requesting one
+    unrequested = KI.kernel_function(backend, ki_fill!, tt)
+    @test KI.kernel_function(backend, ki_fill!, tt; sub_group_size = nothing).kern.kernel.fun ===
+          unrequested.kern.kernel.fun
+    @test KI.kernel_function(backend, ki_fill!, tt; sub_group_size = ws).kern.kernel.fun ===
+          unrequested.kern.kernel.fun
+    @test_throws ArgumentError KI.kernel_function(backend, ki_fill!, tt; sub_group_size = 96 - ws)
+    @test_throws ArgumentError KI.kernel_function(backend, ki_fill!, tt; sub_group_size = 16)
+
     @test KI.kernel_function(backend, ki_fill!, tt; wavefrontsize64 = ws == 64) isa KI.Kernel
     @test_throws ArgumentError KI.kernel_function(backend, ki_fill!, tt; wavefrontsize64 = ws == 32)
+    @test_throws ArgumentError KI.kernel_function(backend, ki_fill!, tt; sub_group_size = ws,
+                                                  wavefrontsize64 = ws == 32)
 end
 
 # KernelInterface leaves the formation of sub-groups unspecified; AMD GPUs form wavefronts
 # from consecutive linear work-item indices
 @testset "partial sub-groups" begin
-    ws = KI.sub_group_size(backend)
+    ws = only(KI.sub_group_sizes(backend))
     # a (ws + 1)x2 workgroup is made up of 3 wavefronts, the last one only partially filled
     workgroupsize = (ws + 1, 2)
     n = prod(workgroupsize)
@@ -112,7 +128,7 @@ end
 end
 
 @testset "lane ids under divergence" begin
-    ws = KI.sub_group_size(backend)
+    ws = only(KI.sub_group_sizes(backend))
     lane = AMDGPU.zeros(UInt32, 2ws)
     KI.@launch backend workgroupsize=2ws ki_divergent_lane_kernel(lane)
     @test Array(lane) == [isodd(i) ? mod1(i, ws) : 0 for i in 1:2ws]

@@ -120,15 +120,25 @@ struct ROCKernel{F, K <: AMDGPU.Runtime.HIPKernel}
     kernel::K
 end
 
-function KI.kernel_function(backend::ROCBackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
-    # kernels have to execute with the device's wavefront size, which is what `hipfunction`
-    # compiles for by default
+function KI.kernel_function(backend::ROCBackend, f::F, tt::TT=Tuple{};
+                            name=nothing, sub_group_size=nothing, kwargs...) where {F,TT}
+    # kernels are compiled for the device's wavefront size, the only one `KI.sub_group_sizes`
+    # offers, which is what `hipfunction` compiles for by default. requesting it is checked,
+    # but not passed on, so that it shares the compiled kernel of an unrequested one.
     ws = HIP.wavefrontsize(AMDGPU.device())
+    sub_group_size === nothing || check_sub_group_size(backend, sub_group_size)
     if haskey(kwargs, :wavefrontsize64) && kwargs[:wavefrontsize64] != (ws == 64)
         throw(ArgumentError("`wavefrontsize64=$(kwargs[:wavefrontsize64])` conflicts with the wavefront size of the device, $ws"))
     end
     kernel = hipfunction(rocconvert(f), tt; name, kwargs...)
     return KI.Kernel(backend, ROCKernel(f, kernel))
+end
+
+@noinline function check_sub_group_size(backend::ROCBackend, width)
+    sizes = KI.sub_group_sizes(backend)
+    width in sizes ||
+        throw(ArgumentError("Sub-group size $(repr(width)) is not supported by this device, which supports $sizes"))
+    return
 end
 
 function KI.launch(obj::KI.Kernel{ROCBackend}, groups::Dims{3}, items::Dims{3},
@@ -179,10 +189,10 @@ function KI.max_num_groups(backend::ROCBackend)::NTuple{3, Int}
         Int(min(_max_launch_groups[d], Device._max_groups[d], Device._max_grid_size[d] ÷ dims[d]))
     end
 end
-# `KI.kernel_function` compiles for the device's wavefront size
-function KI.sub_group_size(::ROCBackend)::Int
-    Int(HIP.wavefrontsize(AMDGPU.device()))
-end
+# Only the device's wavefront size: RDNA GPUs (gfx10+) can also run kernels in wave64 mode
+# (`wavefrontsize64 = true`), but there `ds_bpermute`, which the shuffles use, only permutes
+# within halves of 32 lanes.
+KI.sub_group_sizes(::ROCBackend)::Tuple{Vararg{Int}} = (Int(HIP.wavefrontsize(AMDGPU.device())),)
 function KI.multiprocessor_count(::ROCBackend)::Int
     Int(HIP.attribute(AMDGPU.device(), HIP.hipDeviceAttributeMultiprocessorCount))
 end

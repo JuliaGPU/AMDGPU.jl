@@ -1,6 +1,6 @@
 name = "AMDGPU"
 uuid = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-version = "2.13.1"
+version = "2.14.0"
 authors = ["Julian P Samaroo <jpsamaroo@jpsamaroo.me>", "Valentin Churavy <v.churavy@gmail.com>", "Anton Smirnov <tonysmn97@gmail.com>"]
 
 [workspace]
@@ -65,7 +65,7 @@ GPUArrays = "12.1"
 GPUCompiler = "2.24"
 GPUToolbox = "3.7"
 KernelAbstractions = "0.10"
-KernelInterface = "0.4"
+KernelInterface = "0.5"
 LLVM = "10"
 LLVMDowngrader_jll = "0.12"
 Libdl = "1"
