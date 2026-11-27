@@ -204,6 +204,8 @@ function init_hip!(enumerate_devices = HIP.devices)
 end
 
 function __init__()
+    empty!(Compiler.rocm_libraries)
+
     force_emulated = parse(Bool, get(ENV, "JULIA_AMDGPU_FORCE_EMULATED_SIGNALS", "0"))
     Device.EMULATED_SIGNALS[] = force_emulated || isempty(libhsa_runtime64)
 

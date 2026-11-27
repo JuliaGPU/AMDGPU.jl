@@ -30,3 +30,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 [sources]
 AMDGPU = {path = ".."}
 ROCm_Runtime_Discovery = {path = "../ROCm_Runtime_Discovery"}
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "tb/device-libraries"}

@@ -74,7 +74,15 @@ steps:
       (build.message =~ /\[only [^\]]*(tests|julia)/ || build.message !~ /\[only /)
     command: |
       printf '[ROCm_Runtime]\nlocal = false\n' > LocalPreferences.toml
-      julia --project -e 'using Pkg; Pkg.update()'
+      julia --project -e '
+        using Pkg, TOML
+        if VERSION < v"1.11"
+          for (name, source) in TOML.parsefile("Project.toml")["sources"]
+            haskey(source, "url") || continue
+            Pkg.add(PackageSpec(; name, url=source["url"], rev=get(source, "rev", nothing)))
+          end
+        end
+        Pkg.update()'
       julia --project -e 'using AMDGPU; AMDGPU.local_rocm && error("this step selected the ROCm artifacts, but AMDGPU resolved to a local ROCm")'
     timeout_in_minutes: 90
     env:
